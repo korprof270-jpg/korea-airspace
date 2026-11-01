@@ -2,7 +2,7 @@
 // V-World는 브라우저 CORS를 허용하지 않는 경우가 많아 JSONP(callback)로 호출합니다.
 window.VWorld = (function () {
   const BASE = "https://api.vworld.kr/req";
-  const CACHE_KEY = "vworldZones";
+  const CACHE_KEY = "vworldZones-v2";
   const CACHE_MS = 24 * 60 * 60 * 1000;
 
   // 공역 관련 레이어 (데이터 API 이름 / 속성 접두어)
@@ -104,22 +104,53 @@ window.VWorld = (function () {
     if (!polys) return null;
 
     const p = f.properties || {};
-    const name = featureName(p, layer.prefix) || layer.label;
+    let name = featureName(p, layer.prefix) || layer.label;
+    let short = name;
+    let us = false;
+    if (layer.type === "control") {
+      const a = airfieldInfo(name);
+      if (a) {
+        us = a.us;
+        short = `${a.ko}${us ? " (미군)" : ""}`;
+        name = `${a.ko}${a.area ? " " + a.area : ""} 관제권${us ? " (미군)" : ""}`;
+      }
+    }
     const alts = [p[`${layer.prefix}_lbl_2`], p[`${layer.prefix}_lbl_3`]].filter(Boolean);
     if (alts.length === 2 && /GND|SFC/i.test(alts[1])) alts.reverse();
     const notes = [];
+    if (us) notes.push("미군 관할 비행장 — 승인 시 미군 측 협조가 필요해 처리가 오래 걸릴 수 있음");
     if (layer.label !== TYPE_LABELS[layer.type]) notes.push(layer.label);
     if (alts.length) notes.push(`고도 ${alts.join(" ~ ")}`);
     if (p[`${layer.prefix}_lbl_4`]) notes.push(p[`${layer.prefix}_lbl_4`]);
 
     return {
-      id: `${layer.data}-${i}`, name, short: name, type: layer.type,
+      id: `${layer.data}-${i}`, name, short, us, type: layer.type,
       outer: layer.prefix === "prh" && p.prh_typ === "2",
       shape: "multipolygon", polys, note: notes.join(" · "),
     };
   }
 
   const TYPE_LABELS = { prohibited: "비행금지구역", restricted: "비행제한구역", control: "관제권" };
+
+  // 관제권 영문 이름 → 한글 이름 (us: 미군 관할 비행장)
+  const AIRFIELDS = {
+    INCHEON: "인천", GIMPO: "김포", JEJU: "제주", GIMHAE: "김해", CHEONGJU: "청주", YANGYANG: "양양",
+    DAEGU: "대구", GWANGJU: "광주", YEOSU: "여수", WONJU: "원주", SACHEON: "사천", ULSAN: "울산",
+    POHANG: "포항", JEONGSEOK: "정석", MUAN: "무안", ULJIN: "울진", SOKCHO: "속초", SOCKCHO: "속초",
+    JUNGWON: "중원(충주)", YECHEON: "예천", SEONGMU: "성무(청주)", HAEMI: "해미(서산)", GANGNEUNG: "강릉",
+    SUWON: "수원", ICHEON: "이천", NONSAN: "논산", JINHAE: "진해", MOKPO: "목포", SEOUL: "서울공항(성남)",
+    OSAN: { ko: "오산 공군기지", us: true },
+    PYEONGTAEK: { ko: "평택 캠프 험프리스", us: true },
+    GUNSAN: { ko: "군산 공군기지", us: true },
+  };
+
+  function airfieldInfo(name) {
+    const key = name.split(/\s+/)[0].toUpperCase();
+    const a = AIRFIELDS[key];
+    if (!a) return null;
+    const info = typeof a === "string" ? { ko: a, us: false } : a;
+    return { ...info, area: name.replace(/^\S+\s*/, "").replace(/CTLZ/, "").replace(/TCA AREA/, "TCA").trim() };
+  }
 
   function featureName(p, prefix) {
     let n = p[`${prefix}_lbl_1`];

@@ -1,5 +1,5 @@
 // 앱 셸 캐시 (오프라인에서도 내장 공역 지도/판정 동작)
-const CACHE = "airspace-v3";
+const CACHE = "airspace-v4";
 const SHELL = [
   "./", "index.html", "styles.css", "manifest.webmanifest",
   "data/zones.js", "js/geo.js", "js/vworld.js", "js/app.js",

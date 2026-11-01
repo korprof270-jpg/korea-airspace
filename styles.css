@@ -98,6 +98,10 @@ body {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
 }
 .labels-hidden .zone-label { display: none; }
+.zone-label.us { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+.tag-us { background: #1e3a8a; color: #fff; }
+.legend-note .tag-us { margin-right: 0; }
+.legend .legend-note:has(.tag-us) { padding-left: 2px; }
 
 .sheet {
   position: absolute; z-index: 1100; left: 0; right: 0; bottom: 0;

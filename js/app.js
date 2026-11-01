@@ -74,7 +74,7 @@
       const at = z.shape === "circle" ? [z.center[0] + z.radius / 111320, z.center[1]] : shape.getBounds().getCenter();
       typeLayers[z.type].addLayer(L.marker(at, {
         interactive: false, keyboard: false,
-        icon: L.divIcon({ className: "zone-label-wrap", iconSize: null, html: `<span class="zone-label" style="--c:${t.color}">${escapeHtml(shortName(z))}</span>` }),
+        icon: L.divIcon({ className: "zone-label-wrap", iconSize: null, html: `<span class="zone-label${z.us ? " us" : ""}" style="--c:${t.color}">${escapeHtml(shortName(z))}</span>` }),
       }));
     }
   }
@@ -108,7 +108,8 @@
     legend.appendChild(row);
   }
   legend.insertAdjacentHTML("beforeend",
-    `<div class="legend-note"><span class="sw sw-outer"></span>원전 외곽(B구역)</div><div class="legend-source" id="legend-source"></div>`);
+    `<div class="legend-note"><span class="sw sw-outer"></span>원전 외곽(B구역)</div>` +
+    `<div class="legend-note"><span class="tag tag-us">미군</span>미군 관할 비행장</div><div class="legend-source" id="legend-source"></div>`);
   function updateSourceLabel(text) {
     $("legend-source").textContent = text || (source.official ? "데이터: V-World 공식" : "데이터: 내장 개략치");
   }
@@ -216,8 +217,11 @@
     const point = [lat, lng];
     if (marker) marker.setLatLng(point); else marker = L.marker(point).addTo(map);
 
-    const hits = Geo.check(point, activeZones);
-    highlightZones(hits.map((z) => z.id));
+    const allHits = Geo.check(point, activeZones);
+    highlightZones(allHits.map((z) => z.id));
+    // 공식 데이터에 같은 공역이 중복 등록된 경우가 있어 이름 기준으로 하나만 표시
+    const seen = new Set();
+    const hits = allHits.filter((z) => !seen.has(z.type + z.name) && seen.add(z.type + z.name));
     const state = { lat, lng, label: label || "주소 확인 중…", hits, nearby: nearbyZones(point, hits) };
     render(state);
 
@@ -256,7 +260,7 @@
       html += `<ul class="zone-list">`;
       for (const h of s.hits) {
         const t = TYPES[h.type];
-        html += `<li><span class="tag" style="background:${t.color}">${t.label}</span><b>${escapeHtml(h.name)}</b>`;
+        html += `<li><span class="tag" style="background:${t.color}">${t.label}</span>${h.us ? `<span class="tag tag-us">미군</span>` : ""}<b>${escapeHtml(h.name)}</b>`;
         if (h.note) html += `<small>${escapeHtml(h.note)}</small>`;
         html += `</li>`;
       }
