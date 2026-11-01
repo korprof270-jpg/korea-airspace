@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="드론공역" />
+  <title>드론 공역 지도</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <form id="search-form" class="search" autocomplete="off">
+      <input id="search-input" type="search" placeholder="주소 또는 장소 입력 (예: 서울 여의도공원)" enterkeyhint="search" />
+      <button type="submit" aria-label="검색">검색</button>
+    </form>
+    <ul id="search-results" class="search-results" hidden></ul>
+  </header>
+
+  <main id="map" aria-label="공역 지도"></main>
+
+  <div class="map-buttons">
+    <button id="btn-locate" title="내 위치 확인">◎</button>
+    <button id="btn-settings" title="설정">⚙</button>
+  </div>
+
+  <aside class="legend" id="legend" aria-label="범례"></aside>
+
+  <section id="result" class="sheet" hidden>
+    <button class="sheet-close" id="result-close" aria-label="닫기">×</button>
+    <div id="result-body"></div>
+  </section>
+
+  <dialog id="settings">
+    <form method="dialog" class="settings-form">
+      <h2>설정</h2>
+      <label>V-World API 키 (선택)
+        <input id="vworld-key" type="text" placeholder="발급받은 인증키" />
+      </label>
+      <p class="hint">
+        키를 입력하면 지도 표시·공역 판정·주소 검색에 국토교통부 V-World <b>공식 공역 데이터</b>를 사용합니다.
+        비워 두면 내장 개략 데이터를 사용합니다.
+        <a href="https://www.vworld.kr/dev/v4dv_apikey_s001.do" target="_blank" rel="noopener">키 발급</a>
+        (서비스 URL에 이 앱 주소를 등록해야 합니다)
+      </p>
+      <menu>
+        <button value="cancel">취소</button>
+        <button id="settings-save" value="save" class="primary">저장</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="data/zones.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/vworld.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

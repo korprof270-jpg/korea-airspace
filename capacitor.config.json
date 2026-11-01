@@ -1,0 +1,6 @@
+{
+  "appId": "kr.airspace.droneMap",
+  "appName": "드론 공역 지도",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}

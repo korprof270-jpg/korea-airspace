@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">드론 공역 지도</string>
+    <string name="title_activity_main">드론 공역 지도</string>
+    <string name="package_name">kr.airspace.droneMap</string>
+    <string name="custom_url_scheme">kr.airspace.droneMap</string>
+</resources>
