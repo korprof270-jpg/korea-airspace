@@ -151,7 +151,7 @@ export class Hud {
     this.text("THR", W / 2, by - 4 * u, { size: 10, align: "center", color: "#9fb4c8", bold: false });
 
     // 스틱 표시
-    if (settings.showSticks && !touch) {
+    if (settings.hud.sticks && !touch) {
       const s = inp.sticks, sz = 62 * u, y0 = H - sz - 18 * u;
       for (const [i, sx, sy] of [[0, s.lx, s.ly], [1, s.rx, s.ry]]) {
         const x0 = 18 * u + i * (sz + 12 * u);

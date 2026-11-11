@@ -4,6 +4,7 @@ import { settings, FLIGHT_MODES, FLIGHT_MODE_INFO } from "./config.js";
 import { World } from "./world.js";
 import { Player, CAMERA_NAMES } from "./player.js";
 import { FX } from "./fx.js";
+import { Feel } from "./feel.js";
 import { MAPS } from "./maps/index.js";
 import { RaceMode } from "./modes/race.js";
 import { TrackingMode } from "./modes/tracking.js";
@@ -22,6 +23,8 @@ export class Session {
     this.world = new World(this.map, settings.quality, game.renderer);
     this.camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.05, 4000);
     this.fx = new FX(this.world.scene);
+    this.feel = new Feel(this);
+    game.sound.onPlay = (name, vol) => this.feel.onSound(name, vol);
     this.player = new Player(this);
     this.time = 0;
     this.result = null;
@@ -52,6 +55,7 @@ export class Session {
     mode.update(dt);
     this.world.update(dt);
     pl.updateCamera(dt, this.camera);
+    this.feel.update(dt, this.camera);
     if (this.debugCam) { this.camera.position.fromArray(this.debugCam.pos); this.camera.lookAt(...this.debugCam.look); this.camera.fov = this.debugCam.fov || 60; this.camera.updateProjectionMatrix(); }
     this.camera.updateMatrixWorld();
     this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
@@ -69,6 +73,7 @@ export class Session {
     this.game.draw(this.world.scene, this.camera, this.world.bloom, this.world.exposure);
     const h = this.hud;
     h.clear();
+    this.feel.draw(h);
     h.drawFlight(this, this.game.dt);
     this.mode.hud(h);
     h.drawToasts(this.game.dt);
@@ -85,6 +90,8 @@ export class Session {
     this.mode.dispose();
     this.player.dispose();
     this.fx.dispose();
+    this.feel.dispose();
+    this.game.sound.onPlay = null;
     this.world.dispose();
     this.game.sound.motor(0, 0, false);
   }

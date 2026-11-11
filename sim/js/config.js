@@ -76,7 +76,10 @@ export const DEFAULTS = {
   quality: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "low" : "med", // low | med | high
   volume: 0.6,
   difficulty: "normal",
-  showSticks: true,
+  // HUD 표시 항목 (설정에서 켜고 끔)
+  hud: { sticks: true, speed: true, altitude: true, distance: true, mode: true, horizon: true, compass: true, radar: true, gateArrow: true },
+  // 화면 효과: 흔들림 세기(0~1.5), 색 번쩍임 세기(0~1), 진동(게임패드·모바일)
+  fx: { shake: 1, flash: 1, rumble: true },
   crashAssist: true,        // 가벼운 접촉은 튕겨내고 계속 비행
   drone: {
     cls: "freestyle",

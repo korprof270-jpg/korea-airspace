@@ -311,7 +311,7 @@ export class UI {
           <div class="hint">비행 중 <kbd>C</kbd> 키로 1인칭 ↔ 3인칭 ↔ 지상 시점을 바로 전환할 수 있습니다.</div></div>
         ${this.range("camTilt", "FPV 카메라 각도", 0, 60, 1, "°", "빠르게 전진할수록 각도를 높이면 앞이 잘 보입니다. 레이싱 30~45°, 촬영 10~20° 추천")}
         ${this.range("fov", "시야각 (FOV)", 60, 130, 1, "°")}
-        ${this.toggle("showSticks", "스틱 위치 표시")}`;
+        ${this.toggle("hud.sticks", "스틱 위치 표시")}`;
     } else if (t === "input") {
       const ax = settings.gamepad.axes;
       const n = Math.max(4, this.game.input.padAxes.length);

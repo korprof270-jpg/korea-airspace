@@ -2,6 +2,7 @@
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
 import { submitRecord, records, fmtTime } from "../config.js";
+import { drawCombatHud } from "../combathud.js";
 
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
@@ -163,7 +164,7 @@ export class SurvivalMode extends CombatMode {
 
   hud(h) {
     const u = h.u, W = h.W, s = this.s, c = this.combat, me = this.me;
-    c.hud(h);
+    drawCombatHud(c, h);
     this.hudCountdown(h);
     h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
     const left = Math.max(0, this.duration - this.time);

@@ -80,6 +80,7 @@ export class Sound {
 
   // vol: 거리 감쇠 등 상대 음량(0..1)
   play(name, vol = 1) {
+    if (this.onPlay) this.onPlay(name, vol);
     if (!this.ok || vol <= 0.02) return;
     switch (name) {
       case "laser": this._tone("sawtooth", 1500, 320, 0.11, 0.09 * vol); break;

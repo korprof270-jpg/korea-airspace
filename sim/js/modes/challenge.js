@@ -3,6 +3,7 @@ import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
 import { PathMover, makeTruck } from "../entities.js";
 import { submitRecord, fmtTime, clamp } from "../config.js";
+import { drawCombatHud } from "../combathud.js";
 
 export const MISSIONS = [
   { id: "waves", name: "기지 방어", icon: "🛡", map: "canyon", level: 1, desc: "다섯 차례 몰려오는 적 드론 편대로부터 아군 코어를 지켜내세요" },
@@ -94,7 +95,7 @@ export class ChallengeMode extends CombatMode {
 
   hud(h) {
     const u = h.u, W = h.W;
-    this.combat.hud(h, { radarRange: 200 });
+    drawCombatHud(this.combat, h, { radarRange: 200 });
     this.hudCountdown(h);
     h.text(this.def.name, 18 * u, 30 * u, { size: 18 });
     h.text(this.objective, 18 * u, 52 * u, { size: 14, color: "#ffd24a" });
