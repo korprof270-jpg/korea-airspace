@@ -1,6 +1,7 @@
 // 메뉴 UI: 메인 · 모드 설정 · 정비소(외형) · 설정 · 조작법 · 일시정지 · 결과
 import {
   settings, save, records, resetSettings, fmtTime, DRONE_CLASSES, RATE_PRESETS, FLIGHT_MODES, FLIGHT_MODE_INFO, STICK_MODES, DIFFICULTY,
+  HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset,
 } from "./config.js";
 import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
@@ -41,6 +42,8 @@ export class UI {
     this.root.addEventListener("input", (e) => this._input(e.target));
     this.root.addEventListener("change", (e) => this._input(e.target, true));
     addEventListener("keydown", (e) => {
+      // 비행 중 H: HUD 표시 수준 전환(전체 → 최소 → 끄기). 실제 전환은 HUD 가 입력 큐에서 꺼내 처리
+      if (e.code === "KeyH" && !e.repeat && this.game.state === "play" && !(e.target instanceof HTMLInputElement)) { this.game.input.queue.push("hud"); return; }
       if (e.code !== "Escape" || !this.screen) return;
       if (["setup", "hangar", "settings", "help"].includes(this.screen)) this.a_back();
     });
@@ -97,6 +100,16 @@ export class UI {
   }
   toggle(path, label, hint = "") {
     return `<div class="opt"><label>${label}</label>${this.seg(path, [[true, "켜기"], [false, "끄기"]], getPath(settings, path), "set")}${hint ? `<div class="hint">${hint}</div>` : ""}</div>`;
+  }
+  // 0~1 값을 % 로 보여 주는 슬라이더
+  pct(path, label, min, max, step, hint = "") {
+    const v = getPath(settings, path);
+    return `<div class="opt"><label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-set="${path}" data-pct="1"><output>${Math.round(v * 100)}%</output>${hint ? `<div class="hint">${hint}</div>` : ""}</div>`;
+  }
+  // 켜고 끄는 스위치 카드 (누르면 반전)
+  sw(path, label, hint = "") {
+    const on = !!getPath(settings, path);
+    return `<button class="sw ${on ? "on" : ""}" data-a="flip" data-k="${path}" aria-pressed="${on}"><span class="knob"></span><span class="tx"><b>${label}</b>${hint ? `<i>${hint}</i>` : ""}</span></button>`;
   }
 
   // ── 메인 ──
@@ -229,7 +242,7 @@ export class UI {
     const val = el.type === "checkbox" ? el.checked : typeof cur === "number" ? +el.value : el.value;
     setPath(settings, path, val);
     const out = el.parentElement.querySelector("output");
-    if (out) out.textContent = `${el.value}${el.dataset.unit || ""}`;
+    if (out) out.textContent = el.dataset.pct ? `${Math.round(el.value * 100)}%` : `${el.value}${el.dataset.unit || ""}`;
     if (path.startsWith("rates.")) settings.ratePreset = "custom";
     this._applied(path);
     if (commit || el.type !== "range") save();
@@ -282,7 +295,7 @@ export class UI {
   // ── 설정 ──
   s_settings() {
     const t = this.tab;
-    const tabs = [["control", "조종"], ["camera", "시점"], ["input", "입력장치"], ["etc", "그래픽·사운드"]];
+    const tabs = [["control", "조종"], ["camera", "시점"], ["hud", "HUD·효과"], ["input", "입력장치"], ["etc", "그래픽·사운드"]];
     let body = "";
     if (t === "control") {
       const sm = STICK_MODES[settings.stickMode];
@@ -311,7 +324,22 @@ export class UI {
           <div class="hint">비행 중 <kbd>C</kbd> 키로 1인칭 ↔ 3인칭 ↔ 지상 시점을 바로 전환할 수 있습니다.</div></div>
         ${this.range("camTilt", "FPV 카메라 각도", 0, 60, 1, "°", "빠르게 전진할수록 각도를 높이면 앞이 잘 보입니다. 레이싱 30~45°, 촬영 10~20° 추천")}
         ${this.range("fov", "시야각 (FOV)", 60, 130, 1, "°")}
-        ${this.toggle("hud.sticks", "스틱 위치 표시")}`;
+        <div class="opt"><label>계기 표시</label><button class="ghost" data-a="tab" data-v="hud">HUD 설정 열기 →</button></div>`;
+    } else if (t === "hud") {
+      const h = settings.hud;
+      body = `
+        <div class="opt"><label>표시 수준</label>${this.seg("hud.density", HUD_DENSITY.map((k) => [k, HUD_DENSITY_NAMES[k]]), h.density, "set")}
+          <div class="hint"><b>전체</b>: 아래에서 켠 계기를 모두 표시 · <b>최소</b>: 시계·점수·조준선·목표 안내만 · <b>끄기</b>: 화면을 비움. 비행 중 <kbd>H</kbd> 키(터치: HUD 버튼)로 바로 전환됩니다.</div></div>
+        <div class="opt"><label>한 번에 설정</label><div class="chips">${Object.entries(HUD_PRESETS).map(([k, v]) => `<button class="chip" data-a="hudpreset" data-v="${k}">${v.name}</button>`).join("")}</div></div>
+        <h3>계기별 표시</h3>
+        <div class="switches">${HUD_ITEMS.map(([k, label, hint]) => this.sw(`hud.${k}`, label, hint)).join("")}</div>
+        <h3>모양</h3>
+        ${this.pct("hud.scale", "HUD 크기", 0.8, 1.3, 0.05)}
+        ${this.pct("hud.opacity", "HUD 불투명도", 0.3, 1, 0.05)}
+        <h3>화면 효과</h3>
+        ${this.pct("fx.shake", "화면 흔들림", 0, 1.5, 0.05, "충돌·피격·발사 때 화면이 흔들리는 세기. 0% 는 끄기")}
+        ${this.pct("fx.flash", "색 번쩍임", 0, 1, 0.05, "피격·명중·부스트 때 화면 색 효과의 세기. 번쩍임에 민감하면 낮추세요")}
+        ${this.toggle("fx.rumble", "진동", "게임패드·모바일 기기의 진동 (지원 기기만)")}`;
     } else if (t === "input") {
       const ax = settings.gamepad.axes;
       const n = Math.max(4, this.game.input.padAxes.length);
@@ -341,6 +369,14 @@ export class UI {
     </div></div>`;
   }
   a_tab(v) { this.tab = v; this.show("settings"); }
+  a_flip(v, el) {
+    const path = el.dataset.k;
+    setPath(settings, path, !getPath(settings, path));
+    save();
+    this.redraw();
+  }
+  a_hudpreset(v) { applyHudPreset(v); this.redraw(); }
+  a_hud() { this.tab = "hud"; this.show("settings"); }
   a_rate(v) {
     settings.ratePreset = v;
     settings.rates = structuredClone(RATE_PRESETS[v]);
@@ -367,12 +403,14 @@ export class UI {
         <tr><td><kbd>F</kbd></td><td>미사일 발사 — 적을 조준선 근처에 두면 자동 락온</td></tr>
         <tr><td><kbd>E</kbd></td><td>보관 중인 아이템 사용 (실드·부스트·과충전·EMP)</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>점수판 보기 (전투 모드)</td></tr>
+        <tr><td><kbd>H</kbd></td><td>HUD 표시 수준 전환: 전체 → 최소 → 끄기 <span class="muted">(계기별 표시는 설정 &gt; HUD·효과)</span></td></tr>
         <tr><td><kbd>Esc</kbd> / <kbd>P</kbd></td><td>일시정지</td></tr>
       </table>
       <p class="muted" style="font-size:13px;line-height:1.6">
         <b>게임패드</b>: 스틱 2개 = 좌/우 스틱, RB/RT 레이저, LB/LT 미사일, A 아이템, B 리셋, X 시점, Y 비행 모드, Start 일시정지.<br>
         <b>RC 조종기</b>: USB 조이스틱 모드로 연결 → 설정 &gt; 입력장치에서 축을 지정하고, 스로틀이 고정식이면 “스로틀 중앙 = 호버”를 끄세요.<br>
-        <b>모바일</b>: 화면 왼쪽/오른쪽을 누르면 가상 스틱이 나타납니다.<br>
+        <b>모바일</b>: 화면 왼쪽/오른쪽을 누르면 가상 스틱이 나타납니다. 위쪽 HUD 버튼으로 계기 표시 수준을 바꿉니다.<br>
+        <b>게이트 안내</b>: 레이싱에서는 다음 게이트까지 초록 화살표가 흐르고 게이트 위에 빛기둥이 섭니다. 게이트가 화면 밖이면 중앙의 큰 화살표가 방향과 거리를 알려 줍니다.<br>
         <b>처음이라면</b>: ANGLE 또는 LOITER 모드 + 3인칭 시점으로 시작해 보세요. 익숙해지면 ACRO + 1인칭이 가장 자유롭습니다.</p></div>
     </div></div>`;
   }
@@ -385,9 +423,11 @@ export class UI {
       <div class="opt" style="justify-content:center">${this.seg("flightMode", FLIGHT_MODES.map((m) => [m, FLIGHT_MODE_INFO[m].label]), s ? s.player.flightMode : settings.flightMode, "pfm")}</div>
       <div class="opt" style="justify-content:center">${this.seg("camera", Object.entries(CAMERA_NAMES), s ? s.player.camMode : settings.camera, "pcam")}</div>
       <div class="opt" style="justify-content:center">${this.seg("stickMode", [[1, "MODE 1"], [2, "MODE 2"], [3, "MODE 3"], [4, "MODE 4"]], settings.stickMode, "set")}</div>
+      <div class="opt" style="justify-content:center"><span class="lbl">HUD</span>${this.seg("hud.density", HUD_DENSITY.map((k) => [k, HUD_DENSITY_NAMES[k]]), settings.hud.density, "set")}</div>
       <div class="list">
         <button class="primary" data-a="resume">계속하기</button>
         <button data-a="restart">다시 시작</button>
+        <button data-a="hud">HUD·효과 설정</button>
         <button data-a="go" data-v="settings">설정</button>
         <button data-a="go" data-v="help">조작법</button>
         <button data-a="quit">메인 메뉴로</button>

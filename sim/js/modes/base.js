@@ -69,12 +69,19 @@ export class Mode {
 
   onGo() {}
 
-  // 카운트다운 숫자
+  // HUD 에 알려 줄 현재 목표(거리계·나침반·레이더가 사용): { pos: Vector3, label, color, dist?, pill? } 또는 null
+  hudObjective() { return null; }
+
+  // 카운트다운 숫자 (숫자가 바뀔 때마다 튀어나오듯)
   hudCountdown(h) {
     if (this.state !== "countdown") return;
-    const n = Math.ceil(this.count);
-    if (n >= 1 && n <= 3) h.text(String(n), h.W / 2, h.H * 0.42, { size: 96, align: "center", color: "#ffd24a" });
-    else if (n > 3) h.text("준비", h.W / 2, h.H * 0.42, { size: 46, align: "center", color: "#fff" });
+    const n = Math.ceil(this.count), g = h.g;
+    if (n >= 1 && n <= 3) {
+      const f = n - this.count, sc = 1 + Math.max(0, 0.22 - f) * 2.6;
+      g.save(); g.translate(h.W / 2, h.H * 0.4); g.scale(sc, sc);
+      h.text(String(n), 0, 0, { size: 104, align: "center", base: "middle", color: n === 1 ? "#ff8a2a" : "#ffd24a" });
+      g.restore();
+    } else if (n > 3) h.text("준비", h.W / 2, h.H * 0.4, { size: 46, align: "center", base: "middle", color: "#fff" });
   }
 
   hud() {}

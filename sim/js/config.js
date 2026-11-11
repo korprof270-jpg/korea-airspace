@@ -50,6 +50,37 @@ export const RATE_PRESETS = {
   freestyle: { name: "프리스타일", rp: { center: 180, max: 900, expo: 0.6 }, yaw: { center: 160, max: 700, expo: 0.45 } },
 };
 
+// HUD 표시 수준과 개별 계기 목록 (설정 화면·HUD 가 함께 사용)
+export const HUD_DENSITY = ["full", "minimal", "off"];
+export const HUD_DENSITY_NAMES = { full: "전체", minimal: "최소", off: "끄기" };
+export const HUD_ITEMS = [
+  ["sticks", "스틱 움직임", "좌·우 스틱 위치와 궤적"],
+  ["speed", "속도계", "왼쪽 속도 테이프 (km/h)"],
+  ["altitude", "고도계", "오른쪽 고도 테이프와 상승·하강률"],
+  ["distance", "목표 거리", "다음 게이트·피사체·표적까지 거리"],
+  ["mode", "비행 모드", "ACRO·ANGLE 등 현재 모드 배지"],
+  ["throttle", "스로틀 게이지", "현재 추력 막대"],
+  ["horizon", "수평선·자세", "피치 사다리와 기울기 표시"],
+  ["compass", "나침반", "기수 방위와 목표 방향"],
+  ["radar", "레이더", "전투 모드의 주변 적·아군·아이템"],
+  ["gateArrow", "게이트 방향 안내", "다음 게이트 쪽을 가리키는 화살표"],
+  ["guideLine", "코스 안내선", "다음 게이트까지 흐르는 화살표와 표지 빛기둥"],
+];
+// 한 번에 바꾸는 HUD 프리셋
+export const HUD_PRESETS = {
+  all: { name: "모두 켜기", on: null },
+  race: { name: "레이싱", on: ["speed", "distance", "mode", "throttle", "compass", "gateArrow", "guideLine"] },
+  cine: { name: "촬영", on: ["distance", "horizon"] },
+  none: { name: "모두 끄기", on: [] },
+};
+export function applyHudPreset(id) {
+  const p = HUD_PRESETS[id];
+  if (!p) return;
+  for (const [k] of HUD_ITEMS) settings.hud[k] = p.on ? p.on.includes(k) : true;
+  settings.hud.density = "full";
+  save();
+}
+
 export const DIFFICULTY = {
   easy: { name: "쉬움", bot: 0.6, aim: 0.35, dmg: 0.6 },
   normal: { name: "보통", bot: 0.8, aim: 0.6, dmg: 1.0 },
@@ -76,8 +107,11 @@ export const DEFAULTS = {
   quality: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "low" : "med", // low | med | high
   volume: 0.6,
   difficulty: "normal",
-  // HUD 표시 항목 (설정에서 켜고 끔)
-  hud: { sticks: true, speed: true, altitude: true, distance: true, mode: true, horizon: true, compass: true, radar: true, gateArrow: true },
+  // HUD 표시 항목 (설정에서 켜고 끔). density: full | minimal | off, opacity 0.3~1, scale 0.8~1.3
+  hud: {
+    sticks: true, speed: true, altitude: true, distance: true, mode: true, horizon: true, compass: true, radar: true, gateArrow: true,
+    throttle: true, guideLine: true, density: "full", opacity: 1, scale: 1,
+  },
   // 화면 효과: 흔들림 세기(0~1.5), 색 번쩍임 세기(0~1), 진동(게임패드·모바일)
   fx: { shake: 1, flash: 1, rumble: true },
   crashAssist: true,        // 가벼운 접촉은 튕겨내고 계속 비행

@@ -44,6 +44,18 @@ export class CombatMode extends Mode {
 
   dispose() { if (this.cargo) this.cargo.dispose(); this.combat.dispose(); }
 
+  // HUD 목표: 조준·락온 중인 적이 우선, 없으면 임무 목표(각 모드의 missionObjective)
+  hudObjective() {
+    const c = this.combat, me = this.me;
+    if (!c || !me || !me.alive || this.state === "done") return null;
+    const o = this._ob || (this._ob = { pos: null, label: "", color: "", pill: true });
+    const t = c.aim || (c.lock && c.lockT > 0.12 ? c.lock : null);
+    if (t && t.alive) { o.pos = t.pos; o.label = t.name || "표적"; o.color = c.aim ? "#ff6a5a" : "#ffd24a"; return o; }
+    return this.missionObjective(o);
+  }
+  // o 에 { pos, label, color } 를 채워 돌려준다. 없으면 null
+  missionObjective() { return null; }
+
   // 팀 기지: 코어 + 주변 포탑 n개
   buildBase(x, z, team, turrets = 3, coreHp = 700) {
     const c = this.combat, core = c.spawnCore(x, z, team, { hp: coreHp, name: team === 0 ? "아군 코어" : "적 코어" });

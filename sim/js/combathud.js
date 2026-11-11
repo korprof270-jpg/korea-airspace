@@ -1,119 +1,250 @@
-// 전투 HUD: 조준선·락온·적/아군 표시·체력/무장·레이더·점수판 (전투 상태는 combat.js 가 관리)
+// 전투 HUD: 조준선·락온·명중 표시·피격 방향·적/아군 표시·체력/무장·레이더·점수판 (전투 상태는 combat.js 가 관리)
+// 화면 전체 색 효과(피격 번쩍임 등)는 feel.js 담당 — 여기서는 계기 요소만 그린다
 import * as THREE from "../vendor/three.module.min.js";
 import { ITEMS, TEAM_CSS } from "./combat.js";
-import { settings } from "./config.js";
+import { clamp } from "./config.js";
+import { HC, INK } from "./hud.js";
 
 const _a = new THREE.Vector3();
 const _s = {};
+const LOCK_T = 0.7;
+const PLATE = "rgba(12,18,32,0.7)";
 
 export function drawCombatHud(c, h, o = {}) {
-  const g = h.g, u = h.u, W = h.W, H = h.H, s = c.s, cam = s.camera, pl = s.player, p = c.player;
-  // 피격 붉은 테두리
-  if (c.hurtT > 0) {
-    const gr = g.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
-    gr.addColorStop(0, "rgba(255,0,0,0)"); gr.addColorStop(1, `rgba(255,30,30,${0.5 * c.hurtT / 0.5})`);
-    g.fillStyle = gr; g.fillRect(0, 0, W, H);
-    h.project(c.hurtDir, cam, _s);
-    let dx = _s.x - W / 2, dy = _s.y - H / 2; if (!_s.front) { dx = -dx; dy = -dy; }
-    const ang = Math.atan2(dy, dx);
-    g.strokeStyle = `rgba(255,70,70,${c.hurtT * 2})`; g.lineWidth = 6 * u;
-    g.beginPath(); g.arc(W / 2, H / 2, 110 * u, ang - 0.3, ang + 0.3); g.stroke();
-  }
-  if (p.shield > 0) { g.strokeStyle = "rgba(33,212,253,0.35)"; g.lineWidth = 10 * u; g.strokeRect(0, 0, W, H); }
-  if (p.stunT > 0) h.text("EMP — 조종 불능", W / 2, H * 0.45, { size: 26, align: "center", color: "#b8c8ff" });
+  if (h.lvl === "off") return;
+  const g = h.g, u = h.u, H = h.H, s = c.s, cam = s.camera, p = c.player;
+  const full = h.lvl === "full";
+  h.fade(1);
+
+  if (c.hurtT > 0) hurtArc(c, h);
+  if (p.stunT > 0) h.banner("EMP — 조종 불능", H * 0.45, "#b8c8ff", 22);
 
   // 적·아군 표시
+  const locked = c.lockT >= LOCK_T;
   for (const a of c.actors) {
     if (!a.alive || a === p || !a.targetable) continue;
     const d = a.pos.distanceTo(cam.position);
     const enemy = c.hostile(p, a) || !p.alive && (c.ffa || a.team !== p.team);
     if (d > (enemy ? 320 : 160)) continue;
+    if (!enemy && !full) continue;
     const big = a.kind === "core" || a.kind === "turret" || a.botKind === "boss" || a.botKind === "gunship" || a.kind === "prop";
-    const col = enemy ? (a === c.lock && c.lockT >= 0.7 ? "#ff3030" : "rgba(255,90,90,0.9)") : "rgba(90,170,255,0.8)";
-    const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 150 || big ? a.name : null);
-    if (b && (enemy || big)) h.bar(b.x - b.px, b.y + b.px + 4 * u, b.px * 2, 3 * u, a.hp / a.maxHp, enemy ? "#ff5a5a" : "#5aa9ff");
-    if (b && a === c.lock) {
-      const k = Math.min(1, c.lockT / 0.7);
-      g.strokeStyle = k >= 1 ? "#ff3030" : "#ffd24a"; g.lineWidth = 2 * u;
-      g.beginPath(); g.arc(b.x, b.y, b.px * (1.9 - k * 0.6), -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); g.stroke();
-      if (k >= 1) h.text("LOCK", b.x, b.y + b.px + 22 * u, { size: 12, align: "center", color: "#ff3030" });
-    }
+    const isLock = a === c.lock, isAim = a === c.aim;
+    const col = enemy ? (isLock && locked ? "#ff3030" : isAim ? "#ffd24a" : "rgba(255,96,96,0.95)") : "rgba(96,174,255,0.9)";
+    const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock ? a.name : null);
+    if (!b) continue;
+    if (enemy || big) h.bar(b.x - b.px, b.y + b.px + 5 * u, b.px * 2, 4 * u, a.hp / a.maxHp, enemy ? "#ff5a5a" : "#5aa9ff");
+    if (isLock && enemy) lockRing(h, b, clamp(c.lockT / LOCK_T, 0, 1), s.time);
   }
 
-  // 조준선
-  _a.copy(pl.aimPos).addScaledVector(pl.aimDir, 80);
-  h.project(_a, cam, _s);
-  if (_s.front && p.alive) {
-    const x = _s.x, y = _s.y, cc = c.hitMark > 0 ? "#ff5050" : c.aim ? "#ffd24a" : p.overheated ? "#ff9a3a" : "#ffffff";
-    g.strokeStyle = cc; g.lineWidth = 2 * u;
-    g.beginPath();
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.moveTo(x + dx * 6 * u, y + dy * 6 * u); g.lineTo(x + dx * 16 * u, y + dy * 16 * u); }
-    g.stroke();
-    g.fillStyle = cc; g.fillRect(x - 1.2 * u, y - 1.2 * u, 2.4 * u, 2.4 * u);
-    h.bar(x - 26 * u, y + 26 * u, 52 * u, 4 * u, p.heat, p.overheated ? "#ff5a3a" : p.overT > 0 ? "#ff4ad6" : "#ffb347");
-  }
+  if (p.alive) reticle(c, h);
+  status(c, h);
 
-  // 체력·무장
-  const touch = s.game.input.device === "touch";
-  const bx = (settings.hud.sticks && !touch ? 170 : 18) * u, by = H - (touch ? 150 : 34) * u;
-  h.text("HP", bx, by - 22 * u, { size: 12, color: "#b8c7d6" });
-  h.bar(bx + 28 * u, by - 32 * u, 150 * u, 11 * u, p.hp / p.maxHp, p.hp > 50 ? "#3dd68c" : p.hp > 25 ? "#ffd24a" : "#ff5a5a");
-  if (p.shield > 0) h.bar(bx + 28 * u, by - 38 * u, 150 * u, 4 * u, p.shield / 80, "#21d4fd", "rgba(0,0,0,0)");
-  h.text(`${Math.ceil(p.hp)}`, bx + 186 * u, by - 22 * u, { size: 14, mono: true });
-  h.text(`미사일 ${"▮".repeat(p.missiles)}${"▯".repeat(Math.max(0, 4 - p.missiles))}`, bx, by, { size: 14, color: "#ffb86b" });
-  if (p.item) h.text(`[E] ${ITEMS[p.item].name}`, bx + 150 * u, by, { size: 14, color: "#" + ITEMS[p.item].color.toString(16).padStart(6, "0") });
-  const buffs = [];
-  if (p.boostT > 0) buffs.push(`부스터 ${p.boostT.toFixed(0)}s`);
-  if (p.overT > 0) buffs.push(`과충전 ${p.overT.toFixed(0)}s`);
-  if (p.shieldT > 0 && p.shield > 0) buffs.push(`실드 ${p.shieldT.toFixed(0)}s`);
-  if (buffs.length) h.text(buffs.join("  ·  "), bx, by - 46 * u, { size: 13, color: "#ffe14a" });
+  if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.banner("⚠ 미사일 접근", H * 0.72, HC.warn, 20);
+  if (!p.alive) h.banner(`격추됨 — ${Math.max(0, p.respawnT || 0).toFixed(1)}초 후 재출격`, H * 0.4, HC.warn, 24);
 
-  if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.text("⚠ 미사일 접근", W / 2, H * 0.72, { size: 22, align: "center", color: "#ff3030" });
-  if (!p.alive) h.text(`격추됨 — ${Math.max(0, p.respawnT).toFixed(1)}초 후 재출격`, W / 2, H * 0.4, { size: 26, align: "center", color: "#ff6b5a" });
-
-  drawRadar(c, h, o.radarRange || 160);
+  if (h.vis("radar")) drawRadar(c, h, o.radarRange || 160);
   if (s.game.input.isHeld("score")) drawBoard(c, h);
+  g.globalAlpha = h.opacity;
+}
+
+// 피격 방향: 화면 중심 둘레의 붉은 호
+function hurtArc(c, h) {
+  const g = h.g, u = h.u, L = h.L, k = clamp(c.hurtT / 0.5, 0, 1);
+  h.project(c.hurtDir, c.s.camera, _s);
+  const ang = h._dirAngle(_s), R = Math.min(h.H * 0.3, 128 * u) + (1 - k) * 10 * u;
+  h.fade(Math.min(1, k * 1.6));
+  g.beginPath(); g.arc(L.cx, L.cy, R, ang - 0.34, ang + 0.34);
+  g.lineCap = "round"; g.lineWidth = 12 * u; g.strokeStyle = INK; g.stroke();
+  g.lineWidth = 7 * u; g.strokeStyle = "#ff4646"; g.stroke();
+  // 안쪽을 향한 쐐기
+  const ca = Math.cos(ang), sa = Math.sin(ang), r2 = R - 13 * u, w = 9 * u;
+  g.beginPath();
+  g.moveTo(L.cx + ca * (r2 - 9 * u), L.cy + sa * (r2 - 9 * u));
+  g.lineTo(L.cx + ca * r2 - sa * w, L.cy + sa * r2 + ca * w);
+  g.lineTo(L.cx + ca * r2 + sa * w, L.cy + sa * r2 - ca * w);
+  g.closePath();
+  h.fill2("#ff4646", 2.5);
+  h.fade(1);
+}
+
+// 락온 진행: 네 쐐기가 표적으로 조여 들고, 완료되면 붉게 고정
+function lockRing(h, b, k, time) {
+  const g = h.g, u = h.u, done = k >= 1;
+  const r = b.px * (2.3 - 1.1 * k) + 6 * u, rot = (1 - k) * 1.4 + Math.PI / 4, col = done ? "#ff3030" : HC.gold, w = 7 * u;
+  if (done && Math.floor(time * 10) % 2) h.fade(0.55);
+  for (let i = 0; i < 4; i++) {
+    const a = rot + i * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    g.beginPath();
+    g.moveTo(b.x + ca * r, b.y + sa * r);
+    g.lineTo(b.x + ca * (r + 11 * u) - sa * w, b.y + sa * (r + 11 * u) + ca * w);
+    g.lineTo(b.x + ca * (r + 11 * u) + sa * w, b.y + sa * (r + 11 * u) - ca * w);
+    g.closePath();
+    h.fill2(col, 2);
+  }
+  h.fade(1);
+  g.beginPath(); g.arc(b.x, b.y, r - 3 * u, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+  h.stroke2(col, 2 * u);
+  if (done) h.text("LOCK", b.x, b.y + r + 26 * u, { size: 13, align: "center", color: "#ff5050" });
+}
+
+// 조준선: 조준(적이 걸림)·락온·명중·과열 상태에 반응
+function reticle(c, h) {
+  const g = h.g, u = h.u, s = c.s, pl = s.player, p = c.player;
+  _a.copy(pl.aimPos).addScaledVector(pl.aimDir, 80);
+  h.project(_a, s.camera, _s);
+  if (!_s.front) return;
+  const x = _s.x, y = _s.y, t = s.time;
+  const aim = !!c.aim, hot = !!p.overheated, lockK = c.lock ? clamp(c.lockT / LOCK_T, 0, 1) : 0, hit = clamp((c.hitMark || 0) / 0.18, 0, 1);
+  const col = hot ? (Math.floor(t * 8) % 2 ? "#ff5a3a" : "#ffb347") : aim ? "#ff6a3a" : "#ffffff";
+  const gap = (aim ? 4.5 : 8) * u + hit * 3 * u, len = (aim ? 11 : 9) * u;
+
+  g.save(); g.translate(x, y);
+  if (hot) g.rotate(Math.PI / 4);
+  g.beginPath();
+  g.moveTo(gap, 0); g.lineTo(gap + len, 0); g.moveTo(-gap, 0); g.lineTo(-gap - len, 0);
+  g.moveTo(0, gap); g.lineTo(0, gap + len); g.moveTo(0, -gap); g.lineTo(0, -gap - len);
+  h.stroke2(col, 2.6 * u);
+  g.restore();
+  g.beginPath(); g.arc(x, y, 2.2 * u, 0, 7);
+  h.fill2(col, 2);
+
+  // 조준 중: 표적을 감싸는 회전 꺾쇠
+  if (aim && !hot) {
+    const r = 21 * u, rot = t * 2.4;
+    g.beginPath();
+    for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(x + Math.cos(a - 0.3) * r, y + Math.sin(a - 0.3) * r); g.arc(x, y, r, a - 0.3, a + 0.3); }
+    h.stroke2("#ff6a3a", 2.4 * u);
+  }
+  // 락온 진행 호
+  if (lockK > 0 && p.missiles > 0) {
+    const done = lockK >= 1;
+    g.beginPath(); g.arc(x, y, 29 * u, -Math.PI / 2, -Math.PI / 2 + lockK * Math.PI * 2);
+    h.stroke2(done ? "#ff3030" : HC.gold, 2.4 * u);
+    if (done && Math.floor(t * 6) % 2) h.text("미사일 준비", x, y - 38 * u, { size: 11, align: "center", color: "#ff5050" });
+  }
+  // 명중 표시(×)
+  if (hit > 0) {
+    const r0 = (8 + (1 - hit) * 5) * u, r1 = r0 + 9 * u;
+    g.beginPath();
+    for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + i * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); g.moveTo(x + ca * r0, y + sa * r0); g.lineTo(x + ca * r1, y + sa * r1); }
+    h.fade(Math.min(1, hit * 2));
+    h.stroke2("#ffffff", 3 * u);
+    h.fade(1);
+  }
+  // 발열 게이지(조준선 아래 호)
+  const heat = clamp(p.heat || 0, 0, 1), over = p.overT > 0;
+  if (heat > 0.02 || hot || over) {
+    const r = 36 * u, a0 = Math.PI * 0.78, a1 = Math.PI * 0.22;      // 왼아래 → 오른아래
+    g.lineCap = "round";
+    g.beginPath(); g.arc(x, y, r, a0, a1, true);
+    g.lineWidth = 8 * u; g.strokeStyle = INK; g.stroke();
+    g.lineWidth = 4.5 * u; g.strokeStyle = "rgba(255,255,255,0.2)"; g.stroke();
+    const f = over ? 1 : heat;
+    g.beginPath(); g.arc(x, y, r, a0, a0 - (a0 - a1) * f, true);
+    g.lineWidth = 4.5 * u; g.strokeStyle = hot ? "#ff4a3a" : over ? HC.pink : heat > 0.7 ? HC.orange : HC.gold; g.stroke();
+    if (hot) h.text("과열", x, y + r + 16 * u, { size: 12, align: "center", color: "#ff6b5a" });
+    else if (over) h.text("과충전", x, y + r + 16 * u, { size: 11, align: "center", color: HC.pink });
+  }
+}
+
+// 체력·실드·미사일·아이템 상태판
+function status(c, h) {
+  const g = h.g, u = h.u, L = h.L, p = c.player, t = c.s.time;
+  const w = L.statusW, x = L.statusRight ? L.statusX - w : L.statusX, yb = L.b, hh = 56 * u, y = yb - hh;
+  const hpK = clamp(p.hp / p.maxHp, 0, 1), low = hpK <= 0.25;
+  h.plate(x, y, w, hh, { skew: 0.08, accent: low ? HC.warn : "#3dd68c", fill: PLATE });
+  // 체력
+  const bx = x + 40 * u, bw = w - 92 * u;
+  h.text("체력", x + 13 * u, y + 17 * u, { size: 11, base: "middle", color: HC.dim, shadow: false });
+  if (!(low && Math.floor(t * 6) % 2)) h.segbar(bx, y + 11 * u, bw, 12 * u, hpK, 10, hpK > 0.5 ? "#3dd68c" : hpK > 0.25 ? HC.gold : HC.warn);
+  h.text(`${Math.max(0, Math.ceil(p.hp))}`, x + w - 10 * u, y + 18 * u, { size: 19, align: "right", base: "middle", mono: true, color: low ? HC.warn : "#fff", shadow: false });
+  if (p.shield > 0) {
+    g.fillStyle = INK; g.fillRect(bx - 1.5 * u, y + 3.5 * u, bw + 3 * u, 6 * u);
+    g.fillStyle = HC.cyan; g.fillRect(bx, y + 5 * u, bw * clamp(p.shield / 80, 0, 1), 3 * u);
+  }
+  // 미사일
+  const my = y + 33 * u, n = Math.max(4, p.missiles || 0);
+  h.text("미사일", x + 11 * u, my + 7 * u, { size: 10, base: "middle", color: HC.dim, shadow: false });
+  for (let i = 0; i < n; i++) {
+    const mx = x + 48 * u + i * 13 * u, on = i < p.missiles;
+    g.beginPath();
+    g.moveTo(mx + 3 * u, my); g.lineTo(mx + 10 * u, my); g.lineTo(mx + 7 * u, my + 13 * u); g.lineTo(mx, my + 13 * u); g.closePath();
+    g.fillStyle = on ? "#ff9a3a" : "rgba(255,255,255,0.14)"; g.fill();
+    g.lineJoin = "round"; g.lineWidth = 2 * u; g.strokeStyle = INK; g.stroke();
+  }
+  // 아이템 칸
+  if (p.item && ITEMS[p.item]) {
+    const it = ITEMS[p.item], col = "#" + it.color.toString(16).padStart(6, "0");
+    const label = L.touch ? it.name : `E · ${it.name}`;
+    h.text(label, x + w - 12 * u, my + 7 * u, { size: 12, align: "right", base: "middle", color: col });
+  }
+  // 지속 효과
+  let bxp = x + 8 * u;
+  const buff = (txt, col) => { h.text(txt, bxp, y - 8 * u, { size: 12, color: col }); bxp += (txt.length * 11 + 10) * u; };
+  if (p.shield > 0 && p.shieldT > 0) buff(`실드 ${p.shieldT.toFixed(0)}s`, HC.cyan);
+  if (p.boostT > 0) buff(`부스터 ${p.boostT.toFixed(0)}s`, "#ffe14a");
+  if (p.overT > 0) buff(`과충전 ${p.overT.toFixed(0)}s`, HC.pink);
 }
 
 function drawRadar(c, h, range) {
-  const g = h.g, u = h.u, R = 62 * u, cx = h.W - R - 16 * u, cy = h.H - R - 16 * u, p = c.player, yaw = c.s.player.body.heading;
-  g.fillStyle = "rgba(8,12,20,0.5)"; g.strokeStyle = "rgba(255,255,255,0.3)"; g.lineWidth = 1;
-  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill(); g.stroke();
-  g.beginPath(); g.arc(cx, cy, R / 2, 0, 7); g.strokeStyle = "rgba(255,255,255,0.12)"; g.stroke();
-  const cs = Math.cos(yaw), sn = Math.sin(yaw);
-  const dot = (pos, col, size, sq) => {
+  const g = h.g, u = h.u, L = h.L, R = L.radarR, cx = L.radarX, cy = L.radarY, p = c.player, yaw = c.s.player.body.heading;
+  g.beginPath(); g.arc(cx, cy, R, 0, 7);
+  g.fillStyle = "rgba(10,16,30,0.62)"; g.fill();
+  g.lineWidth = 3 * u; g.strokeStyle = INK; g.stroke();
+  g.lineWidth = 1.5 * u; g.strokeStyle = "rgba(120,220,255,0.28)";
+  g.beginPath(); g.arc(cx, cy, R * 0.5, 0, 7); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+  // 전방 시야 부채꼴 + 회전 스윕
+  g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, -Math.PI / 2 - 0.6, -Math.PI / 2 + 0.6); g.closePath();
+  g.fillStyle = "rgba(120,220,255,0.1)"; g.fill();
+  const sw = (h.t * 1.8) % (Math.PI * 2);
+  g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R - 1.5 * u, sw - 0.5, sw); g.closePath();
+  g.fillStyle = "rgba(120,255,190,0.12)"; g.fill();
+  g.beginPath(); g.arc(cx, cy, R - 1.5 * u, 0, 7); g.lineWidth = 1.5 * u; g.strokeStyle = "rgba(120,220,255,0.55)"; g.stroke();
+
+  const cs = Math.cos(yaw), sn = Math.sin(yaw), lim = R - 5 * u;
+  const dot = (pos, col, size, shape) => {
     const dx = pos.x - p.pos.x, dz = pos.z - p.pos.z;
     let rx = dx * cs - dz * sn, ry = dx * sn + dz * cs;
-    const d = Math.hypot(rx, ry), k = d > range ? range / d : 1;
-    rx = rx * k / range * R; ry = ry * k / range * R;
-    g.fillStyle = col;
-    if (sq) g.fillRect(cx + rx - size, cy + ry - size, size * 2, size * 2);
-    else { g.beginPath(); g.arc(cx + rx, cy + ry, size, 0, 7); g.fill(); }
+    const d = Math.hypot(rx, ry), far = d > range, k = far ? range / d : 1;
+    rx = rx * k / range * lim; ry = ry * k / range * lim;
+    if (far) size *= 0.7;
+    g.beginPath();
+    if (shape === 1) g.rect(cx + rx - size, cy + ry - size, size * 2, size * 2);
+    else if (shape === 2) { g.moveTo(cx + rx, cy + ry - size * 1.3); g.lineTo(cx + rx + size * 1.2, cy + ry); g.lineTo(cx + rx, cy + ry + size * 1.3); g.lineTo(cx + rx - size * 1.2, cy + ry); g.closePath(); }
+    else g.arc(cx + rx, cy + ry, size, 0, 7);
+    g.fillStyle = col; g.fill();
+    g.lineWidth = 1.5 * u; g.strokeStyle = INK; g.stroke();
   };
-  for (const pk of c.pickups) if (pk.active) dot(pk.pos, "rgba(255,225,74,0.8)", 1.8 * u, true);
+  for (const pk of c.pickups) if (pk.active) dot(pk.pos, "rgba(255,225,74,0.9)", 2 * u, 1);
   for (const a of c.actors) {
     if (!a.alive || a === p || !a.targetable) continue;
     const enemy = c.ffa || a.team !== p.team;
-    dot(a.pos, enemy ? "#ff5a5a" : "#5aa9ff", (a.static ? 3.6 : 2.8) * u, a.static);
+    dot(a.pos, enemy ? (a === c.lock && c.lockT >= LOCK_T ? "#ffffff" : "#ff5a5a") : "#5aa9ff", (a.static ? 3.8 : 3) * u, a.static ? 1 : 0);
   }
-  g.fillStyle = "#fff"; g.beginPath(); g.moveTo(cx, cy - 6 * u); g.lineTo(cx + 4 * u, cy + 4 * u); g.lineTo(cx - 4 * u, cy + 4 * u); g.fill();
+  if (h.obj && h.obj.pos) dot(h.obj.pos, h.obj.color || HC.ok, 3.2 * u, 2);
+  // 북쪽 표시 + 내 기체
+  h.text("북", cx + sn * (R + 1 * u), cy - cs * (R + 1 * u), { size: 10, align: "center", base: "middle", color: "#ff8a7a" });
+  g.beginPath(); g.moveTo(cx, cy - 7 * u); g.lineTo(cx + 5 * u, cy + 5 * u); g.lineTo(cx, cy + 2 * u); g.lineTo(cx - 5 * u, cy + 5 * u); g.closePath();
+  h.fill2("#ffffff", 2);
+  if (h.lvl === "full") h.text(`${range}m`, cx + R * 0.72, cy + R * 0.98, { size: 9, align: "center", color: HC.dim });
 }
 
 function drawBoard(c, h) {
-  const rows = c.board(), u = h.u, w = 380 * u, x = h.W / 2 - w / 2;
+  const rows = c.board(), u = h.u, w = 400 * u, x = h.W / 2 - w / 2, rh = 24 * u;
   let y = h.H * 0.2;
-  h.panel(x, y, w, (rows.length + 1.6) * 24 * u, "rgba(8,12,20,0.82)");
-  y += 26 * u;
-  h.text("이름", x + 16 * u, y, { size: 13, color: "#9fb4c8" });
-  h.text("점수", x + w - 150 * u, y, { size: 13, align: "right", color: "#9fb4c8" });
-  h.text("격추", x + w - 84 * u, y, { size: 13, align: "right", color: "#9fb4c8" });
-  h.text("피격추", x + w - 16 * u, y, { size: 13, align: "right", color: "#9fb4c8" });
+  h.panel(x, y, w, (rows.length + 1.7) * rh, "rgba(10,15,28,0.88)", 12);
+  y += 27 * u;
+  h.text("이름", x + 18 * u, y, { size: 13, color: HC.dim, shadow: false });
+  h.text("점수", x + w - 152 * u, y, { size: 13, align: "right", color: HC.dim, shadow: false });
+  h.text("격추", x + w - 86 * u, y, { size: 13, align: "right", color: HC.dim, shadow: false });
+  h.text("피격추", x + w - 18 * u, y, { size: 13, align: "right", color: HC.dim, shadow: false });
   for (const a of rows) {
-    y += 24 * u;
-    const col = a.isPlayer ? "#ffd24a" : c.ffa ? "#fff" : TEAM_CSS[a.team];
-    h.text(a.name, x + 16 * u, y, { size: 14, color: col });
-    h.text(`${Math.round(a.score)}`, x + w - 150 * u, y, { size: 14, align: "right", mono: true, color: col });
-    h.text(`${a.kills}`, x + w - 84 * u, y, { size: 14, align: "right", mono: true, color: col });
-    h.text(`${a.deaths}`, x + w - 16 * u, y, { size: 14, align: "right", mono: true, color: col });
+    y += rh;
+    const col = a.isPlayer ? HC.gold : c.ffa ? "#fff" : TEAM_CSS[a.team];
+    if (a.isPlayer) { h.g.fillStyle = "rgba(255,210,74,0.14)"; h.g.fillRect(x + 6 * u, y - 17 * u, w - 12 * u, rh - 2 * u); }
+    h.text(a.name, x + 18 * u, y, { size: 14, color: col, shadow: false });
+    h.text(`${Math.round(a.score)}`, x + w - 152 * u, y, { size: 14, align: "right", mono: true, color: col, shadow: false });
+    h.text(`${a.kills}`, x + w - 86 * u, y, { size: 14, align: "right", mono: true, color: col, shadow: false });
+    h.text(`${a.deaths}`, x + w - 18 * u, y, { size: 14, align: "right", mono: true, color: col, shadow: false });
   }
 }

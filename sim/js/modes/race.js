@@ -4,6 +4,7 @@ import { Mode } from "./base.js";
 import { Gate, orientGates } from "../world.js";
 import { buildDrone, botLook } from "../dronemodel.js";
 import { settings, submitRecord, records, fmtTime, clamp } from "../config.js";
+import { RaceGuide } from "./raceguide.js";
 
 const PACE = { easy: 0.42, normal: 0.62, hard: 0.86 };
 const NAMES = ["번개", "솔개", "매", "바람", "혜성", "제비"];
@@ -11,6 +12,7 @@ const DIV = 40;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3(), _t2 = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const GREEN = "#35ff7a";
 
 export class RaceMode extends Mode {
   constructor(session, cfg) {
@@ -26,6 +28,10 @@ export class RaceMode extends Mode {
     this.lapTimes = [];
     this.bots = [];
     this.lastGate = null;
+    this.cueT = 0;           // 마지막 게이트 통과(또는 출발) 후 지난 시간 — 방향 안내 강조용
+    this.split = 0;          // 직전 구간 기록 표시용
+    this._cueOff = false;    // 다음 게이트가 화면 밖이라 방향 안내가 떠 있는지
+    this._ob = { pos: new THREE.Vector3(), label: "", color: GREEN, pill: true };
     this.recKey = `race:${session.map.id}:${this.track.id}:${this.laps}`;
     this.lapKey = `lap:${session.map.id}:${this.track.id}`;
   }
@@ -72,6 +78,22 @@ export class RaceMode extends Mode {
     }
     this._moveBots(0);
     this._states();
+    // 월드 안내(흐르는 화살표·표지)
+    this.guide = new RaceGuide(this);
+    this._guideTarget();
+  }
+
+  // 안내선이 따라갈 레이싱 라인 구간: 직전 게이트(또는 출발점) → 다음 게이트
+  _guideTarget() {
+    if (!this.guide) return;
+    const n = this.gates.length, g = this.gates[this.next];
+    if (!g || this.state === "done") return this.guide.setTarget(null);
+    let sA, sB = this.sGate[this.next];
+    if (this.loop) {
+      if (this.next === 0) { sB = this.L; sA = this.passed ? this.sGate[n - 1] : Math.max(this.sGate[n - 1], this.L - 40); }
+      else sA = this.sGate[this.next - 1];
+    } else sA = this.next ? this.sGate[this.next - 1] : 0;
+    this.guide.setTarget(g, sA, sB);
   }
 
   _states() {
@@ -85,7 +107,7 @@ export class RaceMode extends Mode {
     });
   }
 
-  onGo() { this.lapStart = 0; }
+  onGo() { this.lapStart = 0; this.cueT = 0; }
 
   physicsStep(p0, p1) {
     if (this.state !== "run") return;
@@ -94,6 +116,7 @@ export class RaceMode extends Mode {
     const s = this.s, n = this.gates.length;
     this.passed++;
     this.lastGate = g;
+    this.cueT = 0;
     s.game.sound.play("gate");
     if (this.loop && this.next === 0 && this.passed > 1) {
       // 한 바퀴 완료
@@ -109,10 +132,12 @@ export class RaceMode extends Mode {
     if (!this.loop && this.passed >= n) return this._finish();
     this.next = (this.next + 1) % n;
     this._states();
+    this._guideTarget();
   }
 
   _finish() {
     this._states();
+    if (this.guide) this.guide.setTarget(null);
     const total = this.time;
     const rank = 1 + this.bots.filter((b) => b.finished && b.finished < total).length;
     const rec = submitRecord(this.recKey, total, true);
@@ -204,36 +229,105 @@ export class RaceMode extends Mode {
     // 다음 게이트 깜빡임
     const g = this.gates[this.next];
     if (g && g.state === "next") g.mat.emissiveIntensity = 3.0 + Math.sin(this.s.time * 9) * 0.9;
+    this.cueT += dt;
+    if (this.guide) this.guide.update(dt, this.s.time, this.s.player.body.pos, this.s.camera);
+  }
+
+  // HUD 목표: 다음 게이트 (방향 안내가 거리를 대신 보여 줄 때는 조준선 아래 거리판을 숨긴다)
+  hudObjective() {
+    const g = this.gates && this.gates[this.next];
+    if (!g || this.state === "done") return null;
+    const o = this._ob, n = this.gates.length;
+    g.center(o.pos);
+    o.label = `게이트 ${this.next + 1}/${n}`;
+    o.pill = !this._cueOff;
+    return o;
   }
 
   hud(h) {
-    const u = h.u, W = h.W, s = this.s, n = this.gates.length;
+    const u = h.u, L = h.L, s = this.s, n = this.gates.length, g = h.g;
     this.hudCountdown(h);
-    h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
-    h.text(fmtTime(this.time), W / 2, 44 * u, { size: 30, align: "center", mono: true });
-    const lapTxt = this.loop ? `랩 ${Math.min(this.lap + 1, this.laps)}/${this.laps}` : "구간 주행";
-    h.text(lapTxt, 18 * u, 32 * u, { size: 20 });
-    h.text(`게이트 ${this.loop ? (this.passed ? ((this.passed - 1) % n) + 1 : 0) : this.passed}/${n}`, 18 * u, 56 * u, { size: 15, color: "#b8c7d6" });
-    const best = records[this.recKey];
-    h.text(`최고 ${best ? fmtTime(best) : "--"}`, 18 * u, 78 * u, { size: 13, color: "#ffd24a", bold: false });
+    if (h.lvl === "off") return;
+    const full = h.lvl === "full", run = this.state === "run";
+    h.timer(fmtTime(this.time), "#fff", "#ff5a1f");
+
+    // 왼쪽 위: 랩 · 게이트 진행 · 최고 기록
+    const gi = this.loop ? (this.passed ? ((this.passed - 1) % n) + 1 : 0) : this.passed;
+    const pw = 184 * u, ph = (full ? 70 : 36) * u, x = L.l, y = L.t;
+    h.plate(x, y, pw, ph, { accent: "#ff5a1f", skew: full ? 0.1 : 0.2 });
+    h.text(this.loop ? "랩" : "구간", x + 20 * u, y + 20 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.text(this.loop ? `${Math.min(this.lap + 1, this.laps)}/${this.laps}` : "주행", x + (this.loop ? 44 : 52) * u, y + 19 * u, { size: this.loop ? 24 : 18, base: "middle", mono: this.loop, shadow: false });
+    h.text(`${gi}/${n}`, x + pw - 12 * u, y + 19 * u, { size: 18, align: "right", base: "middle", mono: true, color: GREEN, shadow: false });
+    h.text("게이트", x + pw - 12 * u - (String(gi).length + String(n).length + 1) * 11.5 * u, y + 20 * u, { size: 11, align: "right", base: "middle", color: "#b4c2d4", shadow: false });
+    if (full) {
+      // 게이트 진행 칸
+      const bx = x + 16 * u, bw = pw - 32 * u, by = y + 36 * u, bh = 8 * u;
+      if (n <= 24) {
+        const gap = 2 * u, sw = (bw - gap * (n - 1)) / n, blink = Math.floor(s.time * 5) % 2;
+        for (let i = 0; i < n; i++) {
+          const done = i < gi;
+          const next = i === this.next && this.state !== "done";
+          g.fillStyle = "#0a0f1c"; g.fillRect(bx + i * (sw + gap) - 1 * u, by - 1 * u, sw + 2 * u, bh + 2 * u);
+          g.fillStyle = next ? (blink ? "#ffffff" : GREEN) : done ? GREEN : "rgba(255,255,255,0.18)";
+          g.fillRect(bx + i * (sw + gap), by, sw, bh);
+        }
+      } else h.bar(bx, by, bw, bh, gi / n, GREEN);
+      const best = records[this.recKey];
+      h.text(`최고 ${best ? fmtTime(best) : "--:--.--"}`, x + 14 * u, y + 59 * u, { size: 12, base: "middle", color: "#ffd24a", shadow: false });
+      if (this.lapTimes.length) h.text(`직전 랩 ${fmtTime(this.lapTimes[this.lapTimes.length - 1])}`, x + pw - 12 * u, y + 59 * u, { size: 11, align: "right", base: "middle", color: "#b4c2d4", shadow: false });
+    }
+
+    // 오른쪽 위: 순위
     if (this.bots.length) {
       const my = this.playerProgress();
-      const rank = 1 + this.bots.filter((b) => b.count > my).length;
-      h.text(`${rank}`, W - 62 * u, 50 * u, { size: 44, align: "right", color: rank === 1 ? "#ffd24a" : "#fff" });
-      h.text(`/ ${this.bots.length + 1}위`, W - 16 * u, 50 * u, { size: 15, align: "right", color: "#b8c7d6" });
-      for (const b of this.bots) {
+      const rank = 1 + this.bots.filter((b) => b.count > my).length, first = rank === 1;
+      const rw = 118 * u, rh = 46 * u, rx = L.r - rw, ry = L.trY;
+      h.plate(rx, ry, rw, rh, { accent: first ? "#ffd24a" : "#8fa0b8", side: "right", skew: 0.16 });
+      h.text(`${rank}`, rx + 50 * u, ry + 25 * u, { size: 34, align: "right", base: "middle", color: first ? "#ffd24a" : "#fff", shadow: false });
+      h.text(`/ ${this.bots.length + 1}위`, rx + 56 * u, ry + 29 * u, { size: 14, base: "middle", color: "#b4c2d4", shadow: false });
+      if (full) for (const b of this.bots) {
         const d = b.pos.distanceTo(s.camera.position);
-        if (d < 120) h.bracket(b.pos, s.camera, 0.7, "rgba(255,184,107,0.8)", b.name);
+        if (d < 120) h.bracket(b.pos, s.camera, 0.7, "rgba(255,184,107,0.9)", b.name);
       }
     }
-    const g = this.gates[this.next];
-    if (g && this.state !== "done") {
-      const c = g.center(_a);
-      h.marker(c, s.camera, "#35ff7a", null, c.distanceTo(s.player.body.pos));
+
+    // 다음 게이트 안내
+    const gt = this.gates[this.next];
+    this._cueOff = false;
+    if (gt && this.state !== "done") {
+      const c = gt.center(_a), d = c.distanceTo(s.player.body.pos);
+      if (h.vis("gateArrow")) {
+        // 통과 직후·출발 전에는 강조, 화면 밖이면 항상 큰 화살표로 방향·거리 표시
+        const recent = this.cueT < 2.4 || this.state === "countdown";
+        const pop = run ? clamp(1 - this.cueT / 0.45, 0, 1) : 0;
+        const sc = h.cue(c, s.camera, { color: GREEN, dist: d, pop, force: recent });
+        this._cueOff = !sc.on;
+        if (sc.on) this._gateMark(h, sc, recent, pop);
+      } else {
+        const sc = h.project(c, s.camera, h._s);
+        if (sc.on) this._gateMark(h, sc, false, 0);
+      }
     }
+  }
+
+  // 화면 안의 다음 게이트 표시: 마름모 + (통과 직후) 조여 드는 꺾쇠와 "다음" 표지
+  _gateMark(h, sc, recent, pop) {
+    const g = h.g, u = h.u, r = 9 * u, x = sc.x, y = sc.y;
+    g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath();
+    h.stroke2(GREEN, 2.5 * u);
+    if (!recent) return;
+    const k = clamp(this.cueT / 0.5, 0, 1), R = (20 + (1 - k) * 34 + Math.sin(this.s.time * 8) * 2) * u, c = 8 * u;
+    g.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const sx = i === 0 || i === 3 ? -1 : 1, sy = i < 2 ? -1 : 1;
+      g.moveTo(x + sx * R, y + sy * (R - c)); g.lineTo(x + sx * R, y + sy * R); g.lineTo(x + sx * (R - c), y + sy * R);
+    }
+    h.stroke2(pop > 0.3 ? "#ffffff" : GREEN, 3 * u);
+    h.text("다음", x, y - R - 8 * u, { size: 13, align: "center", color: GREEN });
   }
 
   dispose() {
     for (const b of this.bots) { this.s.world.scene.remove(b.model); b.model.userData.dispose(); }
+    if (this.guide) { this.guide.dispose(); this.guide = null; }
   }
 }

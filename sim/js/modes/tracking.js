@@ -99,21 +99,61 @@ export class TrackingMode extends Mode {
     }
   }
 
+  // HUD 목표: 피사체
+  hudObjective() {
+    if (this.state === "done") return null;
+    const o = this._ob || (this._ob = { pos: this.target, label: this.def.name, color: "#ffd24a", dist: undefined });
+    const q = this.quality;
+    o.color = q > 0.6 ? "#35ff7a" : q > 0.3 ? "#ffd24a" : "#ff6b5a";
+    o.dist = this.state === "run" ? this.dist : undefined;
+    return o;
+  }
+
   hud(h) {
-    const u = h.u, W = h.W, s = this.s;
+    const u = h.u, L = h.L, s = this.s, g = h.g;
     this.hudCountdown(h);
-    h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
-    h.text(fmtTime(Math.max(0, this.duration - this.time)), W / 2, 44 * u, { size: 30, align: "center", mono: true });
-    h.text(`${Math.round(this.score)}`, 18 * u, 40 * u, { size: 34, mono: true });
-    h.text(`콤보 ×${(this.combo || 1).toFixed(1)}`, 18 * u, 64 * u, { size: 15, color: "#ffd24a" });
-    // 프레이밍 품질 바
+    if (h.lvl === "off") return;
+    const full = h.lvl === "full";
+    const left = Math.max(0, this.duration - this.time);
+    h.timer(fmtTime(left), left < 10 ? "#ff6b5a" : "#fff", "#21d4fd");
+
+    // 왼쪽 위: 점수 · 콤보
+    const pw = 176 * u, ph = (full ? 62 : 36) * u, x = L.l, y = L.t;
+    h.plate(x, y, pw, ph, { accent: "#21d4fd", skew: full ? 0.1 : 0.2 });
+    h.text("점수", x + 20 * u, y + 20 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.text(`${Math.round(this.score)}`, x + pw - 14 * u, y + 19 * u, { size: 26, align: "right", base: "middle", mono: true, shadow: false });
+    if (full) {
+      const cb = this.combo || 1;
+      h.text(`콤보 ×${cb.toFixed(1)}`, x + 14 * u, y + 47 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
+      h.bar(x + 84 * u, y + 43 * u, pw - 100 * u, 7 * u, (cb - 1) / 2, "#ffd24a");
+      // 촬영 중 표시
+      if (this.state === "run" && Math.floor(s.time * 2) % 2) { g.fillStyle = "#ff3b3b"; g.beginPath(); g.arc(x + pw + 14 * u, y + 13 * u, 5 * u, 0, 7); g.fill(); g.lineWidth = 2 * u; g.strokeStyle = "#0a0f1c"; g.stroke(); }
+      if (this.state === "run") h.text("REC", x + pw + 24 * u, y + 14 * u, { size: 12, base: "middle", color: "#ff6b5a" });
+    }
+
+    // 오른쪽 위: 프레이밍 품질 + 적정 거리 게이지
     const q = this.quality, col = q > 0.6 ? "#35ff7a" : q > 0.3 ? "#ffd24a" : "#ff6b5a";
-    h.text("프레이밍", W - 18 * u, 30 * u, { size: 13, align: "right", color: "#b8c7d6" });
-    h.bar(W - 178 * u, 38 * u, 160 * u, 10 * u, q, col);
-    if (this.dist !== undefined) h.text(`${this.dist.toFixed(1)} m`, W - 18 * u, 70 * u, { size: 15, align: "right", mono: true, color: this.dist > this.info.dmax || this.dist < this.info.dmin ? "#ff6b5a" : "#fff" });
+    const rw = 190 * u, rh = (full ? 62 : 34) * u, rx = L.r - rw, ry = L.trY;
+    h.plate(rx, ry, rw, rh, { accent: col, side: "right", skew: full ? 0.1 : 0.2 });
+    h.text("프레이밍", rx + 22 * u, ry + 18 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.segbar(rx + 78 * u, ry + 11 * u, rw - 100 * u, 13 * u, q, 8, col);
+    if (full) {
+      // 거리: 적정 범위(초록 구간) 안에 지시침이 들어오게
+      const info = this.info, max = info.dmax * 1.8, bx = rx + 78 * u, bw = rw - 100 * u, by = ry + 40 * u, bh = 7 * u;
+      h.text("거리", rx + 16 * u, ry + 44 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+      g.fillStyle = "#0a0f1c"; g.fillRect(bx - 1.5 * u, by - 1.5 * u, bw + 3 * u, bh + 3 * u);
+      g.fillStyle = "rgba(255,255,255,0.16)"; g.fillRect(bx, by, bw, bh);
+      g.fillStyle = "rgba(53,255,122,0.75)"; g.fillRect(bx + bw * info.dmin / max, by, bw * (info.dmax - info.dmin) / max, bh);
+      if (this.dist !== undefined) {
+        const px = bx + bw * clamp(this.dist / max, 0, 1), ok = this.dist >= info.dmin && this.dist <= info.dmax;
+        g.beginPath(); g.moveTo(px, by + bh + 1 * u); g.lineTo(px - 5 * u, by + bh + 9 * u); g.lineTo(px + 5 * u, by + bh + 9 * u); g.closePath();
+        h.fill2(ok ? "#ffffff" : "#ff6b5a", 2);
+      }
+    }
+
     if (this.state === "run") {
       const b = h.bracket(this.target, s.camera, (this.model.userData.radius || 1.5) * 1.1, col, this.visible ? null : "가려짐");
-      if (!b) h.marker(this.target, s.camera, "#ffd24a", this.def.name);
+      if (!b) h.cue(this.target, s.camera, { color: "#ffd24a", label: this.def.name });
     }
   }
 

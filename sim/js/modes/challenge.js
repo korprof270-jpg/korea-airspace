@@ -14,6 +14,7 @@ export const MISSIONS = [
 ];
 
 const _v = new THREE.Vector3();
+const setOb = (o, pos, label, color) => { o.pos = pos; o.label = label; o.color = color; return o; };
 
 export class ChallengeMode extends CombatMode {
   constructor(session, cfg) {
@@ -94,25 +95,61 @@ export class ChallengeMode extends CombatMode {
   }
 
   hud(h) {
-    const u = h.u, W = h.W;
+    const u = h.u, L = h.L;
     drawCombatHud(this.combat, h, { radarRange: 200 });
     this.hudCountdown(h);
-    h.text(this.def.name, 18 * u, 30 * u, { size: 18 });
-    h.text(this.objective, 18 * u, 52 * u, { size: 14, color: "#ffd24a" });
-    h.text(`기체 ${"♥".repeat(Math.max(0, this.lives))}${"♡".repeat(3 - Math.max(0, this.lives))}`, 18 * u, 74 * u, { size: 14, color: "#ff8a8a" });
+    if (h.lvl === "off") return;
+    const full = h.lvl === "full";
+    // 왼쪽 위: 임무 · 목표 · 남은 기체
+    const pw = 236 * u, ph = (full ? 66 : 42) * u, x = L.l, y = L.t, lives = Math.max(0, this.lives);
+    h.plate(x, y, pw, ph, { accent: "#3dd68c", skew: full ? 0.08 : 0.14 });
+    h.text(this.def.name, x + 18 * u, y + 17 * u, { size: 16, base: "middle", shadow: false });
+    h.text(`${"♥".repeat(lives)}${"♡".repeat(3 - Math.min(3, lives))}`, x + pw - 14 * u, y + 17 * u, { size: 15, align: "right", base: "middle", color: "#ff8a8a", shadow: false });
+    h.text(this.objective, x + 14 * u, y + 38 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
+    if (full) h.text(`격추 ${this.me.kills}  ·  점수 ${Math.round(this.me.score)}`, x + 12 * u, y + 56 * u, { size: 11, base: "middle", color: "#b4c2d4", shadow: false });
     if (this.limit) {
       const left = Math.max(0, this.limit - this.time);
-      h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
-      h.text(fmtTime(left), W / 2, 44 * u, { size: 30, align: "center", mono: true, color: left < 30 ? "#ff6b5a" : "#fff" });
+      h.timer(fmtTime(left), left < 30 ? "#ff6b5a" : "#fff", "#3dd68c");
     }
     const f = this[`hud_${this.id}`];
-    if (f) f.call(this, h, u, W);
+    if (f) f.call(this, h, u, h.W);
   }
 
-  topBar(h, label, frac, color, y = 70) {
-    const u = h.u, W = h.W;
-    h.text(label, W / 2, y * u, { size: 13, align: "center", color: "#dfe7f1" });
-    h.bar(W / 2 - 150 * u, (y + 6) * u, 300 * u, 9 * u, frac, color);
+  // 나침반 아래 가운데의 목표 내구도 막대
+  topBar(h, label, frac, color) {
+    const u = h.u, L = h.L, w = 260 * u, y = L.subY + 16 * u;
+    h.text(label, L.cx, y - 5 * u, { size: 12, align: "center", color: "#dfe7f1" });
+    h.bar(L.cx - w / 2, y, w, 9 * u, frac, color);
+  }
+
+  // 임무 목표(거리계·나침반·레이더용)
+  missionObjective(o) {
+    const me = this.me;
+    switch (this.id) {
+      case "waves": return this.base && this.base.core.alive ? setOb(o, this.base.core.pos, "아군 코어", "#5aa9ff") : null;
+      case "strike": return this.near && this.near.alive ? setOb(o, this.near.pos, this.near.name, "#ff8a5a") : null;
+      case "escort": return this.truck && this.truck.alive ? setOb(o, this.truck.pos, "수송 트럭", "#5aa9ff") : null;
+      case "supply": {
+        if (!this.cargo) return null;
+        if (this.cargo.carried(me)) {
+          let best = null, bd = 1e9;
+          for (const p of this.pads) if (!p.done) { const d = p.pos.distanceTo(me.pos); if (d < bd) { bd = d; best = p; } }
+          return best ? setOb(o, best.pos, "캠프", "#35ff7a") : null;
+        }
+        const cr = this.cargo.nearestIdle(me.pos);
+        return cr ? setOb(o, cr.pos, "보급 상자", "#ffd24a") : null;
+      }
+      case "boss": {
+        if (!this.boss || !this.boss.alive) return null;
+        if (!this.open) {
+          let best = null, bd = 1e9;
+          for (const p of this.pods) if (p.alive) { const d = p.pos.distanceTo(me.pos); if (d < bd) { bd = d; best = p; } }
+          if (best) return setOb(o, best.pos, "엔진 포드", "#ff8a5a");
+        }
+        return setOb(o, this.boss.pos, "모선", "#ff5a66");
+      }
+    }
+    return null;
   }
 
   // ── 1. 기지 방어 ──────────────────────────────────────────
@@ -153,7 +190,7 @@ export class ChallengeMode extends CombatMode {
   }
   hud_waves(h) {
     const core = this.base.core;
-    this.topBar(h, "아군 코어", core.hp / core.maxHp, "#5aa9ff", this.limit ? 70 : 28);
+    this.topBar(h, "아군 코어", core.hp / core.maxHp, "#5aa9ff");
     if (core.alive && core.pos.distanceTo(this.me.pos) > 60) h.marker(core.pos, this.s.camera, "#5aa9ff", "코어", core.pos.distanceTo(this.me.pos));
   }
 
@@ -221,7 +258,7 @@ export class ChallengeMode extends CombatMode {
   }
   hud_escort(h) {
     const t = this.truck;
-    this.topBar(h, "수송 트럭", t.hp / t.maxHp, "#5aa9ff", 28);
+    this.topBar(h, "수송 트럭", t.hp / t.maxHp, "#5aa9ff");
     if (t.alive && t.pos.distanceTo(this.me.pos) > 40) h.marker(t.pos, this.s.camera, "#5aa9ff", "트럭", t.pos.distanceTo(this.me.pos));
   }
 
@@ -308,7 +345,7 @@ export class ChallengeMode extends CombatMode {
   }
   hud_boss(h) {
     const b = this.boss;
-    this.topBar(h, this.open ? "모선" : "모선 (보호막)", b.hp / b.maxHp, this.open ? "#ff5a66" : "#8a6bd6", 70);
+    this.topBar(h, this.open ? "모선" : "모선 (보호막)", b.hp / b.maxHp, this.open ? "#ff5a66" : "#8a6bd6");
   }
 
   dispose() {

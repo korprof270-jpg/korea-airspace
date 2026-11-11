@@ -162,37 +162,68 @@ export class SurvivalMode extends CombatMode {
     }
   }
 
+  // 임무 목표: 적 코어 / 화물 / 착륙장
+  missionObjective(o) {
+    const me = this.me;
+    if (this.bases) {
+      if (!this.bases[1].core.alive) return null;
+      o.pos = this.bases[1].core.pos; o.label = "적 코어"; o.color = "#ff5a66";
+      return o;
+    }
+    if (this.cargo && this.state === "run") {
+      if (this.cargo.carried(me)) { o.pos = this.padGoal[0]; o.label = "아군 착륙장"; o.color = "#35ff7a"; return o; }
+      const cr = this.cargo.nearestIdle(me.pos);
+      if (cr) { o.pos = cr.pos; o.label = "화물"; o.color = "#ffd24a"; return o; }
+    }
+    return null;
+  }
+
   hud(h) {
-    const u = h.u, W = h.W, s = this.s, c = this.combat, me = this.me;
+    const u = h.u, L = h.L, s = this.s, c = this.combat, me = this.me;
     drawCombatHud(c, h);
     this.hudCountdown(h);
-    h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
+    if (h.lvl === "off") return;
+    const full = h.lvl === "full", dm = this.variant === "dm";
     const left = Math.max(0, this.duration - this.time);
-    h.text(fmtTime(left), W / 2, 44 * u, { size: 30, align: "center", mono: true, color: left < 20 ? "#ff6b5a" : "#fff" });
-    if (this.variant === "dm") {
+    h.timer(fmtTime(left), left < 20 ? "#ff6b5a" : "#fff", "#ff3d5a");
+
+    // 왼쪽 위: 내 점수
+    const pw = 184 * u, ph = (full ? 60 : 36) * u, x = L.l, y = L.t;
+    h.plate(x, y, pw, ph, { accent: "#ff3d5a", skew: full ? 0.1 : 0.2 });
+    h.text("점수", x + 20 * u, y + 20 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.text(`${Math.round(me.score)}`, x + pw - 14 * u, y + 19 * u, { size: 26, align: "right", base: "middle", mono: true, shadow: false });
+    if (dm) {
       const board = c.board(), rank = 1 + board.filter((a) => a !== me && a.score > me.score).length;
-      h.text(`${Math.round(me.score)}`, 18 * u, 40 * u, { size: 34, mono: true });
-      h.text(`${rank}위 / ${board.length}  ·  격추 ${me.kills}`, 18 * u, 64 * u, { size: 15, color: "#ffd24a" });
-      if (board[0] && board[0] !== me) h.text(`1위 ${board[0].name} ${Math.round(board[0].score)}`, 18 * u, 84 * u, { size: 13, color: "#b8c7d6", bold: false });
+      if (full) {
+        h.text(`${rank}위 / ${board.length}`, x + 14 * u, y + 46 * u, { size: 14, base: "middle", color: rank === 1 ? "#ffd24a" : "#fff", shadow: false });
+        h.text(`격추 ${me.kills}`, x + pw - 14 * u, y + 46 * u, { size: 13, align: "right", base: "middle", color: "#ffd24a", shadow: false });
+        if (board[0] && board[0] !== me) h.text(`1위 ${board[0].name} ${Math.round(board[0].score)}`, x + 6 * u, y + ph + 18 * u, { size: 12, color: "#b4c2d4" });
+      }
     } else {
-      h.text(`${Math.round(this.team[0])}`, W / 2 - 104 * u, 44 * u, { size: 28, align: "right", mono: true, color: "#5aa9ff" });
-      h.text(`${Math.round(this.team[1])}`, W / 2 + 104 * u, 44 * u, { size: 28, mono: true, color: "#ff5a66" });
-      h.text(`내 점수 ${Math.round(me.score)}  ·  격추 ${me.kills}`, 18 * u, 32 * u, { size: 15, color: "#ffd24a" });
+      // 팀 점수: 시계 양옆
+      const tw = 78 * u, th = 32 * u, ty = L.t + 4 * u;
+      h.plate(L.cx - 92 * u - tw, ty, tw, th, { accent: "#5aa9ff", skew: 0.16 });
+      h.text(`${Math.round(this.team[0])}`, L.cx - 100 * u, ty + 17 * u, { size: 20, align: "right", base: "middle", mono: true, color: "#8cc4ff", shadow: false });
+      h.plate(L.cx + 92 * u, ty, tw, th, { accent: "#ff5a66", side: "right", skew: 0.16 });
+      h.text(`${Math.round(this.team[1])}`, L.cx + 104 * u, ty + 17 * u, { size: 20, base: "middle", mono: true, color: "#ff8a94", shadow: false });
+      if (full) {
+        h.text(`격추 ${me.kills}`, x + 14 * u, y + 46 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
+        if (this.cargo) h.text(`배달 ${this.delivered[0]} : ${this.delivered[1]}`, x + pw - 14 * u, y + 46 * u, { size: 13, align: "right", base: "middle", color: "#b4c2d4", shadow: false });
+      }
       if (this.bases) {
+        // 코어 내구도: 나침반 아래 좌우
         this.bases.forEach((b, t) => {
-          const x = t === 0 ? W / 2 - 260 * u : W / 2 + 140 * u;
-          h.text(t === 0 ? "아군 코어" : "적 코어", x, 74 * u, { size: 11, color: "#b8c7d6", bold: false });
-          h.bar(x, 78 * u, 120 * u, 6 * u, b.core.hp / b.core.maxHp, t === 0 ? "#5aa9ff" : "#ff5a66");
+          const bw = 104 * u, bx = t === 0 ? L.cx - 12 * u - bw : L.cx + 12 * u, by = L.subY + 14 * u;
           const alive = b.turrets.filter((x2) => x2.alive).length;
-          h.text(`포탑 ${alive}`, x + 126 * u, 86 * u, { size: 11, color: "#b8c7d6", bold: false });
+          h.text(`${t === 0 ? "아군 코어" : "적 코어"} · 포탑 ${alive}`, t === 0 ? bx + bw : bx, by - 5 * u, { size: 11, align: t === 0 ? "right" : "left", color: t === 0 ? "#8cc4ff" : "#ff8a94" });
+          h.bar(bx, by, bw, 8 * u, b.core.hp / b.core.maxHp, t === 0 ? "#5aa9ff" : "#ff5a66");
         });
-        if (me.alive && this.bases[1].core.alive) h.marker(this.bases[1].core.pos, s.camera, "rgba(255,90,102,0.9)", "적 코어", this.bases[1].core.pos.distanceTo(me.pos));
+        if (me.alive && this.bases[1].core.alive) h.marker(this.bases[1].core.pos, s.camera, "rgba(255,90,102,0.95)", "적 코어", this.bases[1].core.pos.distanceTo(me.pos));
       }
       if (this.cargo && me.alive && this.state === "run") {
-        h.text(`배달 ${this.delivered[0]} : ${this.delivered[1]}`, 18 * u, 54 * u, { size: 14, color: "#b8c7d6" });
         if (this.cargo.carried(me)) {
           h.marker(this.padGoal[0], s.camera, "#35ff7a", "아군 착륙장", this.padGoal[0].distanceTo(me.pos));
-          h.text("화물 운반 중 — 기체가 무겁습니다", W / 2, 84 * u, { size: 15, align: "center", color: "#ffd24a" });
+          h.banner("화물 운반 중 — 기체가 무겁습니다", L.subY + 20 * u, "#ffd24a", 14);
         } else {
           const cr = this.cargo.nearestIdle(me.pos);
           if (cr) h.marker(cr.pos, s.camera, "#ffd24a", "화물", cr.pos.distanceTo(me.pos));

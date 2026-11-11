@@ -127,30 +127,47 @@ export class FreestyleMode extends Mode {
   }
 
   hud(h) {
-    const u = h.u, W = h.W;
+    const u = h.u, L = h.L, W = h.W;
     this.hudCountdown(h);
-    if (this.timed) {
-      h.panel(W / 2 - 92 * u, 10 * u, 184 * u, 46 * u);
-      h.text(fmtTime(Math.max(0, this.duration - this.time)), W / 2, 44 * u, { size: 30, align: "center", mono: true });
+    if (h.lvl === "off") return;
+    const full = h.lvl === "full";
+    if (this.timed) { const left = Math.max(0, this.duration - this.time); h.timer(fmtTime(left), left < 10 ? "#ff6b5a" : "#fff", "#b44cff"); }
+    else if (full) h.text("자유 비행 — Esc 로 종료", L.cx, L.t + 22 * u, { size: 14, align: "center", color: "#b4c2d4" });
+
+    // 왼쪽 위: 점수 · 최고 기록
+    const pw = 176 * u, ph = (full ? 56 : 36) * u, x = L.l, y = L.t;
+    h.plate(x, y, pw, ph, { accent: "#b44cff", skew: full ? 0.1 : 0.2 });
+    h.text("점수", x + 20 * u, y + 20 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.text(`${Math.round(this.score)}`, x + pw - 14 * u, y + 19 * u, { size: 26, align: "right", base: "middle", mono: true, shadow: false });
+    if (full) {
+      const best = records[this.recKey];
+      h.text(`최고 ${best || "--"}`, x + 14 * u, y + 44 * u, { size: 12, base: "middle", color: "#ffd24a", shadow: false });
+      h.text(`묘기 ${this.tricks}`, x + pw - 14 * u, y + 44 * u, { size: 12, align: "right", base: "middle", color: "#b4c2d4", shadow: false });
     }
-    h.text(`${Math.round(this.score)}`, 18 * u, 40 * u, { size: 34, mono: true });
-    const best = records[this.recKey];
-    h.text(`최고 ${best || "--"}`, 18 * u, 60 * u, { size: 13, color: "#ffd24a", bold: false });
+
+    // 오른쪽 위: 콤보 배율
     if (this.mult > 1) {
-      h.text(`×${this.mult.toFixed(1)}`, W - 18 * u, 46 * u, { size: 40, align: "right", color: this.mult >= 3 ? "#ff5ad6" : "#ffd24a" });
-      h.bar(W - 138 * u, 56 * u, 120 * u, 6 * u, this.window / 3.2, "#ffd24a");
-      h.text(`콤보 ${Math.round(this.comboPts)}`, W - 18 * u, 80 * u, { size: 13, align: "right", color: "#b8c7d6" });
+      const hot = this.mult >= 3, col = hot ? "#ff5ad6" : "#ffd24a";
+      const rw = 150 * u, rh = 58 * u, rx = L.r - rw, ry = L.trY;
+      h.plate(rx, ry, rw, rh, { accent: col, side: "right", skew: 0.12 });
+      h.text(`×${this.mult.toFixed(1)}`, rx + rw - 18 * u, ry + 20 * u, { size: 30, align: "right", base: "middle", color: col, shadow: false });
+      h.text("콤보", rx + 20 * u, ry + 15 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+      h.text(`${Math.round(this.comboPts)}`, rx + 20 * u, ry + 31 * u, { size: 14, base: "middle", mono: true, shadow: false });
+      h.bar(rx + 14 * u, ry + 43 * u, rw - 34 * u, 7 * u, this.window / 3.2, col);
     }
-    let y = 110 * u;
-    for (const l of this.log) {
-      if (l.t > 4) continue;
-      h.g.globalAlpha = Math.min(1, (4 - l.t) * 1.5);
-      h.text(l.text, 18 * u, y, { size: 15, color: l.t < 0.4 ? "#fff" : "#9fe7ff" });
-      h.g.globalAlpha = 1;
-      y += 21 * u;
+
+    // 묘기 기록
+    if (full) {
+      let ly = y + ph + 24 * u;
+      for (const l of this.log) {
+        if (l.t > 4) continue;
+        h.fade(Math.min(1, (4 - l.t) * 1.5));
+        h.text(l.text, x + 4 * u + Math.max(0, 0.2 - l.t) * 60 * u, ly, { size: l.t < 0.4 ? 17 : 15, color: l.t < 0.4 ? "#fff" : "#9fe7ff" });
+        ly += 22 * u;
+      }
+      h.fade(1);
     }
-    if (this.prox > 0.3) h.text(`근접 +${Math.round(this.proxPts * this.mult)}`, W / 2, h.H * 0.62, { size: 18, align: "center", color: "#35ff7a" });
-    if (this.dive > 6) h.text(`다이브 ${this.dive.toFixed(0)}m`, W / 2, h.H * 0.66, { size: 18, align: "center", color: "#9fe7ff" });
-    if (!this.timed) h.text("자유 비행 — Esc 로 종료", W / 2, 30 * u, { size: 14, align: "center", color: "#b8c7d6", bold: false });
+    if (this.prox > 0.3) h.text(`근접 +${Math.round(this.proxPts * this.mult)}`, W / 2, h.H * 0.66, { size: 18, align: "center", color: "#35ff7a" });
+    if (this.dive > 6) h.text(`다이브 ${this.dive.toFixed(0)}m`, W / 2, h.H * 0.71, { size: 18, align: "center", color: "#9fe7ff" });
   }
 }
