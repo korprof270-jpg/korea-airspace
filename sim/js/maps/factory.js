@@ -1,5 +1,6 @@
-// 맵 2: 산업단지 — 창고·컨테이너 야적장·저장 탱크·철골 타워
+// 맵 2: 석양의 항만 — 부두·창고·야적장을 중심으로 조선소(서), 정유 단지와 수로·사장교(동), 조차장(남), 방파제와 등대(바다)
 import * as THREE from "../../vendor/three.module.min.js";
+import { QUAY, CH0, CH1, BRIDGE_Z, TOWER, HULL, TUG_PATH, channel, refinery, conveyor, shipyard, fishMarket, railYard, site, reefers, seaside, stockyard, plume } from "./factory-zones.js";
 
 // 축에 나란한 벽에 구멍(문·창)을 뚫어 만든다. axis: "x"(동서 방향 벽) | "z"(남북 방향 벽)
 // holes: [{ at: 벽 시작점부터의 중심 거리, w, y0, y1 }]
@@ -21,16 +22,17 @@ function wall(w, axis, x, z, len, h, holes, color, t = 0.5) {
   seg(cur, len, 0, h);
 }
 
-const QUAY = -128;
 
 // 부두·화물선·크레인
 function harbor(w) {
   const r = w.rand, CONC = 0xa9a9a4;
-  w.box(0, -4, QUAY - 0.8, 900, 4.1, 1.6, CONC, { mat: "std:concrete", tile: 6 });
-  w.box(0, 0.02, QUAY + 3, 900, 0.03, 0.5, 0xe0b52a, { col: false, ao: false });
+  for (const [x0, x1] of [[-450, CH0], [CH1, 450]]) {
+    w.box((x0 + x1) / 2, -4, QUAY - 0.8, x1 - x0, 4.1, 1.6, CONC, { mat: "std:concrete", tile: 6 });
+    w.box((x0 + x1) / 2, 0.02, QUAY + 3, x1 - x0, 0.03, 0.5, 0xe0b52a, { col: false, ao: false });
+  }
   for (let x = -190; x <= 190; x += 19) { w.cyl(x, 0, QUAY + 1.2, 0.35, 0.8, 0x2c2f35, { mat: "paint" }); w.cyl(x, 0.7, QUAY + 1.2, 0.5, 0.18, 0x2c2f35, { mat: "paint", col: false }); }
   // 레일
-  for (const z of [-112, -124]) w.box(0, 0.02, z, 420, 0.1, 0.18, 0x5a5f68, { col: false, mat: "metal", ao: false });
+  for (const z of [-112, -124]) w.box(10, 0.02, z, 200, 0.1, 0.18, 0x5a5f68, { col: false, mat: "metal", ao: false });
 
   // 화물선 (x -70..90, z -164..-140)
   const SX = 10, SZ = -152, L = 164, B = 24;
@@ -73,10 +75,7 @@ function harbor(w) {
     w.gap("크레인 다리 사이", cx, 6, -118, 90, 10.6, 11, 350); w.gap("크레인 다리 사이", cx, 6, -118, 0, 16.6, 11, 300);
     w.gap("크레인 붐 아래", cx, 31, -140, 90, 18, 14, 380);
   }
-  // 방파제와 등대, 먼 바다의 섬
-  for (let i = 0; i < 26; i++) w.blob(-260 + i * 9 + r() * 4, -0.6, -250 - i * 3.2 + r() * 5, 5 + r() * 3, 2.6 + r() * 1.5, 5 + r() * 3, 0x6f6a64, { mat: "std:rock", col: false });
-  w.cyl(-262, 0, -246, 2.4, 20, 0xf2f0ea, { rt: 1.6, mat: "paint" }); w.cyl(-262, 20, -246, 2, 2.6, 0xc94a3a, { rt: 2, mat: "paint", col: false });
-  w.sph(-262, 23.4, -246, 1.1, 0xfff0b0, { mat: "glow", col: false }); w.cone(-262, 24, -246, 2.2, 2, 0xc94a3a, { mat: "paint", col: false });
+  // 먼 바다의 섬 (방파제와 등대는 factory-zones.js)
   for (const [x, z, s] of [[-520, -620, 90], [300, -760, 130], [640, -560, 100], [0, -900, 160]]) for (let i = 0; i < 5; i++) w.blob(x + (r() - 0.5) * s * 1.8, -4, z + (r() - 0.5) * s, s * (0.5 + r() * 0.6), s * (0.16 + r() * 0.14), s * (0.5 + r() * 0.5), 0x4a5560, { col: false, grad: [0.7, 1.05] });
 }
 
@@ -117,12 +116,13 @@ function extras(w) {
   // 담장 안쪽 나무와 잡초
   for (let i = 0; i < 70; i++) {
     const side = (r() * 3) | 0, t = (r() * 2 - 1) * 196;
-    const x = side === 0 ? -201 + r() * 4 : side === 1 ? 201 - r() * 4 : t, z = side === 2 ? 202 - r() * 4 : Math.max(-110, t);
+    const x = side === 0 ? -296 + r() * 4 : side === 1 ? 297 + r() * 3 : t, z = side === 2 ? 202 - r() * 4 : side === 0 ? Math.abs(t) + 2 : Math.max(-80, t);
+    if (side === 1 && Math.abs(z - TOWER[1]) < 26) continue;
     w.tree(x, z, 0.9 + r() * 0.6, r() < 0.3 ? "bush" : "round");
   }
   // 원경: 이웃 공장 실루엣
   for (let i = 0; i < 26; i++) {
-    const a = 0.35 + (i / 26) * 2.45, d = 330 + r() * 260, x = Math.cos(a) * d * (i % 2 ? 1 : -1), z = Math.abs(Math.sin(a)) * d * 0.9 + 60;
+    const a = 0.35 + (i / 26) * 2.45, d = 440 + r() * 240, x = Math.cos(a) * d * (i % 2 ? 1 : -1), z = Math.abs(Math.sin(a)) * d * 0.9 + 60;
     const h = 14 + r() * 36;
     if (r() < 0.3) { w.cyl(x, 0, z, 4 + r() * 3, h * 2, 0x6a6470, { rt: 3, col: false }); w.sph(x, h * 2 + 1, z, 0.9, 0xff3030, { mat: "glow", col: false }); }
     else w.box(x, 0, z, 30 + r() * 50, h, 24 + r() * 40, [0x5a5f6c, 0x6b6470, 0x4f5562][i % 3], { col: false, mat: "std:corrug", tile: 3, ry: r() * 30 });
@@ -131,11 +131,13 @@ function extras(w) {
 
 function build(w) {
   const r = w.rand;
-  // 부두(z < -128) 북쪽은 바다
-  w.col.setTerrain((x, z) => (z < QUAY ? -1.3 : 0));
-  w.ground(0x858a92, "wetasphalt", 10, { bounds: [-900, 900, QUAY, 900], env: 1.25 });
+  // 부두(z < -128) 북쪽은 바다, 동쪽에는 정유 단지 섬을 가르는 수로(x 198..230)
+  w.col.setTerrain((x, z) => (z < QUAY || (x > CH0 && x < CH1) ? -3.2 : 0));
+  w.ground(0x858a92, "wetasphalt", 10, { bounds: [-900, CH0, QUAY, 900], env: 1.25 });
+  w.ground(0x8d8a86, "wetasphalt", 10, { bounds: [CH1, 900, QUAY, 900], env: 1.25 });
   w.water(-1.2, 0x1c4658);
   harbor(w);
+  channel(w); refinery(w); conveyor(w); shipyard(w); fishMarket(w); railYard(w); site(w); reefers(w); stockyard(w); seaside(w);
   extras(w);
   // 바닥 표시선
   for (let i = -3; i <= 3; i++) w.box(i * 60, 0.02, 38, 0.3, 0.02, 330, 0xc9a93a, { col: false, ao: false });
@@ -155,7 +157,7 @@ function build(w) {
   for (const x of [-72, -48]) { w.box(x, 14, -54, 8, 0.5, 13, 0x566170); w.box(x, 14, -26, 8, 0.5, 13, 0x566170); }
   w.box(-60, 0.02, -40, 69, 0.03, 39, 0x9a9da2, { col: false, mat: "std:concrete", tile: 5 });
   for (const x of [-56, -36]) for (const z of [-50, -30]) w.box(x, 0, z, 0.7, 14, 0.7, 0xc9a23a, { mat: "paint" });
-  for (let i = 0; i < 7; i++) w.box(-90 + r() * 8, 0, -57 + i * 5.2, 2.2, 1.6 + r() * 1.6, 2.2, 0x9b6b3d);
+  for (let i = 0; i < 7; i++) w.box(-91 + r() * 4, 0, -57 + i * 5.2, 2.2, 1.6 + r() * 1.6, 2.2, 0x9b6b3d);
   w.box(-34, 0, -52, 9, 4, 5, 0x4d5a6b);                       // 사무실 박스
   w.gap("창고 남문", -80, 3.2, -20, 0, 8.6, 6.2, 300); w.gap("창고 남문", -40, 3.2, -20, 0, 8.6, 6.2, 300);
   w.gap("창고 북문", -60, 3.7, -60, 0, 10.6, 7.2, 300);
@@ -205,6 +207,7 @@ function build(w) {
     w.cyl(x, 0, z, 3.4, h, 0xb9b3a8, { rt: 2.2 });
     w.cyl(x, h - 9, z, 2.5, 3, 0xc94a3a, { rt: 2.35, col: false }); w.cyl(x, h - 3, z, 2.3, 3, 0xc94a3a, { rt: 2.2, col: false });
     w.sph(x, h + 0.6, z, 0.5, 0xff3030, { mat: "glow", col: false });
+    plume(w, x, h + 2, z, 4.5, 34, 2, 0xfff0e2, 0.5);
   }
   w.box(-140, 0, 58, 26, 9, 14, 0x6d7683, { mat: "std:corrug", tile: 3 });
 
@@ -224,8 +227,6 @@ function build(w) {
   w.gap("철골 타워 1층", TX, 4.2, TZ, 90, 18, 7.6, 250);
 
   // ── 화물 열차·트럭·잡동사니 ──
-  w.box(0, 0.05, 172, 430, 0.1, 3.4, 0x4a4036, { col: false });
-  for (let i = 0; i < 8; i++) w.box(-150 + i * 16, 0.4, 172, 14, 3.6, 3, [0x6b4a3a, 0x3d5a6b, 0x7a6a3a, 0x444a52][i % 4], { mat: "std:corrug", tile: 2.6 });
   for (const [x, z, ry] of [[-104, -6, 0], [-128, 22, 0], [10, -30, 90], [-24, 172, 90]]) { w.box(x, 0.5, z, 2.5, 2.8, 7, 0x3d6b4f, { ry }); w.box(x, 0.5, z - (ry ? 0 : 5), 2.4, 2.2, 2.4, 0xdadada, { ry }); }
   for (let i = 0; i < 26; i++) {
     const x = (r() * 2 - 1) * 190, z = (r() * 2 - 1) * 190;
@@ -240,8 +241,6 @@ function build(w) {
     for (const dx of [-1.3, 0, 1.3]) w.box(x + dx, 23.8, z, 0.9, 0.2, 1.2, 0xfff0c8, { mat: "glow", col: false });
     w.pool(x, 0, z, 26, 0xffe2b0, 0.42); w.shaft(x, 23.8, z, 0.5, 9, 23.6, 0xffe2b0, 0.014);
   }
-  w.box(0, 0, 205, 412, 3, 0.6, 0x8d9197, { mat: "std:concrete", tile: 6 });
-  for (const s of [-1, 1]) w.box(s * 205, 0, 38, 0.6, 3, 334, 0x8d9197, { mat: "std:concrete", tile: 6 });
 }
 
 const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
@@ -249,8 +248,8 @@ const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
 export default {
   id: "factory",
   name: "석양의 항만",
-  desc: "화물선과 부두 크레인, 창고·컨테이너·철골 타워. 통과할 틈이 많은 프리스타일 명소",
-  size: 200,
+  desc: "화물선과 부두 크레인, 창고·야적장을 중심으로 조선소의 선체 늑골과 골리앗 크레인, 사장교 너머 정유 단지의 냉각탑, 조차장과 등대까지. 통과할 틈이 많은 프리스타일 명소",
+  size: 260,
   seed: 23,
   env: {
     sky: { top: 0x27407e, horizon: 0xff9a58, bottom: 0x5c4a52 }, sunDir: [-0.62, 0.17, -0.77], sunColor: 0xffae6a, sun: 3.5,
@@ -286,6 +285,24 @@ export default {
         G("ring", -52, 5, 8, { r: 2.6 }), G("ring", 2, 6, 34, { r: 2.6 }), G("flag", 16, 0, 54, { w: 7 }),
       ],
     },
+    {
+      id: "dock", name: "조선소 스프린트", level: 2, laps: 2, desc: "선체 늑골 터널을 꿰뚫고 바다로 나갔다가 어시장 부두를 돌아오는 코스",
+      gates: [
+        G("square", -190, 4, 44, { w: 5.4, h: 4 }), G("ring", -212, 9, -6, { r: 3 }), G("square", HULL[0], 6.8, HULL[2] - 4, { w: 8, h: 8, yaw: 0 }), G("square", HULL[0], 7, -86, { w: 12, h: 8.6, yaw: 0 }),
+        G("ring", HULL[0], 7, HULL[1] - 2, { r: 3, yaw: 0 }), G("ring", -226, 8, -152, { r: 3.4 }), G("ring", -170, 7, -147, { r: 3.2 }), G("square", -108, 6, -131, { w: 6, h: 4.6 }),
+        G("ring", -92, 7, -100, { r: 3 }), G("square", -118, 4.4, -6, { w: 6, h: 4.4 }), G("flag", -160, 0, 28, { w: 8 }),
+      ],
+    },
+    {
+      id: "refinery", name: "정유 단지", level: 3, laps: 1, desc: "사장교 주탑 사이를 지나 냉각탑 속으로 다이브, 구형 탱크와 증류탑을 누비고 수로를 따라 돌아오는 고난도 코스",
+      gates: [
+        G("ring", 176, 10.4, BRIDGE_Z, { r: 3 }), G("square", CH0 - 5, 19, BRIDGE_Z, { w: 6.2, h: 9, yaw: -90 }), G("square", CH1 + 5, 19, BRIDGE_Z, { w: 6.2, h: 9, yaw: -90 }), G("ring", 251, 18, BRIDGE_Z, { r: 3, yaw: -90 }), G("ring", 262, 60, 122, { r: 4 }),
+        G("square", TOWER[0], 54, TOWER[1], { w: 14, h: 14, pitch: -90, yaw: 0 }), G("ring", TOWER[0] - 2, 13, TOWER[1], { r: 4, pitch: -90, yaw: 0 }), G("square", TOWER[0] - 21, 3, TOWER[1], { w: 5, h: 4.2, yaw: 90 }),
+        G("ring", 266, 9, BRIDGE_Z, { r: 3 }), G("square", 264, 10.5, 50, { w: 6, h: 10, yaw: 0 }), G("square", 264, 10.5, 24, { w: 6, h: 10, yaw: 0 }), G("ring", 274, 16, -56, { r: 3.4 }),
+        G("ring", 270, 12, -98, { r: 3.4 }), G("ring", 246, 7, -148, { r: 3.6 }), G("ring", 214, 5, -110, { r: 3.4 }), G("square", 214, 5.6, -60, { w: 16, h: 7, yaw: 180 }),
+        G("square", 214, 4.4, BRIDGE_Z, { w: 18, h: 5.6, yaw: 180 }), G("ring", 196, 9, 128, { r: 3.4 }), G("ring", 160, 8, 114, { r: 3 }),
+      ],
+    },
   ],
   tracking: [
     {
@@ -294,13 +311,18 @@ export default {
     },
     {
       id: "truck", name: "화물 트럭", type: "truck", level: 2, desc: "단지 외곽 도로를 도는 트럭 추적", duration: 85,
-      path: [[-166, 0, 176, 11], [0, 0, 180, 14], [168, 0, 176, 11], [184, 0, 40, 13], [176, 0, -108, 9], [62, 0, -118, 12], [-30, 0, -118, 12], [-110, 0, -117, 11], [-180, 0, -112, 9], [-186, 0, 40, 13]],
+      path: [[-166, 0, 180, 11], [-60, 0, 186, 14], [40, 0, 187, 13], [110, 0, 187, 11], [131, 0, 170, 8], [134, 0, 140, 9], [143, 0, 100, 12], [143, 0, 20, 13], [140, 0, -50, 11], [128, 0, -100, 9], [62, 0, -118, 12], [-30, 0, -118, 12], [-88, 0, -116, 9], [-92, 0, -84, 8], [-184, 0, -84, 11], [-190, 0, 40, 13]],
     },
+    {
+      id: "patrol", name: "정유 단지 순찰", type: "runner", level: 1, desc: "구형 탱크 둘레를 도는 순찰 요원을 가까이에서 따라가세요", duration: 70, color: 0xffd400,
+      path: [[236, 0, 8, 4.4], [264, 0, 6, 4.8], [290, 0, 8, 4.4], [291.5, 0, 37, 4.8], [290, 0, 66, 4.4], [264, 0, 68, 4.8], [236, 0, 66, 4.4], [234, 0, 37, 4.8]],
+    },
+    { id: "tug", name: "만 안의 어선", type: "boat", level: 2, desc: "방파제 안쪽을 도는 어선을 수면 가까이에서 추적하세요", duration: 80, color: 0x2a9d8f, path: TUG_PATH },
     {
       id: "drone", name: "점검 드론", type: "drone", level: 3, desc: "구조물 사이를 누비는 점검 드론을 놓치지 마세요", duration: 75,
       path: [[0, 6, 110, 11], [-22, 12.7, 70, 9], [-40, 12.7, 70, 9], [-62, 14, 68, 10], [-90, 18, 30, 12], [-60, 22, -40, 13], [0, 14, -30, 12], [58, 22, -42, 11], [110, 24, -40, 13], [150, 16, 20, 13], [100, 30, 65, 11], [50, 12, 118, 12]],
     },
   ],
   combat: { blue: [-70, 130], red: [150, -30], depots: [[0, 0], [-110, 20], [150, 20], [20, -104]] },
-  strike: { turrets: [[-10, -100], [20, 14], [-110, 20], [160, 70], [84, -100], [-172, 62]], core: [164, -74] },
+  strike: { turrets: [[-10, -100], [20, 14], [-110, 20], [268, -12], [84, -100], [-224, -54]], core: [164, -74] },
 };
