@@ -1,146 +1,81 @@
-// 맵 3: 네온 시티 — 밤의 도심. 60m 격자 블록과 16m 폭 도로, 빌딩 숲
-import * as THREE from "../../vendor/three.module.min.js";
-import { PathMover, makeCar } from "../entities.js";
+// 맵: 네온 시티 — 밤의 도심. 60m 격자 위에 구역별로 성격이 다른 거리와 랜드마크를 놓는다
+//  · 가운데: 하늘탑(첨탑)과 금융가 타워들, 그 둘레를 도는 모노레일 순환선(±90 도로 위)
+//  · z 49..71: 도로보다 낮은 천변 물길과 다리 10개      · 북서: 아파트 단지   · 북동: 공사장(골조 빌딩·타워 크레인)
+//  · 남서: 성문과 야시장(아케이드·등불 골목)            · 남: 달빛 공원·호텔   · 남동: 대관람차와 야외 공연장, 고가도로
+import { MAG, CYA, YEL, GRN, ORG, VIO, RED, ring, Signs, icon, neonText } from "./city-kit.js";
+import { BLOCK, tower, spire, gateTower, twinTowers, gardenDeck, crownTower, cylTower, construction, dome, ferrisBase, stage, market, cityGate, park, hotel, expressway, backdrop } from "./city-places.js";
+import { stream, monorail, station, streets, padTrees } from "./city-infra.js";
+import { life } from "./city-life.js";
 
-const NEON = [0xff2bd6, 0x21d4fd, 0xffe14a, 0x35ff7a, 0xff5a1f, 0x9b6bff];
-const TONE = [0x6f7a8c, 0x5d6678, 0x7a7384, 0x566a7a, 0x80796e, 0x4f5a70];
-// 높이가 정해진 랜드마크 빌딩: "i,j" → [가로, 세로, 높이]
-const FIXED = { "1,0": [28, 28, 36], "1,-1": [30, 30, 52], "0,-1": [26, 26, 44], "-1,-1": [30, 30, 30], "-1,0": [24, 24, 60], "2,0": [28, 28, 40] };
-const EMPTY = new Set(["0,0", "-1,1", "-3,3", "3,-3", "2,2"]);
-
-// 도로를 따라 도는 둥근 사각 경로
+// 도로를 따라 도는 둥근 사각 경로(지상 피사체용)
 function loop(x0, x1, z0, z1, v, c = 14) {
   const vs = v * 0.45;
   return [
-    [x0 + c, 0, z1, vs], [(x0 + x1) / 2, 0, z1, v], [x1 - c, 0, z1, vs], [x1, 0, z1 - c, vs], [x1, 0, (z0 + z1) / 2, v], [x1, 0, z0 + c, vs],
-    [x1 - c, 0, z0, vs], [(x0 + x1) / 2, 0, z0, v], [x0 + c, 0, z0, vs], [x0, 0, z0 + c, vs], [x0, 0, (z0 + z1) / 2, v], [x0, 0, z1 - c, vs],
+    [x0 + c, 0, z0, vs], [(x0 + x1) / 2, 0, z0, v], [x1 - c, 0, z0, vs], [x1, 0, z0 + c, vs], [x1, 0, (z0 + z1) / 2, v], [x1, 0, z1 - c, vs],
+    [x1 - c, 0, z1, vs], [(x0 + x1) / 2, 0, z1, v], [x0 + c, 0, z1, vs], [x0, 0, z1 - c, vs], [x0, 0, (z0 + z1) / 2, v], [x0, 0, z0 + c, vs],
   ];
 }
 
-function tower(w, x, z, wd, dp, h, color, plain = false) {
-  const r = w.rand;
-  w.building(x, z, wd, dp, h, color, { roof: !plain });
-  const c = NEON[(r() * NEON.length) | 0];
-  if (r() < 0.65) { // 세로 네온 간판
-    const side = r() < 0.5 ? 1 : -1, sh = Math.min(h * 0.45, 16);
-    if (r() < 0.5) w.box(x + side * (wd / 2 + 0.25), h * 0.42, z + (r() - 0.5) * dp * 0.5, 0.4, sh, 2.2, c, { mat: "glow", col: false });
-    else w.box(x + (r() - 0.5) * wd * 0.5, h * 0.42, z + side * (dp / 2 + 0.25), 2.2, sh, 0.4, c, { mat: "glow", col: false });
-  }
-  if (r() < 0.45) { // 옥상 테두리 조명
-    for (const s of [-1, 1]) {
-      w.box(x, h + 0.5, z + s * dp * 0.48, wd * 0.96, 0.25, 0.25, c, { mat: "glow", col: false });
-      w.box(x + s * wd * 0.48, h + 0.5, z, 0.25, 0.25, dp * 0.96, c, { mat: "glow", col: false });
-    }
-  }
-  // 1층 상가: 쇼윈도 불빛과 보도에 번지는 조명
-  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    if (r() < 0.38) continue;
-    const sc = NEON[(r() * NEON.length) | 0], warm = r() < 0.5 ? 0xffd9a0 : sc;
-    const len = (dx ? dp : wd) * (0.5 + r() * 0.35), off = (r() - 0.5) * (dx ? dp : wd) * 0.2;
-    const px = x + dx * (wd / 2 + 0.32) + (dx ? 0 : off), pz = z + dz * (dp / 2 + 0.32) + (dz ? 0 : off);
-    w.box(px, 0.5, pz, dx ? 0.12 : len, 2.5, dx ? len : 0.12, new THREE.Color(warm).multiplyScalar(0.42).getHex(), { mat: "glow", col: false });
-    w.box(px + dx * 0.5, 3.2, pz + dz * 0.5, dx ? 1.3 : len + 0.6, 0.16, dx ? len + 0.6 : 1.3, 0x1c1f27, { col: false, ao: false });
-    w.box(px + dx * 1.16, 3.0, pz + dz * 1.16, dx ? 0.1 : len * 0.7, 0.5, dx ? len * 0.7 : 0.1, sc, { mat: "glow", col: false });
-    w.pool(px + dx * 3.2, 0.2, pz + dz * 3.2, 5.5 + len * 0.12, warm, 0.3);
-  }
-  if (h > 45 && !plain && r() < 0.6) { w.pipe(x, h + 0.5, z, x, h + 12, z, 0.15, 0x555b66); w.sph(x, h + 12.4, z, 0.4, 0xff3030, { mat: "glow", col: false }); }
-}
+// 네온 간판 도안 (한글 글꼴이 없으면 영문 표기)
+const S = (id, text, icn, fg, frame, kind) => ({ id, text, icon: icn, fg, frame, kind });
+const SIGNS = [
+  S("market", ["야시장", "NIGHT MKT"], "bowl", YEL, RED), S("noodle", ["국수", "NOODLE"], "bowl", 0xffd9a0, ORG), S("cafe", ["카페", "CAFE"], "cup", 0xffffff, CYA),
+  S("sing", ["노래방", "KARAOKE"], "note", MAG, VIO), S("pharm", ["약국", "PHARMACY"], "cross", GRN, GRN), S("mart", ["24시 마트", "24H MART"], "bolt", YEL, CYA),
+  S("fish", ["횟집", "SEAFOOD"], "fish", CYA, 0xffffff), S("arcade", ["게임랜드", "ARCADE"], "star", MAG, CYA), S("post", ["드론 택배", "DRONE POST"], "drone", ORG, YEL),
+  S("hotel", ["호텔 달빛", "HOTEL LUNA"], "moon", 0xffe9b0, VIO), S("luna", ["달빛 랜드", "LUNA PARK"], "wheel", MAG, YEL), S("caution", ["공사중", "CAUTION"], "warn", YEL, ORG),
+  S("stnN", ["하늘역", "SKY STN"], "train", 0xffffff, CYA), S("stnS", ["천변역", "RIVERSIDE"], "train", 0xffffff, YEL),
+  S("t0", ["분식", "SNACK"], "bowl", YEL, ORG, "tall"), S("t1", ["서점", "BOOKS"], "star", CYA, CYA, "tall"), S("t2", ["사진관", "PHOTO"], "heart", MAG, MAG, "tall"), S("t3", ["당구", "POOL"], "bolt", GRN, GRN, "tall"),
+  S("t4", ["만화방", "COMIC"], "star", ORG, YEL, "tall"), S("t5", ["꽃집", "FLOWER"], "heart", 0xff8ad0, GRN, "tall"), S("t6", ["찻집", "TEA"], "cup", 0xffd9a0, RED, "tall"), S("t7", ["PC방", "PC"], "bolt", CYA, VIO, "tall"),
+  {
+    id: "gp", kind: "big", draw(g, W, H, ko) {
+      const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, "#1c0b3e"); gr.addColorStop(1, "#06203e"); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      g.strokeStyle = "rgba(33,212,253,0.55)"; g.lineWidth = 3;
+      for (let i = 0; i < 8; i++) { g.beginPath(); g.moveTo(0, 28 + i * 27); g.lineTo(36 + ((i * 53) % 90), 28 + i * 27); g.stroke(); }
+      icon(g, "drone", 118, 118, 150, "#ffe14a");
+      neonText(g, ko ? "하늘길 FPV" : "SKYWAY FPV", 350, 84, 60, "#ffffff", 300);
+      neonText(g, ko ? "그랑프리" : "GRAND PRIX", 350, 158, 52, "#ff2bd6", 300);
+      for (let i = 0; i < 26; i++) { g.fillStyle = i % 2 ? "#ffffff" : "#0a0c14"; g.fillRect(i * 20, 220, 20, 14); g.fillStyle = i % 2 ? "#0a0c14" : "#ffffff"; g.fillRect(i * 20, 234, 20, 14); }
+    },
+  },
+  {
+    id: "neon", kind: "big", draw(g, W, H, ko) {
+      const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, "#07102c"); gr.addColorStop(1, "#2a0b34"); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      for (let i = 0; i < 22; i++) { const h = 30 + ((i * 97) % 110), x = 10 + i * 23; g.fillStyle = ["#21d4fd", "#ff2bd6", "#ffe14a", "#35ff7a"][i % 4]; g.globalAlpha = 0.75; g.fillRect(x, H - 14 - h, 15, h); }
+      g.globalAlpha = 1;
+      neonText(g, ko ? "네온 시티" : "NEON CITY", W / 2, 70, 68, "#ffffff", 460);
+      neonText(g, ko ? "생중계" : "LIVE", 444, 122, 26, "#ff3040", 110);
+    },
+  },
+];
+
+// 구역 배치: [열 i, 행 j, 짓는 함수]. 블록 중심은 (60i, 60j)
+const gen = (kind, H, c, o) => (w, K, x, z) => { BLOCK[kind](w, K, x, z, H, c, o); padTrees(w, K, x, z); };
+const basePad = (c) => (w, K, x, z) => {
+  ring(w, x, 0.24, z, 13, 0.2, c, { col: false, seg: 48, sides: 4 }); ring(w, x, 0.24, z, 20.5, 0.12, c, { col: false, seg: 56, sides: 4 });
+  w.pool(x, 0.2, z, 22, c, 0.3);
+};
+const CELLS = [
+  [-3, -3, gen("apt", 48, null, { neon: GRN })], [-2, -3, gen("apt", 56, null, { neon: CYA, ns: true })], [-1, -3, gen("L", 26)], [0, -3, dome], [1, -3, gen("pair", 28)], [2, -3, gen("cyl", 22, 0x6a6e76, { R: 15, neon: ORG })], [3, -3, basePad(RED)],
+  [-3, -2, gen("apt", 44, null, { neon: YEL, ns: true })], [-2, -2, gen("apt", 40, null, { neon: GRN })], [-1, -2, gen("podium", 46)], [0, -2, gen("twin", 52)], [1, -2, gen("setback", 48)], [3, -2, gen("quad", 26)],
+  [-3, -1, gen("apt", 52, null, { neon: CYA })], [-2, -1, gen("podium", 40)], [-1, -1, gen("setback", 66, 0x566a7a, { neon: GRN, green: true })], [0, -1, gateTower],
+  [1, -1, (w, K, x, z) => tower(w, K, x, z, 30, 30, 52, 0x5d6678, { roof: "heli", trim: true, neon: GRN })], [2, -1, crownTower], [3, -1, gen("pair", 30)],
+  [-3, 0, gen("quad", 22)], [-2, 0, gen("setback", 42)], [-1, 0, cylTower], [3, 0, gen("L", 28)],
+  [-3, 2, cityGate], [0, 2, park], [1, 2, hotel], [2, 2, (w, K, x, z) => ferrisBase(w, K, x, z, 38, 27)], [3, 2, gen("rows", 11)],
+  [-3, 3, basePad(0x2f8cff)], [-2, 3, gen("rows", 9)], [-1, 3, gen("quad", 15)], [0, 3, gen("pair", 20)], [1, 3, gen("L", 22)], [2, 3, stage], [3, 3, gen("rows", 10)],
+];
 
 function build(w) {
-  const r = w.rand;
-  w.ground(0x3a3d46, "wetasphalt", 9, { vary: 0.08, env: 1.4 });
-
-  for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
-    const cx = i * 60, cz = j * 60, key = `${i},${j}`;
-    w.box(cx, 0, cz, 46, 0.18, 46, 0x4a4e58, { col: false, mat: "std:concrete", tile: 5 });
-    if (EMPTY.has(key)) continue;
-    if (FIXED[key]) { const [a, b, h] = FIXED[key]; tower(w, cx, cz, a, b, h, TONE[(i + j + 12) % TONE.length], true); continue; }
-    const dist = Math.hypot(cx, cz), hh = () => 12 + Math.max(8, 74 - dist * 0.26) * (0.35 + r() * 0.65);
-    const t = r();
-    if (t < 0.3) tower(w, cx, cz, 36, 36, hh(), TONE[(r() * 6) | 0]);
-    else if (t < 0.65) {
-      if (r() < 0.5) { tower(w, cx - 11, cz, 17, 38, hh(), TONE[(r() * 6) | 0]); tower(w, cx + 11, cz, 17, 38, hh(), TONE[(r() * 6) | 0]); }
-      else { tower(w, cx, cz - 11, 38, 17, hh(), TONE[(r() * 6) | 0]); tower(w, cx, cz + 11, 38, 17, hh(), TONE[(r() * 6) | 0]); }
-    } else for (const sx of [-1, 1]) for (const sz of [-1, 1]) tower(w, cx + sx * 11, cz + sz * 11, 17, 17, hh() * (0.6 + r() * 0.5), TONE[(r() * 6) | 0]);
-  }
-
-  // 차선·가로등
-  for (let k = -3; k <= 2; k++) {
-    const p = k * 60 + 30;
-    for (let s = -225; s < 225; s += 10) {
-      if (Math.abs(((s + 230) % 60) - 30) > 21) continue; // 교차로 구간은 비움
-      w.box(p, 0.03, s + 5, 0.2, 0.02, 4, 0x3c4048, { col: false, mat: "glow" });
-      w.box(s + 5, 0.03, p, 4, 0.02, 0.2, 0x3c4048, { col: false, mat: "glow" });
-    }
-    for (let m = -3; m <= 3; m++) {
-      w.lamp(p - 7.7, m * 60 + 9, 7, 0xffd9a0, 90); w.lamp(p + 7.7, m * 60 - 9, 7, 0xffd9a0, -90);
-    }
-  }
-
-  // 중앙 광장: 첨탑
-  w.box(0, 0, 0, 16, 30, 16, 0x8a93a8, { mat: "lit:facadelit", tile: 24, ao: false });
-  w.box(0, 30, 0, 8, 66, 8, 0x9aa3b8, { mat: "lit:facadelit", tile: 24, ao: false });
-  w.pipe(0, 96, 0, 0, 118, 0, 0.3, 0x8a93a5);
-  w.sph(0, 118.6, 0, 0.8, 0xff2bd6, { mat: "glow", col: false });
-  for (const [y, R, c] of [[42, 13, 0x21d4fd], [62, 10.5, 0xff2bd6], [82, 8, 0xffe14a]]) {
-    const g = new THREE.TorusGeometry(R, 0.3, 6, 40); g.rotateX(Math.PI / 2);
-    w.mesh(g, new THREE.Matrix4().makeTranslation(0, y, 0), c, "glow");
-    g.dispose();
-  }
-  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; w.box(Math.cos(a) * 19, 0.18, Math.sin(a) * 19, 1.2, 0.6, 1.2, NEON[i % 6], { mat: "glow" }); }
-
-  // 공원 (-60, 60)
-  w.box(-60, 0.19, 60, 44, 0.03, 44, 0x2f5a37, { col: false, mat: "std:grass", tile: 6 });
-  for (let i = 0; i < 16; i++) { const x = -60 + (r() - 0.5) * 38, z = 60 + (r() - 0.5) * 38; if (Math.hypot(x + 60, z - 60) > 9 && Math.abs(Math.hypot(x + 60, z - 60) - 15.5) > 3 && !(x > -52 && z < 58)) w.tree(x, z, 0.8 + r() * 0.5, "round"); }
-  w.cyl(-60, 0.18, 60, 4, 0.6, 0x5a6270); w.cyl(-60, 0.5, 60, 3.4, 0.35, 0x21d4fd, { mat: "glow", col: false });
-  w.pipe(-60, 0.6, 60, -60, 3.2, 60, 0.25, 0x8a93a5);
-  // 스타디움형 광장 (120, 120)
-  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; w.pipe(120 + Math.cos(a) * 19, 0, 120 + Math.sin(a) * 19, 120 + Math.cos(a) * 19, 11, 120 + Math.sin(a) * 19, 0.4, 0x5a6270); w.box(120 + Math.cos(a) * 19, 11, 120 + Math.sin(a) * 19, 1.6, 0.5, 1.6, NEON[i % 6], { mat: "glow", col: false }); }
-  { const g = new THREE.TorusGeometry(19, 0.5, 6, 48); g.rotateX(Math.PI / 2); w.mesh(g, new THREE.Matrix4().makeTranslation(120, 11.5, 120), 0x21d4fd, "glow"); g.dispose(); }
-  w.gap("광장 기둥 사이", 120, 5.5, 101, 0, 10, 10, 250); w.gap("광장 기둥 사이", 120, 5.5, 139, 0, 10, 10, 250);
-
-  // 스카이브리지 (도로 x=90 위, 빌딩 A ↔ F)
-  w.box(90, 22, 0, 32, 0.5, 5, 0x596273); w.box(90, 25.5, 0, 32, 0.4, 5, 0x596273);
-  w.box(90, 22.5, -2.4, 32, 3, 0.2, 0x8fd3ff, { mat: "glass" }); w.box(90, 22.5, 2.4, 32, 3, 0.2, 0x8fd3ff, { mat: "glass" });
-  w.box(90, 21.6, 0, 32, 0.25, 5.4, 0x21d4fd, { mat: "glow", col: false });
-  w.gap("스카이브리지 아래", 90, 11, 0, 0, 15, 20, 300);
-  // 두 번째 브리지 (도로 z=-30 위, 빌딩 C ↔ 첨탑 블록 쪽)
-  w.box(-30, 26, -60, 14, 0.5, 4.5, 0x596273, { ry: 0 }); w.box(-30, 29.4, -60, 14, 0.4, 4.5, 0x596273);
-  w.box(-30, 25.6, -60, 14, 0.25, 4.9, 0xff2bd6, { mat: "glow", col: false });
-  w.gap("브리지 아래", -30, 13, -60, 0, 15, 24, 300); w.gap("브리지 틈새", -30, 28, -60, 0, 13, 2.6, 900);
-
-  // 고가도로 (z = 150)
-  w.box(0, 9, 150, 470, 1, 12, 0x474c57, { mat: "std:concrete", tile: 6 });
-  w.box(0, 10, 144.2, 470, 0.9, 0.4, 0x6a7080); w.box(0, 10, 155.8, 470, 0.9, 0.4, 0x6a7080);
-  for (let x = -180; x <= 180; x += 60) { w.pipe(x, 0, 145.5, x, 9, 145.5, 1.0, 0x5a606c, { mat: "std" }); w.pipe(x, 0, 154.5, x, 9, 154.5, 1.0, 0x5a606c, { mat: "std" }); }
-  for (let x = -225; x < 225; x += 12) w.box(x, 10.02, 150, 5, 0.02, 0.2, 0x55501e, { col: false, mat: "glow" });
-  for (const x of [-90, 30, 90]) w.gap("고가도로 아래", x, 4.5, 150, 0, 15, 8, 300);
-
-  // 옥상 헬기장 (빌딩 B)
-  w.cyl(60, 52.5, -60, 9, 0.3, 0x30343c, { col: false }); w.box(60, 52.82, -60, 6, 0.02, 1, 0xffe14a, { col: false, mat: "glow" });
-  w.box(57.5, 52.82, -60, 1, 0.02, 6, 0xffe14a, { col: false, mat: "glow" }); w.box(62.5, 52.82, -60, 1, 0.02, 6, 0xffe14a, { col: false, mat: "glow" });
-  // 대형 전광판
-  w.box(60, 36.5, 14.4, 20, 8, 0.4, 0x21d4fd, { mat: "glow" }); w.pipe(52, 36.5, 14, 52, 36.5, 14.2, 0.2, 0x333);
-  w.box(-73, 40, 0, 0.4, 12, 16, 0xff2bd6, { mat: "glow" });
-
-  // 주차된 차량
-  for (let i = 0; i < 26; i++) {
-    const k = ((r() * 6) | 0) * 60 - 150, s = (r() - 0.5) * 400, side = r() < 0.5 ? -6.7 : 6.7, c = [0xb33a3a, 0x2f5fa0, 0xd9d9d9, 0x2b2b2b, 0xc9a23a][i % 5];
-    if (Math.abs((((s + 240) % 60) + 60) % 60 - 30) < 15) continue;   // 교차로 근처는 비움
-    if (i % 2) { w.box(k + side, 0.3, s, 1.8, 1.25, 4.3, c); } else { w.box(s, 0.3, k + side, 4.3, 1.25, 1.8, c); }
-  }
-
-  // 달리는 차량(장식)
-  const lanes = [loop(-150, 150, -150, -90, 15), loop(-90, 90, -30, 90, 13), loop(-150, -30, -90, 150 - 60, 12), loop(30, 150, -90, 90, 14), loop(-150, 150, 90, 90 + 0.01, 0)];
-  lanes.slice(0, 4).forEach((pts, i) => {
-    for (let k = 0; k < 2; k++) {
-      const mv = new PathMover(pts.map(([x, y, z, v]) => [x + 3.5, y, z + 3.5, v]), { closed: true });
-      mv.s = (k * 0.5 + i * 0.13) * mv.length;
-      const car = makeCar([0xd13b3b, 0xf2f2f2, 0x2f8cff, 0xffc400, 0x35c46a, 0xb44cff, 0x222831, 0xff7a1a][(i * 2 + k) % 8], k === 1);
-      w.scene.add(car);
-      w.updaters.push((dt) => { mv.update(dt); car.position.copy(mv.pos); car.quaternion.copy(mv.quat); car.userData.tick(dt, mv.speed); });
-    }
-  });
+  const K = { signs: new Signs(w, SIGNS), beacons: [], block: [] };
+  stream(w, K);
+  for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) if (j !== 1) w.box(i * 60, 0, j * 60, 46, 0.18, 46, 0x4a4e58, { col: false, mat: "std:concrete", tile: 5 });
+  const rail = monorail(w, K);
+  station(w, K, 0, -90, "stnN", CYA, -1); station(w, K, 0, 90, "stnS", YEL, -1);
+  spire(w, K); twinTowers(w, K); gardenDeck(w, K); construction(w, K); market(w, K); expressway(w, K);
+  for (const [i, j, fn] of CELLS) fn(w, K, i * 60, j * 60);
+  backdrop(w, K);
+  streets(w, K);
+  K.signs.finish();
+  life(w, K, rail);
 }
 
 const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
@@ -148,7 +83,7 @@ const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
 export default {
   id: "city",
   name: "네온 시티",
-  desc: "밤의 도심. 빌딩 숲 사이 도로와 옥상, 브리지 아래를 누비는 맵",
+  desc: "밤의 도심. 모노레일이 도는 금융가, 다리 아래로 흐르는 천변, 야시장과 대관람차까지 구역마다 다른 비행",
   size: 230,
   ceiling: 170,
   seed: 37,
@@ -160,44 +95,60 @@ export default {
   build,
   tracks: [
     {
-      id: "downtown", name: "다운타운 스프린트", level: 1, laps: 3, desc: "도심 블록을 한 바퀴 도는 직선 위주의 도로 코스",
+      id: "downtown", name: "다운타운 스프린트", level: 1, laps: 3, desc: "모노레일 교각 아래 도심 블록을 한 바퀴 도는 직선 위주의 도로 코스",
       gates: [
         G("square", 0, 4, 30, { w: 6, h: 4.4 }), G("flag", 60, 0, 30, { w: 8 }), G("square", 90, 5, 0, { w: 7, h: 5 }), G("ring", 90, 5, -60, { r: 2.8 }),
-        G("square", 60, 4, -90, { w: 6, h: 4.4 }), G("flag", 0, 0, -90, { w: 8 }), G("square", -30, 5, -60, { w: 7, h: 5 }), G("ring", -30, 5, 0, { r: 2.8 }),
+        G("square", 60, 4.5, -90, { w: 6, h: 4.4 }), G("ring", 0, 5, -90, { r: 2.8 }), G("square", -30, 5, -60, { w: 7, h: 5 }), G("flag", -30, 0, 0, { w: 8 }),
       ],
     },
     {
-      id: "highway", name: "네온 하이웨이", level: 2, loop: false, desc: "도시를 가로지르는 구간 주행. 브리지와 고가 아래를 통과",
-      start: { pos: [-205, 0.4, 30], yaw: -90 },
+      id: "stream", name: "천변 스트림 런", level: 2, laps: 2, desc: "물길로 내려가 다리 아래를 연달아 지나고, 달맞이 고리와 무지개 아치를 꿰어 돌아오는 코스",
       gates: [
-        G("hoop", -160, 7, 30), G("hoop", -100, 9, 30), G("hoop", -46, 8, 28), G("hoop", -30, 9, -20, { r: 4.5 }), G("hoop", -30, 13, -60, { r: 4.5 }),
-        G("hoop", -22, 9, -88), G("hoop", 40, 8, -90), G("hoop", 82, 9, -84), G("hoop", 90, 11, -30, { r: 4.5 }), G("hoop", 90, 11, 0, { r: 4.5 }),
-        G("hoop", 90, 8, 60), G("hoop", 90, 5, 120, { r: 4 }), G("hoop", 90, 4.5, 150, { r: 3.6 }), G("hoop", 84, 8, 200), G("hoop", 40, 10, 211), G("hoop", -20, 12, 211),
+        G("ring", -120, -3.2, 60), G("ring", -45, -3.2, 60), G("ring", 15, -3.2, 60), G("ring", 75, -3.2, 60), G("ring", 135, -3.2, 60), G("ring", 168, -3, 60),
+        G("hoop", 194, 4, 52, { r: 4.5 }), G("hoop", 180, 9, 30, { r: 4.5 }), G("square", 90, 6.5, 30, { w: 7, h: 5 }), G("hoop", 38, 9.5, 32, { r: 4 }),
+        G("hoop", 0, 7.3, 60, { r: 5.4, yaw: 180 }), G("hoop", -28, 7, 73, { r: 4 }), G("hoop", -60, 5.2, 60, { r: 4.5, yaw: 90 }), G("hoop", -112, 6, 60, { r: 4 }),
+        G("hoop", -168, 5, 60, { r: 4 }), G("square", -193, 1.5, 60, { w: 8, h: 8, pitch: -90, yaw: -90 }), G("ring", -171, -3.2, 60, { yaw: -90 }),
       ],
     },
     {
-      id: "rooftop", name: "루프탑 런", level: 3, laps: 2, desc: "옥상에서 옥상으로 건너뛰고 빌딩 사이로 다이브하는 고난도 코스",
+      id: "market", name: "야시장 대시", level: 2, loop: false, desc: "성문을 지나 아케이드와 등불 골목, 공원의 달 고리, 대관람차 바퀴살 사이를 꿰는 구간 주행",
+      start: { pos: [-212, 0.4, 120], yaw: -90 },
       gates: [
-        G("square", 30, 6, 18, { w: 6, h: 4.4, yaw: 0 }), G("ring", 34, 39, -5, { r: 3 }), G("square", 60, 41, 0, { w: 6, h: 4.4 }), G("square", 60, 58, -60, { w: 6, h: 4.4 }),
-        G("ring", 30, 54, -74, { r: 3 }), G("square", 0, 49.5, -60, { w: 6, h: 4.4 }), G("ring", -30, 60, -34, { r: 3 }), G("square", -53, 67, 7, { w: 6, h: 4.4 }),
-        G("square", -30, 34, 30, { w: 7, h: 7, pitch: -90, yaw: -90 }), G("square", 2, 5, 30, { w: 6, h: 4.4, yaw: -90 }),
+        G("square", -180, 3.3, 120, { w: 5.6, h: 5.2 }), G("hoop", -150, 4.5, 120, { r: 3.4 }), G("ring", -120, 4.5, 120, { r: 2.2 }), G("hoop", -90, 4.8, 120, { r: 3.2 }),
+        G("ring", -60, 3.6, 120, { r: 2.1 }), G("hoop", -30, 5, 120, { r: 3.4 }), G("ring", 0, 5.4, 120, { r: 3 }), G("hoop", 30, 7, 120, { r: 3.6 }),
+        G("ring", 60, 9.5, 120, { r: 2.6 }), G("hoop", 90, 14, 120, { r: 4 }), G("hoop", 120, 18, 120, { r: 4.5 }), G("hoop", 150, 12, 132, { r: 4 }),
+        G("square", 150, 4.6, 150, { w: 8, h: 6 }), G("hoop", 146, 7, 172, { r: 4 }), G("hoop", 120, 6.5, 178, { r: 4.5 }), G("hoop", 90, 8, 180, { r: 4.5 }),
+      ],
+    },
+    {
+      id: "rooftop", name: "루프탑 런", level: 3, laps: 2, desc: "가든 터널, 골조 빌딩과 크레인 화물 아래, 헬기장, 관문 빌딩 관통, 스카이브리지 사이를 잇는 고난도 코스",
+      gates: [
+        G("square", 30, 6, 8, { w: 6, h: 4.4, yaw: 0 }), G("ring", 30, 5, -40, { r: 2.8 }), G("ring", 30, 4.8, -80, { r: 2.6 }), G("square", 62, 6, -90, { w: 7, h: 5 }), G("hoop", 88, 11, -102, { r: 4 }), G("hoop", 94, 9.6, -124, { r: 3.6 }),
+        G("square", 112, 9.25, -128, { w: 6.4, h: 4.6, yaw: -90 }), G("ring", 141, 9.4, -128, { r: 2.6, yaw: -90 }), G("hoop", 152, 26, -124, { r: 4.5 }), G("square", 112, 35.6, -120.2, { w: 8, h: 5, yaw: 90 }),
+        G("hoop", 60, 57.5, -60, { r: 4.5 }), G("hoop", 16, 38, -92, { r: 4.5 }), G("square", 0, 27, -60, { w: 9, h: 9, yaw: 180 }), G("hoop", 24, 22, -22, { r: 4 }),
+        G("hoop", 72, 30, -26, { r: 4 }), G("square", 90, 32.6, 0, { w: 10, h: 9, yaw: 180 }), G("hoop", 72, 16, 30, { r: 4.5 }),
       ],
     },
   ],
   tracking: [
-    { id: "sportscar", name: "스포츠카", type: "sportscar", level: 2, desc: "도심 도로를 질주하는 스포츠카 추적", duration: 80, path: loop(-90, 90, -90, 90, 24) },
+    { id: "sportscar", name: "스포츠카", type: "sportscar", level: 2, desc: "금융가 북쪽 도로를 질주하는 스포츠카 추적", duration: 80, path: loop(-146.5, 146.5, -146.5, -33.5, 24) },
+    { id: "truck", name: "배달 트럭", type: "truck", level: 1, desc: "대관람차와 공연장 둘레를 천천히 도는 배달 트럭", duration: 75, path: loop(33.5, 146.5, 93.5, 206.5, 11) },
     {
-      id: "runner", name: "공원 러너", type: "runner", level: 1, desc: "공원과 광장을 달리는 러너를 따라가세요", duration: 70,
-      lift: 0.18, path: [[-60, 0, 75.5, 4.6], [-75.5, 0, 60, 5], [-60, 0, 44.5, 4.6], [-45, 0, 50, 5], [-31, 0, 33, 5.6], [-18, 0, 12, 5], [-15.5, 0, -4, 4.6], [0, 0, -15.5, 5], [15.5, 0, 0, 5], [4, 0, 15.5, 4.6], [-14, 0, 20, 5], [-34, 0, 40, 5.4], [-44.5, 0, 62, 5]],
+      id: "runner", name: "천변 러너", type: "runner", level: 1, desc: "다리 아래 천변 산책로를 달리는 러너를 따라가세요", duration: 75,
+      path: [[-110, 0, 50.8, 5], [-40, 0, 50.8, 5.4], [40, 0, 50.8, 5], [120, 0, 50.8, 5.4], [160, 0, 50.8, 5], [172.5, 0, 50.9, 4.4], [174, 0, 53, 4.2], [174, 0, 67, 4.2], [172.5, 0, 69.1, 4.4], [160, 0, 69.2, 5], [120, 0, 69.2, 5.4], [40, 0, 69.2, 5], [-40, 0, 69.2, 5.4], [-110, 0, 69.2, 5], [-122.5, 0, 69.1, 4.4], [-124, 0, 67, 4.2], [-124, 0, 53, 4.2], [-122.5, 0, 50.9, 4.4]],
     },
     {
-      id: "drone", name: "순찰 드론", type: "drone", level: 3, desc: "빌딩 사이를 오르내리는 순찰 드론을 화면에 담으세요", duration: 75,
-      path: [[30, 10, 90, 13], [30, 22, 30, 12], [30, 34, -30, 12], [30, 40, -86, 11], [-26, 34, -90, 13], [-30, 16, -60, 11], [-30, 12, -10, 13], [-26, 18, 28, 11], [30, 14, 30, 13], [86, 18, 30, 11], [90, 12, 0, 12], [90, 22, -60, 13], [84, 30, -88, 11], [36, 46, -94, 12]],
+      id: "boat", name: "천변 유람선", type: "boat", level: 1, desc: "등불 아래 물길을 오가는 유람선을 따라가세요", duration: 80,
+      path: [[-100, -5.35, 58.2, 6], [-40, -5.35, 58.2, 6.5], [30, -5.35, 58.2, 6], [100, -5.35, 58.2, 6.5], [150, -5.35, 58.2, 5], [158, -5.35, 60, 3], [150, -5.35, 61.8, 5], [100, -5.35, 61.8, 6.5], [30, -5.35, 61.8, 6], [-40, -5.35, 61.8, 6.5], [-100, -5.35, 61.8, 5], [-108, -5.35, 60, 3]],
+    },
+    {
+      id: "drone", name: "순찰 드론", type: "drone", level: 3, desc: "터널과 스카이브리지, 달맞이 고리를 누비는 순찰 드론을 화면에 담으세요", duration: 80,
+      path: [[30, 10, 40, 13], [30, 5.5, -28, 12], [30, 4.6, -60, 12], [33, 7, -89, 10], [70, 7, -93, 13], [99, 10, -80, 12], [98, 24, -34, 11], [90, 32.8, 0, 11], [86, 22, 30, 12], [62, 9, 54, 12], [22, 7.3, 50, 10], [0, 7.3, 60, 9], [4, 7.5, 74, 10], [26, 8.5, 70, 11]],
     },
   ],
   combat: { blue: [-180, 180], red: [180, -180], depots: [[-90, -90], [90, 90], [30, -30], [-30, 30]] },
   convoy: {
     speed: 7.5,
-    path: [[-205, 0, 33], [-120, 0, 33], [-46, 0, 33], [-33, 0, 18], [-33, 0, -40], [-33, 0, -76], [-18, 0, -93], [40, 0, -93], [76, 0, -93], [93, 0, -76], [93, 0, 0], [93, 0, 74], [108, 0, 93], [160, 0, 93], [212, 0, 93]],
+    path: [[-212, 0, 33], [-120, 0, 33], [-42, 0, 33], [-27, 0, 20], [-27, 0, -40], [-27, 0, -80], [-20, 0, -87], [40, 0, -87], [80, 0, -87], [87, 0, -80], [87, 0, -20], [87, 0, 20], [98, 0, 33], [160, 0, 33], [214, 0, 33]],
   },
 };
