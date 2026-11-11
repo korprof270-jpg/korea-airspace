@@ -31,6 +31,7 @@ const _des = new THREE.Vector3(), _aim = new THREE.Vector3();
 const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
 const _m = new THREE.Matrix4(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const _p1 = new THREE.Vector3(), _p2 = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const _s = {};
 
@@ -38,6 +39,7 @@ export class Combat {
   // handlers: { ffa, onKill(victim, killer), onDamage(victim, amount, attacker), spawnPoint(actor), items(개수) }
   constructor(session, handlers = {}) {
     this.s = session; this.w = session.world; this.fx = session.fx; this.snd = session.game.sound;
+    this.feel = session.feel;      // 화면 효과 관리자: 공격·명중·피해 사건을 알린다
     this.h = handlers;
     this.ffa = !!handlers.ffa;
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
@@ -45,6 +47,9 @@ export class Combat {
     this.id = 1;
     this.hurtT = 0; this.hurtDir = new THREE.Vector3(); this.warn = 0; this.hitMark = 0;
     this.lock = null; this.lockT = 0; this.aim = null;
+    this.killMark = 0;             // 내가 격파한 직후 잠깐 > 0 (HUD 격파 표시용)
+    this.hurtAmt = 0;              // 마지막으로 받은 피해량
+    this.warnDist = 999;           // 나를 쫓는 미사일까지의 최소 거리(m)
     this.missileGeo = new THREE.CylinderGeometry(0.09, 0.14, 1.1, 8);
     this.missileGeo.rotateX(Math.PI / 2);
     this.missileMat = new THREE.MeshLambertMaterial({ color: 0xe9edf2, emissive: 0x552200 });
@@ -57,6 +62,21 @@ export class Combat {
 
   hostile(a, b) { return a !== b && a.alive && b.alive && (this.ffa || a.team !== b.team); }
   volAt(p) { return clamp(1.15 - this.s.camera.position.distanceTo(p) / 140, 0, 1); }
+  // 소리의 좌우 위치(-1..1): 카메라 기준 오른쪽이 +
+  panAt(p) {
+    const cam = this.s.camera;
+    _p1.copy(p).sub(cam.position);
+    const d = _p1.length();
+    if (d < 0.5) return 0;
+    return clamp(_p1.dot(_p2.set(1, 0, 0).applyQuaternion(cam.quaternion)) / d, -1, 1) * 0.85;
+  }
+  // 폭발이 가까우면 화면을 흔든다. power: 폭발 크기(1 = 드론)
+  _blast(pos, power) {
+    const p = this.player;
+    if (!p || !p.alive) return;
+    const d = pos.distanceTo(p.pos), R = 16 + 14 * power;
+    if (d < R) this.feel.emit("blast", Math.min(1, (1 - d / R) * (0.55 + 0.2 * power)), pos);
+  }
 
   _actor(o) {
     const a = Object.assign({
@@ -188,21 +208,26 @@ export class Combat {
     else if (type === "missiles") a.missiles = Math.min(8, a.missiles + 3);
     else if (a.isPlayer) a.item = type;
     else this.useItem(a, type);
-    if (a.isPlayer) { this.snd.play("pickup"); this.s.hud.toast(`${it.name} 획득${it.instant ? "" : "  [E] 사용"}`, "#" + it.color.toString(16).padStart(6, "0"), 1.3, 20); }
+    if (a.isPlayer) { this.feel.pickColor = it.color; this.snd.play("pickup"); this.s.hud.toast(`${it.name} 획득${it.instant ? "" : "  [E] 사용"}`, "#" + it.color.toString(16).padStart(6, "0"), 1.3, 20); }
     if (this.h.onPickup) this.h.onPickup(a, type);
   }
 
   useItem(a, type = a.item) {
     if (!type) return;
-    if (a.isPlayer) { a.item = null; this.snd.play(type === "emp" ? "emp" : "item"); }
-    if (type === "shield") { a.shield = 80; a.shieldT = 10; }
+    if (a.isPlayer) { a.item = null; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type); }
+    if (type === "shield") { a.shield = 80; a.shieldT = 10; if (a.isPlayer) this.feel.emit("shieldUp"); }
     else if (type === "boost") a.boostT = 6;
     else if (type === "overcharge") a.overT = 10;
     else if (type === "emp") {
       this.fx.flash(a.pos, 0x9fc0ff, 30, 0.5);
+      this.fx.ring(a.pos, 0xb8d0ff, 45, 0.55);
       this.fx.burst(a.pos, 0xb8c8ff, 60, 40, 0.5, 0.4, 0);
-      for (const o of this.actors) if (this.hostile(a, o) && o.pos.distanceTo(a.pos) < 45 && o.kind !== "core" && o.kind !== "prop") { o.stunT = 3.5; if (o.isPlayer) this.s.hud.toast("EMP 피격 — 조종 불능!", "#b8c8ff", 1.5, 24); }
-      if (!a.isPlayer) this.snd.play("emp", this.volAt(a.pos));
+      for (const o of this.actors) if (this.hostile(a, o) && o.pos.distanceTo(a.pos) < 45 && o.kind !== "core" && o.kind !== "prop") {
+        o.stunT = 3.5;
+        if (o.isPlayer) { this.s.hud.toast("EMP 피격 — 조종 불능!", "#b8c8ff", 1.5, 24); this.feel.emit("stun"); }
+        else this.fx.spark(o.pos, 0xb8c8ff, 10);
+      }
+      if (!a.isPlayer) this.snd.play("emp", this.volAt(a.pos), this.panAt(a.pos));
     }
   }
 
@@ -216,7 +241,9 @@ export class Combat {
     mesh.position.copy(origin);
     this.w.scene.add(mesh);
     this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0 });
-    this.snd.play("missile", a.isPlayer ? 1 : this.volAt(origin));
+    this.snd.play("missile", a.isPlayer ? 1 : this.volAt(origin), a.isPlayer ? 0 : this.panAt(origin));
+    if (a.isPlayer) this.feel.emit("missile");
+    if (!a.isPlayer || this.s.player.camMode !== "fpv") this.fx.muzzle(origin, dir, 0xffb060, a.isPlayer ? 1.2 : 2);
     if (target && target.isPlayer) this.warn = 1.2;
   }
 
@@ -259,8 +286,13 @@ export class Combat {
       _x.set(1, 0, 0).applyQuaternion(pl.body.quat);
       _b.copy(pl.aimPos).addScaledVector(_x, p.side * 0.12).addScaledVector(_d, 0.5);
       this.fireLaser(p, _b, _d, over ? 18 : 9, over ? 0xff4ad6 : 0x4dd8ff);
-      this.snd.play("laser");
-      if (!over) { p.heat += 0.055; if (p.heat >= 1) { p.overheated = true; this.s.hud.toast("과열!", "#ff6b5a", 0.8, 22); } }
+      this.snd.play("laser", 1, p.side * 0.3, over ? 0.8 : 1);
+      this.feel.emit("fire", over ? 1.5 : 1, p.side);
+      if (pl.camMode !== "fpv") this.fx.muzzle(_b, _d, over ? 0xff4ad6 : 0x4dd8ff, 0.9);   // FPV 에서는 화면 모서리 섬광으로 대신한다
+      if (!over) { p.heat += 0.055; if (p.heat >= 1) { p.overheated = true; this.s.hud.toast("과열!", "#ff6b5a", 0.8, 22); this.feel.emit("overheat"); } }
+    } else if (p.overheated && inp.isHeld("fire")) {
+      // 과열 중 방아쇠: 헛도는 소리
+      if ((p.dryT = (p.dryT || 0) - dt) <= 0) { p.dryT = 0.3; this.feel.emit("dry"); }
     }
     // 조준선에 걸린 적 (HUD 색·조준 효과용)
     const on = this._aimTarget(0.06, 170);
@@ -272,10 +304,12 @@ export class Combat {
       this.lockT += dt;
       if (was && this.lockT >= 0.7) this.snd.play("lock");
     } else { this.lock = cand; this.lockT = 0; }
-    if (inp.take("missile") && p.missiles > 0 && p.missileT <= 0) {
-      p.missiles--; p.missileT = 0.7;
-      _b.copy(pl.aimPos).addScaledVector(pl.aimDir, 0.6);
-      this.fireMissile(p, _b, pl.aimDir, this.lockT >= 0.7 ? this.lock : null);
+    if (inp.take("missile")) {
+      if (p.missiles > 0 && p.missileT <= 0) {
+        p.missiles--; p.missileT = 0.7;
+        _b.copy(pl.aimPos).addScaledVector(pl.aimDir, 0.6);
+        this.fireMissile(p, _b, pl.aimDir, this.lockT >= 0.7 ? this.lock : null);
+      } else if (p.missiles <= 0) this.feel.emit("dry");
     }
     if (inp.take("item") && p.item) this.useItem(p);
   }
@@ -285,7 +319,15 @@ export class Combat {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
     if (a.armor) amount *= a.armor;
     if (attacker && attacker.kind !== "player" && a.isPlayer) amount *= this.diff.dmg;
-    if (a.shield > 0) { const s = Math.min(a.shield, amount); a.shield -= s; amount -= s; if (a.isPlayer) this.snd.play("hit", 0.6); }
+    const src = attacker && attacker !== a ? attacker.pos : point || null;   // 피해가 온 곳 (효과 방향용)
+    if (a.shield > 0) {
+      const s = Math.min(a.shield, amount); a.shield -= s; amount -= s;
+      if (a.isPlayer) {
+        this.snd.play("shield", clamp(s / 15, 0.4, 1), src ? this.panAt(src) * 0.7 : 0);
+        this.feel.emit("shield", s, src);
+        if (a.shield <= 0) { this.feel.emit("shieldBreak"); this.fx.ring(a.pos, 0x7fe6ff, 3, 0.4); }
+      } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 5); }
+    }
     if (amount <= 0) return;
     a.hp -= amount;
     a.flash = 0.12;
@@ -293,8 +335,10 @@ export class Combat {
     if (a.isPlayer) {
       this.hurtT = 0.5;
       if (attacker) this.hurtDir.copy(attacker.pos); else if (point) this.hurtDir.copy(point);
-      this.snd.play("hurt", clamp(amount / 20, 0.3, 1));
-    } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.snd.play("hit", 0.5); }
+      this.hurtAmt = amount;
+      this.snd.play("hurt", clamp(amount / 20, 0.3, 1), src ? this.panAt(src) * 0.7 : 0);
+      this.feel.emit("hurt", amount, src);
+    } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.feel.emit("hit", amount, a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
     if (this.h.onDamage) this.h.onDamage(a, amount, attacker);
     if (a.hp <= 0) this.kill(a, attacker);
   }
@@ -305,17 +349,20 @@ export class Combat {
     if (killer && killer !== a) killer.kills++;
     const big = a.kind === "core" || a.botKind === "boss" ? 4 : a.kind === "turret" || a.botKind === "gunship" ? 2 : 1;
     this.fx.explosion(a.pos, big);
-    this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2));
+    this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2), a.isPlayer ? 0 : this.panAt(a.pos));
     if (a.isPlayer) {
       const pl = this.s.player;
       pl.crash(); pl.model.visible = false;
       pl.body.vel.multiplyScalar(0.3);
       a.respawnT = 3;
+      this.feel.emit("death");
     } else {
       if (a.model) a.model.visible = false;
       if (a.collider) a.collider.off = true;
       if (a.collider2) a.collider2.off = true;
       if (a.respawns) a.respawnT = 3.5 + Math.random() * 2;
+      this._blast(a.pos, big);
+      if (killer && killer.isPlayer) { this.killMark = 0.6; this.feel.emit("kill", big, a); }
     }
     if (this.h.onKill) this.h.onKill(a, killer);
   }
@@ -352,7 +399,7 @@ export class Combat {
     // 플레이어 상태 반영
     if (p) {
       p.heat = Math.max(0, p.heat - dt * 0.42);
-      if (p.overheated && p.heat < 0.45) p.overheated = false;
+      if (p.overheated && p.heat < 0.45) { p.overheated = false; this.feel.emit("cool"); }
       pl.body.boost = p.boostT > 0 ? 1.6 : 1;
       if (p.alive) pl.body.disabled = p.stunT > 0 || pl.crashed;
       this.shieldMesh.visible = p.alive && p.shield > 0;
@@ -363,10 +410,19 @@ export class Combat {
       if (a.stunT > 0) a.stunT -= dt;
       if (a.boostT > 0) a.boostT -= dt;
       if (a.overT > 0) a.overT -= dt;
-      if (a.shieldT > 0) { a.shieldT -= dt; if (a.shieldT <= 0) a.shield = 0; }
+      if (a.shieldT > 0) { a.shieldT -= dt; if (a.shieldT <= 0) { if (a.isPlayer && a.shield > 0 && a.alive) this.feel.emit("shieldDown"); a.shield = 0; } }
       if (!a.alive) {
         if (a.respawns && (a.respawnT -= dt) <= 0) this._respawn(a);
         continue;
+      }
+      // 크게 손상된 기체·포탑은 연기를 뿜는다 (1인칭에서는 내 연기가 시야를 가리므로 생략)
+      if (a.hp < a.maxHp * 0.4 && (a.kind === "bot" || a.kind === "turret" || a.isPlayer) && (a.smokeT = (a.smokeT || 0) - dt) <= 0) {
+        const f = a.hp / (a.maxHp * 0.4);
+        a.smokeT = 0.05 + f * 0.16;
+        if ((!a.isPlayer || pl.camMode !== "fpv") && a.pos.distanceToSquared(this.s.camera.position) < 62500) {
+          this.fx.smoke(a.pos, 0.75 * a.radius, 1.3, 0.13, a.radius * 0.5);
+          if (f < 0.45 && Math.random() < 0.25) this.fx.spark(a.pos, 0xff9a3a, 2);
+        }
       }
       if (a.kind === "bot") this._bot(a, dt);
       else if (a.kind === "turret") this._turret(a, dt);
@@ -378,14 +434,16 @@ export class Combat {
     this._pickups(dt);
     if (this.hurtT > 0) this.hurtT -= dt;
     if (this.hitMark > 0) this.hitMark -= dt;
+    if (this.killMark > 0) this.killMark -= dt;
     if (this.warn > 0) {
       this.warn -= dt;
-      if ((this._warnBeep = (this._warnBeep || 0) - dt) <= 0) { this._warnBeep = 0.5; this.snd.play("warn"); }
+      // 미사일이 가까울수록 경보가 빨라진다
+      if ((this._warnBeep = (this._warnBeep || 0) - dt) <= 0) { this._warnBeep = clamp(this.warnDist / 110, 0.22, 0.5); this.snd.play("warn"); }
     } else this._warnBeep = 0;
   }
 
   _shots(dt) {
-    const fx = this.fx, col = this.w.col;
+    const fx = this.fx, col = this.w.col, me = this.player;
     fx.beginBolts();
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i];
@@ -408,11 +466,22 @@ export class Combat {
       for (let d = 0.7; d <= len; d += 0.7) { _b.copy(s.pos).addScaledVector(s.dir, d); if (col.blocked(_b, 0.03)) { wall = d; break; } }
       if (victim && (wall < 0 || bestT <= wall)) {
         _b.copy(s.pos).addScaledVector(s.dir, bestT);
-        fx.spark(_b, s.color, 6);
+        fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? 8 : 5, victim.radius > 1.5);
         this.damage(victim, s.dmg, s.owner, _b);
         this.shots.splice(i, 1); continue;
       }
-      if (wall >= 0) { fx.spark(_b, 0xffd27a, 4); this.shots.splice(i, 1); continue; }
+      if (wall >= 0) { fx.hitSpark(_b, s.dir, 0xffd27a, 4, false, false); this.shots.splice(i, 1); continue; }
+      // 적탄이 나를 아슬아슬하게 스쳐 지나감
+      if (!s.zip && me && me.alive && s.owner !== me && this.hostile(s.owner, me)) {
+        _a.copy(me.pos).sub(s.pos);
+        const t = _a.dot(s.dir);
+        if (t > 0 && t <= len && _a.lengthSq() - t * t < 10) {
+          s.zip = true;
+          _c.copy(s.pos).addScaledVector(s.dir, t);
+          this.snd.play("zip", 0.8, this.panAt(_c));
+          this.feel.emit("zip");
+        }
+      }
       s.pos.addScaledVector(s.dir, len);
       s.life -= dt;
       if (s.life <= 0) { this.shots.splice(i, 1); continue; }
@@ -422,6 +491,7 @@ export class Combat {
   }
 
   _missiles(dt) {
+    let wd = 999;
     for (let i = this.missiles.length - 1; i >= 0; i--) {
       const m = this.missiles[i];
       m.life -= dt;
@@ -436,13 +506,14 @@ export class Combat {
         // 선회율 제한
         const ang = Math.acos(clamp(_a.dot(_b), -1, 1)), maxTurn = 2.3 * dt;
         if (ang > 1e-4) _a.lerp(_b, Math.min(1, maxTurn / ang)).normalize();
-        if (t.isPlayer) this.warn = Math.max(this.warn, 0.3);
+        if (t.isPlayer) { this.warn = Math.max(this.warn, 0.3); if (d < wd) wd = d; }
       }
       m.vel.copy(_a).multiplyScalar(m.speed);
       m.pos.addScaledVector(m.vel, dt);
       m.mesh.position.copy(m.pos);
       m.mesh.quaternion.setFromUnitVectors(_z.set(0, 0, 1), _a);
       this.fx.puff(m.pos, 0xffb060, 0.45, 0.5, 0.2);
+      if ((m.sm = (m.sm || 0) + 1) % 3 === 0) this.fx.smoke(m.pos, 0.55, 0.9, 0.3, 0.3);
       let boom = m.life <= 0 || this.w.col.blocked(m.pos, 0.12), direct = null;
       for (const o of this.actors) {
         if (!o.alive || !o.targetable || !this.hostile(m.owner, o)) continue;
@@ -450,13 +521,15 @@ export class Combat {
       }
       if (boom) {
         this.fx.explosion(m.pos, 1.3);
-        this.snd.play("explode", this.volAt(m.pos) * 0.8);
+        this.snd.play("explode", this.volAt(m.pos) * 0.8, this.panAt(m.pos));
+        this._blast(m.pos, 1.3);
         if (direct) this.damage(direct, m.dmg, m.owner, m.pos);
         this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct);
         this.w.scene.remove(m.mesh);
         this.missiles.splice(i, 1);
       }
     }
+    this.warnDist = wd;
   }
 
   _pickups(dt) {
@@ -619,8 +692,10 @@ export class Combat {
           _aim.x += (Math.random() - 0.5) * spread; _aim.y += (Math.random() - 0.5) * spread; _aim.z += (Math.random() - 0.5) * spread;
           _aim.normalize();
           _b.copy(a.pos).addScaledVector(_aim, a.radius + 0.4);
-          this.fireLaser(a, _b, _aim, K.dmg * (a.overT > 0 ? 2 : 1), this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040, 150);
-          this.snd.play("elaser", this.volAt(a.pos) * 0.7);
+          const lc = this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040;
+          this.fireLaser(a, _b, _aim, K.dmg * (a.overT > 0 ? 2 : 1), lc, 150);
+          this.fx.muzzle(_b, _aim, lc, K.scale * 0.6);
+          this.snd.play("elaser", this.volAt(a.pos) * 0.7, this.panAt(a.pos));
         }
         if (a.missiles > 0 && ai.mcool <= 0 && d > 28 && d < 130 && !t.static) {
           a.missiles--; ai.mcool = (a.botKind === "boss" ? 3 : 7) + Math.random() * 5;
@@ -663,7 +738,8 @@ export class Combat {
       _aim.normalize();
       _b.copy(a.pos).addScaledVector(_aim, 2.6);
       this.fireLaser(a, _b, _aim, 7, a.team === 0 ? 0x66b8ff : 0xffa040, 140);
-      this.snd.play("elaser", this.volAt(a.pos) * 0.6);
+      this.fx.muzzle(_b, _aim, a.team === 0 ? 0x66b8ff : 0xffa040, 2.2);
+      this.snd.play("elaser", this.volAt(a.pos) * 0.6, this.panAt(a.pos));
     }
   }
 

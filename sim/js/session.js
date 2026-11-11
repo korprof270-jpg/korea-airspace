@@ -38,6 +38,8 @@ export class Session {
   update(dt) {
     const g = this.game, inp = g.input, pl = this.player, mode = this.mode;
     this.time += dt;
+    // 지난 프레임의 화면 흔들림을 걷어낸다: 모드·판정 코드는 흔들리지 않은 카메라만 본다
+    this.feel.restore(this.camera);
 
     // 공통 조작: 시점·비행 모드·리셋
     if (inp.take("camera")) this.hud.toast(`시점: ${CAMERA_NAMES[pl.cycleCamera()]}`, "#9fd8ff", 1.2, 20);

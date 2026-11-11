@@ -96,6 +96,35 @@ export class Input {
     return null;
   }
 
+  // 진동: 게임패드(듀얼 럼블) 또는 터치 기기(짧은 진동). strong/weak 0..1, ms 지속 시간. ms<=0 이면 정지
+  // 지금 쓰는 입력 장치에만 보낸다. 보냈으면 true
+  rumble(strong, weak, ms) {
+    if (!settings.fx || !settings.fx.rumble) return false;
+    try {
+      if (this.device === "gamepad") {
+        const pad = this._pad(), act = pad && (pad.vibrationActuator || (pad.hapticActuators && pad.hapticActuators[0]));
+        if (!act) return false;
+        if (ms <= 0) { if (act.reset) { const r = act.reset(); if (r && r.catch) r.catch(() => {}); } return true; }
+        if (act.playEffect) {
+          const r = act.playEffect("dual-rumble", { startDelay: 0, duration: ms, strongMagnitude: clamp(strong, 0, 1), weakMagnitude: clamp(weak, 0, 1) });
+          if (r && r.catch) r.catch(() => {});
+        } else if (act.pulse) {
+          const r = act.pulse(clamp(Math.max(strong, weak), 0, 1), ms);
+          if (r && r.catch) r.catch(() => {});
+        } else return false;
+        return true;
+      }
+      if (this.device === "touch" && navigator.vibrate) {
+        if (ms <= 0) { navigator.vibrate(0); return true; }
+        const k = clamp(Math.max(strong, weak), 0, 1);
+        if (k < 0.12) return false;                    // 아주 약한 진동은 휴대폰에서 생략
+        navigator.vibrate(Math.round(clamp(ms * (0.35 + 0.65 * k), 8, 400)));
+        return true;
+      }
+    } catch (_) { /* 진동 미지원 환경 무시 */ }
+    return false;
+  }
+
   update(dt) {
     const k = this.keys, kb = this.kb;
     const scale = k.has("ShiftLeft") || k.has("ShiftRight") ? 0.5 : 1;

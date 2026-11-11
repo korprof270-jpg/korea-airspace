@@ -43,6 +43,8 @@ export class DroneBody {
     this.altTarget = null;
     this.holdPos = null;
     this.lastImpact = 0;
+    this.impactN = new THREE.Vector3(0, 1, 0); // 마지막 충돌 면 법선 (화면 효과용, 비행에는 영향 없음)
+    this.touching = false;            // 이번 스텝에 표면에 닿아 있는지 (긁힘 효과용)
     this.heading = 0;
     this.accel = new THREE.Vector3();
   }
@@ -220,13 +222,16 @@ export class DroneBody {
 
     // 충돌
     this.onGround = false;
+    this.touching = false;
     this.lastImpact = 0;
     if (world && world.querySphere(this.pos, this.radius, _hit)) {
       const n = _hit.normal;
+      this.touching = true;
       this.pos.addScaledVector(n, _hit.depth);
       const vn = this.vel.dot(n);
       if (vn < 0) {
         this.lastImpact = -vn;
+        this.impactN.copy(n);
         const e = -vn > 2.5 ? 0.35 : 0;
         this.vel.addScaledVector(n, -(1 + e) * vn);
         // 접선 마찰

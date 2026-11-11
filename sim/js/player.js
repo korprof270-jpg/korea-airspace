@@ -15,6 +15,9 @@ const _q = new THREE.Quaternion();
 const _prev = new THREE.Vector3();
 const X = new THREE.Vector3(1, 0, 0);
 const Y = new THREE.Vector3(0, 1, 0);
+const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
+const _imp = { hard: false, n: null };          // 충돌 효과에 넘기는 정보 (재사용)
+const LOW = () => -1e9;
 
 export class Player {
   constructor(session) {
@@ -41,6 +44,9 @@ export class Player {
     this.maxImpact = 0;
     this.frozen = false;                         // 결과 화면 등에서 정지
     this.airTime = 0;
+    this.scrapeT = 0;                            // 긁힘 효과 간격
+    this.nearArm = true; this.nearIn = false; this.nearMin = 9; this.sinceImpact = 9;   // 근접 통과(스침) 감지
+    this.nearN = new THREE.Vector3();            // 가장 가까웠던 순간의 장애물 면 법선
   }
 
   setSpawn(pos, yaw) {
@@ -57,6 +63,8 @@ export class Player {
     this.crashTimer = 0;
     this.camInit = false;
     this.model.visible = true;
+    this.nearArm = false; this.nearIn = false;
+    this.session.feel.emit("respawn");
   }
 
   cycleCamera() {
@@ -79,6 +87,46 @@ export class Player {
     this.crashed = true;
     this.crashTimer = 0;
     this.body.disabled = true;
+    this.session.feel.emit("crash");
+  }
+
+  // 지면을 뺀 장애물 표면까지의 거리(R 이내). collide.js 의 nearest 는 지면도 재므로 잠시 높이 함수를 내려 둔다
+  _nearObstacle(R) {
+    const col = this.session.world.col, hf = col.heightFn;
+    let d = R;
+    col.heightFn = LOW;
+    try {
+      d = col.nearest(this.body.pos, R);
+      if (d < R && col.querySphere(this.body.pos, d + 0.3, _hit)) _v.copy(_hit.normal); else _v.set(0, 0, 0);
+    } finally { col.heightFn = hf; }
+    return d;
+  }
+
+  // 긁힘·근접 통과 같은 접촉 효과 (비행에는 영향 없음)
+  _contactFx(dt) {
+    const s = this.session, b = this.body, sp = b.speed;
+    this.sinceImpact += dt;
+    // 표면에 닿은 채 미끄러짐
+    if (b.touching && this.maxImpact <= 1.2 && !this.crashed && sp > 3.5) {
+      if ((this.scrapeT -= dt) <= 0) {
+        this.scrapeT = 0.11;
+        s.feel.emit("scrape", clamp(sp / 18, 0, 1));
+        s.fx.spark(b.pos, 0xffc070, 2);
+      }
+    } else this.scrapeT = 0;
+    // 빠르게 날며 장애물을 아슬아슬하게 스치고 지나가면 바람 가르는 소리
+    if (b.onGround || this.crashed || sp < 13) { this.nearIn = false; return; }
+    const d = this._nearObstacle(3.2);
+    if (!this.nearArm) { if (d > 2.8) { this.nearArm = true; this.nearMin = 9; } return; }
+    if (d < 1.7) { this.nearIn = true; if (d < this.nearMin) { this.nearMin = d; this.nearN.copy(_v); } }
+    if (this.nearIn && d > this.nearMin + 0.8) {
+      this.nearArm = false; this.nearIn = false;
+      if (this.sinceImpact > 0.6) {
+        // 장애물이 있던 쪽(법선 반대)으로 소리를 보낸다
+        const pan = -this.nearN.dot(_v.set(1, 0, 0).applyQuaternion(s.camera.quaternion));
+        s.feel.emit("nearmiss", clamp((1.9 - this.nearMin) / 1.4, 0.2, 1) * clamp(sp / 30, 0.45, 1), clamp(pan, -1, 1) * 0.8);
+      }
+    }
   }
 
   // ctl: 조종 입력. 고정 시간 간격으로 물리를 적분하고 모드에 통과 판정을 넘긴다
@@ -96,11 +144,16 @@ export class Player {
       mode.physicsStep(_prev, b.pos, STEP);
     }
     if (this.maxImpact > 1.2) {
-      const limit = settings.crashAssist ? 11 : 6;
+      const limit = settings.crashAssist ? 11 : 6, hard = this.maxImpact > limit;
       s.fx.spark(b.pos, 0xffd27a, Math.min(14, 3 + this.maxImpact));
-      s.game.sound.play(this.maxImpact > limit ? "crash" : "hit", clamp(this.maxImpact / 10, 0.2, 1));
-      mode.onImpact(this.maxImpact, this.maxImpact > limit);
+      if (this.maxImpact > 6) s.fx.ring(b.pos, 0xffe2a8, 0.5 + this.maxImpact * 0.06, 0.25);
+      s.game.sound.play(hard ? "crash" : "hit", clamp(this.maxImpact / 10, 0.2, 1));
+      _imp.hard = hard; _imp.n = b.impactN;
+      s.feel.emit("impact", this.maxImpact, _imp);
+      this.sinceImpact = 0;
+      mode.onImpact(this.maxImpact, hard);
     }
+    this._contactFx(dt);
     if (this.crashed) this.crashTimer += dt;
     this.airTime = b.onGround ? 0 : this.airTime + dt;
     this._syncModel(dt);
