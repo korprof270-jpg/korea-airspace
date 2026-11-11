@@ -137,6 +137,10 @@ class UnrealBloomPass extends Pass {
 		this.enabled = true;
 		this.needsSwap = false;
 
+		// 하늘길 FPV: false 로 두면 입력 버퍼에 덧그리지 않는다. 합성 결과는 bloomTexture 에서 읽는다
+		// (최종 패스가 외곽선·톤매핑과 함께 한 번에 합성해 전체 화면 패스를 줄인다)
+		this.blendToInput = true;
+
 		this._oldClearColor = new Color();
 		this.oldClearAlpha = 1;
 
@@ -177,6 +181,13 @@ class UnrealBloomPass extends Pass {
 		//
 
 		this.fsQuad.dispose();
+
+	}
+
+	// 합성된 블룸(절반 해상도, 선형 HDR)
+	get bloomTexture() {
+
+		return this.renderTargetsHorizontal[ 0 ].texture;
 
 	}
 
@@ -272,20 +283,24 @@ class UnrealBloomPass extends Pass {
 
 		// Blend it additively over the input texture
 
-		this.fsQuad.material = this.blendMaterial;
-		this.copyUniforms[ 'tDiffuse' ].value = this.renderTargetsHorizontal[ 0 ].texture;
+		if ( this.blendToInput ) {
 
-		if ( maskActive ) renderer.state.buffers.stencil.setTest( true );
+			this.fsQuad.material = this.blendMaterial;
+			this.copyUniforms[ 'tDiffuse' ].value = this.renderTargetsHorizontal[ 0 ].texture;
 
-		if ( this.renderToScreen ) {
+			if ( maskActive ) renderer.state.buffers.stencil.setTest( true );
 
-			renderer.setRenderTarget( null );
-			this.fsQuad.render( renderer );
+			if ( this.renderToScreen ) {
 
-		} else {
+				renderer.setRenderTarget( null );
+				this.fsQuad.render( renderer );
 
-			renderer.setRenderTarget( readBuffer );
-			this.fsQuad.render( renderer );
+			} else {
+
+				renderer.setRenderTarget( readBuffer );
+				this.fsQuad.render( renderer );
+
+			}
 
 		}
 

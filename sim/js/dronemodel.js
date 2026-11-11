@@ -1,5 +1,6 @@
 // 드론 외형: 프레임·캐노피·프로펠러·LED·스킨을 조합해 절차적으로 만든다 (전방 = -Z)
 import * as THREE from "../vendor/three.module.min.js";
+import { toonMat } from "./toon.js";
 
 export const FRAMES = {
   x: { name: "트루 X", desc: "대칭형 레이싱 프레임" },
@@ -81,13 +82,14 @@ export function buildDrone(look, scale = 1, opts = {}) {
   root.add(g);
 
   const tex = skinTexture(look.skin, look.frameColor, look.accentColor);
-  const frameMat = new THREE.MeshStandardMaterial({ color: tex ? 0xffffff : look.frameColor, map: tex, roughness: 0.55, metalness: 0.35 });
-  const accentMat = new THREE.MeshStandardMaterial({ color: look.accentColor, roughness: 0.4, metalness: 0.3 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 0.6, metalness: 0.5 });
-  const propMat = new THREE.MeshStandardMaterial({ color: look.propColor, roughness: 0.5, transparent: true, opacity: 0.95 });
+  // 툰 재질: 또렷한 하이라이트와 림 라이트로 작은 기체도 윤곽이 읽히게 한다
+  const frameMat = toonMat({ color: tex ? 0xffffff : look.frameColor, map: tex, spec: 0.45, shine: 40, rim: 0.55 });
+  const accentMat = toonMat({ color: look.accentColor, spec: 0.65, shine: 60, rim: 0.6 });
+  const darkMat = toonMat({ color: 0x242830, spec: 0.4, shine: 30, rim: 0.45 });
+  const propMat = toonMat({ color: look.propColor, transparent: true, opacity: 0.95 });
   const discMat = new THREE.MeshBasicMaterial({ color: look.propColor, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false });
   const ledMat = new THREE.MeshBasicMaterial({ color: look.ledColor });
-  const lensMat = new THREE.MeshStandardMaterial({ color: 0x0a0a12, roughness: 0.1, metalness: 0.9 });
+  const lensMat = toonMat({ color: 0x0c0c18, spec: 1, shine: 90 });
   const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
 
   const frame = look.frame || "x";
@@ -190,6 +192,7 @@ export function buildDrone(look, scale = 1, opts = {}) {
     // 회전이 빠를수록 블레이드는 흐려지고 원판이 보인다
     const blur = Math.min(1, Math.max(0, (w - 40) / 90));
     propMat.opacity = 0.95 - blur * 0.75;
+    propMat.depthWrite = blur < 0.5;   // 흐려진 블레이드에는 외곽선이 생기지 않게 깊이를 쓰지 않는다
     discMat.opacity = blur * 0.22;
     const mode = look.ledMode || "solid";
     if (mode === "off") ledMat.color.setRGB(0.03, 0.03, 0.03);

@@ -1,6 +1,7 @@
 // 움직이는 소품: 경로 이동기 + 차량·사람·보트 모델 (트래킹 피사체, 교통, 호송 차량)
 import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
+import { toonMat } from "./toon.js";
 
 const _t = new THREE.Vector3();
 const _m = new THREE.Matrix4();
@@ -68,13 +69,15 @@ export class PathMover {
   }
 }
 
-const mat = (color, o = {}) => new THREE.MeshLambertMaterial({ color, ...o });
+// 툰 재질. gloss: 차체·유리처럼 반짝이는 면
+const mat = (color, o = {}) => toonMat({ color, ...o });
+const gloss = (color, k = 0.55) => toonMat({ color, spec: k, shine: 70, rim: 0.3 });
 function part(g, geo, m, x, y, z) { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; g.add(me); return me; }
 
 // 승용차 (전방 -Z, 길이 4.4m)
 export function makeCar(color = 0xd13b3b, sporty = false) {
   const g = new THREE.Group();
-  const body = mat(color), dark = mat(0x16181d), glass = mat(0x1d2b3a), light = new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), tail = new THREE.MeshBasicMaterial({ color: 0xff2020 });
+  const body = gloss(color), dark = mat(0x1c1f26), glass = gloss(0x27405c, 0.9), light = new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), tail = new THREE.MeshBasicMaterial({ color: 0xff2020 });
   const h = sporty ? 0.5 : 0.62;
   part(g, new THREE.BoxGeometry(1.8, h, 4.4), body, 0, 0.35 + h / 2, 0);
   part(g, new THREE.BoxGeometry(1.6, sporty ? 0.42 : 0.6, sporty ? 1.9 : 2.3), glass, 0, 0.35 + h + (sporty ? 0.21 : 0.3), 0.25);
@@ -94,7 +97,7 @@ export function makeCar(color = 0xd13b3b, sporty = false) {
 
 export function makeTruck(color = 0x3d6b4f) {
   const g = new THREE.Group();
-  const body = mat(color), dark = mat(0x16181d), cab = mat(0xd9d9d9), glass = mat(0x1d2b3a), light = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
+  const body = gloss(color, 0.35), dark = mat(0x1c1f26), cab = gloss(0xe4e4e4), glass = gloss(0x27405c, 0.9), light = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
   part(g, new THREE.BoxGeometry(2.5, 2.7, 6.2), body, 0, 2.1, 1.3);
   part(g, new THREE.BoxGeometry(2.4, 2.0, 2.0), cab, 0, 1.7, -2.9);
   part(g, new THREE.BoxGeometry(2.2, 0.8, 0.1), glass, 0, 2.1, -3.92);
@@ -138,7 +141,7 @@ export function makeRunner(color = 0xff5a1f) {
 
 export function makeBoat(color = 0xf2f2f2) {
   const g = new THREE.Group();
-  const hull = mat(color), deck = mat(0x8b5a2b), dark = mat(0x1d2b3a), stripe = mat(0xd13b3b);
+  const hull = gloss(color, 0.4), deck = mat(0x9b6a36), dark = gloss(0x27405c, 0.8), stripe = mat(0xd13b3b);
   const h = part(g, new THREE.BoxGeometry(2.0, 0.7, 5.6), hull, 0, 0.3, 0);
   h.geometry.translate(0, 0, 0);
   const bow = part(g, new THREE.ConeGeometry(1.0, 1.8, 4), hull, 0, 0.3, -3.6);
@@ -155,7 +158,7 @@ export function makeBoat(color = 0xf2f2f2) {
 // 지게차 (공장 맵)
 export function makeForklift(color = 0xf5a623) {
   const g = new THREE.Group();
-  const body = mat(color), dark = mat(0x16181d), steel = mat(0x777c85);
+  const body = gloss(color, 0.4), dark = mat(0x1c1f26), steel = gloss(0x838995, 0.5);
   part(g, new THREE.BoxGeometry(1.2, 0.9, 2.0), body, 0, 0.8, 0.3);
   part(g, new THREE.BoxGeometry(1.1, 1.3, 0.1), steel, 0, 1.9, -0.2);
   part(g, new THREE.BoxGeometry(1.2, 0.08, 1.3), dark, 0, 2.55, 0.3);

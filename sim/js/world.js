@@ -3,7 +3,8 @@ import * as THREE from "../vendor/three.module.min.js";
 import { CollisionWorld } from "./collide.js";
 import { rng } from "./config.js";
 import { texSet, patternSet, hasTex } from "./textures.js";
-import { makeSky, bakeSky, makeWater, makeTerrainMaterial, HeightField } from "./env.js";
+import { makeSky, bakeSky, makeWater, linkWaterShore, makeTerrainMaterial, HeightField } from "./env.js";
+import { toonMat, toonify } from "./toon.js";
 
 const DEG = Math.PI / 180;
 const _m = new THREE.Matrix4();
@@ -67,9 +68,14 @@ export class World {
     this.time = 0;
     this.env = def.env || {};
     this.night = !!this.env.night;
-    this.bloom = Object.assign({ strength: this.night ? 0.7 : 0.3, radius: 0.6, threshold: this.night ? 0.82 : 1.02 }, this.env.bloom || {});
+    // 블룸은 네온·발광체에만 은은하게. outline: 외곽선 잉크(밤 맵은 어두운 면 위에서 밝게 보이는 달빛 선)
+    this.bloom = Object.assign({ strength: this.night ? 0.55 : 0.24, radius: 0.55, threshold: this.night ? 0.86 : 1.0 }, this.env.bloom || {});
+    this.bloom.outline = this.env.outline || (this.night ? { color: 0x1c2a66, mul: 0.4 } : null);
     this.exposure = this.env.exposure ?? 1;
     this._env(this.env);
+    // 맵·모드가 장면에 직접 넣는 물체도 툰 재질로 맞춘다 (update 에서 한 번씩 변환)
+    const sc = this.scene, add = sc.add.bind(sc);
+    sc.add = (...objs) => { this._toonDirty = true; return add(...objs); };
     def.build(this);
     this._finalize();
   }
@@ -82,18 +88,19 @@ export class World {
     const sky = makeSky(e);
     this.sunDir = sky.material.uniforms.sunDir.value.clone();
     const hor = sky.material.uniforms.hor.value.clone();
-    if (this.renderer) {
-      this.skyBake = bakeSky(this.renderer, sky, this.quality === "high" ? 2048 : 1024);
-      sc.environment = this.skyBake.env.texture;
-    }
+    if (this.renderer) this.skyBake = bakeSky(this.renderer, sky, this.quality === "high" ? 2048 : 1024);
     sky.geometry.dispose(); sky.material.dispose();
     this.envI = e.envIntensity ?? 1;
     const fog = e.fog || {};
     sc.fog = new THREE.Fog(fog.color ?? hor.getHex(), fog.near ?? 120, fog.far ?? 900);
     sc.background = this.skyBake ? this.skyBake.cube.texture : new THREE.Color(fog.color ?? hor.getHex());
 
-    sc.add(new THREE.HemisphereLight(e.hemiSky ?? 0xcfe3ff, e.hemiGround ?? 0x6b6455, e.hemi ?? 0.45));
-    const sun = new THREE.DirectionalLight(e.sunColor ?? 0xfff3d6, e.sun ?? 3.2);
+    // 툰 조명: 그림자 밴드는 반구광만 받으므로, 예전에 하늘 반사(IBL)가 채우던 몫을 반구광에 얹는다.
+    // 맵 env 의 sun/hemi 값은 그대로 쓰고 배율만 여기서 맞춘다 (env.toon = { sun, fill, hemi } 로 맵별 조정 가능)
+    const tn = Object.assign(this.night ? { sun: 1.0, fill: 0.9, hemi: 1 } : { sun: 0.5, fill: 0.5, hemi: 1 }, e.toon || {});
+    const sunI = e.sun ?? 3.2;
+    sc.add(new THREE.HemisphereLight(e.hemiSky ?? 0xcfe3ff, e.hemiGround ?? 0x6b6455, (e.hemi ?? 0.45) * tn.hemi + sunI * tn.fill));
+    const sun = new THREE.DirectionalLight(e.sunColor ?? 0xfff3d6, sunI * tn.sun);
     sun.position.copy(this.sunDir).multiplyScalar(200);
     sc.add(sun, sun.target);
     this.sun = sun;
@@ -119,31 +126,29 @@ export class World {
   update(dt) {
     this.time += dt;
     if (this.waterMesh) this.waterMesh.material.uniforms.time.value = this.time;
+    if (this._toonDirty) this._toonify();
     for (const u of this.updaters) u(dt, this.time);
   }
 
-  // ── 재질 ──
+  // 장면에 새로 들어온 물체(포탑·화물·차량 등)의 PBR/램버트 재질을 툰 재질로 교체
+  _toonify() {
+    this._toonDirty = false;
+    for (const o of this.scene.children) if (!o.userData.toonDone) { o.userData.toonDone = true; toonify(o); }
+  }
+
+  // ── 재질 (모두 툰 밴드 조명. 텍스처는 색 맵만 쓴다) ──
   _material(key) {
     const [kind, tex] = key.split(":");
     const t = tex ? (hasTex(tex) ? texSet(tex) : patternSet(tex)) : null;
-    const ei = this.envI;
-    const std = (o) => {
-      const m = new THREE.MeshStandardMaterial(Object.assign({ vertexColors: true, roughness: 0.82, metalness: 0, envMapIntensity: ei }, o));
-      if (t) {
-        m.map = t.map;
-        if (t.normalMap) { m.normalMap = t.normalMap; m.normalScale.set(1, 1); }
-        if (t.ormMap) { m.roughnessMap = t.ormMap; m.metalnessMap = t.ormMap; m.roughness = 1; m.metalness = 1; }
-      }
-      return m;
-    };
+    const std = (o) => toonMat(Object.assign({ vertexColors: true }, t ? { map: t.map } : null, o));
     switch (kind) {
-      case "leaf": return std({ roughness: 0.9, envMapIntensity: ei * 0.35 });
-      case "flat": return std({ roughness: 0.9, flatShading: true, envMapIntensity: ei * 0.4 });
-      case "metal": return std({ roughness: 0.32, metalness: 0.9 });
-      case "paint": return std({ roughness: 0.42, metalness: 0.15 });
+      case "leaf": return std({});
+      case "flat": return std({ flat: true });
+      case "metal": return std({ spec: 0.7, shine: 40, metal: true });
+      case "paint": return std({ spec: 0.35, shine: 70 });
       case "glow": { const k = this.env.glow ?? 2.4; return new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(k, k, k), map: t ? t.map : null }); }
-      case "glass": return std({ transparent: true, opacity: 0.4, roughness: 0.06, metalness: 0.85, depthWrite: false, envMapIntensity: ei * 1.6 });
-      case "lit": { const m = std({}); m.emissiveMap = t.emissiveMap; m.emissive.setScalar(this.env.windowGlow ?? 0.95); return m; }
+      case "glass": return std({ transparent: true, opacity: 0.42, depthWrite: false, spec: 1, shine: 120 });
+      case "lit": return std({ emissiveMap: t.emissiveMap, emissive: new THREE.Color().setScalar(this.env.windowGlow ?? 0.95) });
       case "pool": return new THREE.MeshBasicMaterial({ vertexColors: true, map: patternSet("radial").map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
       case "shaft": return new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
       default: return std({});
@@ -206,6 +211,9 @@ export class World {
       this.disposables.push(g, mat);
     }
     this.batches.clear();
+    // 지형과 수면이 함께 있으면 물가 거품을 그릴 수 있게 높이를 넘긴다
+    if (this.waterMesh && this.heightField) this.disposables.push(linkWaterShore(this.waterMesh, this.heightField, this.waterY));
+    this._toonify();
   }
 
   dispose() {
@@ -215,7 +223,7 @@ export class World {
       if (o.geometry && !shared.has(o.geometry)) o.geometry.dispose();
       if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
     });
-    if (this.skyBake) { this.skyBake.cube.dispose(); this.skyBake.env.dispose(); }
+    if (this.skyBake) this.skyBake.cube.dispose();
   }
 
   // ── 기본 도형 (y 는 바닥 높이) ──
@@ -305,11 +313,7 @@ export class World {
     const S = this.size * 2 + 1400, seg = 90;
     const B = o.bounds || [-S / 2, S / 2, -S / 2, S / 2];   // [x0, x1, z0, z1]
     const t = texSet(tex);
-    // 거칠기 맵은 다른 배율·각도로 깔아 타일 반복이 눈에 띄지 않게 한다
-    const orm = t.ormMap.clone();
-    orm.repeat.set(0.29, 0.29); orm.rotation = 0.62; orm.needsUpdate = true;
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: t.map, normalMap: t.normalMap, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1, envMapIntensity: this.envI * (o.env ?? 1) });
-    this.disposables.push(orm);
+    const mat = toonMat({ vertexColors: true, map: t.map });
     const g = new THREE.PlaneGeometry(B[1] - B[0], B[3] - B[2], seg, seg);
     g.rotateX(-Math.PI / 2);
     g.translate((B[0] + B[1]) / 2, 0, (B[2] + B[3]) / 2);
@@ -346,7 +350,6 @@ export class World {
     }
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     const mat = makeTerrainMaterial(o);
-    mat.envMapIntensity = this.envI * 0.5;
     const m = new THREE.Mesh(g, mat);
     m.receiveShadow = true; m.castShadow = true;
     this.scene.add(m);
@@ -366,7 +369,7 @@ export class World {
   tree(x, z, s = 1, kind = "round") {
     const y = this.h(x, z) - 0.25, r = this.rand;
     if (kind === "pine") {
-      const h = (9 + r() * 6) * s, g = new THREE.Color().setHSL(0.36 + r() * 0.05, 0.42, 0.13 + r() * 0.05).getHex();
+      const h = (9 + r() * 6) * s, g = new THREE.Color().setHSL(0.38 + r() * 0.05, 0.5, 0.2 + r() * 0.05).getHex();
       this.cyl(x, y, z, 0.3 * s, h * 0.5, 0x4a3524, { col: false, rt: 0.16 * s });
       this.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h * 0.9, z), 0.4 * s);
       const tiers = 5;
@@ -375,11 +378,11 @@ export class World {
         this.cone(x, y + h * (0.16 + t * 0.6), z, rr, hh, g, { col: i === 1 });
       }
     } else if (kind === "bush") {
-      const g = new THREE.Color().setHSL(0.26 + r() * 0.08, 0.45, 0.16 + r() * 0.06).getHex();
+      const g = new THREE.Color().setHSL(0.26 + r() * 0.08, 0.55, 0.25 + r() * 0.07).getHex();
       for (let i = 0; i < 3; i++) this.blob(x + (r() - 0.5) * s, y + 0.5 * s, z + (r() - 0.5) * s, (0.8 + r() * 0.5) * s, (0.6 + r() * 0.3) * s, (0.8 + r() * 0.5) * s, g, { col: i === 0 });
     } else {
       const h = (3.4 + r() * 2.4) * s, cr = (2.3 + r() * 1.2) * s;
-      const base = new THREE.Color().setHSL(0.25 + r() * 0.1, 0.5, 0.17 + r() * 0.07);
+      const base = new THREE.Color().setHSL(0.25 + r() * 0.1, 0.6, 0.27 + r() * 0.08);
       this.cyl(x, y, z, 0.3 * s, h + cr * 0.5, 0x4b3624, { rt: 0.17 * s });
       const n = 4 + ((r() * 3) | 0);
       for (let i = 0; i < n; i++) {
@@ -445,7 +448,7 @@ export class World {
 
 // ── 게이트 ─────────────────────────────────────────────────
 const GATE_COLORS = { idle: 0xff6a12, next: 0x25ff6a, after: 0x1f9bff, done: 0x3a3f48 };
-const GATE_POWER = { idle: 1.6, next: 3.2, after: 1.8, done: 0.3 };
+const GATE_POWER = { idle: 1.7, next: 3.2, after: 2.0, done: 0.12 };
 const _l0 = new THREE.Vector3(), _l1 = new THREE.Vector3();
 
 export class Gate {
@@ -462,11 +465,15 @@ export class Gate {
     this.group = new THREE.Group();
     this.group.position.copy(this.pos);
     this.group.quaternion.copy(this.q);
-    this.mat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: GATE_COLORS.idle, emissiveIntensity: GATE_POWER.idle, roughness: 0.4 });
-    this.frameMat = new THREE.MeshStandardMaterial({ color: 0x1d2128, roughness: 0.5, metalness: 0.6 });
+    // 발광 막대(상태 색) + 어두운 틀 + 다음 게이트에만 켜지는 옅은 빛막
+    this.mat = toonMat({ color: 0x111111, emissive: GATE_COLORS.idle, emissiveIntensity: GATE_POWER.idle });
+    this.frameMat = toonMat({ color: 0x2a2f3c, spec: 0.5, shine: 50 });
+    this.veilMat = new THREE.MeshBasicMaterial({ color: GATE_COLORS.next, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    this.veil = null;
     this.state = "idle";
     this.world = world;
     this._build(world);
+    if (this.veil) { this.veil.visible = false; this.veil.renderOrder = 7; this.group.add(this.veil); }
     world.scene.add(this.group);
   }
 
@@ -497,8 +504,9 @@ export class Gate {
       this._bar(V(-hw, -hh), V(hw, -hh), r); this._bar(V(-hw, hh), V(hw, hh), r);
       this._bar(V(-hw, -hh), V(-hw, hh), r); this._bar(V(hw, -hh), V(hw, hh), r);
       for (const sx of [-1, 1]) for (const sy of [-1, 1]) { // 모서리 블록
-        const c = new THREE.Mesh(boxG(), this.frameMat); c.scale.setScalar(0.34); c.position.set(sx * hw, sy * hh, 0); this.group.add(c);
+        const c = new THREE.Mesh(boxG(), this.frameMat); c.scale.setScalar(0.38); c.position.set(sx * hw, sy * hh, 0); this.group.add(c);
       }
+      this.veil = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, hh * 2), this.veilMat);
       legs(hw, -hh);
     } else if (this.type === "ring" || this.type === "hoop") {
       const R = (this.r = d.r || (this.type === "hoop" ? 5 : 1.9));
@@ -506,6 +514,7 @@ export class Gate {
       const tor = new THREE.Mesh(new THREE.TorusGeometry(R, hoop ? 0.16 : 0.12, 10, 56), this.mat);
       tor.castShadow = !hoop;
       this.group.add(tor);
+      this.veil = new THREE.Mesh(new THREE.CircleGeometry(R, 40), this.veilMat);
       if (hoop) {
         const inner = new THREE.Mesh(new THREE.TorusGeometry(R * 0.86, 0.04, 6, 56), this.mat);
         this.group.add(inner);
@@ -538,6 +547,7 @@ export class Gate {
       const tor = new THREE.Mesh(new THREE.TorusGeometry(R, 0.32, 10, 32, Math.PI), this.mat);
       tor.castShadow = true;
       this.group.add(tor);
+      this.veil = new THREE.Mesh(new THREE.CircleGeometry(R, 24, 0, Math.PI), this.veilMat);
       const n = 8;
       for (let i = 0; i < n; i++) {
         const a0 = (i / n) * Math.PI, a1 = ((i + 1) / n) * Math.PI;
@@ -585,6 +595,9 @@ export class Gate {
     this.state = s;
     this.mat.emissive.setHex(GATE_COLORS[s]);
     this.mat.emissiveIntensity = this.power = GATE_POWER[s];
+    // 지나간 게이트는 틀까지 어둡게, 다음 게이트는 빛막을 켠다
+    this.mat.color.setHex(s === "done" ? 0x3a4050 : 0x111111);
+    if (this.veil) this.veil.visible = s === "next";
   }
 }
 
