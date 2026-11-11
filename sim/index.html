@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>하늘길 FPV — 드론 시뮬레이터</title>
+  <link rel="icon" href="../icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="sim.css" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+
+  <!-- 터치 가상 스틱 -->
+  <div id="touch" hidden>
+    <div class="tz tz-left"><div class="base"><div class="knob"></div></div></div>
+    <div class="tz tz-right"><div class="base"><div class="knob"></div></div></div>
+    <div class="tbtns top">
+      <button data-act="pause">Ⅱ</button>
+      <button data-act="camera">시점</button>
+      <button data-act="modeNext">모드</button>
+      <button data-act="reset">리셋</button>
+    </div>
+    <div class="tbtns fire" hidden>
+      <button data-act="item" class="b-item">아이템</button>
+      <button data-act="missile" class="b-missile">미사일</button>
+      <button data-act="fire" class="b-fire">레이저</button>
+    </div>
+  </div>
+
+  <div id="ui"></div>
+  <div id="loading" hidden><div class="spinner"></div><span>맵 생성 중…</span></div>
+  <div id="fatal" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
