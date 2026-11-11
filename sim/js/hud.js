@@ -12,6 +12,7 @@ export class Hud {
   constructor(canvas) {
     this.cv = canvas;
     this.g = canvas.getContext("2d");
+    if (!this.g.roundRect) this.g.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); }; // 구형 브라우저 대비
     this.toasts = [];
     this.feedLines = [];
     this.W = 1; this.H = 1; this.u = 1;

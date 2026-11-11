@@ -73,7 +73,7 @@ export const DEFAULTS = {
     axes: { lx: { i: 0, inv: false }, ly: { i: 1, inv: true }, rx: { i: 2, inv: false }, ry: { i: 3, inv: true } },
   },
   touchSticks: "auto",      // auto | on | off
-  quality: "med",           // low | med | high
+  quality: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "low" : "med", // low | med | high
   volume: 0.6,
   difficulty: "normal",
   showSticks: true,

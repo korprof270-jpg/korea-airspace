@@ -141,7 +141,7 @@ class Game {
   _touchLayer() {
     const el = document.getElementById("touch"), on = this.state === "play" && this.touchWanted();
     el.hidden = !on;
-    if (on) el.querySelector(".fire").hidden = !(this.session && this.session.mode.combat);
+    if (on) el.querySelectorAll(".combat").forEach((b) => (b.hidden = !(this.session && this.session.mode.combat)));
   }
 
   // cfg: { mode, map, ... } — 모드별 옵션은 ui.js 참고

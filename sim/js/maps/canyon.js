@@ -23,7 +23,7 @@ function raw(x, z) {
   const n = fbm(x * 0.007, z * 0.007), n2 = fbm(x * 0.028 + 7, z * 0.028 + 3, 3), n3 = vnoise(x * 0.11, z * 0.11);
   const wall = sm(15, 62 + n2 * 34, d);
   let plateau = 44 + n * 46 + n2 * 9;
-  plateau += (Math.round(plateau / 10) * 10 - plateau) * 0.72;         // 계단식 지층
+  plateau += (Math.round(plateau / 10) * 10 - plateau) * 0.5;         // 계단식 지층
   const rg = 1 - Math.abs(vnoise(x * 0.05 + 3, z * 0.05 + 8) * 2 - 1), rg2 = 1 - Math.abs(vnoise(x * 0.13, z * 0.13 + 5) * 2 - 1);
   let h = Math.pow(wall, 1.7) * plateau + (rg * rg * 8 + rg2 * 2.4) * Math.min(1, wall * (1 - wall) * 5 + wall * 0.12);   // 절벽의 능선·바위 주름
   h += (n2 - 0.5) * 3.2 * (1 - wall) + 1.7 + (n3 - 0.5) * 0.7;
@@ -46,7 +46,8 @@ function colorFn(x, y, z, slope) {
   const c = new THREE.Color();
   if (y < 1.1 && d < 22) return c.set(0xe6d3a4).lerp(new THREE.Color(0x9b8a62), sm(0.9, -1.5, y)).getHex();       // 강가 모래
   if (d < 60 && y < 12) return c.set(0x9cc24e).lerp(new THREE.Color(0xc8b060), n * 0.7 + sm(0.1, 0.35, slope) * 0.3).getHex(); // 계곡 초지
-  return c.set(0xcaa26a).lerp(new THREE.Color(0x9a9a55), sm(0.35, 0.7, n)).lerp(new THREE.Color(0xe2c79a), sm(70, 95, y) * 0.5).getHex(); // 고원
+  const n2 = fbm(x * 0.07 + 9, z * 0.07 + 2, 2);
+  return c.set(0xd0a56a).lerp(new THREE.Color(0x8fa04c), sm(0.38, 0.62, n) * 0.85).lerp(new THREE.Color(0xb98a52), sm(0.55, 0.8, n2) * 0.5).lerp(new THREE.Color(0xe2c79a), sm(70, 95, y) * 0.4).getHex(); // 고원
 }
 
 function build(w) {
@@ -188,7 +189,7 @@ function build(w) {
     w.tree(x, z, 0.8 + r() * 0.7, r() < 0.6 ? "round" : "pine");
     n++;
   }
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 620; i++) {
     const x = (r() * 2 - 1) * 380, z = (r() * 2 - 1) * 380, y = H(x, z);
     if (y < -0.5 || slope(x, z) > 0.8 || !clear(x, z)) continue;
     if (r() < 0.45) w.tree(x, z, 0.7 + r() * 0.7, "bush"); else w.rock(x, z, 0.7 + r() * r() * 3.2, ROCK);
