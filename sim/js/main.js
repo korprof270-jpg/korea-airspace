@@ -1,4 +1,5 @@
 // 부트스트랩: 렌더러·입력·사운드·UI 를 만들고 메뉴 ↔ 게임 상태를 관리
+import "./rotate.js";
 import * as THREE from "../vendor/three.module.min.js";
 import { settings, DRONE_CLASSES } from "./config.js";
 import { Input } from "./input.js";

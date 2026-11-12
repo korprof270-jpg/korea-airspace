@@ -1,4 +1,5 @@
 // 입력: 키보드 · 게임패드(RC 조종기 포함) · 터치 가상 스틱 → 좌/우 스틱 → 스틱 모드(1~4)별 채널
+import { toGame } from "./rotate.js";
 import { settings, STICK_MODES, clamp } from "./config.js";
 
 const KEY_ACTIONS = {
@@ -9,6 +10,8 @@ const KEY_ACTIONS = {
 // 표준 게임패드 버튼 → 동작
 const PAD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "missile", 7: "fire", 8: "hud", 9: "pause" };
 const HOLD = new Set(["fire", "score"]);
+
+const _tp = { x: 0, y: 0 };
 
 export class Input {
   constructor() {
@@ -65,16 +68,17 @@ export class Input {
       zone.addEventListener("pointerdown", (e) => {
         if (id !== null) return;
         id = e.pointerId; zone.setPointerCapture(id);
-        const r = zone.getBoundingClientRect();
-        ox = e.clientX; oy = e.clientY;
-        base.style.left = `${ox - r.left}px`; base.style.top = `${oy - r.top}px`;
+        toGame(e.clientX, e.clientY, _tp); ox = _tp.x; oy = _tp.y;
+        // 구역의 게임 좌표 원점(돌린 화면에서도 맞도록 offset 기준)
+        base.style.left = `${ox - zone.offsetLeft}px`; base.style.top = `${oy - zone.offsetTop}px`;
         base.classList.add("on");
         this.touch.active = true;
         e.preventDefault();
       });
       zone.addEventListener("pointermove", (e) => {
         if (e.pointerId !== id) return;
-        set(clamp((e.clientX - ox) / R, -1, 1), clamp(-(e.clientY - oy) / R, -1, 1));
+        toGame(e.clientX, e.clientY, _tp);
+        set(clamp((_tp.x - ox) / R, -1, 1), clamp(-(_tp.y - oy) / R, -1, 1));
       });
       const end = (e) => { if (e.pointerId !== id) return; id = null; set(0, 0); base.classList.remove("on"); };
       zone.addEventListener("pointerup", end);
