@@ -340,6 +340,8 @@ export class Hud {
     L.touch = touch; L.combat = !!(session && session.mode.combat);
     L.cx = W / 2; L.cy = H / 2;
     L.l = sf.l + 14 * u; L.r = W - sf.r - 14 * u; L.t = sf.t + 8 * u; L.b = H - sf.b - 10 * u;
+    L.batH = this.vis("battery") ? 22 * u : 0; L.t += L.batH;   // 배터리 줄만큼 위쪽 판들을 내린다
+    L.roW = 94 * u;                                              // 속도·고도 판 너비
     L.trY = touch ? Math.max(L.t, sf.t + 52) : L.t;          // 오른쪽 위: 터치 버튼 아래부터
     L.compassY = L.t + 46 * u; L.subY = L.t + 74 * u;        // 나침반 / 그 아래 모드별 표시줄
     L.tapeX = (touch ? 176 : 248) * u; L.tapeH = (touch ? 150 : 190) * u;
@@ -350,7 +352,7 @@ export class Hud {
     L.conTop = L.b - 52 * u;
     // 전투 상태판·레이더 자리 (터치: 엄지를 피해 가운데·오른쪽 위로)
     if (touch) {
-      L.statusX = L.cx - L.conM / 2 - 12 * u; L.statusRight = true; L.statusW = 168 * u;
+      L.statusX = L.cx - L.conHalf - L.conGap * 1.8 - L.roW - 12 * u; L.statusRight = true; L.statusW = 168 * u;
       L.radarR = clamp(60 * u, 38, 66);
       L.radarX = W - sf.r - 108 - L.radarR; L.radarY = sf.t + 54 + L.radarR;
       L.feedX = L.radarX - L.radarR - 12; L.feedY = sf.t + 62;
@@ -391,55 +393,37 @@ export class Hud {
     if (this.vis("speed")) this._tape(-1, this._spd, SPEED_TAPE);
     if (this.vis("altitude")) { ALT_TAPE.max = session.world.ceiling - (b.pos.y - alt); this._tape(1, this._alt, ALT_TAPE, this._vs); }
     if (this.vis("compass")) this._compass(b);
+    if (this.vis("battery")) this._battery(pl);
     this._console(session, dt);
     if (this.obj && this.obj.pill !== false && this.vis("distance")) this._distance(this.obj, this.objDist);
     this._warnings(session);
   }
 
-  // 속도·고도 테이프. side: -1 왼쪽 / +1 오른쪽
+  // 속도·고도 판: 화면을 가리지 않게 아래쪽 조종 콘솔 양옆에 나란히 둔다. side: -1 왼쪽 / +1 오른쪽
   _tape(side, value, o, trend) {
-    const g = this.g, u = this.u, L = this.L;
-    const w = 44 * u, h = L.tapeH, xin = L.cx + side * L.tapeX, x0 = side < 0 ? xin - w : xin, y0 = L.cy - h / 2;
-    g.beginPath(); g.roundRect(x0, y0, w, h, 8 * u);
-    g.fillStyle = PLATE; g.fill();
-    g.save(); g.clip();
-    const ppu = h / o.range, v0 = value - o.range / 2, v1 = value + o.range / 2;
-    // 한계 구역(지면 아래·비행 상한 위)
-    if (v0 < o.min) { g.fillStyle = "rgba(255,90,74,0.26)"; g.fillRect(x0, L.cy + (value - o.min) * ppu, w, h); }
-    if (o.max !== undefined && v1 > o.max) { g.fillStyle = "rgba(255,90,74,0.4)"; g.fillRect(x0, y0, w, L.cy + (value - o.max) * ppu - y0); }
-    const edge = side < 0 ? x0 + w : x0, first = Math.ceil(Math.max(v0, o.min) / o.step) * o.step;
-    g.lineCap = "butt"; g.lineWidth = 2 * u; g.strokeStyle = "rgba(255,255,255,0.78)";
-    g.beginPath();
-    for (let v = first; v <= v1; v += o.step) {
-      const y = L.cy + (value - v) * ppu, major = v % o.major === 0;
-      g.moveTo(edge, y); g.lineTo(edge + side * (major ? 11 : 6) * u, y);
-    }
-    g.stroke();
-    for (let v = Math.ceil(Math.max(v0, o.min) / o.major) * o.major; v <= v1; v += o.major) {
-      this.text(String(v), edge + side * 15 * u, L.cy + (value - v) * ppu, { size: 11, align: side < 0 ? "right" : "left", base: "middle", color: "#d3dcea", mono: true, shadow: false });
-    }
-    g.restore();
-    g.beginPath(); g.roundRect(x0, y0, w, h, 8 * u);
-    g.lineJoin = "round"; g.lineWidth = 2.5 * u; g.strokeStyle = INK; g.stroke();
-    // 현재값 상자(화면 중심 쪽으로 뾰족)
-    const bh = 30 * u, out = 12 * u, nose = 9 * u, y = L.cy;
-    const xa = side < 0 ? x0 - out : x0 + w + out, xb = side < 0 ? x0 + w : x0;
-    g.beginPath();
-    g.moveTo(xa, y - bh / 2); g.lineTo(xb, y - bh / 2); g.lineTo(xb - side * nose, y); g.lineTo(xb, y + bh / 2); g.lineTo(xa, y + bh / 2); g.closePath();
-    g.lineJoin = "round"; g.lineWidth = 6 * u; g.strokeStyle = INK; g.stroke();
-    g.fillStyle = "#111a2e"; g.fill();
-    g.lineWidth = 2.5 * u; g.strokeStyle = o.color; g.stroke();
+    const u = this.u, L = this.L, w = L.roW, h = 44 * u;
+    const gap = L.conGap * 1.8, x0 = side < 0 ? L.cx - L.conHalf - gap - w : L.cx + L.conHalf + gap, y0 = L.b - h;
+    this.plate(x0, y0, w, h, { fill: PLATE, accent: o.color, skew: 0.12 });
     const txt = value >= 99.5 || o.int ? value.toFixed(0) : value.toFixed(1);
-    this.text(txt, (side < 0 ? x0 + w : x0 + w + out) - 5 * u, y + 1 * u, { size: 20, align: "right", base: "middle", mono: true, shadow: false });
-    // 이름·단위
-    const cxm = x0 + w / 2;
-    this.text(o.label, cxm, y0 - 7 * u, { size: 11, align: "center", color: o.color });
-    this.text(o.unit, cxm, y0 + h + 15 * u, { size: 11, align: "center", color: HC.dim });
-    // 상승·하강률
+    this.text(o.label, x0 + 10 * u, y0 + 11 * u, { size: 9, base: "middle", color: o.color });
+    this.text(txt, x0 + w - 30 * u, y0 + 30 * u, { size: 19, align: "right", base: "middle", mono: true });
+    this.text(o.unit, x0 + w - 27 * u, y0 + 32 * u, { size: 10, base: "middle", color: HC.dim });
     if (trend !== undefined && Math.abs(trend) > 0.6) {
       const up = trend > 0;
-      this.text(`${up ? "▲" : "▼"}${Math.abs(trend).toFixed(1)}`, cxm, y0 + h + 29 * u, { size: 11, align: "center", color: up ? HC.ok : HC.orange, mono: true });
+      this.text(`${up ? "▲" : "▼"}${Math.abs(trend).toFixed(1)}`, x0 + w - 8 * u, y0 + 13 * u, { size: 9, align: "right", base: "middle", color: up ? HC.ok : HC.orange, mono: true });
     }
+  }
+
+  // 배터리 잔량 (왼쪽 위)
+  _battery(pl) {
+    const g = this.g, u = this.u, L = this.L, k = clamp(pl.battery ?? 1, 0, 1);
+    const x = L.l, y = L.t - L.batH, w = 54 * u, h = 15 * u;
+    const col = k > 0.4 ? HC.ok : k > 0.18 ? HC.gold : HC.warn;
+    if (k <= 0.18 && Math.floor(this.t * 3) % 2) return;       // 부족하면 깜빡임
+    g.beginPath(); g.roundRect(x, y, w, h, 3 * u); g.roundRect(x + w, y + h * 0.28, 4 * u, h * 0.44, 1.5 * u);
+    g.fillStyle = PLATE; g.fill(); g.lineWidth = 2.5 * u; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = col; g.fillRect(x + 3 * u, y + 3 * u, (w - 6 * u) * k, h - 6 * u);
+    this.text(`${Math.round(k * 100)}%`, x + w + 10 * u, y + h / 2 + 0.5 * u, { size: 12, base: "middle", mono: true, color: col });
   }
 
   // 나침반 띠 + 목표 방위

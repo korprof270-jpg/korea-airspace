@@ -54,9 +54,10 @@ export const RATE_PRESETS = {
 export const HUD_DENSITY = ["full", "minimal", "off"];
 export const HUD_DENSITY_NAMES = { full: "전체", minimal: "최소", off: "끄기" };
 export const HUD_ITEMS = [
+  ["battery", "배터리", "왼쪽 위 배터리 잔량"],
   ["sticks", "스틱 움직임", "좌·우 스틱 위치와 궤적"],
-  ["speed", "속도계", "왼쪽 속도 테이프 (km/h)"],
-  ["altitude", "고도계", "오른쪽 고도 테이프와 상승·하강률"],
+  ["speed", "속도계", "아래쪽 속도 표시 (km/h)"],
+  ["altitude", "고도계", "아래쪽 고도 표시와 상승·하강률"],
   ["distance", "목표 거리", "다음 게이트·피사체·표적까지 거리"],
   ["mode", "비행 모드", "ACRO·ANGLE 등 현재 모드 배지"],
   ["throttle", "스로틀 게이지", "현재 추력 막대"],

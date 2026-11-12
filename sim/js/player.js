@@ -42,6 +42,7 @@ export class Player {
     this.time = 0;
     this.trailT = 0;
     this.maxImpact = 0;
+    this.battery = 1;                            // 배터리 잔량 0..1
     this.frozen = false;                         // 결과 화면 등에서 정지
     this.airTime = 0;
     this.scrapeT = 0;                            // 긁힘 효과 간격
@@ -60,6 +61,7 @@ export class Player {
   respawn(pos = this.spawn.pos, yaw = this.spawn.yaw) {
     this.body.reset(pos, yaw);
     this.crashed = false;
+    this.battery = 1;
     this.broken = false;
     this.crashTimer = 0;
     this.camInit = false;
@@ -170,6 +172,7 @@ export class Player {
     this._contactFx(dt);
     if (this.crashed) this.crashTimer += dt;
     this.airTime = b.onGround ? 0 : this.airTime + dt;
+    if (!b.disabled && mode.state === "run") this.battery = Math.max(0, this.battery - dt * (0.25 + Math.pow(b.thrust, 1.5) * 9) / 360);
     this._syncModel(dt);
 
     // 연기 꼬리
