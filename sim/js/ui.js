@@ -197,69 +197,84 @@ export class UI {
   _persist() { settings.last = this.sel; save(); }
 
   // ── 모드 설정 ──
+  // 코스·이동 경로 미니맵 (위에서 본 모습)
+  _route(pts, loop) {
+    if (!pts || pts.length < 2) return "";
+    const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+    const k = Math.min(84 / Math.max(x1 - x0, 1), 34 / Math.max(z1 - z0, 1)), ox = 50 - ((x0 + x1) / 2) * k, oz = 23 - ((z0 + z1) / 2) * k;
+    const P = pts.map(([x, z]) => [(x * k + ox).toFixed(1), (z * k + oz).toFixed(1)]);
+    const d = "M" + P.map((q) => q.join(" ")).join(" L") + (loop ? " Z" : "");
+    return `<svg class="route" viewBox="0 0 100 46" aria-hidden="true"><path d="${d}"/>${P.map((q, i) => `<circle cx="${q[0]}" cy="${q[1]}" r="${i ? 2.1 : 3.2}" class="${i ? "" : "st"}"/>`).join("")}</svg>`;
+  }
+
+  // 단계 묶음: 번호 · 제목 · 현재 선택
+  _step(n, title, pick, html) {
+    return `<section class="step" data-step="${n}"><div class="sh"><span class="no">${n}</span><h3>${title}</h3>${pick ? `<span class="pick">${esc(pick)}</span>` : ""}</div>${html}</section>`;
+  }
+
   s_setup() {
     const s = this.sel, m = MODE_META[s.mode];
-    let body = "";
-    const mapCards = (filter = () => true) => `<h3>맵</h3><div class="grid">${MAP_LIST.filter(filter).map((mp) =>
-      `<button class="card mapcard ${s.map === mp.id ? "sel" : ""}" data-a="sel" data-k="map" data-v="${mp.id}">${this._thumb("map", mp.id)}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div></button>`).join("")}</div>`;
+    const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
+    if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
     const map = MAPS[s.map];
-    let summary = map.name;
-
+    const card = (k, v, on, inner, cls = "") => `<button class="card ${cls} ${on ? "sel" : ""}" data-a="sel" data-k="${k}" data-v="${v}">${inner}</button>`;
+    // ① 맵 (모든 모드 공통)
+    const maps = MAP_LIST.map((mp) => {
+      const extra = s.mode === "challenge" ? `<div class="tag">임무 ${cmMissions(mp.id).length}</div>` : "";
+      return card("map", mp.id, s.map === mp.id, `${this._thumb("map", mp.id)}${extra}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div>`, "mapcard");
+    }).join("");
+    let step2 = "", t2 = "", p2 = "", opts = "";
     if (s.mode === "race") {
       if (!map.tracks.find((t) => t.id === s.track)) s.track = map.tracks[0].id;
-      const tr = map.tracks.find((t) => t.id === s.track);
-      const loop = tr.loop !== false;
-      body += mapCards();
-      body += `<h3>코스</h3><div class="grid wide">${map.tracks.map((t) => {
+      const tr = map.tracks.find((t) => t.id === s.track), loop = tr.loop !== false;
+      t2 = "코스 선택"; p2 = tr.name;
+      step2 = map.tracks.map((t) => {
         const best = records[`race:${map.id}:${t.id}:${t.loop === false ? 1 : s.laps}`];
-        return `<button class="card ${s.track === t.id ? "sel" : ""}" data-a="sel" data-k="track" data-v="${t.id}">
-          <div class="tag">${best ? "최고 " + fmtTime(best) : ""}</div><div class="nm">${t.name}</div>
-          <div class="stars">${starStr(t.level)}</div><div class="ds">${t.desc} · ${t.loop === false ? "구간 주행" : `게이트 ${t.gates.length}개`}</div></button>`;
-      }).join("")}</div>`;
-      body += `<h3>옵션</h3>`;
-      if (loop) body += `<div class="opt"><label>랩 수</label>${this.seg("laps", [[1, "1"], [2, "2"], [3, "3"], [5, "5"]], s.laps)}</div>`;
-      body += `<div class="opt"><label>AI 라이벌</label>${this.seg("rivals", [[0, "없음"], [1, "1"], [3, "3"], [5, "5"]], s.rivals)}</div>`;
-      body += this._diff();
-      summary += ` · ${tr.name}`;
+        return card("track", t.id, s.track === t.id, `${this._route(t.gates.map((g) => [g.p[0], g.p[2]]), t.loop !== false)}<div class="tag">${best ? "최고 " + fmtTime(best) : ""}</div>
+          <div class="nm">${t.name}</div><div class="stars">${starStr(t.level)}</div><div class="ds">${t.desc} · ${t.loop === false ? "구간 주행" : `게이트 ${t.gates.length}개`}</div>`, "routecard");
+      }).join("");
+      if (loop) opts += `<div class="opt"><label>랩 수</label>${this.seg("laps", [[1, "1"], [2, "2"], [3, "3"], [5, "5"]], s.laps)}</div>`;
+      opts += `<div class="opt"><label>AI 라이벌</label>${this.seg("rivals", [[0, "없음"], [1, "1"], [3, "3"], [5, "5"]], s.rivals)}</div>` + this._diff();
     } else if (s.mode === "tracking") {
       if (!map.tracking.find((t) => t.id === s.subject)) s.subject = map.tracking[0].id;
-      body += mapCards();
-      body += `<h3>피사체</h3><div class="grid wide">${map.tracking.map((t) => {
+      t2 = "피사체 선택"; p2 = map.tracking.find((t) => t.id === s.subject).name;
+      step2 = map.tracking.map((t) => {
         const best = records[`tracking:${map.id}:${t.id}`];
-        return `<button class="card ${s.subject === t.id ? "sel" : ""}" data-a="sel" data-k="subject" data-v="${t.id}">
-          <div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">${t.name}</div><div class="stars">${starStr(t.level)}</div><div class="ds">${t.desc}</div></button>`;
-      }).join("")}</div>`;
-      body += `<p class="muted" style="font-size:13px">피사체를 화면 중앙 가까이, 적당한 거리(3~14m)에서 놓치지 않고 따라갈수록 점수가 오릅니다. 시네우프 기체와 ANGLE 모드를 추천합니다.</p>`;
-      summary += ` · ${map.tracking.find((t) => t.id === s.subject).name}`;
+        return card("subject", t.id, s.subject === t.id, `${this._route(t.path.map((q) => [q[0], q[2]]), t.closed !== false)}<div class="tag">${best ? "최고 " + best + "점" : ""}</div>
+          <div class="nm">${t.name}</div><div class="stars">${starStr(t.level)}</div><div class="ds">${t.desc}</div>`, "routecard");
+      }).join("");
+      opts += `<p class="hint2">피사체를 화면 가운데, 적당한 거리(3~14m)에 두고 놓치지 않을수록 점수가 오릅니다. 시네우프 기체와 ANGLE·LOITER 모드가 쉽습니다.</p>`;
     } else if (s.mode === "freestyle") {
-      body += mapCards();
       const best = records[`freestyle:${map.id}`];
-      body += `<h3>세션</h3><div class="opt"><label>진행 방식</label>${this.seg("fs", [["timed", "2분 점수 도전"], ["free", "자유 비행"]], s.fs)}</div>`;
-      body += `<p class="muted" style="font-size:13px">플립·롤·요 스핀·다이브·근접 비행·갭 통과로 점수를 얻고, 끊기지 않게 이어 콤보 배율을 올리세요. ACRO 모드에서 모든 묘기가 가능합니다.${best ? ` <b style="color:var(--gold)">최고 ${best}점</b>` : ""}</p>`;
-      summary += ` · ${s.fs === "timed" ? "2분 점수 도전" : "자유 비행"}`;
+      t2 = "진행 방식"; p2 = s.fs === "timed" ? "2분 점수 도전" : "자유 비행";
+      step2 = card("fs", "timed", s.fs === "timed", `<div class="ic">⏱</div><div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">2분 점수 도전</div><div class="ds">제한 시간 안에 묘기와 통과 지점으로 최고 점수에 도전합니다.</div>`)
+        + card("fs", "free", s.fs === "free", `<div class="ic">🕊</div><div class="nm">자유 비행</div><div class="ds">시간 제한 없이 맵을 돌아다니며 연습합니다. Esc 로 끝냅니다.</div>`);
+      opts += `<p class="hint2">플립·롤·스핀·다이브·근접 비행·갭 통과를 끊기지 않게 이어 콤보 배율을 올리세요. ACRO 모드에서 모든 묘기를 할 수 있습니다.</p>`;
     } else if (s.mode === "survival") {
-      body += `<h3>방식</h3><div class="grid wide">${Object.entries(VARIANTS).map(([id, v]) => {
+      t2 = "방식 선택"; p2 = VARIANTS[s.variant].name;
+      step2 = Object.entries(VARIANTS).map(([id, v]) => {
         const best = records[`survival:${id}:${map.id}`];
-        return `<button class="card ${s.variant === id ? "sel" : ""}" data-a="sel" data-k="variant" data-v="${id}"><div class="tag">${best ? "최고 " + best + "점" : ""}</div>
-          <div class="nm">${v.icon} ${v.name}</div><div class="ds">${v.desc}</div></button>`;
-      }).join("")}</div>`;
-      body += mapCards();
-      body += `<h3>옵션</h3><div class="opt"><label>AI 드론 수</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}</div>`;
-      body += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>`;
-      body += this._diff();
-      summary += ` · ${VARIANTS[s.variant].name}`;
+        return card("variant", id, s.variant === id, `<div class="ic">${v.icon}</div><div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
+      }).join("");
+      opts += `<div class="opt"><label>AI 드론 수</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}</div>`;
+      opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
     } else {
-      body += `<h3>임무</h3><div class="grid wide">${MISSIONS.map((ms) => {
-        const st = records[`challenge:${ms.id}`] || 0;
-        return `<button class="card mapcard ${s.mission === ms.id ? "sel" : ""}" data-a="sel" data-k="mission" data-v="${ms.id}">
-          ${this._thumb("map", ms.map)}<div class="tag stars">${starStr(st)}</div><div class="nm">${ms.icon} ${ms.name}</div>
-          <div class="ds">${ms.desc}<br><span style="color:var(--accent2)">${MAPS[ms.map].name}</span> · 난이도 ${"●".repeat(ms.level)}</div></button>`;
-      }).join("")}</div>`;
-      body += `<h3>편대</h3><div class="opt"><label>팀 구성</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team)}<div class="hint">편대를 고르면 AI 윙맨이 함께 싸웁니다. 인원이 늘면 적도 강해집니다.</div></div>`;
-      body += this._diff();
-      const ms = MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0];
-      summary = `${ms.name} · ${MAPS[ms.map].name}`;
+      const list = cmMissions(s.map);
+      if (!list.find((x) => x.id === s.mission)) s.mission = list[0].id;
+      t2 = "임무 선택"; p2 = MISSIONS.find((x) => x.id === s.mission).name;
+      step2 = list.map((ms) => card("mission", ms.id, s.mission === ms.id, `<div class="ic">${ms.icon}</div><div class="tag stars">${starStr(records[`challenge:${ms.id}`] || 0)}</div>
+          <div class="nm">${ms.name}</div><div class="ds">${ms.desc} · 난이도 ${"●".repeat(ms.level)}</div>`)).join("");
+      opts += `<div class="opt"><label>팀 구성</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team)}<div class="hint">편대를 고르면 AI 윙맨이 함께 싸웁니다. 인원이 늘면 적도 강해집니다.</div></div>` + this._diff();
     }
+    // ③ 옵션: 모드별 옵션 + 공통 비행 설정
+    opts += `<div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((k) => [k, FLIGHT_MODE_INFO[k].label]), settings.flightMode, "set")}</div>`;
+    opts += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
+    opts += `<div class="opt"><label>기체</label><button class="ghost" data-a="go" data-v="hangar">🛠 ${esc(DRONE_CLASSES[settings.drone.cls].name)} — 정비소에서 바꾸기</button></div>`;
+    const summary = [map.name, p2].filter(Boolean).join(" · ");
+    const body = this._step(1, "맵 선택", map.name, `<div class="grid maps">${maps}</div>`)
+      + this._step(2, t2, p2, `<div class="grid wide">${step2}</div>`)
+      + this._step(3, "옵션", "", opts);
     return `<div class="screen split" style="--c:${m.c}">
       <div class="pane" data-scroll>
         <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2></div>
@@ -277,6 +292,10 @@ export class UI {
     this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
     this._persist();
     this.redraw();
+    // 고른 다음 단계가 보이게 내린다 (맵 → 2단계, 2단계 → 옵션)
+    const next = k === "map" ? 2 : ["track", "subject", "fs", "variant", "mission"].includes(k) ? 3 : 0;
+    const stepEl = next && this.root.querySelector(`[data-step="${next}"]`);
+    if (stepEl) stepEl.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   a_start() {
