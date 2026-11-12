@@ -137,6 +137,9 @@ export class World {
   }
 
   // ── 재질 (모두 툰 밴드 조명. 텍스처는 색 맵만 쓴다) ──
+  // 맵의 움직이는 소품이 같은 재질을 쓰도록 공개
+  material(key) { return this._material(key); }
+
   _material(key) {
     const [kind, tex] = key.split(":");
     const t = tex ? (hasTex(tex) ? texSet(tex) : patternSet(tex)) : null;

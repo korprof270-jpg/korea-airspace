@@ -104,6 +104,8 @@ export class SurvivalMode extends CombatMode {
     const ang = Math.random() * Math.PI * 2, r = 26 + Math.random() * 10;
     const p = new THREE.Vector3(B.x + Math.cos(ang) * r + dir.x * 8, 0, B.z + Math.sin(ang) * r + dir.z * 8);
     p.y = w.h(p.x, p.z) + (a.isPlayer ? 1.5 : 10 + Math.random() * 8);
+    // 구조물 안에서 재출격하지 않도록 막힌 자리면 위로 올린다
+    for (let i = 0; i < 12 && w.col.blocked(p, 1.6); i++) p.y += 3;
     return { pos: p, yaw: Math.atan2(-dir.x, -dir.z) };
   }
 

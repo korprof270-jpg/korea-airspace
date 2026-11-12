@@ -71,7 +71,7 @@ function harbor(w) {
     w.box(cx, Hh - 3.6, -150, 3, 3, 4, 0xf2f0ea, { mat: "paint" });               // 운전실
     w.pipe(cx - 1, Hh - 3.6, -160, cx - 1, 26, -160, 0.06, 0x22262c, { col: false }); w.pipe(cx + 1, Hh - 3.6, -160, cx + 1, 26, -160, 0.06, 0x22262c, { col: false });
     w.container(cx, 23.4, -160, 0, cc[(cx + 40) % 5]);
-    w.box(cx, 0.02, -118, 20, 0.03, 14, 0xdadada, { col: false, mat: "std:hazard", tile: 2, ao: false });
+    w.box(cx, 0.02, -118, 20, 0.03, 14, 0xdadada, { col: false, mat: "std:hazard", tile: 5, ao: false });
     w.gap("크레인 다리 사이", cx, 6, -118, 90, 10.6, 11, 350); w.gap("크레인 다리 사이", cx, 6, -118, 0, 16.6, 11, 300);
     w.gap("크레인 붐 아래", cx, 31, -140, 90, 18, 14, 380);
   }

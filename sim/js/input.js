@@ -7,7 +7,7 @@ const KEY_ACTIONS = {
   Digit1: "mode1", Digit2: "mode2", Digit3: "mode3", Digit4: "mode4", Digit5: "mode5",
 };
 // 표준 게임패드 버튼 → 동작
-const PAD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "missile", 7: "fire", 9: "pause" };
+const PAD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "missile", 7: "fire", 8: "hud", 9: "pause" };
 const HOLD = new Set(["fire", "score"]);
 
 export class Input {
