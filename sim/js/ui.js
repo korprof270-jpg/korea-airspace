@@ -306,6 +306,8 @@ export class UI {
           <div class="hint"><b>${FLIGHT_MODE_INFO[settings.flightMode].ko}</b> — ${FLIGHT_MODE_INFO[settings.flightMode].desc}. 비행 중 <kbd>1</kbd>~<kbd>5</kbd> 또는 <kbd>M</kbd> 으로 전환.</div></div>
         ${this.toggle("hoverThrottle", "스로틀 중앙 = 호버", "켜면 스틱 중앙에서 제자리 비행 추력이 됩니다(키보드·게임패드용). 스로틀이 고정되는 실제 RC 조종기는 끄세요.")}
         ${this.toggle("invertPitch", "피치 반전")}
+        <div class="opt"><label>자동 사격</label>${this.seg("autoFire", [["off", "끄기"], ["touch", "터치일 때만"], ["on", "항상"]], settings.autoFire, "set")}
+          <div class="hint">조준선에 적이 걸리면 레이저를, 락온되면 미사일을 자동으로 쏩니다. 조종에만 집중할 수 있습니다.</div></div>
         ${this.toggle("crashAssist", "충돌 보정", "켜면 가벼운 접촉은 튕겨내고 계속 비행합니다. 끄면 실제처럼 쉽게 추락합니다.")}
         <h3>레이트 (ACRO 감도)</h3>
         <div class="opt"><label>프리셋</label>${this.seg("ratePreset", Object.entries(RATE_PRESETS).map(([k, v]) => [k, v.name]), settings.ratePreset, "rate")}</div>

@@ -274,7 +274,10 @@ export class Combat {
     if (!p.alive || p.stunT > 0 || this.s.mode.state !== "run") { this.lock = null; this.lockT = 0; this.aim = null; return; }
     const over = p.overT > 0;
     p.fireT -= dt; p.missileT -= dt;
-    if (inp.isHeld("fire") && p.fireT <= 0 && !p.overheated) {
+    // 자동 사격: 조준선에 적이 걸리면 레이저, 락온되면 미사일을 알아서 쏜다 (조종에만 집중)
+    const auto = settings.autoFire === "on" || (settings.autoFire === "touch" && inp.device === "touch");
+    const wantFire = inp.isHeld("fire") || (auto && !!this.aim && p.heat < 0.8);
+    if (wantFire && p.fireT <= 0 && !p.overheated) {
       p.fireT = 0.105;
       _d.copy(pl.aimDir);
       // 조준 보정: 조준선 근처의 적에게는 예상 위치로 살짝 끌어당김
@@ -305,9 +308,10 @@ export class Combat {
       this.lockT += dt;
       if (was && this.lockT >= 0.7) this.snd.play("lock");
     } else { this.lock = cand; this.lockT = 0; }
-    if (inp.take("missile")) {
+    const autoMissile = auto && this.lockT >= 0.9 && p.missiles > 0 && p.missileT <= 0;
+    if (inp.take("missile") || autoMissile) {
       if (p.missiles > 0 && p.missileT <= 0) {
-        p.missiles--; p.missileT = 0.7;
+        p.missiles--; p.missileT = autoMissile ? 2.5 : 0.7;
         _b.copy(pl.aimPos).addScaledVector(pl.aimDir, 0.6);
         this.fireMissile(p, _b, pl.aimDir, this.lockT >= 0.7 ? this.lock : null);
       } else if (p.missiles <= 0) this.feel.emit("dry");

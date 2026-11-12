@@ -114,6 +114,7 @@ export const DEFAULTS = {
   },
   // 화면 효과: 흔들림 세기(0~1.5), 색 번쩍임 세기(0~1), 진동(게임패드·모바일)
   fx: { shake: 1, flash: 1, rumble: true },
+  autoFire: "touch",        // 자동 사격: off | touch(터치 조작일 때만) | on
   crashAssist: true,        // 가벼운 접촉은 튕겨내고 계속 비행
   drone: {
     cls: "freestyle",
