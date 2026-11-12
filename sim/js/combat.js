@@ -26,7 +26,8 @@ export const KINDS = {
 };
 
 const LASER_SPEED = 260;
-const RESPAWN = 5;        // 격추 후 재출격까지(초)
+const RESPAWN = 5;
+const HITBOX = 1.3;       // 내가 쏜 레이저·미사일의 적 명중 판정 배율        // 격추 후 재출격까지(초)
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
 const _des = new THREE.Vector3(), _aim = new THREE.Vector3();
 const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
@@ -257,7 +258,7 @@ export class Combat {
       _a.copy(o.pos).sub(pl.aimPos);
       const d = _a.length();
       if (d > maxDist || d < 1) continue;
-      const ang = Math.acos(clamp(_a.dot(pl.aimDir) / d, -1, 1)) - Math.atan(o.radius / d) * 0.5;
+      const ang = Math.acos(clamp(_a.dot(pl.aimDir) / d, -1, 1)) - Math.atan((o.radius * HITBOX) / d) * 0.5;
       if (ang < bestAng) { bestAng = ang; best = o; }
     }
     return best;
@@ -459,7 +460,7 @@ export class Combat {
         if (!o.alive || o === s.owner || !o.targetable || !this.hostile(s.owner, o)) continue;
         _a.copy(o.pos).sub(s.pos);
         const t = _a.dot(s.dir);
-        const r = o.radius + (s.owner.isPlayer ? 0.35 : 0);
+        const r = s.owner.isPlayer ? (o.radius + 0.35) * HITBOX : o.radius;
         if (t < -r || t > len + r) continue;
         const perp2 = _a.lengthSq() - t * t;
         if (perp2 > r * r) continue;
@@ -522,7 +523,7 @@ export class Combat {
       let boom = m.life <= 0 || this.w.col.blocked(m.pos, 0.12), direct = null;
       for (const o of this.actors) {
         if (!o.alive || !o.targetable || !this.hostile(m.owner, o)) continue;
-        if (o.pos.distanceTo(m.pos) < o.radius + 1.6) { boom = true; direct = o; break; }
+        if (o.pos.distanceTo(m.pos) < (m.owner.isPlayer ? o.radius * HITBOX : o.radius) + 1.6) { boom = true; direct = o; break; }
       }
       if (boom) {
         this.fx.explosion(m.pos, 1.3);

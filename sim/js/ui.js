@@ -10,11 +10,16 @@ import { MISSIONS } from "./modes/challenge.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
-  race: { name: "레이싱", icon: "🏁", c: "#ff5a1f", desc: "게이트와 경로를 순서대로 통과하며 기록과 순위에 도전" },
-  tracking: { name: "트래킹", icon: "🎥", c: "#21d4fd", desc: "차량·사람·드론 등 움직이는 피사체를 화면에 담아 따라가기" },
-  freestyle: { name: "프리스타일", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·갭 통과로 콤보를 이어 묘기 점수 획득" },
-  survival: { name: "서바이벌", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 겨루는 점수제 전투" },
-  challenge: { name: "챌린지", icon: "🎯", c: "#3dd68c", desc: "혼자 또는 편대를 이뤄 AI 적을 상대로 임무 수행" },
+  race: { name: "레이싱", en: "RACE", icon: "🏁", c: "#ff5a1f", desc: "게이트와 경로를 순서대로 통과하며 기록과 순위에 도전",
+    long: "네온 게이트와 공중 링을 순서대로 통과하세요. 통과할 때마다 다음 게이트로 가는 길이 화면과 공중에 표시됩니다.", tags: ["코스 13개", "AI 라이벌 최대 5기", "랩·구간 기록"] },
+  tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "차량·사람·드론 등 움직이는 피사체를 화면에 담아 따라가기",
+    long: "달리는 차, 강을 내려가는 보트, 곡예 드론을 화면 가운데에 담아 끝까지 따라가면 촬영 점수가 오릅니다.", tags: ["피사체 17종", "프레이밍 점수", "시네 비행 연습"] },
+  freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·갭 통과로 콤보를 이어 묘기 점수 획득",
+    long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
+  survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 겨루는 점수제 전투",
+    long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·거점전·운반전", "아이템 6종", "5초 재출격"] },
+  challenge: { name: "챌린지", en: "MISSION", icon: "🎯", c: "#3dd68c", desc: "혼자 또는 편대를 이뤄 AI 적을 상대로 임무 수행",
+    long: "기지 방어, 포탑 소탕, 호송, 긴급 보급, 모선 격추. 혼자 또는 AI 윙맨과 편대를 이뤄 임무를 완수하세요.", tags: ["임무 5종", "윙맨 최대 3기", "별 3개 평가"] },
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
@@ -44,14 +49,24 @@ export class UI {
     addEventListener("keydown", (e) => {
       // 비행 중 H: HUD 표시 수준 전환(전체 → 최소 → 끄기). 실제 전환은 HUD 가 입력 큐에서 꺼내 처리
       if (e.code === "KeyH" && !e.repeat && this.game.state === "play" && !(e.target instanceof HTMLInputElement)) { this.game.input.queue.push("hud"); return; }
+      if (this.screen === "main" && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+        const ids = Object.keys(MODE_META), i = ids.indexOf(this.sel.mode), d = e.code === "ArrowUp" || e.code === "ArrowLeft" ? -1 : 1;
+        this._picked = false; this.a_pick(ids[(i + d + ids.length) % ids.length]); this._picked = true;
+        const on = this.root.querySelector(".mitem.on"); if (on) on.focus({ preventScroll: true });
+        e.preventDefault(); return;
+      }
+      if (this.screen === "main" && e.code === "Enter" && !(e.target instanceof HTMLButtonElement)) { this.a_mode(this.sel.mode); return; }
       if (e.code !== "Escape" || !this.screen) return;
       if (["setup", "hangar", "settings", "help"].includes(this.screen)) this.a_back();
     });
     // 정비소: 드래그로 회전
     let dragging = false, lx = 0;
-    this.root.addEventListener("pointerdown", (e) => { if (e.target.closest(".view") && !e.target.closest("button")) { dragging = true; lx = e.clientX; } });
+    this.root.addEventListener("pointerdown", (e) => { if (e.target.closest(".view, [data-stage]") && !e.target.closest("button")) { dragging = true; lx = e.clientX; } });
     addEventListener("pointermove", (e) => { if (dragging) { this.game.menu.angle -= (e.clientX - lx) * 0.008; this.game.menu.drag = 0; lx = e.clientX; } });
     addEventListener("pointerup", () => (dragging = false));
+    // 썸네일이 준비되면 화면의 자리표시를 그림으로 바꾼다
+    game.thumbs.onReady((kind, id, url) => this.root.querySelectorAll(`[data-thumb="${kind}:${id}"]`).forEach((el) => { el.innerHTML = `<img src="${url}" alt="">`; }));
+    addEventListener("resize", () => requestAnimationFrame(() => { if (this.screen) this._syncStage(); }));
   }
 
   show(name, data) {
@@ -59,13 +74,28 @@ export class UI {
     this.data = data;
     this.game.menu.close = name === "hangar";
     this.root.innerHTML = this[`s_${name}`](data);
-    const sc = this.root.querySelector(".screen");
+    const sc = this.root.querySelector("[data-scroll]") || this.root.querySelector(".screen");
     if (sc && this._scroll && this._scroll.name === name) sc.scrollTop = this._scroll.y;
     this._scroll = null;
+    this._syncStage();
+    if (name === "main") this.game.thumbs.want("mode", Object.keys(MODE_META));
+    if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
+  }
+
+  // 3D 무대: 화면별 장면을 고르고, [data-stage] 영역 가운데에 오도록 맞춘다
+  _syncStage() {
+    const menu = this.game.menu;
+    menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
+    const st = this.root.querySelector("[data-stage]");
+    if (!st || !st.offsetWidth) { menu.focus = null; return; }
+    let x = 0, y = 0, e = st;
+    while (e && e !== this.root) { x += e.offsetLeft - (e.scrollLeft || 0); y += e.offsetTop; e = e.offsetParent; }
+    const w = st.offsetWidth, h = st.offsetHeight;
+    menu.focus = { x: x + w / 2 - innerWidth / 2, y: y + h / 2 - innerHeight / 2, w, h };
   }
   // 같은 화면을 스크롤 위치를 유지하며 다시 그림
   redraw() {
-    const sc = this.root.querySelector(".screen, .side");
+    const sc = this.root.querySelector("[data-scroll]") || this.root.querySelector(".screen");
     this._scroll = { name: this.screen, y: sc ? sc.scrollTop : 0 };
     const side = this.root.querySelector(".side");
     const sy = side ? side.scrollTop : 0;
@@ -113,22 +143,54 @@ export class UI {
   }
 
   // ── 메인 ──
-  s_main() {
-    const cards = Object.entries(MODE_META).map(([id, m]) =>
-      `<button class="card" style="--c:${m.c}" data-a="mode" data-v="${id}"><div class="ic">${m.icon}</div><div class="nm">${m.name}</div><div class="ds">${m.desc}</div></button>`).join("");
-    const d = settings.drone;
-    return `<div class="screen dim"><div class="wrap">
-      <div class="title"><div class="logo">하늘길 <b>FPV</b></div><p>드론 시뮬레이터 · 4개 맵 · 5가지 게임 모드</p></div>
-      <div class="modes">${cards}</div>
-      <div class="foot">
-        <button class="ghost" data-a="go" data-v="hangar">🛠 정비소 (${esc(DRONE_CLASSES[d.cls].name)})</button>
-        <button class="ghost" data-a="go" data-v="settings">⚙ 설정 (MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label})</button>
-        <button class="ghost" data-a="go" data-v="help">🎮 조작법</button>
-        <a class="ghost" href="../index.html">🗺 드론 공역 지도</a>
-      </div>
-    </div></div>`;
+  // 카드·목록에 쓰는 3D 썸네일 (준비 전에는 자리표시)
+  _thumb(kind, id) {
+    const url = this.game.thumbs[kind][id];
+    return `<span class="thumb" data-thumb="${kind}:${id}">${url ? `<img src="${url}" alt="">` : `<i class="ph"></i>`}</span>`;
   }
-  a_mode(v) { this.sel.mode = v; this._persist(); this.show("setup"); }
+
+  _cap(id) {
+    const m = MODE_META[id];
+    return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.long}</p>
+      <ul class="tags">${m.tags.map((t) => `<li>${t}</li>`).join("")}</ul>
+      <button class="primary go" data-a="mode" data-v="${id}">모드 설정 <span aria-hidden="true">→</span></button>`;
+  }
+
+  s_main() {
+    const cur = MODE_META[this.sel.mode] ? this.sel.mode : "race";
+    const items = Object.entries(MODE_META).map(([id, m]) => `
+      <button class="mitem ${id === cur ? "on" : ""}" style="--c:${m.c}" data-a="pick" data-v="${id}" aria-pressed="${id === cur}">
+        ${this._thumb("mode", id)}<span class="mtxt"><b>${m.name}</b><small>${m.desc}</small></span><span class="chev" aria-hidden="true">›</span>
+      </button>`).join("");
+    const d = settings.drone;
+    return `<div class="screen home" style="--c:${MODE_META[cur].c}">
+      <div class="lcol">
+        <div class="brand"><div class="logo">하늘길 <b>FPV</b></div><p>3D 드론 비행 시뮬레이터</p></div>
+        <nav class="mlist" aria-label="게임 모드">${items}</nav>
+        <div class="dock">
+          <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>
+          <button class="dk" data-a="go" data-v="settings"><i aria-hidden="true">⚙</i><span><b>설정</b><small>MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</small></span></button>
+          <button class="dk" data-a="go" data-v="help"><i aria-hidden="true">🎮</i><span><b>조작법</b><small>키보드·패드·터치</small></span></button>
+          <a class="dk" href="../index.html"><i aria-hidden="true">🗺</i><span><b>공역 지도</b><small>비행 가능 구역</small></span></a>
+        </div>
+      </div>
+      <div class="rcol"><div class="stage" data-stage></div><section class="cap">${this._cap(cur)}</section></div>
+    </div>`;
+  }
+  // 목록에서 모드 고르기: 처음 누르면 미리보기, 같은 모드를 다시 누르면 설정으로
+  a_pick(v) {
+    if (!MODE_META[v]) return;
+    if (this.sel.mode === v && this._picked) return this.a_mode(v);
+    this._picked = true;
+    this.sel.mode = v; this._persist();
+    const scr = this.root.querySelector(".screen.home");
+    if (!scr) return this.show("main");
+    scr.style.setProperty("--c", MODE_META[v].c);
+    scr.querySelectorAll(".mitem").forEach((el) => { const on = el.dataset.v === v; el.classList.toggle("on", on); el.setAttribute("aria-pressed", on); });
+    const cap = scr.querySelector(".cap"); cap.innerHTML = this._cap(v); cap.classList.remove("in"); void cap.offsetWidth; cap.classList.add("in");
+    this.game.menu.setMode(v);
+  }
+  a_mode(v) { this.sel.mode = v; this._picked = false; this._persist(); this.show("setup"); }
   a_go(v) { this.show(v); }
   a_back() { if (this.game.state === "pause") this.show("pause"); else this.show("main"); }
 
@@ -139,7 +201,7 @@ export class UI {
     const s = this.sel, m = MODE_META[s.mode];
     let body = "";
     const mapCards = (filter = () => true) => `<h3>맵</h3><div class="grid">${MAP_LIST.filter(filter).map((mp) =>
-      `<button class="card ${s.map === mp.id ? "sel" : ""}" data-a="sel" data-k="map" data-v="${mp.id}"><div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div></button>`).join("")}</div>`;
+      `<button class="card mapcard ${s.map === mp.id ? "sel" : ""}" data-a="sel" data-k="map" data-v="${mp.id}">${this._thumb("map", mp.id)}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div></button>`).join("")}</div>`;
     const map = MAPS[s.map];
     let summary = map.name;
 
@@ -189,8 +251,8 @@ export class UI {
     } else {
       body += `<h3>임무</h3><div class="grid wide">${MISSIONS.map((ms) => {
         const st = records[`challenge:${ms.id}`] || 0;
-        return `<button class="card ${s.mission === ms.id ? "sel" : ""}" data-a="sel" data-k="mission" data-v="${ms.id}">
-          <div class="tag stars">${starStr(st)}</div><div class="nm">${ms.icon} ${ms.name}</div>
+        return `<button class="card mapcard ${s.mission === ms.id ? "sel" : ""}" data-a="sel" data-k="mission" data-v="${ms.id}">
+          ${this._thumb("map", ms.map)}<div class="tag stars">${starStr(st)}</div><div class="nm">${ms.icon} ${ms.name}</div>
           <div class="ds">${ms.desc}<br><span style="color:var(--accent2)">${MAPS[ms.map].name}</span> · 난이도 ${"●".repeat(ms.level)}</div></button>`;
       }).join("")}</div>`;
       body += `<h3>편대</h3><div class="opt"><label>팀 구성</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team)}<div class="hint">편대를 고르면 AI 윙맨이 함께 싸웁니다. 인원이 늘면 적도 강해집니다.</div></div>`;
@@ -198,12 +260,15 @@ export class UI {
       const ms = MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0];
       summary = `${ms.name} · ${MAPS[ms.map].name}`;
     }
-    return `<div class="screen dim"><div class="wrap">
-      <div class="head"><button class="back" data-a="back">← 뒤로</button><h2>${m.icon} ${m.name}</h2></div>
-      ${body}
-      <div class="startbar"><span class="sum">${esc(summary)} · ${esc(DRONE_CLASSES[settings.drone.cls].name)} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</span>
-        <button class="primary" data-a="start">비행 시작</button></div>
-    </div></div>`;
+    return `<div class="screen split" style="--c:${m.c}">
+      <div class="pane" data-scroll>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2></div>
+        ${body}
+        <div class="startbar"><span class="sum">${esc(summary)} · ${esc(DRONE_CLASSES[settings.drone.cls].name)} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</span>
+          <button class="primary" data-a="start">비행 시작 <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div class="rcol"><div class="stage" data-stage></div></div>
+    </div>`;
   }
   _diff() { return `<div class="opt"><label>난이도</label>${this.seg("difficulty", Object.entries(DIFFICULTY).map(([k, v]) => [k, v.name]), settings.difficulty, "set")}</div>`; }
 
@@ -263,7 +328,7 @@ export class UI {
     const bar = (v) => `<div class="b"><i style="width:${Math.round(Math.min(1, v) * 100)}%"></i></div>`;
     const color = (key, label) => `<div class="opt"><label>${label}</label><input type="color" value="${d[key]}" data-set="drone.${key}"></div>`;
     return `<div class="screen hangar">
-      <div class="view"><button class="back" data-a="back">← 뒤로</button><div class="tip">드래그해서 돌려 보기</div></div>
+      <div class="view" data-stage><button class="back" data-a="back">← 뒤로</button><div class="tip">드래그해서 돌려 보기</div></div>
       <div class="side">
         <div class="head"><h2>🛠 정비소</h2></div>
         <h3 style="margin-top:0">기체 등급 (성능)</h3>
