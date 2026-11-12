@@ -46,6 +46,12 @@ Android Studio가 열리면 실행/APK 빌드. iOS는 macOS + Xcode에서 `npx c
 
 ## 드론 시뮬레이터 — 하늘길 FPV (`sim/`)
 지도 화면의 🎮 버튼 또는 `http://localhost:8080/sim/` 로 실행하는 **3D 드론 비행 게임**입니다.
+
+**PC·웹에서 쓰는 방법**
+- **웹 주소로**: 저장소 Settings > Pages > Source 를 "GitHub Actions" 로 두면 `main` 에 올라갈 때마다 자동 배포됩니다(`.github/workflows/pages.yml`).
+  주소는 `https://<계정>.github.io/korea-airspace/sim/` 형태입니다.
+- **PC 앱처럼 설치**: Chrome·Edge 로 위 주소를 연 뒤 주소창의 설치 아이콘(또는 메뉴 > 앱 설치)을 누르면 전체 화면 앱으로 설치되고, 한 번 연 뒤에는 오프라인에서도 실행됩니다.
+- **PC 에서 바로 실행**: 저장소를 내려받아 Windows 는 `드론시뮬레이터-실행.bat`, macOS·Linux 는 `./run-sim.sh` 를 실행하거나 `npm run sim` (Node.js 필요). 파일을 더블클릭해 `file://` 로 여는 방식은 브라우저 보안 정책 때문에 동작하지 않습니다.
 설치·빌드 없이 브라우저에서 바로 돌아가며(Three.js 내장), 그림·소리는 모두 코드로 생성합니다.
 
 | 모드 | 내용 |

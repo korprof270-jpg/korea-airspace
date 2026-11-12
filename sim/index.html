@@ -6,7 +6,9 @@
   <meta name="theme-color" content="#0b1020" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>하늘길 FPV — 드론 시뮬레이터</title>
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="../icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
   <link rel="stylesheet" href="sim.css" />
 </head>
 <body>
@@ -37,6 +39,10 @@
   <div id="loading" hidden><div class="spinner"></div><span>맵 생성 중…</span></div>
   <div id="fatal" hidden></div>
 
+  <script>
+    // 설치형 앱(PWA)·오프라인 실행용 서비스 워커 (지도 앱과 같은 것을 사용)
+    if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
+  </script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
