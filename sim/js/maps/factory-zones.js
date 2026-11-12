@@ -1,5 +1,6 @@
 // 석양의 항만 — 추가 구역: 수로와 사장교, 정유 단지(증류탑·구형 탱크·플레어·냉각탑), 조선소(선체 늑골·골리앗 크레인),
 // 조차장, 어시장, 공사 중 건물, 컨베이어와 벌크선, 유조선 잔교, 방파제와 등대, 바다 위의 배들
+import { toonMat } from "../toon.js";
 import * as THREE from "../../vendor/three.module.min.js";
 import { PathMover, makeBoat } from "../entities.js";
 import { M, beam, flora, prop } from "./canyon-kit.js";
@@ -12,7 +13,8 @@ const CC = [0xb5452f, 0x2f6fb0, 0x3d8b5a, 0xd9a441, 0x8a8f99, 0x7a3fa0, 0xc96a2b
 
 // 피어오르는 증기·연기 뭉치 (재질 하나를 나눠 쓴다)
 export function plume(w, x, y, z, rad, rise, n = 3, color = 0xffffff, op = 0.5) {
-  const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, depthWrite: false }), g = new THREE.IcosahedronGeometry(1, 1);
+  void op;
+  const m = toonMat({ color, flat: true, emissive: color, emissiveIntensity: 0.25 }), g = new THREE.IcosahedronGeometry(1, 1);
   const puffs = Array.from({ length: n }, () => { const p = new THREE.Mesh(g, m); p.renderOrder = 5; w.scene.add(p); return p; });
   w.updaters.push((dt, t) => puffs.forEach((p, i) => {
     const u = (t * 0.07 + i / n) % 1;
@@ -263,6 +265,7 @@ export function railYard(w) {
   const parts = [[new THREE.BoxGeometry(17, 3.6, 3), M(0, 2.4, 0), 0xd9432f], [new THREE.BoxGeometry(4, 1.3, 3.04), M(5, 4.6, 0), 0xf2f0ea], [new THREE.BoxGeometry(0.2, 0.5, 2), M(8.6, 2.2, 0), 0xfff2c0]];
   for (let i = 1; i <= 9; i++) { parts.push([new THREE.BoxGeometry(14, 0.5, 2.8), M(-i * 15.5, 0.85, 0), 0x2c3138]); if (i % 4) parts.push([new THREE.BoxGeometry(12.2, 2.6, 2.44), M(-i * 15.5, 2.4, 0), CC[(i * 3) % CC.length]]); else parts.push([new THREE.CylinderGeometry(1.4, 1.4, 12, 10), M(-i * 15.5, 2.5, 0, 1, 1, 1, 0, 0, 90), 0xcfd3d8]); }
   const train = prop(w, parts);
+  w.rider(train, [[0, 2.6, 0, 8.6, 2.0, 1.5], ...Array.from({ length: 9 }, (_, i) => [-(i + 1) * 15.5, 2.2, 0, 6.6, 1.7, 1.4])]);
   w.updaters.push((dt, t) => train.position.set(((t * 11) % 1100) - 420, 0.1, 246));
 }
 
@@ -354,9 +357,10 @@ export function seaside(w) {
   // 예인선(만 안을 돈다)과 작은 배들
   const tug = prop(w, [[new THREE.BoxGeometry(5, 2.4, 13), M(0, 0.9, 0), 0x1f2a36], [new THREE.BoxGeometry(3.6, 2.4, 3.6), M(0, 0.9, -7.4, 1, 1, 1, 0, 45, 0), 0x1f2a36], [new THREE.BoxGeometry(5.1, 0.5, 13.1), M(0, 2, 0), 0xd9432f],
     [new THREE.BoxGeometry(3.6, 2.6, 4.6), M(0, 3.5, -1.5), 0xf2f0ea], [new THREE.BoxGeometry(3.7, 0.8, 4.7), M(0, 4, -1.5), 0x1d2b3a], [new THREE.CylinderGeometry(0.6, 0.7, 2.6, 8), M(0, 5.3, 1.6), 0xd9a441], [new THREE.BoxGeometry(0.12, 3, 0.12), M(0, 6.3, -2.5), 0x3a3f47]]);
+  w.rider(tug, [[0, 2.2, -0.5, 2.6, 2.9, 7.4]]);
   const mv = [[new PathMover(TUG_PATH, { closed: true, offset: 330 }), tug, null]];
   for (const [path, col, off] of [[[[-200, -1.05, -160, 5], [-120, -1.05, -172, 6], [-60, -1.05, -192, 6], [-130, -1.05, -216, 5], [-220, -1.05, -196, 5]], 0x2f6fb0, 0], [CHANNEL_PATH, 0xf2f0ea, 0], [CHANNEL_PATH, 0xffc23a, 330]]) {
-    const b = makeBoat(col); b.scale.setScalar(1.5); w.scene.add(b);
+    const b = makeBoat(col); b.scale.setScalar(1.5); w.scene.add(b); w.rider(b, [[0, 0.5, -0.3, 1.6, 1.3, 5]]);
     mv.push([new PathMover(path, { closed: true, offset: off }), b, b.userData.tick]);
   }
   w.updaters.push((dt) => { for (const [m, g, tick] of mv) { m.update(dt); g.position.copy(m.pos); g.quaternion.copy(m.quat); if (tick) tick(dt, m.speed); } });

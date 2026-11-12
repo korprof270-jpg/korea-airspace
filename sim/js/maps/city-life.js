@@ -11,6 +11,7 @@ function train(w, pts) {
   body.box(0, -1.0, 0, 3.0, 1.1, 10.4, 0x2a3040).box(0, 0.1, 0, 2.9, 2.5, 10.9, 0xe8ecf2).box(0, 2.6, 0, 2.3, 0.3, 9.6, 0xb8c0cc).box(0, 0.42, 0, 2.96, 0.36, 10.95, 0x21b4dd);
   lite.box(0, 1.2, 0, 2.97, 0.85, 9.4, 0xffe6b0).box(0, 0.5, -5.47, 1.8, 0.25, 0.06, 0xffffff).box(0, 0.5, 5.47, 1.8, 0.25, 0.06, 0xff3030);
   const bm = fleet(w, body.build(), litMat(), N, true), lm = fleet(w, lite.build(), glowMat(w, 0.5), N);
+  for (let i = 0; i < N; i++) w.rider([bm, i], [[0, 0.5, 0, 1.5, 1.9, 5.5]]);
   let s = 60, v = 12;
   w.updaters.push((dt) => {
     rail.at(s - LEN * 1.5, _p);
@@ -46,7 +47,7 @@ function traffic(w) {
   loops.forEach(([pts, n, v], li) => { const rail = new Rail(pts, true); for (let k = 0; k < n; k++) cars.push({ rail, s: ((k + li * 0.37) / n) * rail.length, v: v * (0.9 + ((k * 7 + li * 3) % 5) * 0.05) }); });
   const bm = fleet(w, car.build(), litMat(), cars.length, true), lm = fleet(w, lite.build(), glowMat(w, 0.9), cars.length);
   const col = new THREE.Color();
-  cars.forEach((c, i) => bm.setColorAt(i, col.set(CAR_COLORS[i % CAR_COLORS.length])));
+  cars.forEach((c, i) => { bm.setColorAt(i, col.set(CAR_COLORS[i % CAR_COLORS.length])); w.rider([bm, i], [[0, 0.65, 0, 0.95, 0.65, 2.25]]); });
   w.updaters.push((dt) => {
     for (let i = 0; i < cars.length; i++) { const c = cars[i]; c.s += c.v * dt; c.rail.at(c.s, _p, _d); aim(bm, i, _p, _d); aim(lm, i, _p, _d); }
     bm.instanceMatrix.needsUpdate = lm.instanceMatrix.needsUpdate = true;
@@ -59,7 +60,7 @@ function boats(w) {
   g.box(0, -0.15, 0, 2.2, 0.75, 5.6, 0xffffff).box(0, -0.15, -3.3, 1.4, 0.6, 1.2, 0xffffff).box(0, 0.6, 0.3, 1.8, 0.95, 2.6, 0x30384a).box(0, 1.55, 0.3, 2.1, 0.12, 3.0, 0xffffff);
   const rail = new Rail(roundRect(-112, 162, 54.6, 65.4, 3.2, -5.5, 4, false), true), N = 3;
   const bm = fleet(w, g.build(), litMat(), N), col = new THREE.Color();
-  [0xffc94a, 0x5ad6ff, 0xff7ac8].forEach((c, i) => bm.setColorAt(i, col.set(c)));
+  [0xffc94a, 0x5ad6ff, 0xff7ac8].forEach((c, i) => { bm.setColorAt(i, col.set(c)); w.rider([bm, i], [[0, 0.5, 0, 1.15, 1.1, 3.1]]); });
   let t0 = 0;
   w.updaters.push((dt) => {
     t0 += dt * 3.2;
@@ -89,7 +90,7 @@ function ferris(w, cx, cz, hubY, R) {
   const gg = new Geo();
   gg.box(0, -3.3, 0, 2.0, 2.2, 2.2, 0xffffff).box(0, -1.1, 0, 2.3, 0.25, 2.5, 0xffffff).box(0, -0.9, 0, 0.12, 0.9, 0.12, 0x9aa0a8);
   const gm = fleet(w, gg.build(), litMat(), N), col = new THREE.Color();
-  for (let i = 0; i < N; i++) gm.setColorAt(i, col.set(NEON[i % 6]).lerp(new THREE.Color(0xffffff), 0.35));
+  for (let i = 0; i < N; i++) { gm.setColorAt(i, col.set(NEON[i % 6]).lerp(new THREE.Color(0xffffff), 0.35)); w.rider([gm, i], [[0, -2.6, 0, 1.2, 1.4, 1.3]]); }
   let rot = 0;
   w.updaters.push((dt) => {
     rot += dt * 0.075; grp.rotation.x = -rot;
@@ -106,6 +107,7 @@ function airship(w, K) {
   grp.add(m);
   for (const s of [-1, 1]) { const p = K.signs.plane("gp", 17); p.position.set(s * 5.75, 0, 0); p.rotation.y = (s * Math.PI) / 2; grp.add(p); }
   w.scene.add(grp);
+  w.rider(grp, [[0, 0, 0, 5.2, 5.2, 17], [0, -6.9, 1, 1.3, 1, 3.2]]);
   w.updaters.push((dt, t) => { const a = t * 0.04 + 1; grp.position.set(Math.cos(a) * 165, 126 + Math.sin(t * 0.3) * 2, Math.sin(a) * 165 - 20); grp.rotation.y = Math.PI - a; });
 }
 

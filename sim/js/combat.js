@@ -26,6 +26,7 @@ export const KINDS = {
 };
 
 const LASER_SPEED = 260;
+const RESPAWN = 5;        // 격추 후 재출격까지(초)
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
 const _des = new THREE.Vector3(), _aim = new THREE.Vector3();
 const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
@@ -352,15 +353,15 @@ export class Combat {
     this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2), a.isPlayer ? 0 : this.panAt(a.pos));
     if (a.isPlayer) {
       const pl = this.s.player;
-      pl.crash(); pl.model.visible = false;
+      pl.crash(); pl.broken = true; pl.model.visible = false;
       pl.body.vel.multiplyScalar(0.3);
-      a.respawnT = 3;
+      a.respawnT = RESPAWN;
       this.feel.emit("death");
     } else {
       if (a.model) a.model.visible = false;
       if (a.collider) a.collider.off = true;
       if (a.collider2) a.collider2.off = true;
-      if (a.respawns) a.respawnT = 3.5 + Math.random() * 2;
+      if (a.respawns) a.respawnT = RESPAWN;
       this._blast(a.pos, big);
       if (killer && killer.isPlayer) { this.killMark = 0.6; this.feel.emit("kill", big, a); }
     }

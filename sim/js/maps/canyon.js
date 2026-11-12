@@ -180,7 +180,7 @@ function windFarm(w) {
     w.box(x, y + th - 0.4, z + 1.2, 2.4, 2.2, 6.4, 0xe9e7e0, { mat: "paint", ao: false });
     w.cyl(x, y + 16, z, 1.5, 3, 0xd9532f, { rt: 1.36, mat: "paint", col: false });
     const hub = new THREE.Group();
-    for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(bg, bladeMat); b.rotation.z = (i / 3) * Math.PI * 2; b.castShadow = true; hub.add(b); }
+    for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(bg, bladeMat); b.rotation.z = (i / 3) * Math.PI * 2; b.castShadow = true; hub.add(b); w.rider(b, [[0, 11, 0, 0.6, 10.4, 0.4]]); }
     hub.add(new THREE.Mesh(nose, bladeMat));
     hub.position.set(x, y + th + 0.7, z - 2.4); hub.rotation.z = ph;
     w.scene.add(hub);
@@ -248,6 +248,7 @@ function mine(w) {
   const parts = [[new THREE.BoxGeometry(1.5, 1.5, 2.8), M(0, 0.95, 0), 0xe0a52a], [new THREE.BoxGeometry(1.3, 0.7, 1.2), M(0, 1.9, 0.5), 0x2c3138]];
   for (let i = 1; i <= 4; i++) { parts.push([new THREE.BoxGeometry(1.5, 1.0, 2.2), M(0, 0.7, i * 2.9), 0x6b4a3a]); parts.push([new THREE.ConeGeometry(0.8, 0.7, 5), M(0, 1.5, i * 2.9), i % 2 ? 0x8d8378 : 0xb5673c]); }
   const train = prop(w, parts);
+  w.rider(train, [[0, 1.1, 5.8, 0.8, 1.0, 7.4]]);
   train.rotation.y = 45 * Math.PI / 180;
   w.updaters.push((dt, t) => { const u = (t / 24) % 2, k = u < 1 ? u : 2 - u, e = k * k * (3 - 2 * k), v = v0 + 3 + (len - 15) * e; train.position.set(F.X(8, v), y0 + ty + 0.05, F.Z(8, v)); });
   KEEP.push([MX, MZ, 40]);
@@ -273,7 +274,7 @@ function cableCar(w) {
   const cars = [-1, 1].map((s, i) => {
     const g = prop(w, [[new THREE.BoxGeometry(1.8, 1.9, 2.6), M(0, -2.6, 0), i ? 0xe94f37 : 0xffc23a], [new THREE.BoxGeometry(1.84, 0.7, 2.64), M(0, -2.3, 0), 0x2a3340], [new THREE.BoxGeometry(0.12, 1.7, 0.12), M(0, -0.85, 0), 0x2c3138], [new THREE.BoxGeometry(2, 0.14, 2.8), M(0, -1.62, 0), 0xf2f0ea]]);
     g.rotation.y = Math.atan2(bx - ax, bz - az);
-    return { g, s };
+    w.rider(g, [[0, -2.6, 0, 0.95, 1.0, 1.35]]); return { g, s };
   });
   w.updaters.push((dt, t) => {
     const u = (t / 38) % 2, k0 = u < 1 ? u : 2 - u, e0 = 0.04 + 0.92 * (k0 * k0 * (3 - 2 * k0));
@@ -350,7 +351,7 @@ function life(w) {
   balloon(w, riverX(214) + 6, 64, 214, 7, [0xe94f37, 0xffe9c4, 0xffb020, 0xffe9c4], w.h(SPX - 4, SPZ - 6));
   balloon(w, TARN.x - 34, TARN.y + 44, TARN.z + 30, 7, [0x2f8fd0, 0xfff2d8, 0x35b06a, 0xfff2d8], w.h(TARN.x - 30, TARN.z + 33));
   [[390, 150, -40, 60, 0.011, 0, [0xb44cff, 0xffe9c4]], [-380, 165, -210, 70, -0.009, 2, [0xff5a8a, 0xfff2d8, 0xffc23a]], [40, 178, 420, 50, 0.012, 4, [0x2a9d8f, 0xffe9c4]]].forEach(([x, y, z, R, sp, ph, cols]) => {
-    const b = prop(w, balloonParts(8, cols));
+    const b = prop(w, balloonParts(8, cols)); w.rider(b, [[0, 0, 0, 6, 7, 6]]);
     w.updaters.push((dt, t) => b.position.set(x + Math.cos(t * sp + ph) * R, y + Math.sin(t * 0.07 + ph) * 8, z + Math.sin(t * sp + ph) * R));
   });
   // 강을 따라 떠내려가는 뗏목
@@ -358,6 +359,7 @@ function life(w) {
   for (let i = -2; i <= 2; i++) parts.push([new THREE.BoxGeometry(0.62, 0.5, 5.2), M(i * 0.66, 0.1, 0), i % 2 ? 0x9a7446 : 0x8a623c]);
   parts.push([new THREE.ConeGeometry(1.25, 1.5, 4), M(0, 1.1, 0.6, 1, 1, 1, 0, 45, 0), 0xe94f37], [new THREE.BoxGeometry(0.08, 2.6, 0.08), M(0, 1.6, -1.9), 0x4a3a28], [new THREE.BoxGeometry(0.9, 0.5, 0.04), M(0.45, 2.6, -1.9), 0xffc23a]);
   const raft = prop(w, parts);
+  w.rider(raft, [[0, 0.5, 0, 1.7, 0.7, 2.7]]);
   w.updaters.push((dt, t) => { const z = 258 - ((t * 2.4 + 120) % 450), x = riverX(z) + 4; raft.position.set(x, 0.12 + Math.sin(t * 1.7) * 0.05, z); raft.rotation.y = Math.atan2(-(riverX(z - 2) + 4 - x), 2) + Math.sin(t * 0.5) * 0.08; });
 }
 

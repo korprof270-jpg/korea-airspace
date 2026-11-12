@@ -277,7 +277,7 @@ export function foamRings(w, spots, color = 0xffffff) {
 // ── 생물·탈것 ────────────────────────────────────────────
 // 선회하는 큰 새(독수리). 중심 (cx,cz), 고도 y, 반경 R
 export function birds(w, list) {
-  const body = new THREE.MeshBasicMaterial({ color: 0x2a211c }), tip = new THREE.MeshBasicMaterial({ color: 0x3b2f27, side: THREE.DoubleSide });
+  const body = new THREE.MeshLambertMaterial({ color: 0x4a362a }), tip = new THREE.MeshLambertMaterial({ color: 0x6b4f3a, side: THREE.DoubleSide });
   const wingG = new THREE.BufferGeometry();
   wingG.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, -0.45, 2.6, 0.1, -0.1, 0, 0, 0.5, 2.6, 0.1, -0.1, 2.3, 0.08, 0.55, 0, 0, 0.5], 3));
   wingG.computeVertexNormals();
@@ -290,6 +290,7 @@ export function birds(w, list) {
     g.add(new THREE.Mesh(bodyG, body), new THREE.Mesh(tailG, tip), wl, wr);
     g.scale.setScalar(1.25 + (i % 3) * 0.2);
     w.scene.add(g);
+    w.rider(g, [[0, 0, 0.3, 0.9, 0.25, 0.8]]);
     return { g, wl, wr, cx, y, cz, R, speed, ph };
   });
   w.updaters.push((dt, t) => {

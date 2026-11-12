@@ -11,6 +11,7 @@ export class CollisionWorld {
     this.items = [];
     this.grid = new Map();
     this.stamp = 0;
+    this.dyn = [];                 // 움직이는 충돌 상자 (격자 밖, 매 프레임 위치 갱신)
     this.heightFn = () => 0;
     this.hasTerrain = false;
   }
@@ -38,6 +39,12 @@ export class CollisionWorld {
     const r = Math.hypot(h.x, h.y, h.z);
     return this._insert({ type: 0, c: c.clone(), h: h.clone(), q: quat, qi: quat.clone().invert(), tag },
       c.x - r, c.z - r, c.x + r, c.z + r);
+  }
+  // 움직이는 물체용 상자. 위치·자세는 호출자가 c.c / c.q / c.qi 를 갱신하고 c.vel 에 속도를 넣는다
+  addDynamic(h, tag) {
+    const c = { type: 0, c: new THREE.Vector3(0, -9999, 0), h: h.clone(), q: new THREE.Quaternion(), qi: new THREE.Quaternion(), vel: new THREE.Vector3(), R: h.length(), dyn: true, tag, stamp: 0 };
+    this.dyn.push(c);
+    return c;
   }
   addSphere(c, r, tag) {
     return this._insert({ type: 1, c: c.clone(), r, tag }, c.x - r, c.z - r, c.x + r, c.z + r);
@@ -110,6 +117,12 @@ export class CollisionWorld {
         if (r - d > best) { best = r - d; hit = true; out.normal.copy(_n); out.collider = c; }
       }
     }
+    for (let i = 0; i < this.dyn.length; i++) {
+      const c = this.dyn[i];
+      if (c.off || p.distanceToSquared(c.c) > (c.R + r) * (c.R + r)) continue;
+      const d = this._dist(c, p);
+      if (r - d > best) { best = r - d; hit = true; out.normal.copy(_n); out.collider = c; }
+    }
     out.depth = best;
     return hit;
   }
@@ -123,6 +136,10 @@ export class CollisionWorld {
       const cell = this.grid.get(ix * 8192 + iz);
       if (!cell) continue;
       for (let i = 0; i < cell.length; i++) if (!cell[i].off && this._dist(cell[i], p) < r) return true;
+    }
+    for (let i = 0; i < this.dyn.length; i++) {
+      const c = this.dyn[i];
+      if (!c.off && p.distanceToSquared(c.c) < (c.R + r) * (c.R + r) && this._dist(c, p) < r) return true;
     }
     return false;
   }
@@ -143,6 +160,12 @@ export class CollisionWorld {
         const d = this._dist(c, p);
         if (d < best) best = d;
       }
+    }
+    for (let i = 0; i < this.dyn.length; i++) {
+      const c = this.dyn[i];
+      if (c.off || p.distanceToSquared(c.c) > (c.R + maxR) * (c.R + maxR)) continue;
+      const d = this._dist(c, p);
+      if (d < best) best = d;
     }
     return best;
   }

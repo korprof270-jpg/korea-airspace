@@ -60,6 +60,7 @@ export class Player {
   respawn(pos = this.spawn.pos, yaw = this.spawn.yaw) {
     this.body.reset(pos, yaw);
     this.crashed = false;
+    this.broken = false;
     this.crashTimer = 0;
     this.camInit = false;
     this.model.visible = true;
@@ -80,6 +81,19 @@ export class Player {
     this.body.altTarget = null; this.body.holdPos = null;
     settings.flightMode = m; save();
     return true;
+  }
+
+  // 세게 부딪혀 기체가 부서짐: 폭발·파편과 함께 사라지고 재출격을 기다린다
+  breakUp() {
+    if (this.broken) return;
+    const s = this.session, b = this.body;
+    this.crash();
+    this.broken = true;
+    this.model.visible = false;
+    s.fx.explosion(b.pos, 0.5);
+    s.fx.burst(b.pos, 0x30343c, 16, 9, 1.1, 0.22, 14);
+    s.game.sound.play("explode", 0.8);
+    b.vel.multiplyScalar(0.25);
   }
 
   crash() {
@@ -205,14 +219,14 @@ export class Player {
       this.camLook.copy(b.pos).addScaledVector(_f, 3).addScaledVector(Y, 0.1);
       cam.lookAt(this.camLook);
       cam.fov = clamp(settings.fov * 0.72, 50, 75);
-      this.model.visible = true;
+      this.model.visible = !this.broken;
     } else {
       // 지상 시점: 조종사 위치에서 드론을 바라보며 거리에 따라 줌
       cam.position.copy(this.pilot);
       cam.lookAt(b.pos);
       const d = cam.position.distanceTo(b.pos);
       cam.fov = clamp((2 * Math.atan(5 / Math.max(d, 1))) / DEG, 9, 62);
-      this.model.visible = true;
+      this.model.visible = !this.broken;
     }
     this.camInit = true;
     cam.updateProjectionMatrix();

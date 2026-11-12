@@ -228,7 +228,8 @@ export class DroneBody {
       const n = _hit.normal;
       this.touching = true;
       this.pos.addScaledVector(n, _hit.depth);
-      const vn = this.vel.dot(n);
+      const cv = _hit.collider && _hit.collider.vel;   // 움직이는 물체면 상대 속도로 계산
+      const vn = cv ? this.vel.dot(n) - cv.dot(n) : this.vel.dot(n);
       if (vn < 0) {
         this.lastImpact = -vn;
         this.impactN.copy(n);

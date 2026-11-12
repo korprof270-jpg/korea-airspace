@@ -240,7 +240,7 @@ function build(w) {
     w.box(s * (HX - 0.7), 12, 0, 1.2, 0.8, 25.6, DARK, { col: false });
     K.add(s < 0 ? "blue" : "red", s * (HX - 1.34), 13.9, 0, 9, { ry: -s * 90 });
     for (const k of [-1, 1]) {
-      const d = new THREE.Mesh(doorGeo, doorMat); d.position.set(s * (HX - 0.72), 6, k * 6); w.scene.add(d); doors.push([d, k]);
+      const d = new THREE.Mesh(doorGeo, doorMat); d.position.set(s * (HX - 0.72), 6, k * 6); w.scene.add(d); doors.push([d, k]); w.rider(d, [[0, 0, 0, 0.3, 5.8, 6]]);
       ring(w, s * (HX - 0.5), 40.5, k * 40, 4.4, 0.3, c, { axis: "x", col: false, seg: 28 });
       const f = new THREE.Mesh(fanGeo, fanMat); f.position.set(s * (HX - 0.55), 40.5, k * 40); w.scene.add(f); fans.push(f);
     }

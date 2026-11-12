@@ -16,6 +16,7 @@ const _c = new THREE.Color();
 const _v = new THREE.Vector3();
 const _n3 = new THREE.Matrix3();
 const Y = new THREE.Vector3(0, 1, 0);
+const _rm = new THREE.Matrix4(), _rp = new THREE.Vector3(), _rq = new THREE.Quaternion(), _rs = new THREE.Vector3();
 
 // ── 지오메트리 템플릿 ─────────────────────────────────────
 const GEO = {};
@@ -128,6 +129,33 @@ export class World {
     if (this.waterMesh) this.waterMesh.material.uniforms.time.value = this.time;
     if (this._toonDirty) this._toonify();
     for (const u of this.updaters) u(dt, this.time);
+    this._riders(dt);
+  }
+
+  // 움직이는 물체에 충돌 상자를 붙인다. src: Object3D 또는 [InstancedMesh, 인스턴스 번호]
+  // boxes: [[cx, cy, cz, hx, hy, hz], ...] (물체 로컬 좌표의 중심과 절반 크기)
+  rider(src, boxes, tag = "mover") {
+    const list = this.riders || (this.riders = []);
+    for (const b of boxes) list.push({ src, off: new THREE.Vector3(b[0], b[1], b[2]), c: this.col.addDynamic(new THREE.Vector3(b[3], b[4], b[5]), tag), first: true });
+  }
+
+  _riders(dt) {
+    if (!this.riders) return;
+    let last = null;
+    for (const r of this.riders) {
+      if (r.src !== last) {
+        last = r.src;
+        if (Array.isArray(r.src)) { r.src[0].getMatrixAt(r.src[1], _rm); _rm.premultiply(r.src[0].matrixWorld); }
+        else { r.src.updateWorldMatrix(true, false); _rm.copy(r.src.matrixWorld); }
+        _rm.decompose(_rp, _rq, _rs);
+      }
+      const c = r.c;
+      _v.copy(r.off).multiply(_rs).applyQuaternion(_rq).add(_rp);
+      if (r.first || dt <= 0) { c.vel.set(0, 0, 0); r.first = false; }
+      else { c.vel.copy(_v).sub(c.c).multiplyScalar(1 / dt); if (c.vel.lengthSq() > 6400) c.vel.set(0, 0, 0); }   // 순간 이동(경로 되감기)은 속도 0
+      c.c.copy(_v); c.q.copy(_rq); c.qi.copy(_rq).invert();
+      c.off = Array.isArray(r.src) ? false : !r.src.visible;
+    }
   }
 
   // 장면에 새로 들어온 물체(포탑·화물·차량 등)의 PBR/램버트 재질을 툰 재질로 교체

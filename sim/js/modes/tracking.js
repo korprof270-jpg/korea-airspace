@@ -33,6 +33,7 @@ export class TrackingMode extends Mode {
     const w = this.s.world, d = this.def;
     this.mover = new PathMover(d.path, { closed: d.closed !== false, ground: this.info.ground ? w : null, bank: this.info.bank || 0, lift: d.lift || 0 });
     this.model = makeSubjectModel(d.type, d.color);
+    { const R = this.model.userData.radius || 1.5, hh = Math.max(0.35, this.info.h); w.rider(this.model, [[0, this.info.h, 0, Math.max(0.3, R * 0.42), hh, Math.max(0.3, R * 0.9)]], "subject"); }
     w.scene.add(this.model);
     this._sync(0);
     this.placePlayer(this._behind(new THREE.Vector3(), 9, 0.3), this._yaw());
@@ -68,7 +69,10 @@ export class TrackingMode extends Mode {
     _p.applyMatrix4(cam.projectionMatrix);
     const dist = cam.position.distanceTo(this.target);
     this.visT -= dt;
-    if (this.visT <= 0) { this.visT = 0.15; this.visible = this.s.world.col.visible(cam.position, this.target, 0.8); }
+    if (this.visT <= 0) { this.visT = 0.15; const sc = this.subCols || (this.subCols = (this.s.world.riders || []).filter((r) => r.src === this.model).map((r) => r.c));
+      for (const c of sc) c.off = true;      // 피사체 자신의 충돌 상자는 시야 판정에서 제외
+      this.visible = this.s.world.col.visible(cam.position, this.target, 0.8);
+      for (const c of sc) c.off = false; }
     let q = 0;
     if (front && Math.abs(_p.x) < 1 && Math.abs(_p.y) < 1 && this.visible) {
       const center = 1 - Math.min(1, Math.hypot(_p.x, _p.y * 0.8));

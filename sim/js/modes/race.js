@@ -70,6 +70,7 @@ export class RaceMode extends Mode {
     for (let i = 0; i < count; i++) {
       const model = buildDrone(botLook("racer", i % 2), 1.8, { halo: [0xff2d3d, 0x2f8cff, 0xffc400, 0xb44cff, 0x35ff7a][i] });
       w.scene.add(model);
+      w.rider(model, [[0, 0, 0, 0.4, 0.16, 0.4]], "rival");
       this.bots.push({
         name: NAMES[i], model, v: 0, lat: (i % 2 ? 1 : -1) * (1.6 + Math.floor(i / 2) * 1.2), up: 0.4 * (i % 3),
         d: this.loop ? -(9 + i * 4.5) : 2 + i * 3, skill: pace * (0.94 + ((i * 37) % 10) * 0.012),

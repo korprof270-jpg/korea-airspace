@@ -36,7 +36,7 @@ export class Mode {
   physicsStep() {}
 
   // 충돌: 세게 부딪히면 추락 처리
-  onImpact(impact, hard) { if (hard && this.state === "run") this.s.player.crash(); }
+  onImpact(impact, hard) { if (hard && this.state === "run") this.s.player.breakUp(); }
 
   onReset() {
     const r = this.respawnPoint();
