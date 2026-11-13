@@ -98,7 +98,7 @@ export class FX {
 
     // 레이저 볼트 (인스턴스)
     this.boltGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 6, 1); this.boltGeo.rotateX(Math.PI / 2);   // 지름 1 · 길이 1 → 인스턴스에서 늘린다
-    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.25, 1.25, 1.25), fog: false });   // 불투명: 밝은 하늘 앞에서도 색이 묻히지 않는다
+    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 1.9, 1.9), fog: false });   // 불투명: 밝은 하늘 앞에서도 색이 묻히지 않는다
     this.bolts = new THREE.InstancedMesh(this.boltGeo, this.boltMat, MAXB);
     this.bolts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.bolts.frustumCulled = false;

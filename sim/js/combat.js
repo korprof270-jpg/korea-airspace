@@ -530,10 +530,12 @@ export class Combat {
       if (s.life <= 0) { this.shots.splice(i, 1); continue; }
       // 굵은 머리 + 길게 끌리는 꼬리. 가까이서는 가늘게(화면을 덮지 않게), 멀수록 굵게(멀리서도 보이게)
       const cd = s.pos.distanceTo(this.s.camera.position), mine = s.owner.isPlayer;
-      const wd = (mine ? 0.36 : 0.55) * clamp(cd / 12, 0.2, 1) * clamp(cd / 35, 1, 3.2);
-      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -3.5), s.dir, 7, s.color, wd);
-      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -13), s.dir, 13, s.color, wd * 0.38);
-      if (!mine && (s.pt = (s.pt || 0) + 1) % 3 === 0) fx.puff(s.pos, s.color, 0.5 * clamp(cd / 30, 0.4, 1.6), 0.22, 0.05);   // 적 탄 머리의 빛 뭉치
+      const wd = (mine ? 0.17 : 0.26) * clamp(cd / 12, 0.25, 1) * clamp(cd / 30, 1, 3.4);   // 가늘지만 멀어질수록 굵혀 화면에서는 늘 2~3픽셀 이상
+      s.far = (s.far || 0) + len;   // 날아간 거리: 총구 근처에서는 꼬리를 그리지 않아 화면을 가리지 않는다
+      if (s.far > 11) fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -5), s.dir, 10, s.color, wd);
+      else fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -s.far * 0.45), s.dir, s.far * 0.9, s.color, wd);
+      if (s.far > 30) fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -19), s.dir, 18, s.color, wd * 0.45);
+      if (!mine && (s.pt = (s.pt || 0) + 1) % 3 === 0) fx.puff(s.pos, s.color, 0.32 * clamp(cd / 30, 0.4, 1.6), 0.2, 0.05);   // 적 탄 머리의 빛 뭉치
     }
     fx.endBolts();
   }
