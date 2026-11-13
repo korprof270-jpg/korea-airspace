@@ -2,6 +2,7 @@
 import * as THREE from "../../vendor/three.module.min.js";
 import { riverX, height, colorFn, forest, dryness, lakeE, slotAt, slotPoint, DAM, LAKE, ISLE, FALLS, TARN, STREAM, FLATS, flat } from "./canyon-terrain.js";
 import { M, frame, beam, flora, rockArch, hoodoo, waterPatch, fallSheet, foamRings, birds, balloon, balloonParts, prop } from "./canyon-kit.js";
+import { detail } from "./canyon-detail.js";
 
 export { riverX, height };
 
@@ -398,6 +399,10 @@ function build(w) {
   camp(w, SPX, SPZ, 10); camp(w, ...flat("camp0").slice(0, 2), -20, [0x35b06a, 0xffc23a]); camp(w, ...flat("camp1").slice(0, 2), 0, [0xe94f37, 0xf2f0ea]);
   camp(w, ...flat("camp2").slice(0, 2), 30, [0x3f7fb5, 0xffc23a]); camp(w, ...flat("camp3").slice(0, 2), 60, [0xb44cff, 0xd9772f]);
 
+  // 구역별 디테일(canyon-detail.js). 돌려받은 함수는 식생을 심은 뒤에 부른다
+  const CAMPS = [[SPX, SPZ, 10], ...[["camp0", -20], ["camp1", 0], ["camp2", 30], ["camp3", 60]].map(([n, ry]) => [flat(n)[0], flat(n)[1], ry])];
+  const wild = detail(w, K, KEEP, { camps: CAMPS, turbines: TURBINES, runner: RUNNER, buggy: BUGGY });
+
   // ── 식생·바위: 구역마다 다르게 (트랙·차량 경로·거점 주변은 비운다) ──
   for (const f of FLATS) KEEP.push([f[0], f[1], f[2] + 4]);
   for (const p of [...DEPOTS, ...SUPPLY.turrets]) KEEP.push([p[0], p[1], 6]);
@@ -419,7 +424,7 @@ function build(w) {
   const valley = (x, z, y) => y < 15 && (Math.abs(x - riverX(z)) < 80 || lakeE(x, z) < 1.25);
   const scatter = (count, tries, fn) => { let n = 0; for (let i = 0; i < tries && n < count; i++) if (fn((r() * 2 - 1) * 400, (r() * 2 - 1) * 400)) n++; };
   // 서쪽 고원: 소나무 숲 군락
-  scatter(900, 9000, (x, z) => {
+  scatter(840, 9000, (x, z) => {
     const y = H(x, z);
     if (x > 40 || y < 30 || dryness(x) > 0.45 || slope(x, z) > 0.4 || !clear(x, z)) return false;
     const f = forest(x, z); if (f < 0.44 && r() > 0.12) return false;
@@ -444,7 +449,7 @@ function build(w) {
   scatter(300, 12000, (x, z) => { const y = H(x, z); if (y < -0.1 || y > 1.5 || !clear(x, z, -4)) return false; K.reed(x, z, 0.9 + r() * 0.7, r() < 0.5 ? 0xb7b45a : 0x8fae4c); return true; });
   // 덤불: 골짜기는 꽃 덤불, 서쪽은 초록, 동쪽은 누런 덤불
   const FLOWER = [0xf06a9a, 0xffd23a, 0xf4f0e6, 0xb48cff];
-  scatter(560, 9000, (x, z) => {
+  scatter(480, 9000, (x, z) => {
     const y = H(x, z);
     if (y < 1.2 || slope(x, z) > 0.55 || !clear(x, z, -3)) return false;
     if (valley(x, z, y)) K.bush(x, z, 0.6 + r() * 0.6, r() < 0.55 ? FLOWER[(r() * 4) | 0] : undefined);
@@ -452,13 +457,14 @@ function build(w) {
     return true;
   });
   // 바위: 고원에 흩어진 것과 절벽 아래 너덜
-  scatter(400, 7000, (x, z) => {
+  scatter(320, 7000, (x, z) => {
     const y = H(x, z), s = slope(x, z);
     if (y < -0.4 || s > 0.9 || !clear(x, z, -2) || (s < 0.12 && r() < 0.6)) return false;
     K.rock(x, z, 0.7 + r() * r() * 3.4, [ROCK, 0xd98a58, 0xb9744a][(r() * 3) | 0]); return true;
   });
   // 강 위의 바위
   for (let z = -180; z < 250; z += 26 + r() * 30) { const x = riverX(z) + (r() < 0.5 ? -1 : 1) * (6.5 + r() * 3); if (clear(x, z, -6)) K.rock(x, z, 1.6 + r() * 1.2, 0xb08a68); }
+  wild(clear, slope);
 }
 
 // ── 경로·트랙 데이터 (지형 함수로 높이를 계산한다) ──
@@ -520,6 +526,7 @@ export default {
     fog: { color: 0xeccaa2, near: 220, far: 1700 }, exposure: 1.0,
   },
   spawn: { pos: [SPX + 2, 0, SPZ - 10], yaw: 12 },
+  thumb: { pos: [30, 30, 50], look: [-80, 30, 15] },
   build,
   tracks: TRACKS,
   tracking: [
