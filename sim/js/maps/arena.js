@@ -3,6 +3,7 @@
 //  · 북쪽(자홍): S자 네온 터널, 그 위 관중석                      · 남쪽(노랑): 슬라럼 기둥과 리브 터널, 그 위 관중석
 //  · 북서(청록): 큐브 정글   · 남서(초록): 메자닌(2단 덱·경사로·낙하 구멍)   · 북동(주황): 헬릭스 나선 계단   · 남동(보라): 행잉 블록
 import * as THREE from "../../vendor/three.module.min.js";
+import { SIGNS_EXTRA, AISLES, detail } from "./arena-detail.js";
 import { DEG, MAG, CYA, YEL, GRN, ORG, VIO, RED, WARM, ring, bar, truss, Signs, Geo, icon, neonText, glowMat } from "./city-kit.js";
 
 const HX = 100, HZ = 64, HH = 48, BLU = 0x2f8cff;
@@ -46,7 +47,7 @@ const SIGNS = [
 ];
 
 function build(w) {
-  const r = w.rand, K = new Signs(w, SIGNS, 0.9);
+  const r = w.rand, K = new Signs(w, [...SIGNS, ...SIGNS_EXTRA], 0.9);
   const P = (x, y, z, sx, sy, sz, c = PANEL, o) => w.box(x, y, z, sx, sy, sz, c, { mat: "std:panel", tile: 4, ...o });
   const glow = (x, y, z, sx, sy, sz, c, o) => w.box(x, y, z, sx, sy, sz, c, { mat: "glow", col: false, ...o });
   const edge = (x, y, z, sx, sz, c, t = 0.12) => { for (const s of [-1, 1]) { glow(x, y, z + (s * sz) / 2, sx, t, t, c); glow(x + (s * sx) / 2, y, z, t, t, sz, c); } };
@@ -162,11 +163,10 @@ function build(w) {
       const z = s * (56.3 + k * 2.2), top = 14 + k * 2.2;
       for (const x of [-45, -15, 15, 45]) P(x, 13.4, z, 30, top - 13.4, 2.2, 0x262b44);
       for (let x = -59; x < 59; x += 1.15) {
-        if (r() < 0.2) continue;
+        if (r() < 0.2 || AISLES.some((a) => Math.abs(x - a) < 1)) continue;   // 빈자리, 통로
         const cz = z + s * 0.3, h = 0.75 + r() * 0.25;
         w.box(x, top, cz, 0.55, h, 0.45, tones[(r() * 7) | 0], { col: false });
         w.box(x, top + h, cz, 0.3, 0.3, 0.3, 0xe2b99a, { col: false, ao: false });
-        if (r() < 0.12) glow(x + 0.3, top + h, cz, 0.08, 0.7, 0.08, [CYA, MAG, YEL, GRN][(r() * 4) | 0]);
       }
     }
     glow(0, 13.9, s * 55.1, 120, 0.2, 0.12, s < 0 ? MAG : YEL);
@@ -257,6 +257,7 @@ function build(w) {
     });
   }
   for (const z of [-44, 0, 44]) for (const dx of [-0.9, 0.9]) bar(w, -HX + 1, 45.6, z + dx, HX - 1, 45.6, z + dx, 0.14, STEEL, "metal");
+  detail(w, K);   // 디테일 보강(arena-detail.js): 바닥 표시·벽·관중석·천장 전광 큐브·기지 소품·움직이는 불빛
   K.finish();
 
   // ── 움직이는 것(장식): 격납고 문, 환풍기, 바닥 홀로그램, 탐조등 ──
@@ -299,7 +300,7 @@ export default {
   ceiling: 58,
   seed: 71,
   env: {
-    night: true, noStars: true, cloud: 0, sky: { top: 0x241a5a, horizon: 0x40308a, bottom: 0x0c0a1c }, sunDir: [0.22, 1, 0.16], sunColor: 0xd0d8ff, sun: 1.5, sunDisc: 0,
+    night: true, noStars: true, noWind: true, cloud: 0, sky: { top: 0x241a5a, horizon: 0x40308a, bottom: 0x0c0a1c }, sunDir: [0.22, 1, 0.16], sunColor: 0xd0d8ff, sun: 1.5, sunDisc: 0,
     hemi: 1.15, hemiSky: 0x9aa0ff, hemiGround: 0x4a3a80, fog: { color: 0x0c0a1e, near: 80, far: 420 }, envIntensity: 0.8,
     glow: 1.55, bloom: { strength: 0.42, radius: 0.5, threshold: 0.95 }, exposure: 1.2,
   },
