@@ -7,6 +7,7 @@ import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
 import { VARIANTS } from "./modes/survival.js";
 import { MISSIONS } from "./modes/challenge.js";
+import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
@@ -18,8 +19,8 @@ const MODE_META = {
     long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
   survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 겨루는 점수제 전투",
     long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·거점전·운반전", "아이템 6종", "5초 재출격"] },
-  challenge: { name: "챌린지", en: "MISSION", icon: "🎯", c: "#3dd68c", desc: "혼자 또는 편대를 이뤄 AI 적을 상대로 임무 수행",
-    long: "기지 방어, 포탑 소탕, 호송, 긴급 보급, 모선 격추. 혼자 또는 AI 윙맨과 편대를 이뤄 임무를 완수하세요.", tags: ["임무 5종", "윙맨 최대 3기", "별 3개 평가"] },
+  challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "신입 파일럿이 되어 챕터마다 단계를 하나씩 깨 나가는 이야기",
+    long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·촬영·호송·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
@@ -213,7 +214,51 @@ export class UI {
     return `<section class="step" data-step="${n}"><div class="sh"><span class="no">${n}</span><h3>${title}</h3>${pick ? `<span class="pick">${esc(pick)}</span>` : ""}</div>${html}</section>`;
   }
 
+  // 스토리: ① 챕터 ② 단계 ③ 브리핑·편대
+  s_story() {
+    const s = this.sel, m = MODE_META.challenge, { chapters, flat } = story(), prog = progress();
+    let ch = chapters.find((c) => c.id === s.chapter);
+    if (!ch) ch = (flat[Math.min(prog, flat.length - 1)] || flat[0]).chapter;
+    s.chapter = ch.id;
+    let st = ch.stages.find((x) => x.id === s.stage);
+    if (!st) st = ch.stages.find((x) => x.index === prog) || [...ch.stages].reverse().find((x) => unlocked(x)) || ch.stages[0];
+    s.stage = st.id;
+    const chCards = chapters.map((c) => {
+      const done = c.stages.filter((x) => x.index < prog).length, open = unlocked(c.stages[0]);
+      return `<button class="card mapcard ${c.id === ch.id ? "sel" : ""} ${open ? "" : "locked"}" data-a="sel" data-k="chapter" data-v="${c.id}">
+        ${this._thumb("map", c.map)}<div class="tag">${open ? `${done}/${c.stages.length}` : "🔒"}</div>
+        <div class="nm"><small>CHAPTER ${c.no}</small>${c.title}</div><div class="ds">${MAPS[c.map].name}</div></button>`;
+    }).join("");
+    const stCards = ch.stages.map((x) => {
+      const open = unlocked(x), cleared = x.index < prog;
+      return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cleared ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
+        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
+        <span class="stars">${cleared ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
+    }).join("");
+    const open = unlocked(st);
+    if (!usesTeam(st)) s.team = s.team || 0;
+    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}-${st.no}</div><p>${esc(st.brief)}</p><div class="goal">목표 <b>${goalText(st)}</b></div></div>`;
+    if (!open) brief += `<p class="hint2">앞 단계를 먼저 깨야 열립니다.</p>`;
+    if (usesTeam(st)) brief += `<div class="opt"><label>편대</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team ?? st.o.team ?? 0)}<div class="hint">윙맨이 늘면 적도 늘어납니다. 권장: ${[0, 1, 3].includes(st.o.team) ? ["혼자", "2기 편대", "", "4기 편대"][st.o.team] : "혼자"}</div></div>`;
+    brief += `<div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((k) => [k, FLIGHT_MODE_INFO[k].label]), settings.flightMode, "set")}</div>`;
+    brief += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
+    const body = `<p class="hint2 intro">${esc(ch.intro)}</p>`
+      + this._step(1, "챕터 선택", `${ch.no}. ${ch.title}`, `<div class="grid maps">${chCards}</div>`)
+      + this._step(2, "단계 선택", `${ch.no}-${st.no} ${st.title}`, `<div class="stages">${stCards}</div>`)
+      + this._step(3, "브리핑", "", brief);
+    return `<div class="screen split" style="--c:${m.c}">
+      <div class="pane" data-scroll>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
+        ${body}
+        <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}-${st.no} ${esc(st.title)}</span>
+          <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "출격" : "잠김"} <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div class="rcol"><div class="stage" data-stage></div></div>
+    </div>`;
+  }
+
   s_setup() {
+    if (this.sel.mode === "challenge") return this.s_story();
     const s = this.sel, m = MODE_META[s.mode];
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
@@ -290,10 +335,11 @@ export class UI {
   a_sel(v, el) {
     const k = el.dataset.k;
     this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
+    if (k === "chapter") this.sel.stage = null;
     this._persist();
     this.redraw();
     // 고른 다음 단계가 보이게 내린다 (맵 → 2단계, 2단계 → 옵션)
-    const next = k === "map" ? 2 : ["track", "subject", "fs", "variant", "mission"].includes(k) ? 3 : 0;
+    const next = k === "map" || k === "chapter" ? 2 : ["track", "subject", "fs", "variant", "mission", "stage"].includes(k) ? 3 : 0;
     const stepEl = next && this.root.querySelector(`[data-step="${next}"]`);
     if (stepEl) stepEl.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
@@ -305,6 +351,11 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time });
+    else if (s.mode === "challenge") {
+      const st = story().flat.find((x) => x.id === s.stage);
+      if (!st || !unlocked(st)) return;
+      return this.game.startSession(stageConfig(st, usesTeam(st) ? s.team ?? st.o.team ?? 0 : 0));
+    }
     else { const ms = MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]; Object.assign(cfg, { mission: ms.id, map: ms.map, team: s.team }); }
     this.game.startSession(cfg);
   }
@@ -536,9 +587,25 @@ export class UI {
       ${r.sub ? `<div class="sub">${esc(r.sub)}</div>` : ""}
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
+      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>` : ""}
       <div class="list">
-        <button class="primary" data-a="restart">다시 하기</button>
+        ${r.story && r.story.next ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
+        <button class="${r.story && r.story.next ? "" : "primary"}" data-a="restart">${r.story && !r.story.passed ? "다시 도전" : "다시 하기"}</button>
+        ${r.story ? `<button data-a="tostory">단계 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div></div></div>`;
+  }
+  a_nextstage(v) {
+    const st = story().flat.find((x) => x.id === v);
+    if (!st) return;
+    this.sel.chapter = st.chapter.id; this.sel.stage = st.id; this._persist();
+    this.game.startSession(stageConfig(st, usesTeam(st) ? this.sel.team ?? st.o.team ?? 0 : 0));
+  }
+  a_tostory() {
+    const cur = story().flat.find((x) => x.id === (this.game.lastCfg || {}).story), nx = cur && story().flat[cur.index + 1];
+    const to = nx && unlocked(nx) ? nx : cur;
+    if (to) { this.sel.chapter = to.chapter.id; this.sel.stage = to.id; }
+    this.sel.mode = "challenge"; this._persist();
+    this.game.quit(); this.show("setup");
   }
 }

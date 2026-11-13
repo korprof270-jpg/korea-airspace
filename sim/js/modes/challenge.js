@@ -21,9 +21,9 @@ export class ChallengeMode extends CombatMode {
     super(session, cfg);
     this.def = MISSIONS.find((m) => m.id === cfg.mission) || MISSIONS[0];
     this.id = this.def.id;
-    this.title = `챌린지 · ${this.def.name}`;
+    this.title = `스토리 · ${this.def.name}`;
     this.teamN = cfg.team || 0;
-    this.scale = 1 + 0.3 * this.teamN;
+    this.scale = (1 + 0.3 * this.teamN) * (cfg.power || 1);   // power: 스토리 단계별 적 규모 배율
     this.lives = 3;
     this.limit = 0;
     this.objective = "";
