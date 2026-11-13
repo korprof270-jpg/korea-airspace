@@ -4,15 +4,15 @@ import { settings } from "./config.js";
 const MIN = [0, 2, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11], DOR = [0, 2, 3, 5, 7, 9, 10], LYD = [0, 2, 4, 6, 7, 9, 11], PENT = [0, 2, 5, 7, 9];
 // bpm, root(MIDI), scale, chords(마디별 음계 도수), pad·lead 음색, lead 밀도, arp(16분 아르페지오), 베이스·타악 패턴(16칸), amb(환경음)
 const THEMES = {
-  menu: { bpm: 84, root: 57, scale: MIN, chords: [[0, 2, 4], [5, 7, 9], [2, 4, 6], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.22, oct: 1, bass: "x.......x.......", kick: "", snare: "", hat: "....x.......x...", vol: 1.2 },
-  city: { bpm: 104, root: 57, scale: MIN, chords: [[0, 2, 4], [5, 7, 9], [2, 4, 6], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.3, oct: 1, arp: true, bass: "x.x.x.x.x.x.x.x.", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x." },
-  arena: { bpm: 126, root: 55, scale: MIN, chords: [[0, 2, 4], [0, 2, 4], [5, 7, 9], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.35, oct: 1, arp: true, bass: "x.xxx.xxx.xxx.xx", kick: "x...x...x...x...", snare: "....x.......x..x", hat: "x.x.x.x.x.x.x.x." },
-  factory: { bpm: 80, root: 60, scale: MAJ, chords: [[0, 2, 4, 6], [5, 7, 9, 11], [3, 5, 7, 9], [4, 6, 8]], pad: "triangle", lead: "ep", dens: 0.32, oct: 1, bass: "x.....x...x.....", kick: "x.....x...x.....", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", soft: true, amb: "waves" },
-  canyon: { bpm: 92, root: 50, scale: DOR, chords: [[0, 2, 4], [3, 5, 7], [0, 2, 4], [6, 8, 10]], pad: "triangle", lead: "guitar", dens: 0.38, oct: 1, bass: "x.......x.x.....", kick: "x.......x.x.....", snare: "", hat: "..x...x...x...x.", soft: true, amb: "wind" },
-  palace: { bpm: 66, root: 55, scale: PENT, chords: [[0, 3], [0, 3], [1, 4], [0, 3]], pad: "sine", lead: "gaya", dens: 0.42, oct: 1, bass: "x...............", kick: "x.....x.x.......", snare: "", hat: "....x.....x..x..", soft: true, drum: "janggu", amb: "wind" },
-  snow: { bpm: 76, root: 62, scale: MAJ, chords: [[0, 2, 4], [4, 6, 8], [5, 7, 9], [3, 5, 7]], pad: "triangle", lead: "bell", dens: 0.4, oct: 2, bass: "x.......x.......", kick: "", snare: "", hat: "x...x...x...x...", soft: true, amb: "wind" },
-  island: { bpm: 100, root: 60, scale: MAJ, chords: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [3, 5, 7]], pad: "triangle", lead: "marimba", dens: 0.5, oct: 1, bass: "x..x..x...x.x...", kick: "x.....x.x.....x.", snare: "....x.......x...", hat: "x.xxx.xxx.xxx.xx", soft: true, amb: "waves" },
-  moon: { bpm: 56, root: 53, scale: LYD, chords: [[0, 2, 4, 6], [1, 3, 5], [0, 2, 4, 6], [4, 6, 8]], pad: "sine", lead: "bell", dens: 0.14, oct: 2, bass: "x...............", kick: "", snare: "", hat: "", amb: "drone" },
+  menu: { bpm: 120, root: 57, scale: MIN, chords: [[0, 2, 4], [5, 7, 9], [2, 4, 6], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.34, oct: 1, arp: "pluck", bassType: "sawtooth", bass: "x.x.x.x.x.x.x.xx", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", open: "..x...x...x...x." },
+  city: { bpm: 128, root: 57, scale: MIN, chords: [[0, 2, 4], [5, 7, 9], [2, 4, 6], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.4, oct: 1, arp: "pluck", bassType: "sawtooth", bass: "x.xxx.xxx.xxx.xx", kick: "x...x...x...x...", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", open: "..x...x...x...x." },
+  arena: { bpm: 142, root: 55, scale: MIN, chords: [[0, 2, 4], [0, 2, 4], [5, 7, 9], [6, 8, 10]], pad: "sawtooth", lead: "pluck", dens: 0.45, oct: 1, arp: "pluck", bassType: "sawtooth", bass: "xxxxxxxxxxxxxxxx", kick: "x...x...x...x.x.", snare: "....x.......x..x", hat: "x.xxx.xxx.xxx.xx", open: "..x...x...x...x." },
+  factory: { bpm: 114, root: 60, scale: MAJ, chords: [[0, 2, 4, 6], [5, 7, 9, 11], [3, 5, 7, 9], [4, 6, 8]], pad: "triangle", lead: "ep", dens: 0.42, oct: 1, arp: "ep", bass: "x..x..x.x..x.x..", kick: "x..x..x...x..x..", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", open: "......x.......x.", amb: "waves" },
+  canyon: { bpm: 126, root: 50, scale: DOR, chords: [[0, 2, 4], [3, 5, 7], [0, 2, 4], [6, 8, 10]], pad: "triangle", lead: "guitar", dens: 0.45, oct: 1, arp: "guitar", bass: "x.xxx.xxx.xxx.xx", kick: "x.....x.x.....x.", snare: "....x.......x...", hat: "x.xxx.xxx.xxx.xx", amb: "wind" },
+  palace: { bpm: 120, root: 55, scale: PENT, chords: [[0, 3], [0, 3], [1, 4], [0, 3]], pad: "sine", lead: "gaya", dens: 0.55, oct: 1, arp: "gaya", arpStep: 4, bass: "x.....x...x.....", kick: "x..x..x..x.x..x.", snare: "", hat: "..x..x..x.x..x.x", drum: "janggu", amb: "wind" },
+  snow: { bpm: 132, root: 62, scale: MAJ, chords: [[0, 2, 4], [4, 6, 8], [5, 7, 9], [3, 5, 7]], pad: "triangle", lead: "bell", dens: 0.42, oct: 2, arp: "marimba", bass: "x.x.x.x.x.x.x.x.", kick: "x...x...x...x...", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", open: "..x...x...x...x.", amb: "wind" },
+  island: { bpm: 126, root: 60, scale: MAJ, chords: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [3, 5, 7]], pad: "triangle", lead: "marimba", dens: 0.6, oct: 1, arp: "marimba", bass: "x..x..x.x..x..x.", kick: "x..x..x.x..x..x.", snare: "....x.......x...", hat: "x.xxx.xxx.xxx.xx", open: "..x...x...x...x.", amb: "waves" },
+  moon: { bpm: 118, root: 53, scale: LYD, chords: [[0, 2, 4, 6], [1, 3, 5], [0, 2, 4, 6], [4, 6, 8]], pad: "sine", lead: "bell", dens: 0.3, oct: 2, arp: "pluck", bassType: "sawtooth", bass: "x.x.x.x.x.x.x.x.", kick: "x...x...x...x...", snare: "............x...", hat: "..x...x...x...x.", amb: "drone" },
 };
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -92,17 +92,22 @@ export class Music {
   }
 
   _play(step, t) {
-    const T = this.T, s16 = step % 16, bar = (step >> 4), ch = T.chords[bar % T.chords.length], barLen = this.spb * 16, soft = T.soft ? 0.6 : 1;
+    const T = this.T, s16 = step % 16, bar = (step >> 4), ch = T.chords[bar % T.chords.length], barLen = this.spb * 16, n = T.scale.length;
     const on = (p) => p && p[s16] === "x";
+    const fill = bar % 8 === 7 && s16 >= 12;              // 8마디마다 끝에 필인
     if (s16 === 0) this._pad(ch.map((d) => this.note(T, d, 0)), t, barLen * 1.05, T.pad);
-    if (on(T.bass)) this._tone("triangle", this.note(T, ch[0], -2), t, this.spb * 3.2, 0.2, 500, 0.01);
-    if (on(T.kick)) T.drum === "janggu" ? this._drum(t, 95, 55, 0.3, 0.3) : this._drum(t, 130, 42, 0.22, 0.42 * soft);
-    if (on(T.snare)) this._noise(t, 0.13, 0.13 * soft, 1800, "bandpass", 0.9);
-    if (on(T.hat)) T.drum === "janggu" ? this._noise(t, 0.05, 0.14, 1100, "bandpass", 5) : this._noise(t, 0.035, 0.05 * soft, 7500, "highpass", 0.7);
-    if (T.arp && s16 % 2 === 0) { const k = (s16 / 2) % 4; this._lead("pluck", this.note(T, ch[k % ch.length] + (k === 3 ? T.scale.length : 0), 1), t, this.spb * 1.6, 0.045); }
+    if (on(T.bass)) this._tone(T.bassType || "triangle", this.note(T, ch[0] + (s16 % 8 === 6 ? n : 0), -2), t, this.spb * 1.7, T.bassType ? 0.14 : 0.24, T.bassType ? 420 : 600, 0.006);
+    if (on(T.kick)) T.drum === "janggu" ? this._drum(t, 100, 52, 0.26, 0.42) : this._drum(t, 150, 44, 0.2, 0.5);
+    if (on(T.snare) || (fill && T.snare)) { this._noise(t, 0.12, fill ? 0.11 : 0.16, 1900, "bandpass", 0.9); this._tone("triangle", 190, t, 0.07, 0.08, 1500); }
+    if (on(T.hat)) T.drum === "janggu" ? this._noise(t, 0.045, 0.17, 1200, "bandpass", 5) : this._noise(t, 0.03, 0.055, 8000, "highpass", 0.7);
+    if (on(T.open)) this._noise(t, 0.11, 0.04, 6500, "highpass", 0.7);
+    if (T.arp && s16 % (T.arpStep || 2) === 0) {
+      const k = (s16 / (T.arpStep || 2)) % 4, up = [0, 1, 2, 1][k];
+      this._lead(T.arp, this.note(T, ch[up % ch.length] + (k === 2 ? n : 0), 1), t, this.spb * 1.5, 0.05);
+    }
     const pi = step % this.phrase.length, nt = this.phrase[pi];
     // 두 번째 돌 때는 몇 음을 쉬어 변주한다
-    if (nt && !((step / this.phrase.length | 0) % 2 === 1 && pi % 7 === 3)) this._lead(T.lead, this.note(T, nt.deg, T.oct - 1), t, this.spb * nt.len * 1.5, 0.11);
+    if (nt && !((step / this.phrase.length | 0) % 2 === 1 && pi % 7 === 3)) this._lead(T.lead, this.note(T, nt.deg, T.oct - 1), t, this.spb * nt.len * 1.5, 0.12);
   }
 
   _env(g, t, atk, dur, vol) {
@@ -120,7 +125,7 @@ export class Music {
   _pad(freqs, t, dur, type) {
     const ctx = this.sound.ctx, g = ctx.createGain(), lp = ctx.createBiquadFilter();
     lp.type = "lowpass"; lp.frequency.value = type === "sawtooth" ? 900 : 1800;
-    const v = (type === "sawtooth" ? 0.05 : type === "sine" ? 0.12 : 0.085) / Math.sqrt(freqs.length);
+    const v = (type === "sawtooth" ? 0.036 : type === "sine" ? 0.08 : 0.06) / Math.sqrt(freqs.length);
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + dur * 0.3); g.gain.setValueAtTime(v, t + dur * 0.7); g.gain.linearRampToValueAtTime(0.0001, t + dur);
     lp.connect(g); g.connect(this.bus);
     for (const f of freqs) for (const d of [-6, 6]) { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + dur + 0.05); }
