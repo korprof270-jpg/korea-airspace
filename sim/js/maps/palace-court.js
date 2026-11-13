@@ -116,6 +116,7 @@ export function corridor(w, ax, az, bx, bz, wallAt, o = {}) {
     f.solid(0, plat + hc - 0.9, s * wd / 2, len, 0.9, 0.5);
   }
   f.roof(0, plat + hc, 0, len / 2 + 0.5, wd / 2 + 1.5, 2.3, { type: "gable", lod: true });
+  (w.pCorr || (w.pCorr = [])).push({ f, len, wd, hc, plat, n, side });
   if (o.gap !== false) f.gap(o.name || "회랑 통과", o.gx || 0, plat + 1.95, 0, 90, wd - 1.1, 3.6, o.pts || 350);
   return f;
 }

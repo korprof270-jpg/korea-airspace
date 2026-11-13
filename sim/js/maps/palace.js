@@ -8,12 +8,14 @@ import { walls, court, throne, quarters, living } from "./palace-court.js";
 import { pond, outer, garden, temple, hill, fields } from "./palace-garden.js";
 import { village } from "./palace-village.js";
 import { life } from "./palace-life.js";
+import { detail } from "./palace-detail.js";
 
 // ── 지형: 평지 + 뒷산 세 봉우리 + 먼 산, 연못·수로·시내는 파낸다 ──
 const segD = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz))); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
 const lineD = (x, z, P) => { let d = 1e9; for (let i = 0; i < P.length - 1; i++) d = Math.min(d, segD(x, z, P[i][0], P[i][1], P[i + 1][0], P[i + 1][1])); return d; };
 const GS = [[100, -126], [100, -112], [96, -95], [104, -78], [98, -62], [93, -50]];     // 숨은뜰 시내
 const ES = [[150, 89], [190, 100], [246, 106]];                                          // 성 밖 동쪽 냇물
+const PE1 = [[146, 40], [160, 40], [171, 27]], PE2 = [[186, 37], [186, 55], [186, 70], [177, 88]], PE3 = [[177, 104], [182, 116], [185, 124]];   // 동쪽 오솔길
 export function height(x, z) {
   const b = (cx, cz, rx, rz, H) => { const u = (x - cx) / rx, v = (z - cz) / rz, r2 = u * u + v * v; return r2 < 1 ? H * (1 - r2) * (1 - r2) : 0; };
   let h = b(10, -205, 150, 65, 42) + b(-150, -185, 80, 48, 22) + b(160, -175, 70, 40, 18);
@@ -43,6 +45,17 @@ function colorFn(x, y, z, slope) {
     return _c;
   }
   _c.set(0xa7a04c).lerp(_c2.set(0xc2a548), 0.5 + n * 0.5).multiplyScalar(0.96 + n2 * 0.07);
+  // 구역별 바닥 색: 성 밖 숲의 낙엽 얼룩, 성벽 아래 푸른 띠, 숨은뜰 이끼, 사람이 다녀 닳은 오솔길
+  const ax = Math.abs(x), n3 = Math.sin(x * 0.31 + z * 0.23) * Math.sin(z * 0.37 - x * 0.19);
+  if (ax > 148 || z < -136) _c.lerp(_c2.set(n3 > 0.2 ? 0xc8752c : n3 < -0.3 ? 0xb9a43a : 0xbd8c38), 0.28 + 0.34 * Math.abs(n3));
+  else if (x > 62 && ax < 123 && z < 30 && z > -118) _c.lerp(_c2.set(n3 > 0.15 ? 0xb9542a : 0x7f8f42), 0.3 + 0.3 * Math.abs(n3));
+  else if (ax > 127 || z > 112 || z < -122) _c.lerp(_c2.set(0x86a046), 0.3 + 0.2 * n3);
+  else _c.multiplyScalar(1 + n3 * 0.05);
+  if (ax > 146 && z > -60 && z < 126) {
+    const dp = x < 0 ? Math.min(segD(x, z, -146, -40, -179, -40), segD(x, z, -182, -37, -184, -16))
+      : Math.min(lineD(x, z, PE1), lineD(x, z, PE2), lineD(x, z, PE3), segD(x, z, 186, -17, 186, -38), segD(x, z, 181, 88, 200, 91));
+    _c.lerp(_c2.set(0xcdb588), 1 - sm(1.0, 3.8, dp));
+  }
   if (slope > 0.2) _c.lerp(_c2.set(0xb9b09c), 0.8);
   return _c;
 }
@@ -54,6 +67,7 @@ function build(w) {
   pond(w); outer(w); garden(w); temple(w);
   hill(w); fields(w); village(w);
   life(w);
+  detail(w);
 }
 
 const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });

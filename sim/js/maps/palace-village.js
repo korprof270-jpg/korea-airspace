@@ -52,6 +52,7 @@ function lot(w, cx, cz, side, type, gx) {
   f.roof(gx, 3.9, hd, 3.2, 1.5, 1.3, { type: "gable", lod: true, under: C.wood, fascia: C.tileD });
   f.gap("솟을대문 통과", gx, 1.8, hd, 0, 3.0, 3.1, 550);
   const th = type === "D";
+  (w.pLots || (w.pLots = [])).push({ f, type, gx });
   if (type === "A") { wing(f, 1, -9.5, 18, 6.4, 0); wing(f, -9.6, 2.5, 13, 5.4, 90, false, -1); }
   else if (type === "B") { wing(f, 0, -10, 17, 6.4, 0); wing(f, -10, 1.5, 12, 5.2, 90, false, -1); wing(f, 10, 1.5, 12, 5.2, 90, false, 1); }
   else if (type === "C") { wing(f, 0, -10.5, 20, 6, 0); wing(f, -10.3, 0.5, 14, 5, 90, false, -1); wing(f, 10.3, 0.5, 14, 5, 90, false, 1); wing(f, gx > 0 ? -5 : 5, 10.5, 11, 5, 0, false, -1); f.gap("안마당 내려앉기", 0, 3.6, 0.3, 0, 11, 10, 500, 90); }

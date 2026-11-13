@@ -52,10 +52,10 @@ export function beam(w, a, b, wd, ht, color, mat = "std") {
 // ── 기와 지붕 ──────────────────────────────────────────────
 // 처마 반폭 a(x)·b(z), 높이 H. 용마루는 x 방향. type: hipgable(팔작) | hip(우진각) | gable(맞배)
 // 처마에서 완만하고 용마루로 갈수록 가파른 곡선 + 추녀 끝이 들리는 곡선
-const GAB = 0.42;
+export const GAB = 0.42;
 const ROOFS = new Map();
 function profile(t) { return 0.42 * t + 0.58 * t * t; }
-function roofH(a, b, H, type, L, x, z) {
+export function roofH(a, b, H, type, L, x, z) {
   const tz = (b - Math.abs(z)) / b, tx = (a - Math.abs(x)) / b;
   let t = type === "gable" ? tz : type === "hip" ? Math.min(tz, tx) : tx > GAB + 1e-4 ? tz : Math.min(tz, tx);
   t = Math.max(0, Math.min(1, t));
@@ -200,6 +200,7 @@ export function hall(w, x, y, z, W, D, o = {}) {
   }
   if (o.sign) { f.box(0, top - 0.35, D / 2 + 0.45, Math.min(4.2, W * 0.3), 1.25, 0.2, 0x1f2430, { col: false, ao: false }); f.box(0, top - 0.2, D / 2 + 0.57, Math.min(3.6, W * 0.25), 0.95, 0.06, C.yel, { col: false, ao: false, mat: "paint" }); }
   const rh = o.rh ?? Math.max(1.6, (D / 2 + over) * 0.62);
+  (w.pHalls || (w.pHalls = [])).push({ f, W, D, nx, nz, hc, plat, over, top, rh, open, o });   // 디테일 보강(palace-detail.js)이 읽는다
   if (o.roof !== false) f.roof(0, top, 0, W / 2 + over, D / 2 + over, rh, { type: o.type, lod: o.lod, color: o.tile, under: o.under, gable: o.gable, lift: o.lift, ridgeColor: o.ridgeColor, mat: o.roofMat, fascia: o.fascia, finial: o.finial });
   return { f, top, rh, plat, nx, nz, colX, colZ };
 }
@@ -255,10 +256,12 @@ export function autumn(w, x, z, s = 1, kind = "maple", o = {}) {
   w.mesh(G.cone(6, 0.6), TRS(x, y + h / 2, z, 0, 0.3 * s, h, 0.3 * s), 0x4a3828, "std");
   const base = _c.setHSL((hu + (r() - 0.5) * 0.035 + 1) % 1, sa, lu + (r() - 0.5) * 0.06).getHex(), n = o.blobs || 3;
   for (let i = 0; i < n; i++) {
-    const a = r() * 6.283, d = i ? cr * 0.48 : 0, br = cr * (i ? 0.6 + r() * 0.2 : 0.9), sy = kind === "ginkgo" ? 1.15 : 0.8;
-    w.mesh(G.leaf(i % 3), TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.2 + r() * 0.35 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * sy, br), _c.set(base).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.07).getHex(), "foliage");
+    const a = r() * 6.283, d = i ? cr * 0.48 : 0, br = cr * (i ? 0.6 + r() * 0.2 : 0.9) * (o.fat || 1), sy = kind === "ginkgo" ? 1.15 : 0.8;
+    // thin: 셋째 덩어리를 그리지 않는다(난수 소비는 그대로 두어 뒤따르는 배치가 바뀌지 않게 한다)
+    const M = TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.2 + r() * 0.35 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * sy, br), cc = _c.set(base).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.07).getHex();
+    if (!(o.thin && i === 2)) w.mesh(G.leaf(i % 3), M, cc, "foliage");
   }
-  if (o.litter !== false && y > -0.3 && y < 0.3) w.mesh(G.cyl(8), TRS(x + (r() - 0.5), 0.06 + r() * 0.03, z + (r() - 0.5), r() * 360, cr * 1.25, 0.04, cr * 1.05), _c.set(base).offsetHSL(0, -0.1, -0.04).getHex(), "std");   // 낙엽 깔개
+  if (o.litter !== false && y > -0.3 && y < 0.3) w.mesh(disc8(), TRS(x + (r() - 0.5), 0.08 + r() * 0.03, z + (r() - 0.5), r() * 360, cr * 1.25, 1, cr * 1.05), _c.set(base).offsetHSL(0, -0.1, -0.04).getHex(), "std");   // 낙엽 깔개
   if (o.col !== false) {
     w.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h, z), 0.32 * s);
     w.col.addSphere(new THREE.Vector3(x, y + h + cr * 0.5, z), cr * 0.8);
@@ -314,9 +317,22 @@ export function folk(w, x, y, z, tone, hat = 0x1c1c22) {
   w.mesh(G.box(), TRS(x, y + hh * 0.93, z, 0, 0.24, 0.26, 0.24), 0xe2b99a, "std");
   if (hat) w.mesh(G.cyl(8), TRS(x, y + hh * 1.03, z, 0, 0.36, 0.05, 0.36), hat, "std");
 }
-let _ball = null;
+let _ball = null, _d8 = null;
+// 바닥에 눕힌 팔각 판(8 삼각형): 낙엽 깔개·연잎
+export const disc8 = () => _d8 || (_d8 = (() => { const g = new THREE.CircleGeometry(1, 8); g.rotateX(-Math.PI / 2); g.computeBoundingBox(); return g; })());
 // 저폴리 공(20면): 감·독·좌판 물건처럼 작은 둥근 것
 export const ball = () => _ball || (_ball = (() => { const g = new THREE.IcosahedronGeometry(1, 1); g.computeBoundingBox(); return g; })());
 export const ball0 = () => _ball0 || (_ball0 = (() => { const g = new THREE.IcosahedronGeometry(1, 0); g.computeBoundingBox(); return g; })());
-let _ball0 = null;
+let _ball0 = null, _far0 = null;
+// 먼 산 수관(20면): 울퉁불퉁하게 비틀고 법선은 둥글게 해서 멀리서 각져 보이지 않게 한다
+export const far0 = () => _far0 || (_far0 = (() => {
+  const g = new THREE.IcosahedronGeometry(1, 0), P = g.attributes.position, N = g.attributes.normal;
+  for (let i = 0; i < P.count; i++) {
+    _v.fromBufferAttribute(P, i); _a.copy(_v).normalize();
+    _v.multiplyScalar(1 + 0.2 * Math.sin(_v.x * 4.1 + 1) * Math.sin(_v.y * 3.3 + _v.z * 2.7));
+    P.setXYZ(i, _v.x, _v.y * 0.9, _v.z); N.setXYZ(i, _a.x, _a.y, _a.z);
+  }
+  g.computeBoundingBox();
+  return g;
+})());
 export { G, TRS, DEG, THREE };

@@ -1,5 +1,5 @@
 // 단풍 고궁: 연못과 달못루, 바깥마당의 금천과 무지개다리, 숨은뜰(후원), 탑마당, 뒷산과 성 밖 들판
-import { C, Fr, hall, roof, fenceRun, arch, autumn, pick, lantern, lanternLine, flag, folk, beam, ball, ball0, G, TRS, DEG, THREE } from "./palace-kit.js";
+import { C, Fr, hall, roof, fenceRun, arch, autumn, pick, lantern, lanternLine, flag, folk, beam, ball, ball0, disc8, far0, G, TRS, DEG, THREE } from "./palace-kit.js";
 import { pave } from "./palace-court.js";
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -60,7 +60,7 @@ export function pond(w) {
   for (let i = 0; i < 46; i++) {
     const x = -112 + w.rand() * 44, z = 8 + w.rand() * 60, r = 0.5 + w.rand() * 0.7;
     if (Math.hypot(x + 90, z - 56) < 8) continue;
-    w.mesh(G.cyl(8), TRS(x, -0.95, z, w.rand() * 360, r, 0.05, r), w.rand() < 0.3 ? 0xa79a4a : 0x6f9450, "std");
+    w.mesh(disc8(), TRS(x, -0.93, z, w.rand() * 360, r, 1, r), w.rand() < 0.3 ? 0xa79a4a : 0x6f9450, "std");
     if (i % 5 === 0) w.mesh(G.cone(6, 0.1), TRS(x + 0.2, -0.7, z, 0, 0.26, 0.5, 0.26), 0xf0a0b4, "std");
   }
   for (const x of [-116, -107]) autumn(w, x, 78.2, 1.1, pick(w));
@@ -193,7 +193,7 @@ export function hill(w) {
   for (let i = 0; i < 900 && n < 250; i++) {
     const x = -226 + r() * 452, z = -228 + r() * 92, h = w.h(x, z);
     if (h < 1.2 || Math.abs(x - pathX(z)) < 5 && z > -212 && Math.abs(x) < 30 || Math.hypot(x - 10, z + 205) < 14 || Math.abs(z + 205) < 7 && Math.abs(x - 10) < 76 || Math.hypot(x + 150, z + 185) < 17 || Math.hypot(x - 160, z + 175) < 13) continue;
-    if (r() < 0.12) w.tree(x, z, 0.8 + r() * 0.5, "pine"); else autumn(w, x, z, 1.05 + r() * 0.75, pick(w), { litter: false });
+    if (r() < 0.12) w.tree(x, z, 0.8 + r() * 0.5, "pine"); else { const far = z < -190 || Math.abs(x) > 112; autumn(w, x, z, 1.05 + r() * 0.75, pick(w), { litter: false, thin: far, fat: far ? 1.14 : 1 }); }
     n++;
   }
   for (let i = 0; i < 26; i++) { const x = -220 + r() * 440, z = -225 + r() * 80; if (w.h(x, z) > 3 && Math.abs(x - pathX(z)) > 6 && Math.hypot(x - 10, z + 205) > 12) w.rock(x, z, 1 + r() * 1.6, 0x9a9488); }
@@ -223,7 +223,7 @@ export function fields(w) {
   for (let i = 0; i < 150; i++) {
     const s = r() < 0.5 ? -1 : 1, x = s * (151 + r() * 76), z = -122 + r() * 238;
     if (!keep(x, z)) continue;
-    if (r() < 0.1) w.tree(x, z, 0.9 + r() * 0.4, "pine"); else autumn(w, x, z, 1.0 + r() * 0.7, pick(w));
+    if (r() < 0.1) w.tree(x, z, 0.9 + r() * 0.4, "pine"); else { const far = Math.abs(x) > 190; autumn(w, x, z, 1.0 + r() * 0.7, pick(w), { thin: far, fat: far ? 1.12 : 1 }); }
   }
   for (let x = -110; x <= 110; x += 13) for (const z of [117, -124.6]) if (Math.abs(x) > 24) autumn(w, x + r() * 3, z, 1.1, z > 0 ? "ginkgo" : "maple");
   for (let z = -105; z <= 100; z += 13) for (const s of [-1, 1]) if (Math.abs(z - s * 40) > 14 && Math.abs(z - 88) > 8) autumn(w, s * 132.5, z + r() * 3, 1.1, "orange");
@@ -234,7 +234,8 @@ export function fields(w) {
     if (Math.max(Math.abs(x), Math.abs(z)) < 246) continue;
     const y = w.h(x, z), s = 5 + r() * 5, k = r();
     col.setHSL(k < 0.45 ? 0.01 + r() * 0.03 : k < 0.75 ? 0.07 + r() * 0.03 : k < 0.92 ? 0.12 + r() * 0.02 : 0.3, 0.72, 0.36 + r() * 0.12);
-    w.mesh(G.leaf(i % 3), TRS(x, y + s * 0.45, z, r() * 360, s, s * 0.8, s), col.getHex(), "foliage");
+    // 340m 밖은 20면 덩어리로(멀어서 차이가 안 보인다)
+    w.mesh(Math.max(Math.abs(x), Math.abs(z)) > 340 ? far0() : G.leaf(i % 3), TRS(x, y + s * 0.45, z, r() * 360, s * 1.06, s * 0.82, s * 1.06), col.getHex(), "foliage");
   }
 }
 export { DEG };
