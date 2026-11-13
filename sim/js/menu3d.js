@@ -413,7 +413,7 @@ export class Thumbs {
   want(kind, ids) {
     for (const id of ids) {
       if (this[kind][id] || this.jobs.some((j) => j.kind === kind && j.id === id)) continue;
-      if (kind === "map" && !MAP_VIEW[id]) continue;
+      if (kind === "map" && !(MAPS[id] && (MAPS[id].thumb || MAP_VIEW[id]))) continue;
       this.jobs.push({ kind, id });
     }
     if (!this.timer && this.jobs.length) this.timer = setTimeout(() => this._pump(), kind === "map" ? 350 : 120);
@@ -453,7 +453,7 @@ export class Thumbs {
   }
 
   _mapShot(id) {
-    const r = this._renderer(480, 300), w = new World(MAPS[id], "low", r), [p, l] = MAP_VIEW[id];
+    const r = this._renderer(480, 300), w = new World(MAPS[id], "low", r), [p, l] = MAPS[id].thumb ? [MAPS[id].thumb.pos, MAPS[id].thumb.look] : MAP_VIEW[id];
     try {
       const cam = new THREE.PerspectiveCamera(62, 1.6, 0.1, 4000);
       cam.position.set(...p); cam.lookAt(...l); cam.updateMatrixWorld();
