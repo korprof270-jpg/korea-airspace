@@ -3,7 +3,8 @@ import * as THREE from "../vendor/three.module.min.js";
 
 const MAXP = 2400;   // 빛나는(가산 혼합) 파티클
 const MAXS = 420;    // 연기(일반 혼합) 파티클
-const MAXB = 256;
+const MAXB = 320;
+const WHITE = new THREE.Color(0xffffff);
 const NFLASH = 14;
 const NRING = 10;
 const _m = new THREE.Matrix4();
@@ -96,8 +97,8 @@ export class FX {
     this.pmat = this.glow.mat;
 
     // 레이저 볼트 (인스턴스)
-    this.boltGeo = new THREE.BoxGeometry(0.07, 0.07, 1);
-    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 3.2, 3.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    this.boltGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 6, 1); this.boltGeo.rotateX(Math.PI / 2);   // 지름 1 · 길이 1 → 인스턴스에서 늘린다
+    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.25, 1.25, 1.25), fog: false });   // 불투명: 밝은 하늘 앞에서도 색이 묻히지 않는다
     this.bolts = new THREE.InstancedMesh(this.boltGeo, this.boltMat, MAXB);
     this.bolts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.bolts.frustumCulled = false;
@@ -213,12 +214,13 @@ export class FX {
 
   // 레이저 볼트 그리기: 매 프레임 beginBolts → bolt()* → endBolts
   beginBolts() { this._bi = 0; }
-  bolt(pos, dir, len, color) {
+  // 굵고 불투명한 색 막대 (흰색을 조금 섞어 뜨겁게)
+  bolt(pos, dir, len, color, width = 0.3) {
     if (this._bi >= MAXB) return;
     _q.setFromUnitVectors(Z, dir);
-    _m.compose(pos, _q, _s.set(1, 1, len));
+    _m.compose(pos, _q, _s.set(width, width, len));
     this.bolts.setMatrixAt(this._bi, _m);
-    this.bolts.setColorAt(this._bi, _c.set(color));
+    this.bolts.setColorAt(this._bi, _c.set(color).lerp(WHITE, 0.08));
     this._bi++;
   }
   endBolts() {

@@ -54,7 +54,8 @@ export class Combat {
     this.killMark = 0;             // 내가 격파한 직후 잠깐 > 0 (HUD 격파 표시용)
     this.hurtAmt = 0;              // 마지막으로 받은 피해량
     this.warnDist = 999;           // 나를 쫓는 미사일까지의 최소 거리(m)
-    this.missileGeo = new THREE.CylinderGeometry(0.09, 0.14, 1.1, 8);
+    this.missileGeo = new THREE.CylinderGeometry(0.1, 0.24, 1.9, 8);
+    this.mGlowGeo = new THREE.SphereGeometry(0.75, 12, 8);
     this.missileGeo.rotateX(Math.PI / 2);
     this.missileMat = new THREE.MeshLambertMaterial({ color: 0xe9edf2, emissive: 0x552200 });
     this.pickGeo = new THREE.OctahedronGeometry(1.15, 0);
@@ -268,6 +269,10 @@ export class Combat {
 
   fireMissile(a, origin, dir, target, dmg = 55) {
     const mesh = new THREE.Mesh(this.missileGeo, this.missileMat);
+    // 불빛: 내가 쏜 것은 주황, 나를 노리는 것은 빨강
+    const mcol = target && target.isPlayer ? 0xff2a2a : a.isPlayer ? 0xffa030 : this.hostile(a, this.player) ? 0xff5a3a : 0x5ab4ff;
+    const glow = new THREE.Mesh(this.mGlowGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(mcol).multiplyScalar(2.4), transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    glow.position.z = -0.9; mesh.add(glow); mesh.userData.glow = glow; mesh.userData.col = mcol;
     mesh.position.copy(origin);
     this.w.scene.add(mesh);
     this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0 });
@@ -522,7 +527,9 @@ export class Combat {
       s.pos.addScaledVector(s.dir, len);
       s.life -= dt;
       if (s.life <= 0) { this.shots.splice(i, 1); continue; }
-      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -1.6), s.dir, 3.2, s.color);
+      // 가까이서는 가늘게(화면을 덮지 않게), 멀수록 굵게(멀리서도 보이게)
+      const cd = s.pos.distanceTo(this.s.camera.position);
+      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -3), s.dir, 6, s.color, (s.owner.isPlayer ? 0.34 : 0.46) * clamp(cd / 12, 0.2, 1) * clamp(cd / 35, 1, 3.2));
     }
     fx.endBolts();
   }
@@ -549,8 +556,10 @@ export class Combat {
       m.pos.addScaledVector(m.vel, dt);
       m.mesh.position.copy(m.pos);
       m.mesh.quaternion.setFromUnitVectors(_z.set(0, 0, 1), _a);
-      this.fx.puff(m.pos, 0xffb060, 0.45, 0.5, 0.2);
-      if ((m.sm = (m.sm || 0) + 1) % 3 === 0) this.fx.smoke(m.pos, 0.55, 0.9, 0.3, 0.3);
+      m.mesh.userData.glow.scale.setScalar(1 + Math.sin(this.s.time * 40 + i) * 0.25);
+      this.fx.puff(m.pos, m.mesh.userData.col, 0.75, 0.6, 0.2);
+      this.fx.puff(m.pos, 0xffffff, 0.35, 0.25, 0.1);
+      if ((m.sm = (m.sm || 0) + 1) % 2 === 0) this.fx.smoke(m.pos, 0.9, 1.6, 0.34, 0.3);
       let boom = m.life <= 0 || this.w.col.blocked(m.pos, 0.12), direct = null;
       for (const o of this.actors) {
         if (!o.alive || !o.targetable || !this.hostile(m.owner, o)) continue;
@@ -562,7 +571,7 @@ export class Combat {
         this._blast(m.pos, 1.3);
         if (direct) this.damage(direct, m.dmg, m.owner, m.pos);
         this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct);
-        this.w.scene.remove(m.mesh);
+        this.w.scene.remove(m.mesh); m.mesh.userData.glow.material.dispose();
         this.missiles.splice(i, 1);
       }
     }
@@ -794,9 +803,9 @@ export class Combat {
   dispose() {
     const sc = this.w.scene;
     for (const a of this.actors) if (a.model && a.kind !== "player") { sc.remove(a.model); if (a.model.userData.dispose) a.model.userData.dispose(); }
-    for (const m of this.missiles) sc.remove(m.mesh);
+    for (const m of this.missiles) { sc.remove(m.mesh); m.mesh.userData.glow.material.dispose(); }
     for (const p of this.pickups) { sc.remove(p.g); p.mat.dispose(); p.beamMat.dispose(); }
-    this.missileGeo.dispose(); this.missileMat.dispose(); this.pickGeo.dispose(); this.ringGeo.dispose(); this.beamGeo.dispose(); this.haloGeo.dispose();
+    this.missileGeo.dispose(); this.mGlowGeo.dispose(); this.missileMat.dispose(); this.pickGeo.dispose(); this.ringGeo.dispose(); this.beamGeo.dispose(); this.haloGeo.dispose();
     this.s.player.body.boost = 1;
   }
 }

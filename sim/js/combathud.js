@@ -53,6 +53,21 @@ export function drawCombatHud(c, h, o = {}) {
     h.fade(1);
   }
 
+  // 미사일 표지: 나를 노리는 것은 빨간 경고, 내가 쏜 것은 작은 주황 표시
+  for (const m of c.missiles) {
+    const mine = m.owner === p, atMe = m.target === p;
+    if (!mine && !atMe) continue;
+    const d = m.pos.distanceTo(cam.position);
+    if (atMe) { if (Math.floor(s.time * 10) % 2 || d > 60) h.marker(m.pos, cam, "#ff3030", "미사일", d); }
+    else {
+      const sp = h.project(m.pos, cam, h._s);
+      if (!sp.on || d < 6) continue;
+      const r = clamp(260 / d, 4, 10) * u;
+      g.beginPath(); g.moveTo(sp.x, sp.y - r); g.lineTo(sp.x + r, sp.y); g.lineTo(sp.x, sp.y + r); g.lineTo(sp.x - r, sp.y); g.closePath();
+      h.stroke2("#ffa030", 2 * u);
+    }
+  }
+
   if (p.alive) reticle(c, h);
   status(c, h);
 
