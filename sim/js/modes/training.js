@@ -13,6 +13,9 @@ const C_NOW = 0x35ff7a, C_NEXT = 0xffb02e, C_ZONE = 0x3ad8ff;
 export const SITES = {
   factory: { pos: [-2, 0.3, 134], yaw: 0 },
   arena: { pos: [-28, 0.4, -4], yaw: 270 },
+  moon: { pos: [0, 0.3, 80], yaw: 180 },
+  snow: { pos: [60, 0.5, 120], yaw: 0 },
+  palace: { pos: [-15, 0.3, 45], yaw: 0 },
 };
 
 const basic = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: false, side: THREE.DoubleSide });
