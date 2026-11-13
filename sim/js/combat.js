@@ -27,7 +27,7 @@ export const KINDS = {
 };
 
 const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄은 더 느려 보고 피할 수 있다
-export const PLAYER_HP = 250, BOT_HP = 1.75, SHIELD_HP = 200;
+export const PLAYER_HP = 150, BOT_HP = 1.5, SHIELD_HP = 120;
 const RESPAWN = 5;
 const HITBOX = 1.3;       // 내가 쏜 레이저·미사일의 명중 판정 배율 (포탑·코어 등 구조물만, 적 드론은 1배)
 const hb = (o) => (o.kind === "bot" ? 1 : HITBOX);        // 격추 후 재출격까지(초)
@@ -468,7 +468,7 @@ export class Combat {
         }
       }
       if (a.kind === "bot") this._bot(a, dt);
-      else if (a.kind === "turret") this._turret(a, dt);
+      else if (a.kind === "turret") { if (a.targetable) this._turret(a, dt); }   // 숨겨진(미발견) 포탑은 잠들어 있다
       else if (a.kind === "core") { a.orb.rotation.y += dt * 0.8; a.rings[0].rotation.x += dt * 0.9; a.rings[1].rotation.y += dt * 0.7; a.rings[1].rotation.x = 1.2; }
     }
 

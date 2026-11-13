@@ -192,7 +192,7 @@ function status(c, h) {
   h.text(`${Math.max(0, Math.ceil(p.hp))}`, x + w - 10 * u, y + 18 * u, { size: 19, align: "right", base: "middle", mono: true, color: low ? HC.warn : "#fff", shadow: false });
   if (p.shield > 0) {
     g.fillStyle = INK; g.fillRect(bx - 1.5 * u, y + 3.5 * u, bw + 3 * u, 6 * u);
-    g.fillStyle = HC.cyan; g.fillRect(bx, y + 5 * u, bw * clamp(p.shield / 200, 0, 1), 3 * u);
+    g.fillStyle = HC.cyan; g.fillRect(bx, y + 5 * u, bw * clamp(p.shield / 120, 0, 1), 3 * u);
   }
   // 미사일
   const my = y + 33 * u, n = Math.max(4, p.missiles || 0);

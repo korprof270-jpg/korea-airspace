@@ -1,4 +1,4 @@
-// 서바이벌(점수제 전투): 데스매치 / 거점 점령전 (화물 운반전은 스토리 전용)
+// 서바이벌(점수제 전투): 데스매치 / 거점 공략전 (화물 운반전은 스토리 전용)
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
 import { submitRecord, records, fmtTime } from "../config.js";
@@ -6,13 +6,13 @@ import { drawCombatHud } from "../combathud.js";
 
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
-  base: { name: "거점 점령전", icon: "🏰", desc: "맵 어딘가에 숨은 거점 5곳을 찾아내 점령하는 팀전. 거점은 가까이 가야 드러나고, 차지한 만큼 점수가 쌓입니다" },
+  base: { name: "거점 공략전", icon: "🏰", desc: "맵 어딘가에 숨은 적 거점 5곳(코어 + 포탑)을 찾아내 부수고, 아군 기지를 지키는 팀전. 적 거점은 가까이 가야 드러납니다" },
   cargo: { name: "화물 운반전", icon: "📦", desc: "보급 상자를 집어 아군 착륙장으로 운반. 적 운반 드론을 막으면 더 유리합니다", hidden: true },   // 스토리 단계에서만 쓴다
 };
 const TEAM_NAME = ["청팀", "홍팀"];
 const _v = new THREE.Vector3();
-const POINTS = 5, CAP_R = 17, CAP_H = 30, REVEAL_R = 80, CAP_TIME = 7;   // 거점 수, 점령 반경·높이, 드러나는 거리, 혼자 점령하는 데 걸리는 초
-const PT_COL = [0x5aa9ff, 0xff5a66, 0xe8ecf4], PT_CSS = ["#5aa9ff", "#ff5a66", "#e8ecf4"];
+const c0 = (m, t) => m.combat.kill(t, null);
+const POINTS = 5, REVEAL_R = 90;   // 적 거점 수, 드러나는 거리(m)
 
 export class SurvivalMode extends CombatMode {
   constructor(session, cfg) {
@@ -58,11 +58,12 @@ export class SurvivalMode extends CombatMode {
     const allies = Math.floor((n - 1) / 2), enemies = n - allies;
 
     if (v === "base") {
-      this.pads = [this.buildPad(B[0].x, B[0].z, 0), this.buildPad(B[1].x, B[1].z, 1)];
-      this._makePoints(B);
+      this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 1000);
+      this._makeOutposts(B);
       const mk = (team, i) => {
-        const b = c.spawnBot({ kind: hard && team === 1 && i === 0 ? "ace" : "grunt", team, respawns: true });
-        b.ai.slotPt = i;
+        // 아군: 코어·포탑 공략과 기지 방어를 나눠 맡는다. 적: 절반은 우리 기지를 치고 절반은 자기 거점을 지킨다
+        const def = team === 0 ? i % 3 === 2 : i % 2 === 1, op = this.outposts[i % Math.max(1, this.outposts.length)] || { pos: B[1] };
+        const b = c.spawnBot({ kind: hard && team === 1 && i === 0 ? "ace" : "grunt", team, respawns: true, focus: def ? null : i % 2 ? "turret" : "core", home: def ? (team === 0 ? B[0] : op.pos) : null });
         b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
       };
       for (let i = 0; i < allies; i++) mk(0, i);
@@ -84,62 +85,42 @@ export class SurvivalMode extends CombatMode {
     }
   }
 
-  // 거점 5곳을 매 판 다른 자리에 놓는다 (서로·양 팀 기지와 떨어진 열린 곳). 발견 전에는 보이지 않는다
-  _makePoints(B) {
-    const c = this.combat, w = this.s.world, pts = (this.points = []);
-    const ok = (p, gap) => pts.every((q) => Math.hypot(q.pos.x - p.x, q.pos.z - p.z) > gap) && B.every((b) => Math.hypot(b.x - p.x, b.z - p.z) > 55);
-    for (let gap = Math.min(110, w.size * 0.5); pts.length < POINTS && gap > 20; gap *= 0.8) {
-      for (let i = 0; i < 60 && pts.length < POINTS; i++) {
-        const p = c.randomPoint(7, 12, 0.78);
-        if (!ok(p, gap) || w.col.blocked(p, 5)) continue;
-        const gy = w.h(p.x, p.z), g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: PT_COL[2], fog: false });
-        const soft = new THREE.MeshBasicMaterial({ color: PT_COL[2], transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, fog: false });
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(CAP_R, 0.3, 6, 56), mat); ring.rotation.x = Math.PI / 2; ring.position.y = 0.4;
-        const fill = new THREE.Mesh(new THREE.RingGeometry(0.1, CAP_R, 48), soft); fill.rotation.x = -Math.PI / 2; fill.position.y = 0.25;   // 점령 진행에 따라 안쪽부터 차오른다
-        const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 90, 10, 1, true), soft); beam.position.y = 45;
-        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(2.2, 0), mat); gem.position.y = p.y - gy;
-        g.add(ring, fill, beam, gem); g.position.set(p.x, gy, p.z); g.visible = false;
-        w.scene.add(g);
-        pts.push({ pos: p.clone(), name: "거점 " + "ABCDE"[pts.length], v: 0, owner: -1, found: false, g, mat, soft, fill, gem, n: [0, 0] });
+  // 적 거점 5곳(코어 + 포탑 2)을 매 판 다른 자리에 세운다. 발견 전에는 보이지 않고, 쏘지도 맞지도 않는다
+  _makeOutposts(B) {
+    const c = this.combat, w = this.s.world, ops = (this.outposts = []), p = new THREE.Vector3();
+    const flat = (x, z) => { const h0 = w.h(x, z); for (let k = 0; k < 6; k++) { const a = k * 1.047; if (Math.abs(w.h(x + Math.cos(a) * 14, z + Math.sin(a) * 14) - h0) > 3) return false; } return true; };
+    const ok = (x, z, gap) => ops.every((q) => Math.hypot(q.pos.x - x, q.pos.z - z) > gap) && Math.hypot(B[0].x - x, B[0].z - z) > Math.min(120, w.size * 0.55);
+    for (let gap = Math.min(110, w.size * 0.5), strict = true; ops.length < POINTS && gap > 15; gap *= 0.8, strict = gap > 40) {
+      for (let i = 0; i < 80 && ops.length < POINTS; i++) {
+        const q = c.randomPoint(3, 5, 0.78);
+        p.set(q.x, w.h(q.x, q.z) + 7, q.z);
+        if (!ok(p.x, p.z, gap) || w.col.blocked(p, 5) || (strict && !flat(p.x, p.z))) continue;
+        const b = this.buildBase(p.x, p.z, 1, 2, 380);
+        b.name = "적 거점 " + "ABCDE"[ops.length]; b.found = false; b.core.name = b.name;
+        ops.push(b);
+        for (const a of [b.core, ...b.turrets]) this._hide(a, true);
       }
     }
   }
+  _hide(a, hide) {
+    a.targetable = !hide; a.invulnerable = hide; a.model.visible = !hide;
+    for (const k of ["collider", "collider2"]) if (a[k]) a[k].off = hide;
+  }
 
-  // 거점 갱신: 발견 → 점령(한 팀만 있을 때 그 팀 쪽으로 기운다) → 점수
-  _points(dt) {
-    const c = this.combat, h = this.s.hud, me = this.me;
-    this.inPt = null;
-    for (const p of this.points) {
-      p.n[0] = p.n[1] = 0;
+  // 아군이 가까이 가면 적 거점이 드러난다
+  _outposts() {
+    const c = this.combat, h = this.s.hud;
+    for (const b of this.outposts) {
+      if (b.found) continue;
       for (const a of c.actors) {
-        if (!a.alive || (a.kind !== "player" && a.kind !== "bot")) continue;
-        const d = Math.hypot(a.pos.x - p.pos.x, a.pos.z - p.pos.z), dy = a.pos.y - p.g.position.y;
-        if (!p.found && a.team === 0 && d < REVEAL_R) {
-          p.found = true; p.g.visible = true;
-          h.toast(`${p.name} 발견!`, "#ffd24a", 1.6, 24); h.feed(`${a.name} ▸ ${p.name} 발견`, "#ffd24a"); this.s.game.sound.play("lock");
-        }
-        if (d < CAP_R && dy > -2 && dy < CAP_H) { p.n[a.team]++; if (a === me) this.inPt = p; }
+        if (!a.alive || a.team !== 0 || (a.kind !== "player" && a.kind !== "bot")) continue;
+        if (Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) > REVEAL_R) continue;
+        b.found = true;
+        for (const x of [b.core, ...b.turrets]) this._hide(x, false);
+        h.toast(`${b.name} 발견!`, "#ffd24a", 1.6, 24); h.feed(`${a.name} ▸ ${b.name} 발견`, "#ffd24a"); this.s.game.sound.play("lock");
+        break;
       }
-      const t = p.n[0] && !p.n[1] ? 0 : p.n[1] && !p.n[0] ? 1 : -1;
-      if (t >= 0) {
-        const dir = t === 0 ? 1 : -1, before = p.owner;
-        p.v = Math.max(-1, Math.min(1, p.v + dir * (dt / CAP_TIME) * Math.min(2.5, 0.6 + p.n[t] * 0.6)));
-        if (p.owner >= 0 && p.owner !== t && p.v * dir >= 0) p.owner = -1;        // 중립화
-        if (p.v * dir >= 1) p.owner = t;
-        if (p.owner !== before && p.owner === t) {
-          for (const a of c.actors) if (a.alive && a.team === t && (a.kind === "player" || a.kind === "bot") && Math.hypot(a.pos.x - p.pos.x, a.pos.z - p.pos.z) < CAP_R) this._add(a, 300);
-          if (p.found) { h.feed(`${TEAM_NAME[t]} ▸ ${p.name} 점령`, PT_CSS[t]); this.s.game.sound.play(t === 0 ? "lap" : "warn"); }
-          if (this.inPt === p && t === 0) h.toast(`${p.name} 점령  +300`, "#35ff7a", 1.5, 24);
-        }
-      }
-      if (p.owner >= 0) this.team[p.owner] += dt * 6;   // 차지한 거점마다 초당 6점
-      const col = PT_COL[p.owner < 0 ? 2 : p.owner];
-      p.mat.color.setHex(col).multiplyScalar(1.6);
-      p.soft.color.setHex(Math.abs(p.v) > 0.02 ? PT_COL[p.v > 0 ? 0 : 1] : col);
-      p.fill.scale.setScalar(Math.max(0.02, Math.abs(p.v))); p.gem.rotation.y += dt * 1.5;
     }
-    // 다섯 곳을 모두 차지하면 즉시 승리
-    for (const t of [0, 1]) if (this.endT < 0 && this.points.length && this.points.every((p) => p.owner === t)) { this.sweep = t; this.endT = 2; h.toast(`${TEAM_NAME[t]} 전 거점 점령!`, PT_CSS[t], 2, 30); }
   }
 
   _add(a, pts) {
@@ -160,7 +141,8 @@ export class SurvivalMode extends CombatMode {
       }
       return { pos: best, yaw: Math.atan2(best.x, best.z) };
     }
-    const B = this.basePos[a.team], O = this.basePos[1 - a.team];
+    let B = this.basePos[a.team]; const O = this.basePos[1 - a.team];
+    if (this.outposts && a.team === 1) { const live = this.outposts.filter((b) => b.core.alive); if (live.length) B = live[(Math.random() * live.length) | 0].pos; }
     const dir = _v.copy(O).sub(B).setY(0).normalize();
     const ang = Math.random() * Math.PI * 2, r = 26 + Math.random() * 10;
     const p = new THREE.Vector3(B.x + Math.cos(ang) * r + dir.x * 8, 0, B.z + Math.sin(ang) * r + dir.z * 8);
@@ -171,14 +153,6 @@ export class SurvivalMode extends CombatMode {
   }
 
   _botGoal(a) {
-    if (this.points) {
-      // 가까운 적과 싸우는 중이 아니면, 우리 것이 아닌 거점 가운데 자기 몫(번호로 나눔)·가까운 곳으로 간다
-      const t = a.ai.target;
-      if (t && t.pos.distanceTo(a.pos) < 45) return null;
-      let best = null, bs = 1e9;
-      this.points.forEach((p, i) => { if (p.owner === a.team && !p.n[1 - a.team]) return; const d = p.pos.distanceTo(a.pos) * ((i + a.ai.slotPt) % 3 === 0 ? 0.45 : 1); if (d < bs) { bs = d; best = p; } });
-      return best ? best.pos : null;
-    }
     if (this.variant !== "cargo" || a.ai.role !== "courier") return null;
     if (this.cargo.carried(a)) return this.padGoal[a.team];
     const cr = this.cargo.nearestIdle(a.pos);
@@ -194,7 +168,15 @@ export class SurvivalMode extends CombatMode {
       h.feed(`${k.name} ▸ ${a.name}`, k === me ? "#ffd24a" : a === me ? "#ff6b5a" : "#cfd8e3");
       if (k === me) h.toast(`${a.name} 격파  +${pts}`, "#ffd24a", 1.2, 22);
     } else if (drone) h.feed(`${a.name} 추락`, "#9fb4c8");
-    if (a.kind === "core") { this.coreDown = a.team; this.endT = 2; }
+    if (a.kind === "core") {
+      if (!this.outposts || a.team === 0) { this.coreDown = a.team; this.endT = 2; }
+      else {
+        const left = this.outposts.filter((b) => b.core.alive).length;
+        for (const b of this.outposts) if (b.core === a) for (const t of b.turrets) if (t.alive) c0(this, t);   // 코어가 터지면 딸린 포탑도 멈춘다
+        h.toast(left ? `${a.name} 파괴 — 남은 거점 ${left}` : "적 거점 전멸!", "#35ff7a", 1.8, 26);
+        if (!left) { this.coreDown = 1; this.endT = 2; }
+      }
+    }
   }
 
   update(dt) {
@@ -207,7 +189,7 @@ export class SurvivalMode extends CombatMode {
         if (a.isPlayer) { this.s.hud.toast("배달 완료  +300", "#35ff7a", 1.4, 24); this.s.game.sound.play("lap"); }
       });
     }
-    if (this.points) this._points(dt);
+    if (this.outposts) this._outposts();
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (this.time >= this.duration) this._end();
   }
@@ -225,29 +207,24 @@ export class SurvivalMode extends CombatMode {
       });
     } else {
       const [a, b] = this.team.map(Math.round);
-      const win = this.sweep !== undefined ? this.sweep === 0 : this.coreDown !== undefined ? this.coreDown === 1 : a > b;
+      const win = this.coreDown !== undefined ? this.coreDown === 1 : a > b;
       this.finish({
         title: win ? "승리!" : a === b && this.coreDown === undefined ? "무승부" : "패배", sub: `${VARIANTS[this.variant].name} · ${TEAM_NAME[0]} ${a} : ${b} ${TEAM_NAME[1]}`,
         win, record: rec, stars: win ? (a > b * 1.5 ? 3 : 2) : a > b * 0.7 ? 1 : 0, board,
-        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.points ? [{ label: "거점 (청 : 홍)", value: `${this.points.filter((p) => p.owner === 0).length} : ${this.points.filter((p) => p.owner === 1).length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
+        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
       });
     }
-  }
-
-  dispose() {
-    if (this.points) for (const p of this.points) { this.s.world.scene.remove(p.g); p.g.traverse((m) => { if (m.geometry) m.geometry.dispose(); }); p.mat.dispose(); p.soft.dispose(); }
-    super.dispose();
   }
 
   // 임무 목표: 거점 / 화물 / 착륙장
   missionObjective(o) {
     const me = this.me;
-    if (this.points) {
-      // 발견한 거점 가운데 아직 우리 것이 아닌 가장 가까운 곳
+    if (this.outposts) {
+      // 발견한 적 거점 가운데 아직 살아 있는 가장 가까운 코어
       let best = null, bd = 1e9;
-      for (const p of this.points) { if (!p.found || (p.owner === 0 && !p.n[1])) continue; const d = p.pos.distanceTo(me.pos); if (d < bd) { bd = d; best = p; } }
+      for (const b of this.outposts) { if (!b.found || !b.core.alive) continue; const d = b.core.pos.distanceTo(me.pos); if (d < bd) { bd = d; best = b; } }
       if (!best) return null;
-      o.pos = best.pos; o.label = best.name; o.color = PT_CSS[best.owner < 0 ? 2 : best.owner];
+      o.pos = best.core.pos; o.label = best.name; o.color = "#ff5a66";
       return o;
     }
     if (this.cargo && this.state === "run") {
@@ -290,24 +267,23 @@ export class SurvivalMode extends CombatMode {
         h.text(`격추 ${me.kills}`, x + 14 * u, y + 46 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
         if (this.cargo) h.text(`배달 ${this.delivered[0]} : ${this.delivered[1]}`, x + pw - 14 * u, y + 46 * u, { size: 13, align: "right", base: "middle", color: "#b4c2d4", shadow: false });
       }
-      if (this.points) {
-        // 거점 현황: 나침반 아래 다섯 칸 (미발견은 ?)
-        const n = this.points.length, bw = 30 * u, gap = 6 * u, x0 = L.cx - (n * bw + (n - 1) * gap) / 2, by = L.subY + 6 * u;
-        this.points.forEach((p, i) => {
-          const bx = x0 + i * (bw + gap), col = p.found ? PT_CSS[p.owner < 0 ? 2 : p.owner] : "#5b6880";
-          h.plate(bx, by, bw, 20 * u, { skew: 0.2, fill: p.found && p.owner >= 0 ? col : "rgba(12,18,34,0.85)", stroke: p === this.inPt ? "#ffd24a" : undefined });
-          h.text(p.found ? "ABCDE"[i] : "?", bx + bw / 2, by + 11 * u, { size: 12, align: "center", base: "middle", color: p.found && p.owner >= 0 ? "#0b0f24" : col, shadow: false });
-          if (p.found && Math.abs(p.v) > 0.02 && Math.abs(p.v) < 1) h.bar(bx + 3 * u, by + 22 * u, bw - 6 * u, 3 * u, Math.abs(p.v), PT_CSS[p.v > 0 ? 0 : 1]);
-          if (p.found && me.alive) { const d = p.pos.distanceTo(me.pos); if (d > CAP_R) h.marker(p.pos, s.camera, col, p.name, d); }
+      if (this.outposts) {
+        // 적 거점 현황: 나침반 아래 다섯 칸 (미발견 ?, 발견 = 코어 내구도, 파괴 = ✕) + 아군 코어 내구도
+        const n = this.outposts.length, bw = 32 * u, gap = 6 * u, x0 = L.cx - (n * bw + (n - 1) * gap) / 2, by = L.subY + 6 * u;
+        this.outposts.forEach((b, i) => {
+          const bx = x0 + i * (bw + gap), dead = !b.core.alive, col = !b.found ? "#5b6880" : dead ? "#6b7890" : "#ff8a94";
+          h.plate(bx, by, bw, 20 * u, { skew: 0.2, fill: "rgba(12,18,34,0.85)" });
+          h.text(!b.found ? "?" : dead ? "✕" : "ABCDE"[i], bx + bw / 2, by + 11 * u, { size: 12, align: "center", base: "middle", color: col, shadow: false });
+          if (b.found && !dead) {
+            h.bar(bx + 3 * u, by + 22 * u, bw - 6 * u, 3 * u, b.core.hp / b.core.maxHp, "#ff5a66");
+            const bd = b.core.pos.distanceTo(me.pos); if (me.alive && bd > 90) h.marker(b.core.pos, s.camera, "rgba(255,90,102,0.95)", b.name, bd);   // 가까우면 조준 틀이 대신 보인다
+          }
         });
-        const unk = this.points.filter((p) => !p.found).length;
-        if (unk && full) h.text(`숨은 거점 ${unk}곳 — 맵을 탐색하세요`, L.cx, by + 42 * u, { size: 12, align: "center", color: "#ffd24a" });
-        if (this.inPt && me.alive) {
-          const p = this.inPt, both = p.n[0] && p.n[1];
-          const txt = both ? `${p.name} 교전 중 — 적을 몰아내세요` : p.owner === 0 && p.v >= 1 ? `${p.name} 확보` : `${p.name} 점령 중`;
-          h.text(txt, L.cx, h.H * 0.3, { size: 18, align: "center", color: both ? "#ff8a7a" : "#35ff7a" });
-          h.bar(L.cx - 80 * u, h.H * 0.3 + 8 * u, 160 * u, 7 * u, (p.v + 1) / 2, "#5aa9ff", "rgba(255,90,102,0.75)");
-        }
+        const unk = this.outposts.filter((b) => !b.found).length;
+        if (unk && full) h.text(`숨은 적 거점 ${unk}곳 — 맵을 탐색하세요`, L.cx, by + 42 * u, { size: 12, align: "center", color: "#ffd24a" });
+        const hc = this.home.core, hk = hc.hp / hc.maxHp, hw = 150 * u, hy = y + ph + 16 * u;
+        h.text(`아군 코어 · 포탑 ${this.home.turrets.filter((t) => t.alive).length}`, x + 4 * u, hy + 4 * u, { size: 11, color: hk < 0.35 ? "#ff8a7a" : "#8cc4ff" });
+        h.bar(x + 4 * u, hy + 9 * u, hw, 7 * u, hk, hk < 0.35 ? "#ff6b5a" : "#5aa9ff");
       }
       if (this.cargo && me.alive && this.state === "run") {
         if (this.cargo.carried(me)) {
