@@ -5,6 +5,7 @@ import { WY, VOLCANO, RIVER, LAGOON, STRIP, APRON, ROAD, STACKS, LIGHT, REEF, FL
 import { M, frame, beam, flora, rockArch, fallSheet, foamRings, prop } from "./canyon-kit.js";
 import { plume } from "./factory-zones.js";
 import { palmKit, hut, PYRAMID, lavaMaterial, ribbon, gulls, planeParts, boatParts } from "./island-kit.js";
+import { detail, ball } from "./island-detail.js";
 
 export { height };
 
@@ -71,7 +72,7 @@ function crater(w) {
   const lake = new THREE.Mesh(disc, lm); lake.position.set(V.x, V.lake, V.z); w.scene.add(lake);
   w.pool(V.x, V.lake + 0.1, V.z, 34, 0xff7a20, 0.55);
   for (const [dx, dz, s] of [[-7, 4, 3.2], [6, -8, 2.4], [9, 6, 1.8], [-3, -11, 1.5]]) w.blob(V.x + dx, V.lake - 0.2, V.z + dz, s * 1.5, s * 0.5, s, 0x241c1c, { mat: "std:rock", col: false });
-  for (const [dx, dz] of [[3, 2], [-9, -5], [11, -2], [-2, 12]]) w.sph(V.x + dx, V.lake, V.z + dz, 0.9, 0xffd870, { mat: "glow", col: false, sy: 0.4 });
+  for (const [dx, dz] of [[3, 2], [-9, -5], [11, -2], [-2, 12]]) ball(w, V.x + dx, V.lake, V.z + dz, 0.9, 0xffd870, "glow", 0.4);
   plume(w, V.x - 3, V.lake + 6, V.z + 2, 10, 70, 3, 0x7a7478);
   w.gap("분화구 다이브", V.x, 103, V.z, 0, 46, 46, 600, -90);
   const bd = [Math.cos(V.breach), Math.sin(V.breach)];
@@ -88,7 +89,7 @@ function crater(w) {
   F.box(0, 0.8, -20, 7, 1.0, 0.12, 0x9fd0ff, { mat: "glass" });
   F.gap("전망 데크 아래", 0, -4.4, -15.5, 90, 9, 7.4, 700);
   hut(w, DKX + 5.5, y0 + 0.2, DKZ + 4.5, 3.6, 3.2, 0, { wall: 0xe9e2d2, roof: 0x9a3a2a, h: 2.4 });
-  w.pipe(DKX - 6, y0, DKZ + 5, DKX - 6, y0 + 9, DKZ + 5, 0.1, WHITE); w.sph(DKX - 6, y0 + 9.3, DKZ + 5, 0.3, 0xff3030, { mat: "glow", col: false });
+  w.pipe(DKX - 6, y0, DKZ + 5, DKX - 6, y0 + 9, DKZ + 5, 0.1, WHITE); ball(w, DKX - 6, y0 + 9.3, DKZ + 5, 0.3, 0xff3030);
   KEEP.push([DKX, DKZ, 14]);
 }
 
@@ -135,7 +136,7 @@ function lavaRiver(w) {
   }
   F.gap("관측 캠프 컨테이너 사이", 0, 2, -12.5, 0, 4.6, 3.4, 700);
   w.sph(F.X(10, 2), y0, F.Z(10, 2), 3, 0xff8a2a, { mat: "paint", sy: 0.85 });
-  F.pipe(-10, 0, 4, -10, 12, 4, 0.12, WHITE); w.sph(F.X(-10, 4), y0 + 12.3, F.Z(-10, 4), 0.3, 0xff3030, { mat: "glow", col: false });
+  F.pipe(-10, 0, 4, -10, 12, 4, 0.12, WHITE); ball(w, F.X(-10, 4), y0 + 12.3, F.Z(-10, 4), 0.3, 0xff3030);
   w.mesh(K.T.col8, M(F.X(-10, 4), y0 + 8, F.Z(-10, 4) + 1, 1.2, 0.3, 1.2, 60, 0, 0), WHITE, "paint");
   for (const u of [6, 9.2]) F.box(u, 0.6, -5, 2.8, 0.12, 1.8, 0x27405c, { mat: "paint", rx: 28 });
   for (const [u, v, c] of [[-6, 9, 0xd9a441], [-4.6, 9.6, 0x3d8b5a], [-5.4, 8.6, 0xd9a441]]) F.box(u, 0, v, 1, 1, 1, c, { mat: "paint" });
@@ -158,7 +159,7 @@ function lavaTube(w) {
       w.gap("용암 동굴 천창 다이브", mx, fy + 9.8, mz, yawOf(dx, dz), 15, 7.6, 600, -90);
       w.pool(mx, fy + 0.3, mz, 8, 0xfff0c8, 0.5);
     }
-    if (i % 4 === 1) { F.sph(-8.2, 5.2, 0, 0.32, 0xffc860, { mat: "glow", col: false }); w.pool(x, fy + 0.3, z, 7, 0xff8a3a, 0.36); }
+    if (i % 4 === 1) { ball(w, F.X(-8.2, 0), fy + 5.2, F.Z(-8.2, 0), 0.32, 0xffc860); w.pool(x, fy + 0.3, z, 7, 0xff8a3a, 0.36); }
   });
   ribbon(w, tubeL, 0.14, 0.86, 1.1, 0.22, lm, { tile: 6, tu: 0.4 });
   for (const [t, name, pts] of [[0.24, "용암 동굴 입구", 500], [0.5, "용암 동굴 관통", 900], [0.765, "용암 동굴 입구", 500]]) {
@@ -166,7 +167,7 @@ function lavaTube(w) {
     w.gap(name, x, w.h(x, z) + 4.4, z, yawOf(dx, dz), 13, 7.6, pts);
   }
   // 입구 표지: 탐사대의 깃발과 등
-  for (const t of [0.12, 0.88]) { const [x, z] = tubeL.point(t), [dx, dz] = tubeL.dir(t), px = x - dz * 9.5, pz = z + dx * 9.5, y = w.h(px, pz); w.pipe(px, y - 0.3, pz, px, y + 4, pz, 0.08, WHITE); w.box(px, y + 3.1, pz + 0.5, 0.05, 0.8, 1.1, 0xff7a1a, { col: false, ao: false }); w.sph(px, y + 4.2, pz, 0.25, 0xffc860, { mat: "glow", col: false }); }
+  for (const t of [0.12, 0.88]) { const [x, z] = tubeL.point(t), [dx, dz] = tubeL.dir(t), px = x - dz * 9.5, pz = z + dx * 9.5, y = w.h(px, pz); w.pipe(px, y - 0.3, pz, px, y + 4, pz, 0.08, WHITE); w.box(px, y + 3.1, pz + 0.5, 0.05, 0.8, 1.1, 0xff7a1a, { col: false, ao: false }); ball(w, px, y + 4.2, pz, 0.25, 0xffc860); }
 }
 
 // ── 화산 관측소 (서쪽 어깨): 돔 망원경, 연구동, 관측탑, 접시 안테나, 헬기장 ──
@@ -183,7 +184,7 @@ function observatory(w) {
   // 관측탑
   const tx = OX + 17, tz = OZ + 8;
   lattice(w, tx, y0 - 0.5, tz, 30, 3, 1.4, 5, 0xd9432f, WHITE);
-  w.pipe(tx, y0 + 29.5, tz, tx, y0 + 36, tz, 0.1, WHITE); w.sph(tx, y0 + 36.3, tz, 0.35, 0xff3030, { mat: "glow", col: false });
+  w.pipe(tx, y0 + 29.5, tz, tx, y0 + 36, tz, 0.1, WHITE); ball(w, tx, y0 + 36.3, tz, 0.35, 0xff3030);
   w.gap("관측탑 다리 사이", tx, y0 + 2.6, tz, 0, 4.6, 4.6, 700); w.gap("관측탑 다리 사이", tx, y0 + 2.6, tz, 90, 4.6, 4.6, 700);
   // 접시 안테나
   w.cyl(OX + 15, y0 - 0.5, OZ - 14, 0.5, 4.6, STEEL, { mat: "paint" });
@@ -193,7 +194,7 @@ function observatory(w) {
   w.cyl(hx, y0 - 0.2, hz, 6.4, 0.3, 0x4a4d55, { mat: "std:asphalt", col: false, ao: false });
   for (const dx of [-1.5, 1.5]) w.box(hx + dx, y0 + 0.1, hz, 0.5, 0.03, 3.4, WHITE, { col: false, ao: false });
   w.box(hx, y0 + 0.1, hz, 3, 0.03, 0.5, WHITE, { col: false, ao: false });
-  for (let i = 0; i < 8; i++) w.sph(hx + Math.cos(i * 0.785) * 6.2, y0 + 0.15, hz + Math.sin(i * 0.785) * 6.2, 0.16, 0x7aff9a, { mat: "glow", col: false });
+  for (let i = 0; i < 8; i++) ball(w, hx + Math.cos(i * 0.785) * 6.2, y0 + 0.15, hz + Math.sin(i * 0.785) * 6.2, 0.16, 0x7aff9a);
   KEEP.push([OX, OZ, 28]);
 }
 
@@ -309,7 +310,7 @@ function resort(w) {
   }
   for (const dx of [-4.5, 4.5]) w.pipe(8 + dx, -0.4, 160.6, 8 + dx, 2.5, 160.6, 0.08, 0xdadada);
   w.box(8, 1.5, 160.6, 9, 1, 0.05, 0xf4f4f4, { mat: "glass", ao: false });
-  { const fx = 32, fz = 159.5, fy = w.h(fx, fz); for (let i = 0; i < 6; i++) w.blob(fx + Math.cos(i * 1.05) * 0.9, fy + 0.15, fz + Math.sin(i * 1.05) * 0.9, 0.3, 0.25, 0.3, 0x6a655d, { mat: "std:rock", col: false });
+  { const fx = 32, fz = 159.5, fy = w.h(fx, fz); for (let i = 0; i < 6; i++) ball(w, fx + Math.cos(i * 1.05) * 0.9, fy + 0.15, fz + Math.sin(i * 1.05) * 0.9, 0.29, 0x6a655d, "std:rock", 0.8);
     w.cone(fx, fy + 0.1, fz, 0.5, 1.3, 0xff8a2a, { mat: "glow", col: false }); w.pool(fx, fy + 0.05, fz, 7, 0xff9a4a, 0.4); }
   { const tx = 60, tz = 158, ty = w.h(tx, tz);
     for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) w.pipe(tx + dx * 1.2, ty - 0.3, tz + dz * 1.2, tx + dx, ty + 3.4, tz + dz, 0.12, WHITE);
@@ -324,7 +325,7 @@ function resort(w) {
   w.gap("잔교 스치기", PIER_X, 2.3, 190, 90, 34, 2.6, 300);
   place(w, boatParts("fish", 0x2f8fd0), PIER_X + 5.4, WY + 0.2, 204, 4); w.col.addBox(V3(PIER_X + 5.4, WY + 1.2, 203.5), V3(1.3, 1.5, 4.4));
   place(w, boatParts("canoe", 0xffc23a), PIER_X - 3.6, WY + 0.1, 196, -6); place(w, boatParts("ski", 0xe94f37), PIER_X - 3.4, WY + 0.1, 206, 10);
-  w.pipe(PIER_X + 6.5, 0.6, 217.5, PIER_X + 6.5, 4, 217.5, 0.08, WHITE); w.sph(PIER_X + 6.5, 4.2, 217.5, 0.28, 0xffe2a8, { mat: "glow", col: false });
+  w.pipe(PIER_X + 6.5, 0.6, 217.5, PIER_X + 6.5, 4, 217.5, 0.08, WHITE); ball(w, PIER_X + 6.5, 4.2, 217.5, 0.28, 0xffe2a8);
   // 수상 방갈로: 가운데 산책로 양쪽으로 세 쌍, 끝에는 정자
   const by = 1.2;
   jetty(w, WALK_X, 160, WALK_X, 232, 2.6, 0.95, 6);
@@ -341,7 +342,7 @@ function resort(w) {
   w.gap("라군 정자 관통", WALK_X, by + 1.6, 237, 0, 3.4, 2.6, 800);
   // 물놀이 발판과 부표 줄
   w.box(10, WY - 0.2, 196, 5, 0.6, 5, 0xf4f0e6, { mat: "paint" }); w.box(10, WY + 0.4, 196, 1, 1.4, 1, 0xffc23a, { mat: "paint" });
-  for (let i = 0; i < 12; i++) { const a = 0.45 + i * 0.2; w.sph(LAGOON.x + Math.cos(a) * 62, WY + 0.1, LAGOON.z + Math.sin(a) * 36, 0.5, i % 2 ? 0xff7a1a : WHITE, { mat: "paint", col: false }); }
+  for (let i = 0; i < 12; i++) { const a = 0.45 + i * 0.2; ball(w, LAGOON.x + Math.cos(a) * 62, WY + 0.1, LAGOON.z + Math.sin(a) * 36, 0.5, i % 2 ? 0xff7a1a : WHITE, "paint"); }
   // 리조트의 야자수와 꽃 덤불
   for (const [x, z] of [[-48, 147], [-24, 142], [-22, 134], [6, 139], [12, 150], [36, 136], [52, 144], [64, 150], [70, 141], [-58, 156], [-44, 160], [22, 158], [48, 157], [-10, 160], [78, 156], [-66, 148]]) palm(x, z, 7 + r() * 4);
   for (let i = 0; i < 26; i++) { const x = -60 + r() * 130, z = 133 + r() * 18; if (clearOf(x, z, 2)) K.bush(x, z, 0.6 + r() * 0.5, [0xff5a8a, 0xffd23a, 0xf4f0e6, 0xe94f37][(r() * 4) | 0]); }
@@ -356,7 +357,7 @@ function airstrip(w) {
   w.box(S.x, y - 0.07, S.z, 20, 0.12, 186, 0x4a4d55, { mat: "std:asphalt", tile: 8, ...flatO });
   for (let z = S.z - 78; z <= S.z + 78; z += 12) w.box(S.x, y + 0.06, z, 0.5, 0.02, 6, WHITE, flatO);
   for (const e of [-1, 1]) for (let i = -3; i <= 3; i++) w.box(S.x + i * 2.4, y + 0.06, S.z + e * 87, 1.2, 0.02, 7, WHITE, flatO);
-  for (let z = S.z - 92; z <= S.z + 92; z += 23) for (const e of [-1, 1]) w.sph(S.x + e * 10.6, y + 0.25, z, 0.22, e > 0 ? 0x7ad8ff : 0xffe2a8, { mat: "glow", col: false });
+  for (let z = S.z - 92; z <= S.z + 92; z += 23) for (const e of [-1, 1]) ball(w, S.x + e * 10.6, y + 0.25, z, 0.22, e > 0 ? 0x7ad8ff : 0xffe2a8);
   w.box(A.x, y - 0.07, A.z, 38, 0.1, 114, 0xbdb8aa, { mat: "std:concrete", tile: 8, ...flatO });
   w.gap("활주로 저공 통과", S.x, y + 1.7, S.z - 62, 0, 18, 2.6, 300); w.gap("활주로 저공 통과", S.x, y + 1.7, S.z + 62, 0, 18, 2.6, 300);
   // 격납고(남북으로 뚫려 있다)
@@ -373,7 +374,7 @@ function airstrip(w) {
   lattice(w, tx, y, tz, 12, 2.8, 2.3, 3, WHITE, 0xd9432f);
   w.box(tx, y + 12, tz, 6.4, 0.4, 6.4, STEEL); w.box(tx, y + 12.4, tz, 5.4, 1.1, 5.4, WHITE, { mat: "paint" }); w.box(tx, y + 13.5, tz, 5.6, 1.5, 5.6, 0x7fc8e8, { mat: "glass" });
   w.col.addBox(V3(tx, y + 14.2, tz), V3(2.8, 0.8, 2.8)); w.box(tx, y + 15, tz, 6.6, 0.3, 6.6, 0xd9532f, { mat: "paint" });
-  w.pipe(tx + 2, y + 15.3, tz + 2, tx + 2, y + 20, tz + 2, 0.08, WHITE); w.sph(tx + 2, y + 20.2, tz + 2, 0.3, 0xff3030, { mat: "glow", col: false });
+  w.pipe(tx + 2, y + 15.3, tz + 2, tx + 2, y + 20, tz + 2, 0.08, WHITE); ball(w, tx + 2, y + 20.2, tz + 2, 0.3, 0xff3030);
   w.gap("관제탑 다리 사이", tx, y + 2, tz, 0, 4.6, 3.3, 700); w.gap("관제탑 다리 사이", tx, y + 2, tz, 90, 4.6, 3.3, 700);
   const radar = prop(w, [[new THREE.BoxGeometry(3.2, 1.2, 0.2), M(0, 0.9, 0), 0xdadde2], [new THREE.BoxGeometry(0.2, 0.6, 0.2), null, 0x59606a]]);
   radar.position.set(tx - 1.2, y + 15.6, tz - 1.2); w.rider(radar, [[0, 0.9, 0, 1.6, 0.6, 0.3]]);
@@ -430,7 +431,7 @@ function offshore(w) {
   // 등대
   { const { x, z } = LIGHT, y = w.h(x, z) - 0.4;
     [[3.3, 2.9, WHITE], [2.9, 2.6, RED], [2.6, 2.3, WHITE], [2.3, 2.05, RED]].forEach(([r0, r1, c], i) => w.cyl(x, y + i * 5.5, z, r0, 5.5, c, { rt: r1, mat: "paint" }));
-    w.cyl(x, y + 22, z, 3.4, 0.4, STEEL, { mat: "paint" }); w.cyl(x, y + 22.4, z, 1.7, 2.6, 0xbfe6f2, { mat: "glass" }); w.sph(x, y + 23.7, z, 0.8, 0xfff0b0, { mat: "glow", col: false });
+    w.cyl(x, y + 22, z, 3.4, 0.4, STEEL, { mat: "paint" }); w.cyl(x, y + 22.4, z, 1.7, 2.6, 0xbfe6f2, { mat: "glass" }); ball(w, x, y + 23.7, z, 0.8, 0xfff0b0);
     w.cone(x, y + 25, z, 2.3, 2, RED, { mat: "paint", col: false, grad: [0.8, 1.05] });
     hut(w, x - 8, y + 0.9, z + 5, 4, 3.4, 30, { wall: 0xe9e2d2, roof: 0x9a3a2a, h: 2.4 });
     const bm = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 3.2, 70, 10, 1, true).rotateX(Math.PI / 2).translate(0, 0, -36), new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -497,56 +498,81 @@ function build(w) {
   offshore(w);
   life(w);
 
-  // ── 식생·바위: 해안은 야자수, 언덕은 정글, 용암 지대는 바위와 고사목 ──
+  // ── 식생·바위: 해안은 야자수, 언덕은 여러 모양의 정글, 용암 지대는 바위와 고사목 ──
   const sample = (pts, loop) => new THREE.CatmullRomCurve3(pts.map((q) => V3(q[0], 0, q[2])), loop, "centripetal").getPoints(pts.length * 8).map((v) => [v.x, v.z]);
   const LINES = [[sample(ROAD.map(([x, z]) => [x, 0, z]), false), 7, false], [sample(JEEP, true), 6, true], [sample(RUNNER, true), 4, true], ...TRACKS.map((t) => [sample(t.gates.map((g) => g.p), t.loop !== false), 8, t.loop !== false])];
   const inRect = (x, z, q, m) => Math.abs(x - q.x) < q.hx + m && Math.abs(z - q.z) < q.hz + m;
-  const clear = (x, z, m = 0) => {
-    if (inRect(x, z, STRIP, 5 + m) || inRect(x, z, APRON, 3 + m) || lavaL.at(x, z)[0] < 13 + m || lava2L.at(x, z)[0] < 12 + m || tubeL.at(x, z)[0] < 15 + m) return false;
-    if (!clearOf(x, z, m)) return false;
+  // 비행 라인까지의 여유(선마다 정한 폭을 뺀 거리)의 최솟값
+  const lineGap = (x, z) => {
+    let best = 1e9;
     for (const [L, wd, loop] of LINES) for (let i = 0; i < L.length - (loop ? 0 : 1); i++) {
       const a = L[i], b = L[(i + 1) % L.length], dx = b[0] - a[0], dz = b[1] - a[1];
       const t = Math.min(1, Math.max(0, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1)));
-      if (Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < wd + m) return false;
+      best = Math.min(best, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) - wd);
     }
-    return true;
+    return best;
   };
+  const clear = (x, z, m = 0) => {
+    if (inRect(x, z, STRIP, 5 + m) || inRect(x, z, APRON, 3 + m) || lavaL.at(x, z)[0] < 13 + m || lava2L.at(x, z)[0] < 12 + m || tubeL.at(x, z)[0] < 15 + m) return false;
+    return clearOf(x, z, m) && lineGap(x, z) >= m;
+  };
+  // 디테일 보강(island-detail.js): 소품을 먼저 놓아 식생이 그 자리를 피하게 한다. J: 정글 식생 도구
+  const J = detail(w, { K, palm, KEEP, clearOf });
+  // 볼거리 가까이인가: 비행 라인·터 주변은 촘촘하고 정교하게, 먼 곳은 성기고 가볍게 심는다
+  const near = (x, z) => lineGap(x, z) < 38 || FLATS.some((f) => Math.hypot(x - f[0], z - f[1]) < f[2] + 36);
   const scatter = (count, tries, fn) => { let n = 0; for (let i = 0; i < tries && n < count; i++) if (fn((r() * 2 - 1) * 300, (r() * 2 - 1) * 300)) n++; };
   // 해안 평지의 야자수 숲
-  scatter(250, 9000, (x, z) => {
+  scatter(225, 9000, (x, z) => {
     const y = H(x, z);
     if (y < 0.3 || y > 5 || lavaZone(x, z) > 0.42 || slope(x, z) > 0.3 || !clear(x, z)) return false;
     if (forest(x + 90, z) < 0.46 && r() > 0.2) return false;
-    palm(x, z, 6.5 + r() * 4.5); return true;
+    const nr = near(x, z);
+    if (!nr && r() < 0.25) return false;
+    palm(x, z, 6.5 + r() * 4.5, undefined, 0, !nr); return true;
   });
-  // 정글 언덕: 활엽수 사이로 키 큰 야자수
-  scatter(470, 14000, (x, z) => {
-    const y = H(x, z);
-    if (y < 4 || y > 52 || lavaZone(x, z) > 0.32 || slope(x, z) > 0.75 || !clear(x, z)) return false;
+  // 정글 언덕: 활엽수 사이로 우산 모양 큰키나무, 꽃나무, 대나무, 나무고사리, 키 큰 야자수
+  scatter(430, 14000, (x, z) => {
+    const y = H(x, z), sl = slope(x, z);
+    if (y < 4 || y > 52 || lavaZone(x, z) > 0.32 || sl > 0.75 || !clear(x, z)) return false;
     if (forest(x, z) < 0.4 && r() > 0.25) return false;
-    if (r() < 0.13) palm(x, z, 9 + r() * 4, undefined, 0.02); else K.round(x, z, 0.9 + r() * 0.9, 0.29 + r() * 0.06, 0.62);
+    const nr = near(x, z), q = r();
+    if (!nr && r() < 0.3) return false;
+    if (q < 0.11) palm(x, z, 9 + r() * 4, undefined, 0.02, !nr);
+    else if (q < 0.24 && sl < 0.5 && clear(x, z, 3)) J.umbrella(x, z, 0.85 + r() * 0.4);
+    else if (q < 0.285 && clear(x, z, 2)) J.umbrella(x, z, 0.8 + r() * 0.35, J.BLOOM[(r() * 6) | 0]);
+    else if (q < 0.4) J.bamboo(x, z, 0.8 + r() * 0.5);
+    else if (q < 0.51) J.treefern(x, z, 0.9 + r() * 0.5);
+    else J.round(x, z, 0.8 + r() * 1.1, !nr);
     return true;
   });
-  // 덤불: 평지는 꽃, 언덕은 양치류
-  const FLOWER = [0xff5a8a, 0xffd23a, 0xf4f0e6, 0xe94f37, 0xb48cff];
-  scatter(300, 9000, (x, z) => {
+  // 덤불: 평지는 꽃, 언덕은 고사리와 꽃 덤불
+  scatter(330, 9000, (x, z) => {
     const y = H(x, z);
     if (y < 0.5 || y > 62 || lavaZone(x, z) > 0.5 || slope(x, z) > 0.8 || !clear(x, z, -3)) return false;
-    K.bush(x, z, 0.6 + r() * 0.7, y < 5 && r() < 0.45 ? FLOWER[(r() * 5) | 0] : r() < 0.5 ? 0x3e9a44 : undefined); return true;
+    const q = r();
+    if (y < 5) { if (q < 0.5) J.flowers(x, z, 0.7 + r() * 0.6); else J.bush(x, z, 0.6 + r() * 0.7); }
+    else if (q < 0.34) J.fern(x, z, 0.7 + r() * 0.6); else if (q < 0.5) J.flowers(x, z, 0.8 + r() * 0.5); else J.bush(x, z, 0.6 + r() * 0.7);
+    return true;
   });
-  // 용암 지대: 현무암 바위와 불탄 나무
+  // 용암 지대: 현무암 바위와 불탄 나무, 화산 윗자락의 돌 부스러기
   scatter(230, 9000, (x, z) => {
     const y = H(x, z), s = slope(x, z);
     if (y < WY - 0.5 || y > 100 || !(lavaZone(x, z) > 0.45 || s > 0.5) || !clear(x, z, -2)) return false;
-    K.rock(x, z, 0.7 + r() * r() * 3.2, [0x3a363c, 0x2e2a30, 0x4a4248][(r() * 3) | 0]); return true;
+    J.rock(x, z, 0.7 + r() * r() * 3.2, [0x3a363c, 0x2e2a30, 0x4a4248][(r() * 3) | 0]); return true;
+  });
+  scatter(70, 5000, (x, z) => {
+    const y = H(x, z);
+    if (y < 56 || y > 110 || Math.hypot(x - VOLCANO.x, z - VOLCANO.z) < VOLCANO.rim + 2 || !clear(x, z, -2)) return false;
+    J.rock(x, z, 0.5 + r() * 0.75, [0x5a4038, 0x3a3034, 0x6a4a3a][(r() * 3) | 0]); return true;
   });
   scatter(36, 5000, (x, z) => {
     const y = H(x, z), lz = lavaZone(x, z);
     if (y < 1.5 || y > 50 || lz < 0.4 || lz > 0.8 || slope(x, z) > 0.5 || !clear(x, z, 2)) return false;
     K.snag(x, z, 0.7 + r() * 0.5); return true;
   });
-  // 해안의 바위와 강가의 갈대
-  scatter(70, 6000, (x, z) => { const y = H(x, z); if (y < WY - 1.2 || y > WY + 0.6 || lagE(x, z) < 1.3 || !clear(x, z, -2)) return false; K.rock(x, z, 1 + r() * 1.8, lavaZone(x, z) > 0.4 ? 0x3a363c : 0x8a8478); return true; });
+  // 해안의 바위, 모래 언덕의 풀 포기, 강가의 갈대
+  scatter(70, 6000, (x, z) => { const y = H(x, z); if (y < WY - 1.2 || y > WY + 0.6 || lagE(x, z) < 1.3 || !clear(x, z, -2)) return false; J.rock(x, z, 1 + r() * 1.8, lavaZone(x, z) > 0.4 ? 0x3a363c : 0x8a8478); return true; });
+  scatter(90, 6000, (x, z) => { const y = H(x, z); if (y < 0.2 || y > 1.2 || lavaZone(x, z) > 0.4 || !clear(x, z, -2)) return false; K.reed(x, z, 0.5 + r() * 0.4, r() < 0.5 ? 0xb9c86a : 0x9ab85a); return true; });
   scatter(110, 9000, (x, z) => { const y = H(x, z); if (y < WY - 0.2 || y > 0.5 || riverL.at(x, z)[0] > 26) return false; K.reed(x, z, 0.9 + r() * 0.7, r() < 0.5 ? 0x9ac45a : 0x6fae4c); return true; });
 }
 

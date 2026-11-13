@@ -56,17 +56,25 @@ function palmTpl() {
     const fr = [];
     const n = 8;
     for (let i = 0; i < n; i++) { const g = frondGeo(0.4 + rnd() * 0.1, i % 2 ? 0.55 : 0.15, i % 2 ? 0.75 : 0.62, 0.07, (i / n) * Math.PI * 2 + rnd() * 0.5); g.translate(bend, 1, 0); fr.push(g); }
-    return { trunk: mergeGeo([tr, ...nuts]), crown: mergeGeo(fr), bend };
+    // 먼 곳용 가벼운 수관(잎 6장·2마디)과 열매 없는 줄기
+    const fl = [];
+    for (let i = 0; i < 6; i++) { const g = frondGeo(0.42 + rnd() * 0.08, i % 2 ? 0.5 : 0.18, i % 2 ? 0.72 : 0.62, 0.085, (i / 6) * Math.PI * 2 + rnd() * 0.5, 2); g.translate(bend, 1, 0); fl.push(g); }
+    return { trunk: mergeGeo([tr, ...nuts]), crown: mergeGeo(fr), bend, trunkLite: mergeGeo([tr]), crownLite: mergeGeo(fl) };
   });
+  // 땅에서 바로 퍼지는 큰 잎 다발(나무고사리·바나나). 원점 = 잎이 모이는 곳
+  const tf = [];
+  for (let i = 0; i < 7; i++) tf.push(frondGeo(0.85 + rnd() * 0.3, i % 2 ? 0.95 : 0.5, i % 2 ? 0.85 : 0.6, 0.2, (i / 7) * Math.PI * 2 + rnd() * 0.5, 2));
+  PALM.tuft = mergeGeo(tf);
   return PALM;
 }
+export const palmGeo = () => palmTpl();
 // 야자수 심기 함수. palm(x, z, 높이, 방향(도), 잎 색)
 export function palmKit(w) {
   const T = palmTpl(), r = w.rand;
-  return (x, z, h = 8, yaw = r() * 360, hue = 0) => {
+  return (x, z, h = 8, yaw = r() * 360, hue = 0, lite = false) => {
     const k = (r() * 3) | 0, t = T[k], y = w.h(x, z) - 0.25, m = M(x, y, z, h, h, h, 0, yaw, 0);
-    w.mesh(t.trunk, m, [0x9a7b52, 0x8a6a48, 0xa68658][k], "std");
-    w.mesh(t.crown, m, new THREE.Color().setHSL(0.27 + hue + r() * 0.04, 0.62, 0.3 + r() * 0.06).getHex(), "foliage");
+    w.mesh(lite ? t.trunkLite : t.trunk, m, [0x9a7b52, 0x8a6a48, 0xa68658][k], "std");
+    w.mesh(lite ? t.crownLite : t.crown, m, new THREE.Color().setHSL(0.24 + hue + r() * 0.09, 0.56 + r() * 0.12, 0.28 + r() * 0.1).getHex(), "foliage");
     const a = yaw * DEG, tx = x + t.bend * h * Math.cos(a), tz = z - t.bend * h * Math.sin(a);
     w.col.addCapsule(V3(x, y, z), V3(tx, y + h, tz), 0.03 * h + 0.08);
     w.col.addSphere(V3(tx, y + h, tz), 0.13 * h);

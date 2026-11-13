@@ -72,7 +72,7 @@ function smooth(pts, sub = 5) {
 const polyLen = (pts) => { let s = 0; for (let i = 0; i < pts.length - 1; i++) s += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); return s; };
 const bbox = (pts, m) => [Math.min(...pts.map((p) => p[0])) - m, Math.max(...pts.map((p) => p[0])) + m, Math.min(...pts.map((p) => p[1])) - m, Math.max(...pts.map((p) => p[1])) + m];
 const inBB = (x, z, b) => x > b[0] && x < b[1] && z > b[2] && z < b[3];
-function line(cp, margin, sub = 5) {
+export function line(cp, margin, sub = 5) {
   const pts = smooth(cp, sub), len = polyLen(pts), bb = bbox(pts, margin);
   return {
     pts, len,
@@ -212,17 +212,38 @@ export function colorFn(x, y, z, slope) {
   if (dv < V.rim + 4) return mix(mix(0x4a3630, 0x6a4034, n), 0xc9b24a, sm(0.56, 0.7, n2) * sm(V.rim, 18, dv) * 0.8);
   // 모래: 남·서는 흰 모래, 용암 지대는 검은 모래
   const sandC = mix(mix(0xfff4d6, 0xf3e2b4, n), 0x3c3a3c, sm(0.25, 0.6, lz));
-  if (y < 0.05) return mix(mix(0xd9cfa0, 0x35343a, sm(0.25, 0.6, lz)), sandC, sm(-2.2, -0.6, y));
+  if (y < 0.05) {
+    let c = mix(mix(0xd9cfa0, 0x35343a, sm(0.25, 0.6, lz)), sandC, sm(-2.2, -0.6, y));
+    // 물가의 젖은 모래 띠
+    c = mix(c, mix(0xc4ac74, 0x262428, sm(0.25, 0.6, lz)), 0.6 * sm(-2.5, -1.4, y) * sm(0.05, -0.8, y));
+    // 라군 바닥의 해초밭과 산호 얼룩, 바깥 얕은 바다의 암초 얼룩
+    if (y < -2.2 && lagE(x, z) < 1) { c = mix(c, 0x3f9f8a, sm(0.55, 0.62, n2) * 0.85); c = mix(c, 0xf2a488, sm(0.4, 0.33, n2) * 0.6); }
+    else if (y < -1.9 && y > -4.1) c = mix(c, 0x3f8f86, sm(0.58, 0.66, n2) * 0.6);
+    return c;
+  }
   const [dt, tt] = tubeL.at(x, z);
   const [dd] = roadL.at(x, z);
   // 화산 사면: 높을수록 붉은 화산재, 용암 지대는 현무암, 나머지는 풀
   const scoria = mix(mix(0x5a3a30, 0x7a4632, n), 0x3a3034, sm(0.4, 0.7, n2));
-  const grassC = mix(mix(0x86cc4c, 0x5fae3e, n), 0x3e9440, sm(0.42, 0.6, forest(x, z)) * sm(6, 20, y));
+  const fo = forest(x, z), fl = fbm(x * 0.045 + 31, z * 0.045 + 17, 2);
+  let grassC = mix(mix(0x86cc4c, 0x5fae3e, n), 0x3e9440, sm(0.42, 0.6, fo) * sm(6, 20, y));
+  // 풀밭의 변화: 볕 드는 마른 풀밭, 깊은 숲 그늘, 노랑·분홍 꽃밭
+  grassC = mix(grassC, 0xb4d058, sm(0.56, 0.7, n2) * sm(0.5, 0.36, fo) * 0.75);
+  grassC = mix(grassC, 0x2c7a3c, sm(0.6, 0.72, fo) * sm(8, 24, y) * 0.65);
+  grassC = mix(grassC, fl > 0.5 ? 0xe9cc4e : 0xdf7fae, sm(0.2, 0.27, Math.abs(fl - 0.5)) * sm(0.52, 0.4, fo) * sm(44, 30, y) * 0.6);
   let c = mix(grassC, mix(0x74a844, scoria, sm(46, 76, y)), sm(34, 62, y));
+  // 화산 사면의 골: 식은 용암이 흘러내린 어두운 줄기와 밝은 화산재 능선, 정상부의 유황빛
+  if (dv < 172 && y > 40) {
+    const gu = 1 - Math.abs(Math.sin(Math.atan2(z - V.z, x - V.x) * 8 + fbm(x * 0.008 + 3, z * 0.008 + 7) * 7)), gk = sm(44, 70, y);
+    c = mix(c, 0x2a2428, sm(0.6, 0.9, gu) * 0.5 * gk);
+    c = mix(c, 0x9a6248, sm(0.34, 0.06, gu) * 0.34 * gk);
+    c = mix(c, 0xa8985a, sm(102, 113, y) * sm(0.4, 0.62, n2) * 0.5);
+  }
   c = mix(c, basalt, Math.max(sm(0.3, 0.7, lz) * sm(1.0, 2.5, y), sm(86, 104, y) * 0.6));
   if (dt < 30) c = mix(c, mix(0x38343a, 0x1c1a20, sm(13, 8, dt)), sm(30, 16, dt) * sm(0.0, 0.12, tubeK(tt) + 0.02));
   if (slope > 0.34) c = mix(c, mix(mix(0x6a6258, 0x4c4850, n2), basalt, Math.max(lz, sm(60, 90, y))), sm(0.34, 0.46, slope));
-  if (y < 2.2) c = mix(sandC, c, sm(0.9, 2.2, y) * (dd < 9 ? 0 : 1));
+  // 모래밭의 물결 무늬
+  if (y < 2.2) c = mix(mix(sandC, mix(0xe2c98e, 0x2e2c30, sm(0.25, 0.6, lz)), sm(0.25, 0.8, 0.5 + 0.5 * Math.sin(x * 0.52 + z * 0.3 + n * 12)) * 0.42), c, sm(0.9, 2.2, y) * (dd < 9 ? 0 : 1));
   if (dd < 9) c = mix(mix(0xe9d8a8, 0x4a4648, sm(0.3, 0.6, lz)), c, sm(4.5, 9, dd));
   return c;
 }
