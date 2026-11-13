@@ -11,8 +11,9 @@ import { TrackingMode } from "./modes/tracking.js";
 import { FreestyleMode } from "./modes/freestyle.js";
 import { SurvivalMode } from "./modes/survival.js";
 import { ChallengeMode } from "./modes/challenge.js";
+import { TrainingMode } from "./modes/training.js";
 
-const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode };
+const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode };
 
 export class Session {
   constructor(game, cfg) {

@@ -288,7 +288,38 @@ function vChallenge() {
   };
 }
 
-const VIGNETTES = { race: vRace, tracking: vTracking, freestyle: vFreestyle, survival: vSurvival, challenge: vChallenge };
+// 비행훈련: 착륙장 위에서 링 세 개를 8자로 꿰는 훈련기
+function vTraining() {
+  const g = new THREE.Group(), legM = toonMat({ color: 0x1d2236 });
+  const pad = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.25, 40), glow(0xffd24a, 2)); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.004; g.add(pad);
+  for (const [x, z, w, d] of [[-0.07, 0, 0.025, 0.2], [0.07, 0, 0.025, 0.2], [0, 0, 0.14, 0.025]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.004, d), glow(0xffd24a, 1.6)); b.position.set(x, 0.004, z); g.add(b); }
+  const rings = [[-0.62, 0.42], [0.62, 0.42]].map(([x, y], i) => {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.014, 10, 40), glow(i ? 0x35ff7a : 0xffb02e, 2.4)); m.position.set(x, y, 0); g.add(m);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, y - 0.2 + 0.06, 8), legM); leg.position.set(x, (y - 0.2 - 0.06) / 2, 0); g.add(leg);
+    return m;
+  });
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, c = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 10), toonMat({ color: 0xff7a1a })); c.position.set(Math.cos(a) * 1.05, -0.01, Math.sin(a) * 1.05); g.add(c); }
+  const me = playerDrone(1.3); g.add(me);
+  const trail = new Trail(g, "#ffd24a", 26, 0.014);
+  let ph = 0;
+  return {
+    group: g,
+    view: { dist: 2.5, h: 1.0, look: 0.3, angle: 0.5, spin: 0.07 },
+    tick(dt, t) {
+      ph += dt * 0.9;
+      // 8자(렘니스케이트): 두 링을 번갈아 통과
+      const s = Math.sin(ph), c = Math.cos(ph);
+      me.position.set(0.62 * s, 0.42 + Math.sin(ph * 2) * 0.03, 0.42 * s * c);
+      _a.set(0.62 * c, 0, 0.42 * Math.cos(ph * 2)); _b.set(-s * 0.9, 1, 0).normalize();
+      orient(me, _a, _b, 0.2);
+      me.userData.tick(dt, 0.7, t);
+      trail.tick(dt, me.position);
+      rings.forEach((r, i) => r.material.color.set((s > 0) === (i === 1) ? 0x35ff7a : 0xffb02e).multiplyScalar(2.4));
+    },
+  };
+}
+
+const VIGNETTES = { race: vRace, tracking: vTracking, freestyle: vFreestyle, survival: vSurvival, challenge: vChallenge, training: vTraining };
 
 // ── 무대 ───────────────────────────────────────────────────
 export class MenuScene {

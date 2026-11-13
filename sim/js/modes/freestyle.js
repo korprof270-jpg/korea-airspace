@@ -90,8 +90,8 @@ export class FreestyleMode extends Mode {
       if (y) this.award("요 스핀", 90, "yaw");
 
       // 다이브: 빠르게 떨어진 높이만큼
-      if (b.vel.y < -11) { if (this.dive === 0) this.diveTop = b.pos.y; this.dive = this.diveTop - b.pos.y; }
-      else if (this.dive > 0 && b.vel.y > -4) { if (this.dive > 10) this.award(`다이브 ${this.dive.toFixed(0)}m`, this.dive * 12, "dive"); this.dive = 0; }
+      if (b.vel.y < -11) { if (!this.diving) { this.diving = true; this.diveTop = b.pos.y; } this.dive = this.diveTop - b.pos.y; }
+      else if (this.diving && b.vel.y > -4) { if (this.dive > 10) this.award(`다이브 ${this.dive.toFixed(0)}m`, this.dive * 12, "dive"); this.dive = 0; this.diving = false; }
 
       // 근접 비행: 장애물·지면 가까이를 빠르게
       const near = b.speed > 9 ? s.world.col.nearest(b.pos, 2.4) : 9;
@@ -109,7 +109,7 @@ export class FreestyleMode extends Mode {
       else { if (this.inv > 1) this.award(`배면 비행 ${this.inv.toFixed(1)}초`, this.inv * 90, "inv"); this.inv = 0; }
     } else {
       this.acc.roll = this.acc.pitch = this.acc.yaw = 0;
-      this.dive = 0; this.prox = 0; this.proxPts = 0; this.inv = 0;
+      this.dive = 0; this.diving = false; this.prox = 0; this.proxPts = 0; this.inv = 0;
       if (b.onGround && this.mult > 1 && b.speed < 1) this.breakCombo();
     }
 

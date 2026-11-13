@@ -10,6 +10,7 @@ import { UI } from "./ui.js";
 import { PostFX } from "./post.js";
 import { MenuScene, Thumbs } from "./menu3d.js";
 import { complete as completeStage } from "./story.js";
+import { complete as completeLesson } from "./training.js";
 
 const MENU_BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.92 };
 
@@ -130,6 +131,7 @@ class Game {
 
   showResult(result) {
     if (this.lastCfg && this.lastCfg.story) result.story = completeStage(this.lastCfg.story, result);   // 스토리 단계 판정·진행도 저장
+    if (this.lastCfg && this.lastCfg.training) result.training = completeLesson(this.lastCfg.training, result);   // 비행훈련 과목 판정
     this.state = "result";
     this.ui.show("result", result);
     this._touchLayer();

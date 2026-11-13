@@ -7,10 +7,13 @@ import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
 import { VARIANTS } from "./modes/survival.js";
 import { MISSIONS } from "./modes/challenge.js";
+import * as TR from "./training.js";
 import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
+  training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 모드를 이륙부터 곡예까지 과목별 과제로 익히는 훈련 과정",
+    long: "스틱을 놓아도 수평으로 돌아오지 않는 ACRO(수동) 모드를 처음부터 배웁니다. 과목마다 주어진 과제를 순서대로 해내면 다음 과목이 열립니다.", tags: ["3개 과정 · 17개 과목", "과제별 요령 안내", "ACRO 전용"] },
   race: { name: "레이싱", en: "RACE", icon: "🏁", c: "#ff5a1f", desc: "게이트와 경로를 순서대로 통과하며 기록과 순위에 도전",
     long: "네온 게이트와 공중 링을 순서대로 통과하세요. 통과할 때마다 다음 게이트로 가는 길이 화면과 공중에 표시됩니다.", tags: ["코스 13개", "AI 라이벌 최대 5기", "랩·구간 기록"] },
   tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "차량·사람·드론 등 움직이는 피사체를 화면에 담아 따라가기",
@@ -22,6 +25,8 @@ const MODE_META = {
   challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "신입 파일럿이 되어 챕터마다 단계를 하나씩 깨 나가는 이야기",
     long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·촬영·호송·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
+// 비행훈련장으로 쓸 수 있는 맵 (출발 지점 앞이 넓게 비어 있는 곳)
+const TR_MAPS = ["factory", "arena"].filter((id) => MAPS[id]);
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -154,7 +159,7 @@ export class UI {
     const m = MODE_META[id];
     return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.long}</p>
       <ul class="tags">${m.tags.map((t) => `<li>${t}</li>`).join("")}</ul>
-      <button class="primary go" data-a="mode" data-v="${id}">모드 설정 <span aria-hidden="true">→</span></button>`;
+      <button class="primary go" data-a="mode" data-v="${id}"${id === "training" ? ' style="color:var(--ink);text-shadow:none"' : ""}>모드 설정 <span aria-hidden="true">→</span></button>`;
   }
 
   s_main() {
@@ -257,8 +262,53 @@ export class UI {
     </div>`;
   }
 
+  // 비행훈련: ① 과정 ② 과목 ③ 브리핑·과제
+  s_training() {
+    const s = this.sel, m = MODE_META.training, prog = TR.progress(), all = TR.LESSONS;
+    let cur = all.find((l) => l.id === s.lesson);
+    if (cur && s.course && cur.course !== s.course) cur = null;
+    const co = TR.COURSES.find((c) => c.id === (cur ? cur.course : s.course)) || TR.COURSES.find((c) => c.id === all[Math.min(prog, all.length - 1)].course);
+    const list = TR.lessonsOf(co.id);
+    if (!cur) cur = list.find((l) => l.index === prog) || [...list].reverse().find((l) => TR.unlocked(l)) || list[0];
+    s.course = co.id; s.lesson = cur.id;
+    if (!TR_MAPS.includes(s.tmap)) s.tmap = TR_MAPS[0];
+    const coCards = TR.COURSES.map((c, i) => {
+      const ls = TR.lessonsOf(c.id), done = ls.filter((l) => l.index < prog).length, open = TR.unlocked(ls[0]);
+      return `<button class="card ${c.id === co.id ? "sel" : ""} ${open ? "" : "locked"}" data-a="sel" data-k="course" data-v="${c.id}">
+        <div class="ic">${["🛫", "🧭", "🌀"][i]}</div><div class="tag">${open ? `${done}/${ls.length}` : "🔒"}</div>
+        <div class="nm"><small>${c.en}</small>${c.name}</div><div class="ds">${c.desc}</div></button>`;
+    }).join("");
+    const lCards = list.map((l) => {
+      const open = TR.unlocked(l), cleared = l.index < prog;
+      return `<button class="card stage ${l.id === cur.id ? "sel" : ""} ${open ? "" : "locked"} ${cleared ? "cleared" : ""}" data-a="sel" data-k="lesson" data-v="${l.id}">
+        <span class="sno">${open ? l.no : "🔒"}</span><span class="stx"><b>${l.name}</b><small>과제 ${l.tasks.length}개 · 기준 ${l.par}초${l.limit ? ` · 제한 ${l.limit}초` : ""}</small></span>
+        <span class="stars">${cleared ? starStr(TR.lessonStars(l)) : open ? "도전" : ""}</span></button>`;
+    }).join("");
+    const open = TR.unlocked(cur);
+    let brief = `<div class="brief"><div class="bk">${co.en} · ${co.name} ${cur.no}</div><p>${esc(cur.brief)}</p>
+      <ol class="tasks">${cur.tasks.map((t) => `<li>${esc(t.text)}</li>`).join("")}</ol>
+      <div class="goal">평가 <b>★★★ 추락 없이 ${cur.par}초 안에</b></div></div>`;
+    if (!open) brief += `<p class="hint2">앞 과목을 먼저 통과해야 열립니다.</p>`;
+    brief += `<div class="opt"><label>훈련장</label>${this.seg("tmap", TR_MAPS.map((id) => [id, MAPS[id].name]), s.tmap)}</div>`;
+    brief += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
+    brief += `<p class="hint2">훈련은 ACRO 모드로만 진행합니다. 추락하면 출발 지점에서 다시 시작하고, 하던 과제부터 이어집니다.</p>`;
+    const body = this._step(1, "과정 선택", co.name, `<div class="grid c3">${coCards}</div>`)
+      + this._step(2, "과목 선택", `${cur.no}. ${cur.name}`, `<div class="stages">${lCards}</div>`)
+      + this._step(3, "브리핑", "", brief);
+    return `<div class="screen split tr" style="--c:${m.c}">
+      <div class="pane" data-scroll>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2><span class="prog">${prog}/${all.length} 과목</span></div>
+        ${body}
+        <div class="startbar"><span class="sum">${esc(co.name)} · ${cur.no}. ${esc(cur.name)} · ACRO</span>
+          <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "훈련 시작" : "잠김"} <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div class="rcol"><div class="stage" data-stage></div></div>
+    </div>`;
+  }
+
   s_setup() {
     if (this.sel.mode === "challenge") return this.s_story();
+    if (this.sel.mode === "training") return this.s_training();
     const s = this.sel, m = MODE_META[s.mode];
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
@@ -336,10 +386,11 @@ export class UI {
     const k = el.dataset.k;
     this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
     if (k === "chapter") this.sel.stage = null;
+    if (k === "course") this.sel.lesson = null;
     this._persist();
     this.redraw();
     // 고른 다음 단계가 보이게 내린다 (맵 → 2단계, 2단계 → 옵션)
-    const next = k === "map" || k === "chapter" ? 2 : ["track", "subject", "fs", "variant", "mission", "stage"].includes(k) ? 3 : 0;
+    const next = k === "map" || k === "chapter" || k === "course" ? 2 : ["track", "subject", "fs", "variant", "mission", "stage", "lesson"].includes(k) ? 3 : 0;
     const stepEl = next && this.root.querySelector(`[data-step="${next}"]`);
     if (stepEl) stepEl.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
@@ -351,6 +402,11 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time });
+    else if (s.mode === "training") {
+      const l = TR.LESSONS.find((x) => x.id === s.lesson);
+      if (!l || !TR.unlocked(l)) return;
+      return this.game.startSession(TR.lessonConfig(l, s.tmap));
+    }
     else if (s.mode === "challenge") {
       const st = story().flat.find((x) => x.id === s.stage);
       if (!st || !unlocked(st)) return;
@@ -588,12 +644,28 @@ export class UI {
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
       ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>` : ""}
+      ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">
+        ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
         ${r.story && r.story.next ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
-        <button class="${r.story && r.story.next ? "" : "primary"}" data-a="restart">${r.story && !r.story.passed ? "다시 도전" : "다시 하기"}</button>
+        <button class="${(r.story && r.story.next) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
         ${r.story ? `<button data-a="tostory">단계 목록으로</button>` : ""}
+        ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div></div></div>`;
+  }
+  a_nextlesson(v) {
+    const l = TR.LESSONS.find((x) => x.id === v);
+    if (!l) return;
+    this.sel.course = l.course; this.sel.lesson = l.id; this._persist();
+    this.game.startSession(TR.lessonConfig(l, (this.game.lastCfg || {}).map || this.sel.tmap));
+  }
+  a_totraining() {
+    const cur = TR.LESSONS.find((x) => x.id === (this.game.lastCfg || {}).training), nx = cur && TR.LESSONS[cur.index + 1];
+    const to = nx && TR.unlocked(nx) ? nx : cur;
+    if (to) { this.sel.course = to.course; this.sel.lesson = to.id; }
+    this.sel.mode = "training"; this._persist();
+    this.game.quit(); this.show("setup");
   }
   a_nextstage(v) {
     const st = story().flat.find((x) => x.id === v);

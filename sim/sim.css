@@ -347,3 +347,11 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .sres { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0 2px; padding: 9px 12px; border-radius: 12px; border: 2px solid var(--ink); font-size: 13px; }
 .sres.ok { background: rgba(61, 214, 140, 0.18); } .sres.ok b { color: var(--ok); }
 .sres.no { background: rgba(255, 90, 74, 0.16); } .sres.no b { color: #ff7a6a; }
+
+/* 비행훈련 */
+.brief .tasks { margin: 0 0 12px; padding-left: 22px; font-size: 13.5px; line-height: 1.7; color: var(--fg); }
+.brief .tasks li::marker { color: var(--c); font-weight: 800; }
+.card .nm small { display: block; font-size: 10px; letter-spacing: 0.12em; color: var(--c); }
+.grid.c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .grid.c3 { grid-template-columns: 1fr; } }
+.screen.tr .startbar .primary { color: var(--ink); text-shadow: none; }
