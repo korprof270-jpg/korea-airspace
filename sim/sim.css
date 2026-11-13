@@ -220,7 +220,7 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 @keyframes ph { to { background-position: -220% 0; } }
 .mitem.on .thumb { border-color: var(--c); }
 
-.dock { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dock { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .dk { display: flex; align-items: center; gap: 10px; text-align: left; text-decoration: none; color: var(--fg); padding: 9px 11px; border-radius: 12px;
   border: 2px solid var(--ink); background: #1b2540; box-shadow: 0 3px 0 var(--ink); min-width: 0; }
 .dk:hover { background: #26335a; }
@@ -266,7 +266,7 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
   .mitem small { display: none; }
   .mitem b { font-size: 14px; }
   .thumb { border-radius: 7px; }
-  .dock { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .dock { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .dk { justify-content: center; padding: 7px 4px; }
   .dk span { display: none; }
   .cap { padding: 11px 14px; width: min(340px, 100%); border-radius: 14px; }

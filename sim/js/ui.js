@@ -177,7 +177,6 @@ export class UI {
           <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>
           <button class="dk" data-a="go" data-v="settings"><i aria-hidden="true">⚙</i><span><b>설정</b><small>MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</small></span></button>
           <button class="dk" data-a="go" data-v="help"><i aria-hidden="true">🎮</i><span><b>조작법</b><small>키보드·패드·터치</small></span></button>
-          <a class="dk" href="../index.html"><i aria-hidden="true">🗺</i><span><b>공역 지도</b><small>비행 가능 구역</small></span></a>
         </div>
       </div>
       <div class="rcol"><div class="stage" data-stage></div><section class="cap">${this._cap(cur)}</section></div>
