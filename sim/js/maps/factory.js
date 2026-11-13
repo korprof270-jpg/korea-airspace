@@ -1,5 +1,6 @@
 // 맵 2: 석양의 항만 — 부두·창고·야적장을 중심으로 조선소(서), 정유 단지와 수로·사장교(동), 조차장(남), 방파제와 등대(바다)
 import * as THREE from "../../vendor/three.module.min.js";
+import { detail } from "./factory-detail.js";
 import { QUAY, CH0, CH1, BRIDGE_Z, TOWER, HULL, TUG_PATH, channel, refinery, conveyor, shipyard, fishMarket, railYard, site, reefers, seaside, stockyard, plume } from "./factory-zones.js";
 
 // 축에 나란한 벽에 구멍(문·창)을 뚫어 만든다. axis: "x"(동서 방향 벽) | "z"(남북 방향 벽)
@@ -241,6 +242,7 @@ function build(w) {
     for (const dx of [-1.3, 0, 1.3]) w.box(x + dx, 23.8, z, 0.9, 0.2, 1.2, 0xfff0c8, { mat: "glow", col: false });
     w.pool(x, 0, z, 26, 0xffe2b0, 0.42); w.shaft(x, 23.8, z, 0.5, 9, 23.6, 0xffe2b0, 0.014);
   }
+  detail(w);   // 디테일 보강 (factory-detail.js): 바닥 표시·소품·간판·움직이는 요소·원경
 }
 
 const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
