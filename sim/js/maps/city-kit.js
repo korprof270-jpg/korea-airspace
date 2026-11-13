@@ -108,7 +108,7 @@ export function tree(w, x, y, z, s = 1, o = {}) {
   const n = o.blobs || 3;
   for (let i = 0; i < n; i++) {
     const a = r() * 6.283, d = i ? cr * 0.45 : 0, br = cr * (i ? 0.62 + r() * 0.2 : 0.9);
-    w.mesh(G.leaf(i % 3), TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.25 + r() * 0.3 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * 0.8, br), _c.set(base).offsetHSL(0, 0, (r() - 0.5) * 0.05).getHex(), "leaf");
+    w.mesh(G.leaf(i % 3), TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.25 + r() * 0.3 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * 0.8, br), _c.set(base).offsetHSL(0, 0, (r() - 0.5) * 0.05).getHex(), "foliage");
   }
   if (o.col !== false) {
     w.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h, z), 0.3 * s);

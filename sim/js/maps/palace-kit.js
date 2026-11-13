@@ -256,7 +256,7 @@ export function autumn(w, x, z, s = 1, kind = "maple", o = {}) {
   const base = _c.setHSL((hu + (r() - 0.5) * 0.035 + 1) % 1, sa, lu + (r() - 0.5) * 0.06).getHex(), n = o.blobs || 3;
   for (let i = 0; i < n; i++) {
     const a = r() * 6.283, d = i ? cr * 0.48 : 0, br = cr * (i ? 0.6 + r() * 0.2 : 0.9), sy = kind === "ginkgo" ? 1.15 : 0.8;
-    w.mesh(G.leaf(i % 3), TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.2 + r() * 0.35 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * sy, br), _c.set(base).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.07).getHex(), "leaf");
+    w.mesh(G.leaf(i % 3), TRS(x + Math.cos(a) * d, y + h + cr * (i ? 0.2 + r() * 0.35 : 0.5), z + Math.sin(a) * d, r() * 360, br, br * sy, br), _c.set(base).offsetHSL((r() - 0.5) * 0.02, 0, (r() - 0.5) * 0.07).getHex(), "foliage");
   }
   if (o.litter !== false && y > -0.3 && y < 0.3) w.mesh(G.cyl(8), TRS(x + (r() - 0.5), 0.06 + r() * 0.03, z + (r() - 0.5), r() * 360, cr * 1.25, 0.04, cr * 1.05), _c.set(base).offsetHSL(0, -0.1, -0.04).getHex(), "std");   // 낙엽 깔개
   if (o.col !== false) {

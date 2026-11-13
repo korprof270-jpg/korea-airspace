@@ -47,7 +47,7 @@ function village(w, K, KEEP) {
     for (let i = 0; i < 5; i++) {
       const t = i / 4, r = 7.4 - t * 5, hh = 7.4 - t * 2, yy = y + 3 + i * 4;
       w.cone(x, yy, z, r, hh, i % 2 ? 0x1f5a3a : 0x24683f, { col: i < 4 });
-      w.mesh(K.T.coneO, M(x, yy + hh * 0.42, z, r * 0.66, hh * 0.6, r * 0.66, 0, i * 40, 0), SNOW, "leaf");
+      w.mesh(K.T.coneO, M(x, yy + hh * 0.42, z, r * 0.66, hh * 0.6, r * 0.66, 0, i * 40, 0), SNOW, "foliage");
       for (let k = 0; k < 7; k++) { const a = (k / 7) * 6.283 + i, rr = r * 0.8; w.box(x + Math.cos(a) * rr, yy + hh * 0.16, z + Math.sin(a) * rr, 0.5, 0.5, 0.5, [0xff5a4a, 0xffd23a, 0x4ad0ff, 0xff7ad0][(k + i) % 4], { mat: "glow", col: false }); }
     }
     w.mesh(PYR, M(x, y + 24.4, z, 0.9, 2.2, 0.9), 0xffe27a, "glow"); w.mesh(PYR, M(x, y + 25.6, z, 0.9, 2.2, 0.9, 180, 0, 0), 0xffe27a, "glow");

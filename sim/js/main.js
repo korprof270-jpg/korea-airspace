@@ -1,7 +1,7 @@
 // 부트스트랩: 렌더러·입력·사운드·UI 를 만들고 메뉴 ↔ 게임 상태를 관리
 import "./rotate.js";
 import * as THREE from "../vendor/three.module.min.js";
-import { settings } from "./config.js";
+import { settings, save } from "./config.js";
 import { Input } from "./input.js";
 import { Sound } from "./audio.js";
 import { Music } from "./music.js";
@@ -45,7 +45,8 @@ class Game {
 
   applyQuality() {
     const q = settings.quality, dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, 1.5) : Math.min(dpr, 2));
+    const coarse = matchMedia("(pointer: coarse)").matches;
+    this.renderer.setPixelRatio(q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.25 : 1.5) : Math.min(dpr, 2));
     this.renderer.shadowMap.enabled = q !== "low";
     // 후처리(외곽선 + 블룸 + 톤매핑 + FXAA): 낮음 품질에서는 끄고 툰 음영만 남긴다
     if (this.composer) { this.composer.dispose(); this.composer = null; }
@@ -149,6 +150,23 @@ class Game {
     this._touchLayer();
   }
 
+  // 자동 품질: 비행 중 평균 프레임이 낮으면 한 단계 낮춘다 (시작 직후 3초는 재지 않는다)
+  _autoQuality(t) {
+    if (!settings.qualityAuto || settings.quality === "low") return;
+    const q = this._q || (this._q = { t0: 0, n: 0, s: null });
+    if (q.s !== this.session) { q.s = this.session; q.t0 = t + 3000; q.n = 0; return; }
+    if (t < q.t0) return;
+    q.n++;
+    if (t - q.t0 < 5000) return;
+    const fps = q.n / ((t - q.t0) / 1000);
+    q.t0 = t; q.n = 0;
+    if (fps >= 26) return;
+    settings.quality = settings.quality === "high" ? "med" : "low"; save();
+    this.applyQuality();
+    this.hud.toast(`성능에 맞춰 그래픽 품질을 '${settings.quality === "med" ? "보통" : "낮음"}'으로 낮췄습니다`, "#ffd24a", 2.6, 18);
+    q.t0 = t + 3000;
+  }
+
   frame(t) {
     requestAnimationFrame((tt) => this.frame(tt));
     const dt = Math.min(0.05, Math.max(0.001, (t - this.last) / 1000));
@@ -160,6 +178,7 @@ class Game {
       if (this.state === "play" && this.input.take("pause")) { this.pause(); return; }
       s.update(dt);
       s.render();
+      if (this.state === "play") this._autoQuality(t);
     } else if (s && this.state === "pause") {
       if (this.input.take("pause")) this.resume();
       this.input.flush();

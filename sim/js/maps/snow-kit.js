@@ -108,8 +108,8 @@ export function snowPine(w, T, x, z, s = 1, cap = SNOW) {
   w.mesh(T.trunk, mm(y, 0.32 * s, h * 0.5, 0), 0x4f3826, "std");
   for (let i = 0; i < 3; i++) {
     const t = i / 2, rr = (2.9 - t * 1.9) * s * (0.9 + r() * 0.2), hh = h * (0.44 - t * 0.07), yy = y + h * (0.16 + t * 0.27), rot = r() * 6;
-    w.mesh(FAN, mm(yy, rr, hh, rot), g, "leaf");
-    w.mesh(FAN, mm(yy + hh * 0.4, rr * 0.68, hh * 0.62, rot + 0.45), cap, "leaf");
+    w.mesh(FAN, mm(yy, rr, hh, rot), g, "foliage");
+    w.mesh(FAN, mm(yy + hh * 0.4, rr * 0.68, hh * 0.62, rot + 0.45), cap, "foliage");
   }
   w.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h * 0.88, z), 0.75 * s);
 }

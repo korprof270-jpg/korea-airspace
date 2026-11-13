@@ -123,15 +123,15 @@ export function flora(w) {
     pine(x, z, s = 1, tint = 0) {
       const y = w.h(x, z) - 0.3, h = (9 + r() * 6) * s, g = hsl(0.37 + r() * 0.05 + tint, 0.5, 0.2 + r() * 0.06), g2 = hsl(0.36 + tint, 0.5, 0.15);
       w.mesh(T.trunk, mm(x, y, z, 0.32 * s, h * 0.5, 0.32 * s), 0x5a3f28, "std");
-      for (let i = 0; i < 3; i++) { const t = i / 2, rr = (2.9 - t * 1.9) * s * (0.9 + r() * 0.2); w.mesh(i ? T.coneO : T.coneC, mm(x, y + h * (0.16 + t * 0.27), z, rr, h * (0.44 - t * 0.07), rr, r() * 6), i ? g : g2, "leaf"); }
+      for (let i = 0; i < 3; i++) { const t = i / 2, rr = (2.9 - t * 1.9) * s * (0.9 + r() * 0.2); w.mesh(i ? T.coneO : T.coneC, mm(x, y + h * (0.16 + t * 0.27), z, rr, h * (0.44 - t * 0.07), rr, r() * 6), i ? g : g2, "foliage"); }
       w.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h * 0.88, z), 0.75 * s);
     },
     // 활엽수: 줄기 + 둥근 수관 덩어리
     round(x, z, s = 1, hue = 0.27, sat = 0.55) {
       const y = w.h(x, z) - 0.3, h = (3.2 + r() * 2.2) * s, cr = (2.4 + r() * 1.1) * s, c = new THREE.Color().setHSL(hue + r() * 0.05, sat, 0.26 + r() * 0.07);
       w.mesh(T.trunk, mm(x, y, z, 0.3 * s, h + cr * 0.4, 0.3 * s), 0x5b4129, "std");
-      w.mesh(T.crown[(r() * 3) | 0], mm(x, y + h + cr * 0.55, z, cr, cr * 0.82, cr, r() * 6), c.getHex(), "leaf");
-      for (let i = 0; i < 2; i++) { const a = r() * 6.28, d = cr * (0.55 + r() * 0.2), br = cr * (0.5 + r() * 0.15); w.mesh(T.puff[i], mm(x + Math.cos(a) * d, y + h + cr * (0.25 + r() * 0.3), z + Math.sin(a) * d, br, br * 0.85, br, r() * 6), c.clone().offsetHSL(0.01, 0, i ? 0.05 : -0.04).getHex(), "leaf"); }
+      w.mesh(T.crown[(r() * 3) | 0], mm(x, y + h + cr * 0.55, z, cr, cr * 0.82, cr, r() * 6), c.getHex(), "foliage");
+      for (let i = 0; i < 2; i++) { const a = r() * 6.28, d = cr * (0.55 + r() * 0.2), br = cr * (0.5 + r() * 0.15); w.mesh(T.puff[i], mm(x + Math.cos(a) * d, y + h + cr * (0.25 + r() * 0.3), z + Math.sin(a) * d, br, br * 0.85, br, r() * 6), c.clone().offsetHSL(0.01, 0, i ? 0.05 : -0.04).getHex(), "foliage"); }
       w.col.addCapsule(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y + h, z), 0.35 * s);
       w.col.addSphere(new THREE.Vector3(x, y + h + cr * 0.55, z), cr * 0.78);
     },
@@ -139,7 +139,7 @@ export function flora(w) {
     bush(x, z, s = 1, color) {
       const y = w.h(x, z), c = color ?? hsl(0.25 + r() * 0.08, 0.5, 0.24 + r() * 0.06);
       const n = 1 + ((r() * 2) | 0);
-      for (let i = 0; i < n; i++) { const br = (0.8 + r() * 0.5) * s; w.mesh(i ? T.puff[0] : T.crown[(r() * 3) | 0], mm(x + (i ? (r() - 0.5) * 1.6 * s : 0), y + br * 0.45, z + (i ? (r() - 0.5) * 1.6 * s : 0), br, br * 0.7, br, r() * 6), c, "leaf"); }
+      for (let i = 0; i < n; i++) { const br = (0.8 + r() * 0.5) * s; w.mesh(i ? T.puff[0] : T.crown[(r() * 3) | 0], mm(x + (i ? (r() - 0.5) * 1.6 * s : 0), y + br * 0.45, z + (i ? (r() - 0.5) * 1.6 * s : 0), br, br * 0.7, br, r() * 6), c, "foliage"); }
     },
     // 각진 바위
     rock(x, z, s = 1, color = 0xc98a5a, col = true) {
@@ -150,7 +150,7 @@ export function flora(w) {
     // 갈대·풀 포기
     reed(x, z, s = 1, color = 0xb7b45a) {
       const y = w.h(x, z) - 0.1;
-      for (let i = 0; i < 3; i++) w.mesh(T.blade, mm(x + (r() - 0.5) * 0.9, y, z + (r() - 0.5) * 0.9, 0.16 * s, (1.3 + r() * 1.1) * s, 0.16 * s, r() * 6), color, "leaf");
+      for (let i = 0; i < 3; i++) w.mesh(T.blade, mm(x + (r() - 0.5) * 0.9, y, z + (r() - 0.5) * 0.9, 0.16 * s, (1.3 + r() * 1.1) * s, 0.16 * s, r() * 6), color, "foliage");
     },
     // 말라 죽은 나무
     snag(x, z, s = 1) {

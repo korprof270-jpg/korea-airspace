@@ -105,7 +105,8 @@ export const DEFAULTS = {
     axes: { lx: { i: 0, inv: false }, ly: { i: 1, inv: true }, rx: { i: 2, inv: false }, ry: { i: 3, inv: true } },
   },
   touchSticks: "auto",      // auto | on | off
-  quality: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "low" : "med", // low | med | high
+  quality: "med",           // low | med | high
+  qualityAuto: true,        // 느리면 알아서 한 단계 낮춘다 (설정에서 직접 고르면 꺼진다)
   volume: 0.6,
   musicVolume: 0.5,
   difficulty: "normal",
@@ -141,6 +142,8 @@ function read() {
 
 const stored = read();
 export const settings = deepMerge(structuredClone(DEFAULTS), stored.settings || {});
+// 예전 기본값(터치 기기 = 낮음)으로 저장된 설정은 한 번 보통으로 올려 자동 조절에 맡긴다
+if (stored.settings && stored.settings.qualityAuto === undefined && settings.quality === "low") settings.quality = "med";
 export const records = stored.records || {}; // { "race:meadow:oval": {best: 12.3}, ... }
 
 export function save() {

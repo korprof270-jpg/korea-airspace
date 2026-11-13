@@ -15,8 +15,8 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 function frostTree(w, K, x, z, s = 1) {
   const r = w.rand, T = K.T, y = w.h(x, z) - 0.3, h = (3.4 + r() * 2.2) * s, cr = (2.3 + r() * 1.0) * s, c = [0xe9f1fa, 0xd6e6f6, 0xf4f8fd][(r() * 3) | 0];
   w.mesh(T.trunk, M(x, y, z, 0.3 * s, h + cr * 0.4, 0.3 * s), 0x5b4a3c, "std");
-  w.mesh(T.crown[(r() * 3) | 0], M(x, y + h + cr * 0.55, z, cr, cr * 0.82, cr, 0, r() * 360, 0), c, "leaf");
-  for (let i = 0; i < 2; i++) { const a = r() * 6.28, d = cr * (0.55 + r() * 0.2), br = cr * (0.5 + r() * 0.15); w.mesh(T.puff[i], M(x + Math.cos(a) * d, y + h + cr * (0.25 + r() * 0.3), z + Math.sin(a) * d, br, br * 0.85, br, 0, r() * 360, 0), i ? 0xcfe0f2 : 0xf4f8fd, "leaf"); }
+  w.mesh(T.crown[(r() * 3) | 0], M(x, y + h + cr * 0.55, z, cr, cr * 0.82, cr, 0, r() * 360, 0), c, "foliage");
+  for (let i = 0; i < 2; i++) { const a = r() * 6.28, d = cr * (0.55 + r() * 0.2), br = cr * (0.5 + r() * 0.15); w.mesh(T.puff[i], M(x + Math.cos(a) * d, y + h + cr * (0.25 + r() * 0.3), z + Math.sin(a) * d, br, br * 0.85, br, 0, r() * 360, 0), i ? 0xcfe0f2 : 0xf4f8fd, "foliage"); }
   w.col.addCapsule(V3(x, y, z), V3(x, y + h, z), 0.35 * s);
   w.col.addSphere(V3(x, y + h + cr * 0.55, z), cr * 0.78);
 }

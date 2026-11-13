@@ -200,7 +200,7 @@ export function quarters(w) {
     for (let k = 0; k < 9; k++) {
       const px = s * (16 + k * 4.4 + w.rand() * 2);
       if (i === 2 && k % 2) autumn(w, px, z, 0.6, pick(w), { y: y + 0.2, litter: false });
-      else w.mesh(G.leaf(k % 3), TRS(px, y + 0.5, z, 0, 0.9, 0.7, 0.9), fl[(k + i) % 4], "leaf");
+      else w.mesh(G.leaf(k % 3), TRS(px, y + 0.5, z, 0, 0.9, 0.7, 0.9), fl[(k + i) % 4], "foliage");
     }
   }
   for (const [x, z] of [[20, -66], [46, -64]]) autumn(w, x, z, 1.2, pick(w));

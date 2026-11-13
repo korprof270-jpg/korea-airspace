@@ -35,7 +35,7 @@ function persimmon(w, x, z) {
     const a = i * 1.05 + w.rand(), q = V(x + Math.cos(a) * 2.4, 5.6 + w.rand() * 1.6, z + Math.sin(a) * 2.4);
     beam(w, p, q, 0.12, 0.12, 0x4a3828);
     for (let k = 0; k < 3; k++) w.mesh(ball0(), TRS(q.x + (w.rand() - 0.5) * 1.3, q.y - 0.2 - w.rand() * 0.7, q.z + (w.rand() - 0.5) * 1.3, 0, 0.22, 0.2, 0.22), 0xff7a1a, "paint");
-    if (i % 2) w.mesh(G.leaf(i % 3), TRS(q.x, q.y + 0.3, q.z, 0, 1.2, 0.8, 1.2), 0xd98a2a, "leaf");
+    if (i % 2) w.mesh(G.leaf(i % 3), TRS(q.x, q.y + 0.3, q.z, 0, 1.2, 0.8, 1.2), 0xd98a2a, "foliage");
   }
   w.col.addSphere(V(x, 5.8, z), 2.2);
 }

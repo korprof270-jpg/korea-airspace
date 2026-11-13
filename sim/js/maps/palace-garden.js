@@ -234,7 +234,7 @@ export function fields(w) {
     if (Math.max(Math.abs(x), Math.abs(z)) < 246) continue;
     const y = w.h(x, z), s = 5 + r() * 5, k = r();
     col.setHSL(k < 0.45 ? 0.01 + r() * 0.03 : k < 0.75 ? 0.07 + r() * 0.03 : k < 0.92 ? 0.12 + r() * 0.02 : 0.3, 0.72, 0.36 + r() * 0.12);
-    w.mesh(G.leaf(i % 3), TRS(x, y + s * 0.45, z, r() * 360, s, s * 0.8, s), col.getHex(), "leaf");
+    w.mesh(G.leaf(i % 3), TRS(x, y + s * 0.45, z, r() * 360, s, s * 0.8, s), col.getHex(), "foliage");
   }
 }
 export { DEG };

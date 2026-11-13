@@ -444,7 +444,7 @@ export class UI {
     if (path.startsWith("drone.")) g.menu.setLook(settings.drone);
     if (path === "volume") g.sound.setVolume(settings.volume);
     if (path === "musicVolume") g.music.setVolume();
-    if (path === "quality") g.applyQuality();
+    if (path === "quality") { settings.qualityAuto = false; save(); g.applyQuality(); }
   }
 
   // ── 정비소 ──
@@ -551,7 +551,7 @@ export class UI {
     } else {
       body = `
         <div class="opt"><label>그래픽 품질</label>${this.seg("quality", [["low", "낮음"], ["med", "보통"], ["high", "높음"]], settings.quality, "set")}
-          <div class="hint">그림자·해상도가 바뀝니다. 다음 비행부터 완전히 적용됩니다.</div></div>
+          <div class="hint">그림자·외곽선·해상도가 바뀝니다. 다음 비행부터 완전히 적용됩니다. 직접 고르기 전에는 기기 성능에 맞춰 자동으로 낮아집니다.</div></div>
         ${this.range("volume", "효과음 음량", 0, 1, 0.05)}
         ${this.range("musicVolume", "배경 음악 음량", 0, 1, 0.05)}
         ${this._diff()}

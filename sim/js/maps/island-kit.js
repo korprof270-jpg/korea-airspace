@@ -66,7 +66,7 @@ export function palmKit(w) {
   return (x, z, h = 8, yaw = r() * 360, hue = 0) => {
     const k = (r() * 3) | 0, t = T[k], y = w.h(x, z) - 0.25, m = M(x, y, z, h, h, h, 0, yaw, 0);
     w.mesh(t.trunk, m, [0x9a7b52, 0x8a6a48, 0xa68658][k], "std");
-    w.mesh(t.crown, m, new THREE.Color().setHSL(0.27 + hue + r() * 0.04, 0.62, 0.3 + r() * 0.06).getHex(), "leaf");
+    w.mesh(t.crown, m, new THREE.Color().setHSL(0.27 + hue + r() * 0.04, 0.62, 0.3 + r() * 0.06).getHex(), "foliage");
     const a = yaw * DEG, tx = x + t.bend * h * Math.cos(a), tz = z - t.bend * h * Math.sin(a);
     w.col.addCapsule(V3(x, y, z), V3(tx, y + h, tz), 0.03 * h + 0.08);
     w.col.addSphere(V3(tx, y + h, tz), 0.13 * h);

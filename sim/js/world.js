@@ -67,6 +67,7 @@ export class World {
     this.disposables = [];
     this.rand = rng(def.seed || 1);
     this.time = 0;
+    this.uWind = { value: 0 };
     this.env = def.env || {};
     this.night = !!this.env.night;
     // 블룸은 네온·발광체에만 은은하게. outline: 외곽선 잉크(밤 맵은 어두운 면 위에서 밝게 보이는 달빛 선)
@@ -74,6 +75,9 @@ export class World {
     this.bloom.outline = this.env.outline || (this.night ? { color: 0x1c2a66, mul: 0.4 } : null);
     this.exposure = this.env.exposure ?? 1;
     this._env(this.env);
+    // 화면 공간 음영·대기 산란 설정 (post.js LOOK). 밤 맵은 산란을 줄이고 음영을 남색으로
+    const sunC = new THREE.Color(this.env.sunColor ?? 0xfff3d6).multiplyScalar(this.night ? 0.25 : 1);
+    this.bloom.look = Object.assign({ sunDir: this.sunDir, sunColor: sunC, haze: Math.max(160, (this.env.fog && this.env.fog.far || 900) * 0.4), aoTint: this.night ? 0x2a2c5c : 0x4f5480, ao: this.night ? 0.45 : 0.55 }, this.env.look || {});
     // 맵·모드가 장면에 직접 넣는 물체도 툰 재질로 맞춘다 (update 에서 한 번씩 변환)
     const sc = this.scene, add = sc.add.bind(sc);
     sc.add = (...objs) => { this._toonDirty = true; return add(...objs); };
@@ -126,6 +130,7 @@ export class World {
 
   update(dt) {
     this.time += dt;
+    this.uWind.value = this.time;
     if (this.waterMesh) this.waterMesh.material.uniforms.time.value = this.time;
     if (this._toonDirty) this._toonify();
     for (const u of this.updaters) u(dt, this.time);
@@ -174,6 +179,18 @@ export class World {
     const std = (o) => toonMat(Object.assign({ vertexColors: true }, t ? { map: t.map } : null, o));
     switch (kind) {
       case "leaf": return std({});
+      case "foliage": {   // 나뭇잎: 바람에 살랑인다 (실내·진공 맵은 env.noWind)
+        if (this.env.noWind) return std({});
+        const uWind = this.uWind;
+        return std({ key: "leaf-wind", extend(sh) {
+          sh.uniforms.uWind = uWind;
+          sh.vertexShader = "uniform float uWind;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+            float wp = uWind * 1.5 + position.x * 0.33 + position.z * 0.27;
+            transformed.x += sin( wp ) * 0.11 + sin( wp * 2.3 + position.y ) * 0.04;
+            transformed.z += cos( wp * 0.8 ) * 0.09;
+            transformed.y += sin( wp * 1.7 + position.x ) * 0.03;`);
+        } });
+      }
       case "flat": return std({ flat: true });
       case "metal": return std({ spec: 0.7, shine: 40, metal: true });
       case "paint": return std({ spec: 0.35, shine: 70 });
@@ -406,11 +423,11 @@ export class World {
       const tiers = 5;
       for (let i = 0; i < tiers; i++) {
         const t = i / (tiers - 1), rr = (2.6 - t * 1.9) * s * (0.9 + r() * 0.2), hh = h * (0.34 - t * 0.1);
-        this.cone(x, y + h * (0.16 + t * 0.6), z, rr, hh, g, { col: i === 1 });
+        this.cone(x, y + h * (0.16 + t * 0.6), z, rr, hh, g, { col: i === 1, mat: "foliage" });
       }
     } else if (kind === "bush") {
       const g = new THREE.Color().setHSL(0.26 + r() * 0.08, 0.55, 0.25 + r() * 0.07).getHex();
-      for (let i = 0; i < 3; i++) this.blob(x + (r() - 0.5) * s, y + 0.5 * s, z + (r() - 0.5) * s, (0.8 + r() * 0.5) * s, (0.6 + r() * 0.3) * s, (0.8 + r() * 0.5) * s, g, { col: i === 0 });
+      for (let i = 0; i < 3; i++) this.blob(x + (r() - 0.5) * s, y + 0.5 * s, z + (r() - 0.5) * s, (0.8 + r() * 0.5) * s, (0.6 + r() * 0.3) * s, (0.8 + r() * 0.5) * s, g, { col: i === 0, mat: "foliage" });
     } else {
       const h = (3.4 + r() * 2.4) * s, cr = (2.3 + r() * 1.2) * s;
       const base = new THREE.Color().setHSL(0.25 + r() * 0.1, 0.6, 0.27 + r() * 0.08);
@@ -419,7 +436,7 @@ export class World {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + r(), d = i === 0 ? 0 : cr * (0.35 + r() * 0.3), br = cr * (i === 0 ? 0.85 : 0.5 + r() * 0.25);
         _c.copy(base).offsetHSL((r() - 0.5) * 0.03, 0, (r() - 0.5) * 0.05);
-        this.blob(x + Math.cos(a) * d, y + h + cr * (i === 0 ? 0.55 : 0.25 + r() * 0.35), z + Math.sin(a) * d, br, br * 0.82, br, _c.getHex(), { col: i === 0 });
+        this.blob(x + Math.cos(a) * d, y + h + cr * (i === 0 ? 0.55 : 0.25 + r() * 0.35), z + Math.sin(a) * d, br, br * 0.82, br, _c.getHex(), { col: i === 0, mat: "foliage" });
       }
     }
   }
