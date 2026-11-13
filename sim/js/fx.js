@@ -3,7 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 
 const MAXP = 2400;   // 빛나는(가산 혼합) 파티클
 const MAXS = 420;    // 연기(일반 혼합) 파티클
-const MAXB = 320;
+const MAXB = 640;
 const WHITE = new THREE.Color(0xffffff);
 const NFLASH = 14;
 const NRING = 10;

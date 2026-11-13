@@ -21,7 +21,7 @@ const MODE_META = {
   freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·갭 통과로 콤보를 이어 묘기 점수 획득",
     long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
   survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 겨루는 점수제 전투",
-    long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·거점전·운반전", "아이템 6종", "5초 재출격"] },
+    long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·거점 점령전", "아이템 6종", "5초 재출격"] },
   challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "신입 파일럿이 되어 챕터마다 단계를 하나씩 깨 나가는 이야기",
     long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·촬영·호송·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
@@ -346,8 +346,9 @@ export class UI {
         + card("fs", "free", s.fs === "free", `<div class="ic">🕊</div><div class="nm">자유 비행</div><div class="ds">시간 제한 없이 맵을 돌아다니며 연습합니다. Esc 로 끝냅니다.</div>`);
       opts += `<p class="hint2">플립·롤·스핀·다이브·근접 비행·갭 통과를 끊기지 않게 이어 콤보 배율을 올리세요. ACRO 모드에서 모든 묘기를 할 수 있습니다.</p>`;
     } else if (s.mode === "survival") {
+      if (!VARIANTS[s.variant] || VARIANTS[s.variant].hidden) s.variant = "dm";
       t2 = "방식 선택"; p2 = VARIANTS[s.variant].name;
-      step2 = Object.entries(VARIANTS).map(([id, v]) => {
+      step2 = Object.entries(VARIANTS).filter(([, v]) => !v.hidden).map(([id, v]) => {
         const best = records[`survival:${id}:${map.id}`];
         return card("variant", id, s.variant === id, `<div class="ic">${v.icon}</div><div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
       }).join("");

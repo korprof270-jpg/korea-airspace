@@ -170,8 +170,19 @@ export class Sound {
     const N = (dur, v, f0, f1, delay, ft, q, atk) => this._noise(dur, v * vol, f0, f1, delay, pan, ft, q, atk);
     switch (name) {
       // ── 무기 ──
-      case "laser": { const r = 0.96 + Math.random() * 0.08; T("sawtooth", 1750 * r, 300, 0.1, 0.07); T("square", 2700 * r, 520, 0.06, 0.028); N(0.03, 0.07, 7000, 2500, 0, "highpass"); break; }
-      case "elaser": T("square", 860, 200, 0.12, 0.045); T("sawtooth", 1290, 300, 0.08, 0.02); break;
+      // 플레이어 레이저: 날카로운 방전 → 빠르게 떨어지는 "퓨" + 낮은 반동 + 공기를 가르는 꼬리
+      case "laser": {
+        const r = 0.94 + Math.random() * 0.12;
+        N(0.012, 0.16, 9000, 5000, 0, "highpass");                       // 방전 클릭
+        T("sawtooth", 3100 * r, 240, 0.17, 0.085);                        // 주 발사음
+        T("square", 1550 * r, 120, 0.2, 0.05, 0.004);                     // 한 옥타브 아래 몸통
+        T("sine", 190, 55, 0.11, 0.16);                                   // 반동
+        N(0.16, 0.07, 5200, 700, 0.01, "bandpass", 4.5);                  // 휘익 하는 꼬리
+        T("sine", 5200 * r, 1900, 0.06, 0.025, 0.002);                    // 고음 반짝임
+        break;
+      }
+      // 적 레이저: 더 낮고 둔탁하게, 살짝 길게
+      case "elaser": { const r = 0.92 + Math.random() * 0.16; N(0.01, 0.08, 6000, 3000, 0, "highpass"); T("sawtooth", 1500 * r, 150, 0.2, 0.06); T("square", 760 * r, 90, 0.22, 0.035); N(0.14, 0.045, 2800, 500, 0.01, "bandpass", 3.5); break; }
       case "missile": N(0.6, 0.24, 500, 3400, 0, "bandpass", 1.1, 0.05); T("sine", 190, 48, 0.14, 0.26); T("sawtooth", 150, 62, 0.4, 0.085); break;
       case "dry": T("square", 240, 170, 0.04, 0.06); N(0.025, 0.05, 3200, 1400); break;
       case "overheat": N(0.55, 0.15, 7500, 1600, 0, "highpass", 0.7, 0.02); T("sawtooth", 520, 110, 0.32, 0.075); break;

@@ -26,7 +26,8 @@ export const KINDS = {
   boss: { hp: 1500, radius: 5.5, scale: 17, speed: 8, accel: 4, dmg: 9, rate: 7, range: 55, missiles: 99, score: 2000 },
 };
 
-const LASER_SPEED = 260;
+const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄은 더 느려 보고 피할 수 있다
+export const PLAYER_HP = 250, BOT_HP = 1.75, SHIELD_HP = 200;
 const RESPAWN = 5;
 const HITBOX = 1.3;       // 내가 쏜 레이저·미사일의 명중 판정 배율 (포탑·코어 등 구조물만, 적 드론은 1배)
 const hb = (o) => (o.kind === "bot" ? 1 : HITBOX);        // 격추 후 재출격까지(초)
@@ -98,7 +99,7 @@ export class Combat {
   // ── 액터 생성 ──
   addPlayer(team = 0, name = "나") {
     const pl = this.s.player, b = pl.body;
-    this.player = this._actor({ name, kind: "player", team, pos: b.pos, vel: b.vel, quat: b.quat, radius: Math.max(0.45, b.radius * 2), missiles: 4, respawns: true, isPlayer: true });
+    this.player = this._actor({ name, kind: "player", team, pos: b.pos, vel: b.vel, quat: b.quat, radius: Math.max(0.45, b.radius * 2), hp: PLAYER_HP, maxHp: PLAYER_HP, missiles: 4, respawns: true, isPlayer: true });
     const sm = new THREE.Mesh(new THREE.SphereGeometry(0.42 * pl.cls.scale + 0.12, 16, 12), new THREE.MeshBasicMaterial({ color: 0x21d4fd, transparent: true, opacity: 0.25, depthWrite: false }));
     sm.visible = false;
     pl.model.add(sm);
@@ -114,7 +115,7 @@ export class Combat {
     const skill = this.diff.bot * (o.skill || 1);
     const a = this._actor({
       name: o.name || CALLSIGNS[this.botN % CALLSIGNS.length], kind: "bot", botKind: kind, team, model, color: col,
-      radius: K.radius, hp: K.hp * (o.hpScale || 1), maxHp: K.hp * (o.hpScale || 1), missiles: K.missiles, respawns: !!o.respawns, K,
+      radius: K.radius, hp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), maxHp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), missiles: K.missiles, respawns: !!o.respawns, K,
       ai: {
         think: Math.random() * 0.3, target: null, los: false, goal: null, roam: null, orbit: Math.random() < 0.5 ? 1 : -1, altOff: Math.random() * 6 - 1,
         yaw: 0, burst: 0, cool: Math.random() * 1.5, skill, focus: o.focus || null, leader: o.leader || null, slot: o.slot || 0, home: o.home || null,
@@ -225,7 +226,7 @@ export class Combat {
 
   give(a, type) {
     const it = ITEMS[type];
-    if (type === "repair") a.hp = Math.min(a.maxHp, a.hp + 50);
+    if (type === "repair") a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.5);
     else if (type === "missiles") a.missiles = Math.min(8, a.missiles + 3);
     else if (a.isPlayer) { a.items.push(type); if (a.items.length === 1) a.sel = 0; }
     else this.useItem(a, type);
@@ -246,7 +247,7 @@ export class Combat {
   useItem(a, type = a.items && a.items[a.sel]) {
     if (!type) return;
     if (a.isPlayer) { a.items.splice(a.sel, 1); a.sel = 0; a.swapT = 0.35; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type); }
-    if (type === "shield") { a.shield = 80; a.shieldT = 10; if (a.isPlayer) this.feel.emit("shieldUp"); }
+    if (type === "shield") { a.shield = SHIELD_HP; a.shieldT = 10; if (a.isPlayer) this.feel.emit("shieldUp"); }
     else if (type === "boost") a.boostT = 6;
     else if (type === "overcharge") a.overT = 10;
     else if (type === "emp") {
@@ -527,9 +528,12 @@ export class Combat {
       s.pos.addScaledVector(s.dir, len);
       s.life -= dt;
       if (s.life <= 0) { this.shots.splice(i, 1); continue; }
-      // 가까이서는 가늘게(화면을 덮지 않게), 멀수록 굵게(멀리서도 보이게)
-      const cd = s.pos.distanceTo(this.s.camera.position);
-      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -3), s.dir, 6, s.color, (s.owner.isPlayer ? 0.34 : 0.46) * clamp(cd / 12, 0.2, 1) * clamp(cd / 35, 1, 3.2));
+      // 굵은 머리 + 길게 끌리는 꼬리. 가까이서는 가늘게(화면을 덮지 않게), 멀수록 굵게(멀리서도 보이게)
+      const cd = s.pos.distanceTo(this.s.camera.position), mine = s.owner.isPlayer;
+      const wd = (mine ? 0.36 : 0.55) * clamp(cd / 12, 0.2, 1) * clamp(cd / 35, 1, 3.2);
+      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -3.5), s.dir, 7, s.color, wd);
+      fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -13), s.dir, 13, s.color, wd * 0.38);
+      if (!mine && (s.pt = (s.pt || 0) + 1) % 3 === 0) fx.puff(s.pos, s.color, 0.5 * clamp(cd / 30, 0.4, 1.6), 0.22, 0.05);   // 적 탄 머리의 빛 뭉치
     }
     fx.endBolts();
   }
@@ -539,7 +543,8 @@ export class Combat {
     for (let i = this.missiles.length - 1; i >= 0; i--) {
       const m = this.missiles[i];
       m.life -= dt;
-      m.speed = Math.min(88, m.speed + 40 * dt);
+      const atMe = m.target && m.target.isPlayer;
+      m.speed = Math.min(atMe ? 58 : 80, m.speed + (atMe ? 22 : 36) * dt);
       _a.copy(m.vel).normalize();
       const t = m.target;
       if (t && t.alive && m.lost < 0.35) {
@@ -548,7 +553,7 @@ export class Combat {
         _b.multiplyScalar(1 / Math.max(d, 1e-3));
         if (_a.dot(_b) < 0.15) m.lost += dt; else m.lost = 0;
         // 선회율 제한
-        const ang = Math.acos(clamp(_a.dot(_b), -1, 1)), maxTurn = 2.3 * dt;
+        const ang = Math.acos(clamp(_a.dot(_b), -1, 1)), maxTurn = (atMe ? 1.5 : 2.3) * dt;
         if (ang > 1e-4) _a.lerp(_b, Math.min(1, maxTurn / ang)).normalize();
         if (t.isPlayer) { this.warn = Math.max(this.warn, 0.3); if (d < wd) wd = d; }
       }
@@ -582,7 +587,7 @@ export class Combat {
     for (const p of this.pickups) {
       if (!p.active) {
         p.t -= dt;
-        if (p.t <= 0) { p.active = true; p.g.visible = true; if (!p.fixed) this._retype(p); }
+        if (p.t <= 0) { p.active = true; p.g.visible = true; if (!p.fixed) { this._retype(p); p.pos.copy(this.randomPoint(4, 16, 0.62)); p.g.position.copy(p.pos); } }
         continue;
       }
       p.gem.rotation.y += dt * 2; p.ring.rotation.x += dt * 1.3; p.ring.rotation.y += dt * 0.7; p.ring2.rotation.z += dt * 1.1;
@@ -745,7 +750,7 @@ export class Combat {
           _aim.normalize();
           _b.copy(a.pos).addScaledVector(_aim, a.radius + 0.4);
           const lc = this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040;
-          this.fireLaser(a, _b, _aim, K.dmg * (a.overT > 0 ? 2 : 1), lc, 150);
+          this.fireLaser(a, _b, _aim, K.dmg * (a.overT > 0 ? 2 : 1), lc, 92);
           this.fx.muzzle(_b, _aim, lc, K.scale * 0.6);
           this.snd.play("elaser", this.volAt(a.pos) * 0.7, this.panAt(a.pos));
         }
@@ -789,7 +794,7 @@ export class Combat {
       _aim.x += (Math.random() - 0.5) * spread; _aim.y += (Math.random() - 0.5) * spread; _aim.z += (Math.random() - 0.5) * spread;
       _aim.normalize();
       _b.copy(a.pos).addScaledVector(_aim, 2.6);
-      this.fireLaser(a, _b, _aim, 7, a.team === 0 ? 0x66b8ff : 0xffa040, 140);
+      this.fireLaser(a, _b, _aim, 7, a.team === 0 ? 0x66b8ff : 0xffa040, 86);
       this.fx.muzzle(_b, _aim, a.team === 0 ? 0x66b8ff : 0xffa040, 2.2);
       this.snd.play("elaser", this.volAt(a.pos) * 0.6, this.panAt(a.pos));
     }
