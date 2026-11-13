@@ -6,6 +6,8 @@ import { MAG, CYA, YEL, GRN, ORG, VIO, RED, ring, Signs, icon, neonText } from "
 import { BLOCK, tower, spire, gateTower, twinTowers, gardenDeck, crownTower, cylTower, construction, dome, ferrisBase, stage, market, cityGate, park, hotel, expressway, backdrop } from "./city-places.js";
 import { stream, monorail, station, streets, padTrees } from "./city-infra.js";
 import { life } from "./city-life.js";
+import { detail } from "./city-detail.js";
+import { fx } from "./city-fx.js";
 
 // 도로를 따라 도는 둥근 사각 경로(지상 피사체용)
 function loop(x0, x1, z0, z1, v, c = 14) {
@@ -74,13 +76,15 @@ function build(w) {
   for (const [i, j, fn] of CELLS) fn(w, K, i * 60, j * 60);
   backdrop(w, K);
   streets(w, K);
+  detail(w, K, DEF);          // 디테일 보강(난수 순서를 지키려 맨 뒤에)
   K.signs.finish();
   life(w, K, rail);
+  fx(w, K);
 }
 
 const G = (t, x, y, z, o = {}) => ({ t, p: [x, y, z], ...o });
 
-export default {
+const DEF = {
   id: "city",
   name: "네온 시티",
   desc: "밤의 도심. 모노레일이 도는 금융가, 다리 아래로 흐르는 천변, 야시장과 대관람차까지 구역마다 다른 비행",
@@ -89,7 +93,7 @@ export default {
   seed: 37,
   env: {
     night: true, stars: true, sky: { top: 0x060918, horizon: 0x3a2a66, bottom: 0x0d1020 }, sunDir: [-0.35, 0.72, 0.42], sunColor: 0xa8baff, sun: 1.0,
-    hemi: 1.05, hemiSky: 0x6a74c0, hemiGround: 0x3a3050, fog: { color: 0x1d1838, near: 90, far: 760 }, glow: 1.9, windowGlow: 1.15,
+    hemi: 1.05, hemiSky: 0x6a74c0, hemiGround: 0x3a3050, fog: { color: 0x1d1838, near: 90, far: 760 }, glow: 1.9, windowGlow: 1.15, horizonGlow: 0x3a1848,
   },
   spawn: { pos: [30, 0.4, 100], yaw: 0 },
   build,
@@ -152,3 +156,5 @@ export default {
     path: [[-212, 0, 33], [-120, 0, 33], [-42, 0, 33], [-27, 0, 20], [-27, 0, -40], [-27, 0, -80], [-20, 0, -87], [40, 0, -87], [80, 0, -87], [87, 0, -80], [87, 0, -20], [87, 0, 20], [98, 0, 33], [160, 0, 33], [214, 0, 33]],
   },
 };
+
+export default DEF;

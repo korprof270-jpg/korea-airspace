@@ -77,7 +77,9 @@ export function tower(w, K, x, z, wd, dp, h, c, o = {}) {
     if (r() < 0.5) glow(w, x + side * (wd / 2 + 0.25), y0 + h * 0.42, z + (r() - 0.5) * dp * 0.5, 0.4, sh, 2.2, nc);
     else glow(w, x + (r() - 0.5) * wd * 0.5, y0 + h * 0.42, z + side * (dp / 2 + 0.25), 2.2, sh, 0.4, nc);
   }
-  roof(w, K, x, z, wd, dp, y0 + h + 0.7, o.roof ?? ["ac", "tank", "ac", "mast", "garden", "pool"][(r() * 6) | 0]);
+  const rk = o.roof ?? ["ac", "tank", "ac", "mast", "garden", "pool"][(r() * 6) | 0];
+  roof(w, K, x, z, wd, dp, y0 + h + 0.7, rk);
+  (K.towers || (K.towers = [])).push({ x, z, wd, dp, y0, h, nc, roof: rk });      // 디테일 보강(city-detail)이 쓴다
 }
 
 // ── 블록 유형(가로 46m 패드 한 칸) ──
@@ -164,6 +166,7 @@ export const BLOCK = {
         glow(w, ex, h * 0.12, ez, ns ? 2 : 0.1, h * 0.8, ns ? 0.1 : 2, dim(ac, 0.5));
       }
       K.beacons.push([x, h + 3.6, z]);
+      (K.apts || (K.apts = [])).push({ x, z, wd, dp, h, ns, ac });
     }
     // 가운데 마당: 주차 차량과 나무
     for (let i = 0; i < 5; i++) { const t = (i - 2) * 5.2; w.box(cx + (ns ? -3 : t), 0.18, cz + (ns ? t : -3), ns ? 4.2 : 1.8, 1.2, ns ? 1.8 : 4.2, [0xb33a3a, 0x2f5fa0, 0xd9d9d9, 0x2b2b2b, 0xc9a23a][i]); }
@@ -467,7 +470,8 @@ export function hotel(w, K, cx, cz) {
   tower(w, K, cx, cz + 12, 40, 16, 27, 0x6c6480, { neon: VIO, trim: true, sign: false, roof: "garden" });
   w.box(cx, 0, cz, 22, 5, 8, 0x3a3644, { mat: "std:concrete", tile: 6 });
   for (const y of [14, 22]) { w.box(cx, y, cz, 6, 0.5, 8, 0x596273); glow(w, cx, y - 0.2, cz, 6, 0.2, 8.2, VIO); }      // 두 동을 잇는 구름다리
-  w.box(cx - 20.4, 5.2, cz, 0.4, 3.4, 9.6, 0x12151c, { col: false }); K.signs.add("hotel", cx - 20.72, 6.9, cz, 9, { ry: -90 });
+  // 입구 표지석: 틈새를 지나는 비행선(야시장 대시)을 가리지 않게 지면 높이에 둔다
+  w.box(cx - 20.4, 0.18, cz, 0.4, 3.3, 6.4, 0x12151c, { col: false }); K.signs.add("hotel", cx - 20.72, 1.85, cz, 6, { ry: -90 });
   w.box(cx, 36.7, cz - 19.6, 14, 6, 0.4, 0x12151c); K.signs.add("hotel", cx, 39.8, cz - 19.92, 12.5, { ry: 180 });
   w.pool(cx - 24, 0.2, cz, 10, VIO, 0.4);
   w.gap("호텔 틈새", cx, 9.5, cz, 90, 7.4, 8, 500);
