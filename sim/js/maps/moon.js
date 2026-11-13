@@ -5,6 +5,8 @@ import * as THREE from "../../vendor/three.module.min.js";
 import { flora } from "./canyon-kit.js";
 import { height, colorFn, fbm, reserved, POCKS, ROAD, HUB, PADS, DISH, MINE, driverPoint, rillePoint } from "./moon-terrain.js";
 import { Blinkers, earth, lane } from "./moon-kit.js";
+import { regolith, Paint, groundPaint, pebbles, horizon } from "./moon-ground.js";
+import { detail } from "./moon-detail.js";
 import { habitat, pads, launch, solar, greenhouse, driver, observatory, mine, rille, outposts } from "./moon-base.js";
 
 export { height };
@@ -14,35 +16,47 @@ const EARTH_DIR = [-0.28, 0.4, -0.87];
 function build(w) {
   const r = w.rand, K = { blink: new Blinkers(w) };
   w.terrain(height, colorFn, { flat: "dirt", seg: 260, flatTint: "1.04, 1.1, 1.27", rockTint: "0.98, 0.98, 1.03", rockLo: 0.45, rockHi: 0.72 });
+  regolith(w);
   earth(w, EARTH_DIR);
   habitat(w, K); pads(w, K); launch(w, K); solar(w, K); greenhouse(w, K); driver(w, K); observatory(w, K); mine(w, K); rille(w, K); outposts(w, K);
-  K.blink.finish();
 
   // ── 바위밭: 구조물·도로·트랙·임무 지점 주변은 비운다 ──
   const KEEP = [...DEPOTS, ...STRIKE.turrets, STRIKE.core, SUPPLY.depot, ...SUPPLY.camps, ...SUPPLY.turrets].map((p) => [p[0], p[1], 8]);
   const sample = (pts, loop) => new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(q[0], 0, q[2])), loop, "centripetal").getPoints(pts.length * 8).map((v) => [v.x, v.z]);
   const LINES = [...TRACKS.map((t) => [sample(t.gates.map((g) => g.p), t.loop !== false), 8]), [sample(BUGGY, true), 6], [sample(LOADER, true), 5]];
   for (const t of TRACKS) if (t.start) KEEP.push([t.start.pos[0], t.start.pos[2], 8]);
-  const clear = (x, z) => {
-    for (const [fx, fz, fr] of KEEP) if (Math.hypot(x - fx, z - fz) < fr) return false;
-    for (const [L, wd] of LINES) for (let i = 0; i < L.length - 1; i++) {
+  const clear = (x, z, m = 0, keep = KEEP, lines = LINES) => {
+    for (const [fx, fz, fr] of keep) if (Math.hypot(x - fx, z - fz) < fr + m) return false;
+    for (const [L, wd] of lines) for (let i = 0; i < L.length - 1; i++) {
       const a = L[i], b = L[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], t = Math.min(1, Math.max(0, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz + 1e-9)));
-      if (Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < wd) return false;
+      if (Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < wd + m) return false;
     }
     return true;
   };
-  const F = flora(w), GREYS = [0xa8a6a2, 0x8d8c8a, 0xc2bfb8];
+  const F = flora(w), GREYS = [0xa8a6a2, 0x8d8c8a, 0xc2bfb8], rocks = [];
   let n = 0;
   for (let i = 0; i < 9000 && n < 520; i++) {
     const x = (r() * 2 - 1) * 345, z = (r() * 2 - 1) * 345, dens = fbm(x * 0.02 + 50, z * 0.02 + 20, 2), s = 0.6 + r() * r() * 3.2;
     if ((dens < 0.52 && r() > 0.12) || reserved(x, z, 3) || !clear(x, z)) continue;
-    F.rock(x, z, s, GREYS[i % 3]); n++;
+    F.rock(x, z, s, GREYS[i % 3]); rocks.push([x, z, s]); n++;
   }
   // 크레이터 테두리에 튕겨 나온 바위
   for (const [px, pz, R] of POCKS) {
     if (R < 13 || Math.abs(px) > 340 || Math.abs(pz) > 340) continue;
-    for (let k = 0; k < 4; k++) { const a = r() * 6.28, d = R * (1.05 + r() * 0.5), x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (!reserved(x, z, 3) && clear(x, z)) F.rock(x, z, 0.8 + r() * 1.8, GREYS[k % 3]); }
+    for (let k = 0; k < 4; k++) { const a = r() * 6.28, d = R * (1.05 + r() * 0.5), x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (!reserved(x, z, 3) && clear(x, z)) { const s = 0.8 + r() * 1.8; F.rock(x, z, s, GREYS[k % 3]); rocks.push([x, z, s]); } }
   }
+
+  // ── 디테일: 바닥 그림, 구역별 소품, 자갈, 원경 (트랙·피사체·기지·임무 지점에서 떨어진 곳에만 충돌을 둔다) ──
+  const KEEP2 = [...KEEP, [COMBAT.blue[0], COMBAT.blue[1], 34], [COMBAT.red[0], COMBAT.red[1], 34]], LINES2 = [...LINES, [sample(DRONE, true), 7]];
+  const t0 = performance.now();
+  const P = new Paint(w), ctx = { rocks, buggy: BUGGY, free: (x, z, m = 0) => clear(x, z, m, KEEP2, LINES2) };
+  groundPaint(w, P, ctx);
+  detail(w, K, P, ctx);
+  P.finish();
+  pebbles(w, rocks);
+  horizon(w);
+  K.blink.finish();
+  w.detailMs = Math.round(performance.now() - t0);
 }
 
 // ── 경로·트랙 데이터 (지형 함수로 높이를 계산한다) ──
@@ -62,6 +76,9 @@ const near = (p) => OUTER.reduce((b, q, i) => (Math.hypot(q[0] - p[0], q[1] - p[
 const CONVOY = (() => { const out = [], N = OUTER.length, i1 = near(ROAD[9]); for (let i = near(ROAD[6]); ; i = (i - 3 + N) % N) { out.push([OUTER[i][0], 0, OUTER[i][1]]); if (((i - i1 + N) % N) < 3) break; } return out; })();
 const BUGGY = [[-84, -100], [-128, -106], [-170, -70], [-198, -28], [-190, 22], [-158, 40], [-134, 8], [-104, -38]].map(([x, z], i) => [x, 0, z, i % 2 ? 13 : 11]);
 const LOADER = Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2; return [PADS[0][0] + Math.cos(a) * 18, 0, PADS[0][1] + Math.sin(a) * 18, 4.2]; });
+
+const DRONE = [[30, 10, 60], [21, 4.5, 14], [21, 4, -10], [14, 7, -58], [-30, 10, -100], DR(0.12), DR(0.3), DR(0.5), [-150, 60, -170], [-78, 30, -66], [-60, 14, 20], [-80, 10, 70], [-30, 12, 110], [20, 14, 110]];
+const COMBAT = { blue: [-178, -10], red: [180, -8], depots: DEPOTS };
 
 const [HX, HZ] = HUB;
 const BASE = [
@@ -95,7 +112,7 @@ export default {
   ceiling: 200,
   seed: 73,
   env: {
-    stars: true, lamps: true, cloud: 0,
+    stars: true, lamps: true, cloud: 0, noWind: true,
     sky: { top: 0x000003, horizon: 0x04050b, bottom: 0x000000 }, sunDir: [0.74, 0.44, 0.36], sunColor: 0xfff6e8, sun: 3.4, sunDisc: 9,
     hemi: 0.5, hemiSky: 0x9fb4e0, hemiGround: 0x5a5c66, toon: { sun: 0.66, fill: 0.2 },
     fog: { color: 0x04050a, near: 500, far: 2600 }, exposure: 1.0, glow: 2.0, bloom: { strength: 0.42, radius: 0.5, threshold: 0.92 },
@@ -110,10 +127,10 @@ export default {
     { id: "buggy", name: "월면 버기", type: "sportscar", level: 2, desc: "서쪽 평원의 크레이터 사이를 튀어 오르며 달리는 버기 추적", duration: 80, color: 0xf07a1e, path: BUGGY },
     {
       id: "drone", name: "탐사 드론", type: "drone", level: 3, desc: "모듈 통로 아래와 매스 드라이버의 가속 고리를 누비는 탐사 드론을 화면에 담으세요", duration: 85,
-      path: [[30, 10, 60], [21, 4.5, 14], [21, 4, -10], [14, 7, -58], [-30, 10, -100], DR(0.12), DR(0.3), DR(0.5), [-150, 60, -170], [-78, 30, -66], [-60, 14, 20], [-80, 10, 70], [-30, 12, 110], [20, 14, 110]].map((p) => [...p, 12]),
+      path: DRONE.map((p) => [...p, 12]),
     },
   ],
-  combat: { blue: [-178, -10], red: [180, -8], depots: DEPOTS },
+  combat: COMBAT,
   strike: STRIKE,
   supply: SUPPLY,
   convoy: { speed: 7.5, path: CONVOY },

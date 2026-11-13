@@ -184,6 +184,8 @@ export function height(x, z) {
 }
 
 // ── 색 ────────────────────────────────────────────────────
+// 광조가 뻗어 나오는 먼 크레이터 [x, z, 평원 쪽 방위]
+const RAYS = [[236, -232], [-268, -120], [450, 60], [-330, 420]].map(([x, z]) => [x, z, Math.atan2(-z, -x)]);
 function mix(a, b, t) {
   t = Math.min(1, Math.max(0, t));
   const r = (a >> 16) + (((b >> 16) - (a >> 16)) * t), g = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * t), bl = (a & 255) + (((b & 255) - (a & 255)) * t);
@@ -195,6 +197,20 @@ export function colorFn(x, y, z, slope) {
   let c = mix(mix(0x8a8d97, 0x777b88, sm(0.35, 0.7, n)), mix(0xc9c6bf, 0xaeaba6, sm(0.4, 0.75, n)), sm(0.86, 1.2, e + (n - 0.5) * 0.2));
   c = mix(c, 0xdedbd2, sm(52, 96, y) * 0.7);                                    // 높은 봉우리는 더 밝다
   c = mix(c, 0x6a6d78, sm(0.6, 0.8, n2) * 0.25);                                // 잔 얼룩
+  // 평원: 용암이 흐른 어두운 얼룩, 밝은 먼지 얼룩, 먼 크레이터에서 뻗어 온 광조, 기지 둘레의 다져진 땅
+  const mare = sm(1.02, 0.8, e);
+  if (mare > 0) {
+    const p = fbm(x * 0.0085 + 40, z * 0.0085 + 13, 3), q = fbm(x * 0.045 + 5, z * 0.045 + 31, 2);
+    c = mix(c, 0x5f6271, sm(0.48, 0.58, p) * 0.62 * mare);
+    c = mix(c, 0xaeb0b6, sm(0.55, 0.7, q) * 0.42 * mare);
+    for (let i = 0; i < RAYS.length; i++) {
+      const [sx, sz, a0] = RAYS[i], dx = x - sx, dz = z - sz, d = Math.hypot(dx, dz);
+      if (d > 520) continue;
+      let a = Math.atan2(dz, dx) - a0; a = Math.atan2(Math.sin(a), Math.cos(a));
+      c = mix(c, 0xbab8b3, sm(0.6, 0.78, vnoise(a * 11 + i * 7.3, i * 3.1 + d * 0.004)) * sm(520, 150, d) * 0.5 * mare);
+    }
+    c = mix(c, 0x6e717b, Math.max(sm(84, 38, Math.hypot(x - HUB[0], z - HUB[1])), sm(52, 30, Math.hypot(x - LAUNCH[0], z - LAUNCH[1]))) * 0.32);
+  }
   // 채굴 크레이터: 녹슨 광석 빛
   const dm = Math.hypot(x - MINE.x, z - MINE.z) / MINE.R;
   if (dm < 1.35) {
