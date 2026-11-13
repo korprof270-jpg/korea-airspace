@@ -595,12 +595,13 @@ export class UI {
         <tr><td><kbd>Space</kbd></td><td>레이저 발사 (전투 모드)</td></tr>
         <tr><td><kbd>F</kbd></td><td>미사일 발사 — 적을 조준선 근처에 두면 자동 락온</td></tr>
         <tr><td><kbd>E</kbd></td><td>보관 중인 아이템 사용 (실드·부스트·과충전·EMP)</td></tr>
+        <tr><td><kbd>Q</kbd></td><td>쓸 아이템 바꾸기 (최대 2개 보관, 가득 차면 더 집을 수 없음)</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>점수판 보기 (전투 모드)</td></tr>
         <tr><td><kbd>H</kbd></td><td>HUD 표시 수준 전환: 전체 → 최소 → 끄기 <span class="muted">(계기별 표시는 설정 &gt; HUD·효과)</span></td></tr>
         <tr><td><kbd>Esc</kbd> / <kbd>P</kbd></td><td>일시정지</td></tr>
       </table>
       <p class="muted" style="font-size:13px;line-height:1.6">
-        <b>게임패드</b>: 스틱 2개 = 좌/우 스틱, RB/RT 레이저, LB/LT 미사일, A 아이템, B 리셋, X 시점, Y 비행 모드, Start 일시정지.<br>
+        <b>게임패드</b>: 스틱 2개 = 좌/우 스틱, RB/RT 레이저, LB/LT 미사일, A 아이템 사용, 십자키 좌·우 아이템 교체, B 리셋, X 시점, Y 비행 모드, Start 일시정지.<br>
         <b>RC 조종기</b>: USB 조이스틱 모드로 연결 → 설정 &gt; 입력장치에서 축을 지정하고, 스로틀이 고정식이면 “스로틀 중앙 = 호버”를 끄세요.<br>
         <b>모바일</b>: 화면 왼쪽/오른쪽을 누르면 가상 스틱이 나타납니다. 위쪽 HUD 버튼으로 계기 표시 수준을 바꿉니다.<br>
         <b>게이트 안내</b>: 레이싱에서는 다음 게이트까지 초록 화살표가 흐르고 게이트 위에 빛기둥이 섭니다. 게이트가 화면 밖이면 중앙의 큰 화살표가 방향과 거리를 알려 줍니다.<br>

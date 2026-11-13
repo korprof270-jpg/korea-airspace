@@ -4,13 +4,14 @@ import { buildDrone, botLook } from "./dronemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
 
 export const ITEMS = {
-  repair: { name: "수리 키트", color: 0x35ff7a, instant: true },
-  missiles: { name: "미사일 팩", color: 0xff8a1f, instant: true },
-  shield: { name: "실드", color: 0x21d4fd },
-  boost: { name: "부스터", color: 0xffe14a },
-  overcharge: { name: "과충전", color: 0xff4ad6 },
-  emp: { name: "EMP", color: 0xb8c8ff },
+  repair: { name: "수리 키트", color: 0x35ff7a, instant: true, icon: "✚" },
+  missiles: { name: "미사일 팩", color: 0xff8a1f, instant: true, icon: "▲" },
+  shield: { name: "실드", color: 0x21d4fd, icon: "◈" },
+  boost: { name: "부스터", color: 0xffe14a, icon: "»" },
+  overcharge: { name: "과충전", color: 0xff4ad6, icon: "ϟ" },
+  emp: { name: "EMP", color: 0xb8c8ff, icon: "✺" },
 };
+export const ITEM_SLOTS = 2;   // 보관 아이템은 두 개까지. 가득 차면 더 집을 수 없다
 const ITEM_POOL = ["repair", "repair", "repair", "missiles", "missiles", "missiles", "shield", "shield", "boost", "overcharge", "emp"];
 const CALLSIGNS = ["독수리", "송골매", "까치", "올빼미", "참매", "황조롱이", "두루미", "갈매기", "부엉이", "제비", "물수리", "직박구리", "말똥가리", "솔부엉이"];
 export const TEAM_COLOR = [0x2f8cff, 0xff2d3d];
@@ -56,9 +57,10 @@ export class Combat {
     this.missileGeo = new THREE.CylinderGeometry(0.09, 0.14, 1.1, 8);
     this.missileGeo.rotateX(Math.PI / 2);
     this.missileMat = new THREE.MeshLambertMaterial({ color: 0xe9edf2, emissive: 0x552200 });
-    this.pickGeo = new THREE.OctahedronGeometry(0.8, 0);
-    this.ringGeo = new THREE.TorusGeometry(1.25, 0.05, 6, 28);
-    this.beamGeo = new THREE.CylinderGeometry(0.12, 0.12, 30, 6, 1, true);
+    this.pickGeo = new THREE.OctahedronGeometry(1.15, 0);
+    this.ringGeo = new THREE.TorusGeometry(1.8, 0.09, 6, 32);
+    this.beamGeo = new THREE.CylinderGeometry(0.32, 0.32, 44, 8, 1, true);
+    this.haloGeo = new THREE.SphereGeometry(2.3, 16, 10);
     this.extra = [];
     this.botN = 0;
   }
@@ -85,7 +87,7 @@ export class Combat {
     const a = Object.assign({
       id: this.id++, name: "", kind: "bot", team: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), quat: new THREE.Quaternion(),
       radius: 0.9, hp: 100, maxHp: 100, shield: 0, shieldT: 0, alive: true, respawns: false, respawnT: 0, score: 0, kills: 0, deaths: 0,
-      heat: 0, overheated: false, fireT: 0, missiles: 0, missileT: 0, item: null, boostT: 0, overT: 0, stunT: 0,
+      heat: 0, overheated: false, fireT: 0, missiles: 0, missileT: 0, items: [], sel: 0, boostT: 0, overT: 0, stunT: 0,
       model: null, ai: null, static: false, targetable: true, invulnerable: false, flash: 0,
     }, o);
     this.actors.push(a);
@@ -169,18 +171,33 @@ export class Combat {
     return a;
   }
 
+  // 터치 버튼에 지금 쓸 아이템과 교체 대상을 적는다
+  _itemButtons(p) {
+    const key = p.items.join(",") + "|" + p.sel;
+    if (key === this._btnKey) return;
+    this._btnKey = key;
+    const use = document.querySelector("#touch .b-item"), sw = document.querySelector("#touch .b-swap");
+    if (!use || !sw) return;
+    const cur = ITEMS[p.items[p.sel]], other = p.items.length > 1 ? ITEMS[p.items[1 - p.sel]] : null;
+    const css = (it) => "#" + it.color.toString(16).padStart(6, "0");
+    use.textContent = cur ? `${cur.icon} ${cur.name}` : "아이템"; use.style.color = cur ? css(cur) : ""; use.style.borderColor = cur ? css(cur) : ""; use.disabled = !cur;
+    sw.hidden = !other; if (other) sw.textContent = `⇄ ${other.name}`;
+  }
+
   // ── 아이템 ──
   addPickup(pos, type) {
     type = type || ITEM_POOL[(Math.random() * ITEM_POOL.length) | 0];
     const g = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(ITEMS[type].color).multiplyScalar(2.2) });
     const gem = new THREE.Mesh(this.pickGeo, mat), ring = new THREE.Mesh(this.ringGeo, mat);
-    const beam = new THREE.Mesh(this.beamGeo, new THREE.MeshBasicMaterial({ color: ITEMS[type].color, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
-    beam.position.y = 15;
-    g.add(gem, ring, beam);
+    const beam = new THREE.Mesh(this.beamGeo, new THREE.MeshBasicMaterial({ color: ITEMS[type].color, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }));
+    beam.position.y = 22;
+    const ring2 = new THREE.Mesh(this.ringGeo, mat); ring2.rotation.x = Math.PI / 2;
+    const halo = new THREE.Mesh(this.haloGeo, beam.material);
+    g.add(gem, ring, ring2, halo, beam);
     g.position.copy(pos);
     this.w.scene.add(g);
-    const p = { pos: pos.clone(), type, g, gem, ring, mat, beamMat: beam.material, active: true, t: 0, fixed: false };
+    const p = { pos: pos.clone(), type, g, gem, ring, ring2, halo, mat, beamMat: beam.material, active: true, t: 0, fixed: false };
     this.pickups.push(p);
     return p;
   }
@@ -209,15 +226,25 @@ export class Combat {
     const it = ITEMS[type];
     if (type === "repair") a.hp = Math.min(a.maxHp, a.hp + 50);
     else if (type === "missiles") a.missiles = Math.min(8, a.missiles + 3);
-    else if (a.isPlayer) a.item = type;
+    else if (a.isPlayer) { a.items.push(type); if (a.items.length === 1) a.sel = 0; }
     else this.useItem(a, type);
-    if (a.isPlayer) { this.feel.pickColor = it.color; this.snd.play("pickup"); this.s.hud.toast(`${it.name} 획득${it.instant ? "" : "  [E] 사용"}`, "#" + it.color.toString(16).padStart(6, "0"), 1.3, 20); }
+    if (a.isPlayer) { this.feel.pickColor = it.color; this.snd.play("pickup"); this.s.hud.toast(`${it.name} 획득${it.instant ? "" : this.touchUI() ? "" : a.items.length > 1 ? "  [E] 사용 · [Q] 교체" : "  [E] 사용"}`, "#" + it.color.toString(16).padStart(6, "0"), 1.3, 20); }
     if (this.h.onPickup) this.h.onPickup(a, type);
   }
 
-  useItem(a, type = a.item) {
+  touchUI() { const g = this.s.game; return g.input.device === "touch" || !!(g.touchWanted && g.touchWanted()); }
+  // 플레이어가 이 아이템을 집을 수 있는가 (보관 칸이 가득 차면 보관형은 못 집는다)
+  canTake(a, type) { return !a.isPlayer || ITEMS[type].instant || a.items.length < ITEM_SLOTS; }
+  // 쓸 아이템 바꾸기
+  nextItem(a) {
+    if (a.items.length < 2) return;
+    a.sel = (a.sel + 1) % a.items.length; a.swapT = 0.35;
+    this.snd.play("click");
+  }
+
+  useItem(a, type = a.items && a.items[a.sel]) {
     if (!type) return;
-    if (a.isPlayer) { a.item = null; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type); }
+    if (a.isPlayer) { a.items.splice(a.sel, 1); a.sel = 0; a.swapT = 0.35; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type); }
     if (type === "shield") { a.shield = 80; a.shieldT = 10; if (a.isPlayer) this.feel.emit("shieldUp"); }
     else if (type === "boost") a.boostT = 6;
     else if (type === "overcharge") a.overT = 10;
@@ -318,7 +345,10 @@ export class Combat {
         this.fireMissile(p, _b, pl.aimDir, this.lockT >= 0.7 ? this.lock : null);
       } else if (p.missiles <= 0) this.feel.emit("dry");
     }
-    if (inp.take("item") && p.item) this.useItem(p);
+    if (inp.take("itemNext")) this.nextItem(p);
+    if (inp.take("item") && p.items.length) this.useItem(p);
+    if (p.swapT > 0) p.swapT -= dt;
+    this._itemButtons(p);
   }
 
   // ── 피해 ──
@@ -546,11 +576,17 @@ export class Combat {
         if (p.t <= 0) { p.active = true; p.g.visible = true; if (!p.fixed) this._retype(p); }
         continue;
       }
-      p.gem.rotation.y += dt * 2; p.ring.rotation.x += dt * 1.3; p.ring.rotation.y += dt * 0.7;
+      p.gem.rotation.y += dt * 2; p.ring.rotation.x += dt * 1.3; p.ring.rotation.y += dt * 0.7; p.ring2.rotation.z += dt * 1.1;
+      const pul = 1 + Math.sin(this.s.time * 4 + p.pos.x) * 0.14;
+      p.gem.scale.setScalar(pul); p.halo.scale.setScalar(0.9 + (pul - 1) * 1.6); p.gem.position.y = Math.sin(this.s.time * 2 + p.pos.z) * 0.35;
       for (const a of this.actors) {
         if (!a.alive || a.static || (a.kind !== "player" && a.kind !== "bot")) continue;
         if (a.botKind === "boss" || a.botKind === "kamikaze") continue;
-        if (a.pos.distanceTo(p.pos) < 2.6 + a.radius) {
+        if (a.pos.distanceTo(p.pos) < 3.1 + a.radius) {
+          if (!this.canTake(a, p.type)) {
+            if (!(this.fullT > this.s.time)) { this.fullT = this.s.time + 2.5; this.s.hud.toast("아이템 칸이 가득 찼습니다 — 먼저 사용하세요", "#ffb02e", 1.4, 18); this.feel.emit("dry"); }
+            continue;
+          }
           this.give(a, p.type);
           p.active = false; p.g.visible = false; p.t = 16;
           break;
@@ -760,7 +796,7 @@ export class Combat {
     for (const a of this.actors) if (a.model && a.kind !== "player") { sc.remove(a.model); if (a.model.userData.dispose) a.model.userData.dispose(); }
     for (const m of this.missiles) sc.remove(m.mesh);
     for (const p of this.pickups) { sc.remove(p.g); p.mat.dispose(); p.beamMat.dispose(); }
-    this.missileGeo.dispose(); this.missileMat.dispose(); this.pickGeo.dispose(); this.ringGeo.dispose(); this.beamGeo.dispose();
+    this.missileGeo.dispose(); this.missileMat.dispose(); this.pickGeo.dispose(); this.ringGeo.dispose(); this.beamGeo.dispose(); this.haloGeo.dispose();
     this.s.player.body.boost = 1;
   }
 }

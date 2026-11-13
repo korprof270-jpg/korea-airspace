@@ -355,3 +355,7 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .grid.c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 560px) { .grid.c3 { grid-template-columns: 1fr; } }
 .screen.tr .startbar .primary { color: var(--ink); text-shadow: none; }
+#touch .tbtns .b-item:disabled { opacity: 0.45; }
+#touch .tbtns .b-item:not(:disabled) { background: rgba(16, 24, 44, 0.9); font-size: 14px; }
+#touch .tbtns .b-swap { font-size: 12px; color: var(--muted); }
+#touch .tbtns .b-swap[hidden] { display: none; }

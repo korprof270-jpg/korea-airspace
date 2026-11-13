@@ -1,7 +1,7 @@
 // 전투 HUD: 조준선·락온·명중 표시·피격 방향·적/아군 표시·체력/무장·레이더·점수판 (전투 상태는 combat.js 가 관리)
 // 화면 전체 색 효과(피격 번쩍임 등)는 feel.js 담당 — 여기서는 계기 요소만 그린다
 import * as THREE from "../vendor/three.module.min.js";
-import { ITEMS, TEAM_CSS } from "./combat.js";
+import { ITEMS, ITEM_SLOTS, TEAM_CSS } from "./combat.js";
 import { clamp } from "./config.js";
 import { HC, INK } from "./hud.js";
 
@@ -34,6 +34,23 @@ export function drawCombatHud(c, h, o = {}) {
     if (!b) continue;
     if (enemy || big) h.bar(b.x - b.px, b.y + b.px + 5 * u, b.px * 2, 4 * u, a.hp / a.maxHp, enemy ? "#ff5a5a" : "#5aa9ff");
     if (isLock && enemy) lockRing(h, b, clamp(c.lockT / LOCK_T, 0, 1), s.time);
+  }
+
+  // 아이템 표지: 가까운 아이템에 아이콘·이름·거리 (칸이 가득 차 못 집는 것은 흐리게)
+  if (p.alive) for (const pk of c.pickups) {
+    if (!pk.active) continue;
+    const d = pk.pos.distanceTo(cam.position);
+    if (d > 110 || d < 4) continue;
+    const sp = h.project(pk.pos, cam, h._s);
+    if (!sp.on) continue;
+    const it = ITEMS[pk.type], col = "#" + it.color.toString(16).padStart(6, "0"), can = c.canTake(p, pk.type);
+    const r = clamp(520 / d, 9, 20) * u, x = sp.x, y = sp.y - clamp(900 / d, 14, 46) * u;
+    h.fade(can ? (d > 80 ? (110 - d) / 30 : 1) : 0.35);
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = "rgba(10,16,30,0.82)"; g.fill();
+    g.lineWidth = 2.5 * u; g.strokeStyle = col; g.stroke();
+    h.text(it.icon, x, y + 1 * u, { size: r / u * 1.05, align: "center", base: "middle", color: col, shadow: false });
+    if (d < 60 && full) h.text(can ? `${it.name} ${d.toFixed(0)}m` : "칸 가득", x, y - r - 5 * u, { size: 11, align: "center", color: col });
+    h.fade(1);
   }
 
   if (p.alive) reticle(c, h);
@@ -172,15 +189,23 @@ function status(c, h) {
     g.fillStyle = on ? "#ff9a3a" : "rgba(255,255,255,0.14)"; g.fill();
     g.lineJoin = "round"; g.lineWidth = 2 * u; g.strokeStyle = INK; g.stroke();
   }
-  // 아이템 칸
-  if (p.item && ITEMS[p.item]) {
-    const it = ITEMS[p.item], col = "#" + it.color.toString(16).padStart(6, "0");
-    const label = L.touch ? it.name : `E · ${it.name}`;
-    h.text(label, x + w - 12 * u, my + 7 * u, { size: 12, align: "right", base: "middle", color: col });
-  }
   // 지속 효과
+  // 아이템 칸 2개: 지금 쓸 것은 크게·밝게, 다른 하나는 흐리게
+  const sh = 40 * u, sy = y - sh - 7 * u, gap = 6 * u, sw = (w - gap) / 2, pop = Math.max(0, p.swapT || 0) / 0.35;
+  for (let i = 0; i < ITEM_SLOTS; i++) {
+    const type = p.items[i], it = type && ITEMS[type], on = !!it && i === p.sel, sx = x + i * (sw + gap), lift = on ? (3 + pop * 5) * u : 0;
+    const col = it ? "#" + it.color.toString(16).padStart(6, "0") : "#5b6880";
+    if (it && !on) h.fade(0.6);
+    h.plate(sx, sy - lift, sw, sh, { skew: 0.1, fill: on ? "rgba(12,18,34,0.94)" : PLATE, accent: it ? col : null, stroke: on ? col : INK, lw: on ? 3 : 2.5 });
+    if (it) {
+      h.text(it.icon, sx + 20 * u, sy - lift + sh / 2 + 1 * u, { size: on ? 21 : 17, align: "center", base: "middle", color: col, shadow: false });
+      h.text(it.name, sx + 36 * u, sy - lift + (L.touch ? sh / 2 + 1 * u : 14 * u), { size: on ? 14 : 12, base: "middle", color: on ? "#fff" : col, shadow: false });
+      if (!L.touch) h.text(on ? "E 사용" : "Q 교체", sx + 36 * u, sy - lift + 29 * u, { size: 10, base: "middle", color: on ? HC.gold : HC.dim, shadow: false });
+    } else h.text("빈 칸", sx + sw / 2, sy + sh / 2 + 1 * u, { size: 11, align: "center", base: "middle", color: "#5b6880", shadow: false });
+    h.fade(1);
+  }
   let bxp = x + 8 * u;
-  const buff = (txt, col) => { h.text(txt, bxp, y - 8 * u, { size: 12, color: col }); bxp += (txt.length * 11 + 10) * u; };
+  const buff = (txt, col) => { h.text(txt, bxp, sy - 10 * u, { size: 12, color: col }); bxp += (txt.length * 11 + 10) * u; };
   if (p.shield > 0 && p.shieldT > 0) buff(`실드 ${p.shieldT.toFixed(0)}s`, HC.cyan);
   if (p.boostT > 0) buff(`부스터 ${p.boostT.toFixed(0)}s`, "#ffe14a");
   if (p.overT > 0) buff(`과충전 ${p.overT.toFixed(0)}s`, HC.pink);

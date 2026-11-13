@@ -3,12 +3,12 @@ import { toGame } from "./rotate.js";
 import { settings, STICK_MODES, clamp } from "./config.js";
 
 const KEY_ACTIONS = {
-  Space: "fire", KeyF: "missile", ControlLeft: "missile", KeyE: "item", KeyQ: "item",
+  Space: "fire", KeyF: "missile", ControlLeft: "missile", KeyE: "item", KeyQ: "itemNext",
   KeyC: "camera", KeyR: "reset", KeyM: "modeNext", Escape: "pause", KeyP: "pause", Tab: "score",
   Digit1: "mode1", Digit2: "mode2", Digit3: "mode3", Digit4: "mode4", Digit5: "mode5",
 };
 // 표준 게임패드 버튼 → 동작
-const PAD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "missile", 7: "fire", 8: "hud", 9: "pause" };
+const PAD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "missile", 7: "fire", 8: "hud", 9: "pause", 14: "itemNext", 15: "itemNext" };
 const HOLD = new Set(["fire", "score"]);
 
 const _tp = { x: 0, y: 0 };
