@@ -6,15 +6,15 @@ const MIN = [0, 2, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11], DOR = [0, 2, 3
 const I = [0, 2, 4], III = [2, 4, 6], IV = [3, 5, 7], V = [4, 6, 8], VI = [5, 7, 9], VII = [6, 8, 10];
 // bpm, root(MIDI), scale, chords(마디별 음계 도수), lead·arp 음색, 리듬 패턴(16칸), amb(환경음)
 const THEMES = {
-  menu: { bpm: 124, root: 57, scale: MIN, chords: [I, VI, III, VII], lead: "super", arp: "pluck", bass: "x.xx.xx.x.xx.xxx", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "...x..x....x..x." },
-  city: { bpm: 132, root: 57, scale: MIN, chords: [I, VI, III, VII], lead: "super", arp: "pluck", bass: "x.xxx.xxx.xxx.xx", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x..x....x..x.." },
-  arena: { bpm: 148, root: 53, scale: PHR, chords: [I, I, VI, VII], lead: "super", arp: "pluck", bass: "xxxxxxxxxxxxxxxx", kick: "x...x...x..xx...", snare: "....x.......x..x", hat: "..x...x...x...x.", shak: "xxxxxxxxxxxxxxxx", stab: "x..x..x.x..x..x." },
-  factory: { bpm: 122, root: 55, scale: DOR, chords: [I, IV, I, VII], lead: "super", arp: "ep", bass: "x..x.xx.x..x.x.x", kick: "x...x..xx...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.x.xxx.x.x.xxx.", stab: "..x...x..x....x.", amb: "waves" },
-  canyon: { bpm: 136, root: 52, scale: MIN, chords: [I, VII, VI, VII], lead: "guitar", arp: "guitar", bass: "x.xxx.xxx.xxx.xx", kick: "x..x..x.x..x..x.", snare: "....x.......x.x.", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "x.....x...x.....", amb: "wind" },
-  palace: { bpm: 132, root: 55, scale: PENT, chords: [[0, 2, 3], [0, 2, 3], [3, 5, 7], [2, 4, 5]], lead: "gaya", arp: "gaya", bass: "x..x..x.x..x.x..", kick: "x..x..x.x..x..x.", snare: "......x.......x.", hat: "", shak: "x.xx.xx.x.xx.xxx", stab: "x.......x.......", drum: "samul", amb: "wind" },
-  snow: { bpm: 138, root: 62, scale: MAJ, chords: [I, V, VI, IV], lead: "bell", arp: "marimba", bass: "x.x.x.x.x.x.x.xx", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x...x...x...x.", amb: "wind" },
-  island: { bpm: 130, root: 60, scale: MAJ, chords: [I, IV, V, IV], lead: "marimba", arp: "marimba", bass: "x..x..x.x..x..x.", kick: "x..x..x.x..x..x.", snare: "....x..x....x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x..x....x..x..", amb: "waves" },
-  moon: { bpm: 128, root: 52, scale: PHR, chords: [I, VI, I, VII], lead: "super", arp: "pluck", bass: "x.xx.xx.x.xx.xx.", kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "..xx..xx..xx..xx", stab: "x.....x......x..", amb: "drone" },
+  menu: { bpm: 104, root: 57, scale: MIN, chords: [I, VI, III, VII], lead: "super", arp: "pluck", bass: "x.xx.xx.x.xx.xxx", kick: "x...x...x...x.x.", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "...x..x....x..x." },
+  city: { bpm: 108, root: 57, scale: MIN, chords: [I, VI, III, VII], lead: "super", arp: "pluck", bass: "x.xxx.xxx.xxx.xx", kick: "x...x...x...x.x.", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x..x....x..x.." },
+  arena: { bpm: 118, root: 53, scale: PHR, chords: [I, I, VI, VII], lead: "super", arp: "pluck", bass: "xxxxxxxxxxxxxxxx", kick: "x...x..xx...x.x.", snare: "....x.......x..x", hat: "..x...x...x...x.", shak: "xxxxxxxxxxxxxxxx", stab: "x..x..x.x..x..x." },
+  factory: { bpm: 100, root: 55, scale: DOR, chords: [I, IV, I, VII], lead: "super", arp: "ep", bass: "x..x.xx.x..x.x.x", kick: "x...x..xx...x...", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.x.xxx.x.x.xxx.", stab: "..x...x..x....x.", amb: "waves" },
+  canyon: { bpm: 106, root: 52, scale: MIN, chords: [I, VII, VI, VII], lead: "guitar", arp: "guitar", bass: "x.xxx.xxx.xxx.xx", kick: "x...x.x.x...x.x.", snare: "....x.......x.x.", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "x.....x...x.....", amb: "wind" },
+  palace: { bpm: 104, root: 55, scale: PENT, chords: [[0, 2, 3], [0, 2, 3], [3, 5, 7], [2, 4, 5]], lead: "gaya", arp: "gaya", bass: "x..x..x.x..x.x..", kick: "x..xx...x..xx.x.", snare: "......x.......x.", hat: "", shak: "x.xx.xx.x.xx.xxx", stab: "x.......x.......", drum: "samul", amb: "wind" },
+  snow: { bpm: 108, root: 62, scale: MAJ, chords: [I, V, VI, IV], lead: "bell", arp: "marimba", bass: "x.x.x.x.x.x.x.xx", kick: "x...x...x...x.x.", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x...x...x...x.", amb: "wind" },
+  island: { bpm: 104, root: 60, scale: MAJ, chords: [I, IV, V, IV], lead: "marimba", arp: "marimba", bass: "x..x..x.x..x..x.", kick: "x...x..xx...x.x.", snare: "....x..x....x...", hat: "..x...x...x...x.", shak: "x.xxx.xxx.xxx.xx", stab: "..x..x....x..x..", amb: "waves" },
+  moon: { bpm: 100, root: 52, scale: PHR, chords: [I, VI, I, VII], lead: "super", arp: "pluck", bass: "x.xx.xx.x.xx.xx.", kick: "x...x...x...x..x", snare: "....x.......x...", hat: "..x...x...x...x.", shak: "..xx..xx..xx..xx", stab: "x.....x......x..", amb: "drone" },
 };
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -114,17 +114,18 @@ export class Music {
     if (s16 === 0 && (bar === 2 || (sec % 8 === 0 && bar > 2))) this._crash(t, sec === 0 ? 0.3 : 0.2);
     if (s16 === 0 && last) this._riser(t, spb * 16);
     if (on(T.kick) && !(fill && s16 >= 12)) {
-      samul ? this._kick(t, 120, 48, 0.3, 0.95) : this._kick(t, 190, 44, 0.24, 1);
-      this.duck.gain.cancelScheduledValues(t); this.duck.gain.setValueAtTime(0.42, t); this.duck.gain.linearRampToValueAtTime(1, t + spb * 2.6);
+      const main = s16 % 4 === 0;   // 정박 킥은 크게, 사이 킥은 조금 작게
+      samul ? this._kick(t, 130, 42, 0.42, main ? 1.5 : 1.0) : this._kick(t, 170, 40, 0.4, main ? 1.6 : 1.05);
+      this.duck.gain.cancelScheduledValues(t); this.duck.gain.setValueAtTime(main ? 0.25 : 0.45, t); this.duck.gain.linearRampToValueAtTime(1, t + spb * 3);
     }
     if (on(T.snare) || (fill && (s16 % 2 === 0 || s16 >= 13))) this._snare(t, fill ? 0.2 + (s16 - 8) * 0.03 : 0.42, samul);
     if (on(T.hat)) this._noise(t, 0.16, 0.13, 7000, "highpass", 0.7);                                    // 오픈 햇(엇박)
-    if (on(T.shak)) samul ? this._metal(t, 0.11) : this._noise(t, 0.028, s16 % 4 === 0 ? 0.1 : 0.065, 9000, "highpass", 0.7);
+    if (on(T.shak)) samul ? this._metal(t, 0.08) : this._noise(t, 0.028, s16 % 4 === 0 ? 0.06 : 0.04, 9000, "highpass", 0.7);
     if (on(T.bass)) this._bass(this.note(T, ch[0] + (s16 % 8 === 7 ? n : s16 === 10 ? 4 : 0), -2), t, spb * 1.5);
     if (on(T.stab) && !intro) this._stab(ch.map((d) => this.note(T, d, 0)), t, spb * 1.4);
     if (T.arp && bar >= 1) {
       const k = s16 % 8, pat = [0, 1, 2, 1, 0, 2, 1, 2][k];
-      this._lead(T.arp, this.note(T, ch[pat % ch.length] + (k >= 4 ? n : 0), 1), t, spb * 1.1, 0.055);
+      this._lead(T.arp, this.note(T, ch[pat % ch.length] + (k >= 4 ? n : 0), 1), t, spb * 1.1, 0.04);
     }
     if (!intro) {
       const nt = this.hook[step % this.hook.length];
@@ -152,12 +153,15 @@ export class Music {
   }
 
   // ── 타악 ──
+  // 킥: 빠르게 떨어지는 몸통 + 길게 남는 서브 저음 + 어택 클릭. 살짝 찌그러뜨려 단단하게
   _kick(t, f0, f1, dur, vol) {
-    const ctx = this.sound.ctx, o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + 0.09);
-    this._env(g, t, 0.001, dur, vol);
-    o.connect(g); g.connect(this.bus); o.start(t); o.stop(t + dur + 0.05);
-    this._noise(t, 0.02, vol * 0.35, 3500, "bandpass", 0.8);   // 어택 클릭
+    const ctx = this.sound.ctx, o = ctx.createOscillator(), g = ctx.createGain(), ws = ctx.createWaveShaper();
+    ws.curve = this.kickCurve || (this.kickCurve = this._curve(3));
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1 * 1.25, t + 0.07); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.002); g.gain.setValueAtTime(vol, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(ws); ws.connect(g); g.connect(this.bus); o.start(t); o.stop(t + dur + 0.05);
+    this._tone("sine", f1 * 1.15, t, dur * 1.25, vol * 0.55, 200, 0.004, 0, this.bus);   // 서브
+    this._noise(t, 0.018, vol * 0.3, 3200, "bandpass", 0.8);                              // 어택 클릭
   }
   _snare(t, vol, low) {
     this._noise(t, low ? 0.16 : 0.19, vol, low ? 1100 : 2400, "bandpass", low ? 2.5 : 0.7);
