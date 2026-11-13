@@ -41,13 +41,30 @@ export class Sound {
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      // 모터: 톱니파 2개 + 저역 필터, 바람 소리: 노이즈 + 대역 필터
+      // 모터: 프로펠러 4개의 날개 통과음(배음이 있는 파형, 서로 조금씩 어긋난 음높이) + 프롭 바람 소리
       this.mGain = ctx.createGain(); this.mGain.gain.value = 0;
-      this.mFilter = ctx.createBiquadFilter(); this.mFilter.type = "lowpass"; this.mFilter.frequency.value = 900;
-      this.osc = [ctx.createOscillator(), ctx.createOscillator()];
-      this.osc[0].type = "sawtooth"; this.osc[1].type = "square";
-      for (const o of this.osc) { o.frequency.value = 90; o.connect(this.mFilter); o.start(); }
-      this.mFilter.connect(this.mGain); this.mGain.connect(this.bus);
+      this.mFilter = ctx.createBiquadFilter(); this.mFilter.type = "lowpass"; this.mFilter.frequency.value = 1500; this.mFilter.Q.value = 0.4;
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 110;
+      const H = [0, 1, 0.5, 0.42, 0.2, 0.22, 0.1, 0.1, 0.05, 0.05, 0.03], re = new Float32Array(H.length), im = new Float32Array(H);
+      const wave = ctx.createPeriodicWave(re, im);
+      this.DET = [1, 1.017, 0.985, 1.031];
+      this.osc = this.DET.map((d, i) => {
+        const o = ctx.createOscillator(); o.setPeriodicWave(wave); o.frequency.value = 120 * d;
+        // 모터마다 회전수가 미세하게 흔들린다
+        const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.6 + i * 0.47; lg.gain.value = 14; lfo.connect(lg); lg.connect(o.detune); lfo.start();
+        const g = ctx.createGain(); g.gain.value = 0.25;
+        const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+        o.connect(g);
+        if (pan) { pan.pan.value = [-0.5, 0.5, -0.25, 0.25][i]; g.connect(pan); pan.connect(hp); } else g.connect(hp);
+        o.start();
+        return o;
+      });
+      hp.connect(this.mFilter); this.mFilter.connect(this.mGain); this.mGain.connect(this.bus);
+      this.pSrc = ctx.createBufferSource(); this.pSrc.buffer = this.noiseBuf; this.pSrc.loop = true;
+      this.pFilter = ctx.createBiquadFilter(); this.pFilter.type = "bandpass"; this.pFilter.frequency.value = 900; this.pFilter.Q.value = 0.9;
+      this.pGain = ctx.createGain(); this.pGain.gain.value = 0;
+      this.pSrc.connect(this.pFilter); this.pFilter.connect(this.pGain); this.pGain.connect(this.bus); this.pSrc.start();
+      this.mf = 120;
       this.wind = ctx.createBufferSource(); this.wind.buffer = this.noiseBuf; this.wind.loop = true;
       this.wFilter = ctx.createBiquadFilter(); this.wFilter.type = "bandpass"; this.wFilter.frequency.value = 500; this.wFilter.Q.value = 0.6;
       this.wGain = ctx.createGain(); this.wGain.gain.value = 0;
@@ -70,11 +87,14 @@ export class Sound {
   motor(thrust, speed, on = true) {
     if (!this.ok) return;
     const t = this.ctx.currentTime;
-    const f = 85 + thrust * 330;
-    this.osc[0].frequency.setTargetAtTime(f, t, 0.03);
-    this.osc[1].frequency.setTargetAtTime(f * 2.02, t, 0.03);
-    this.mFilter.frequency.setTargetAtTime(500 + thrust * 2600, t, 0.05);
-    this.mGain.gain.setTargetAtTime(on ? 0.035 + thrust * 0.09 : 0, t, 0.05);
+    // 날개 통과 주파수: 공회전 ~125Hz → 전개 ~520Hz. 올릴 때는 빠르게, 내릴 때는 조금 느리게 따라간다
+    const f = 125 + Math.pow(Math.max(0, thrust), 0.75) * 395, tc = f > this.mf ? 0.035 : 0.09;
+    this.mf = f;
+    this.osc.forEach((o, i) => o.frequency.setTargetAtTime(f * this.DET[i], t, tc));
+    this.mFilter.frequency.setTargetAtTime(900 + thrust * 3800, t, 0.06);
+    this.mGain.gain.setTargetAtTime(on ? 0.05 + thrust * 0.1 : 0, t, 0.05);
+    this.pFilter.frequency.setTargetAtTime(700 + thrust * 2600, t, 0.08);
+    this.pGain.gain.setTargetAtTime(on ? 0.012 + thrust * thrust * 0.09 : 0, t, 0.06);
     // 바람: 속도가 붙을수록 커지고 높아진다 (고속에서 확실히 들리게 제곱 항 추가)
     const sp = Math.min(speed, 60);
     this.wFilter.frequency.setTargetAtTime(280 + sp * 26, t, 0.1);

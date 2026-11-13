@@ -107,6 +107,7 @@ export const DEFAULTS = {
   touchSticks: "auto",      // auto | on | off
   quality: typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches ? "low" : "med", // low | med | high
   volume: 0.6,
+  musicVolume: 0.5,
   difficulty: "normal",
   // HUD 표시 항목 (설정에서 켜고 끔). density: full | minimal | off, opacity 0.3~1, scale 0.8~1.3
   hud: {

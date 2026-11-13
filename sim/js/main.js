@@ -4,6 +4,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { settings } from "./config.js";
 import { Input } from "./input.js";
 import { Sound } from "./audio.js";
+import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
 import { UI } from "./ui.js";
@@ -25,6 +26,7 @@ class Game {
     this.hud = new Hud(document.getElementById("hud"));
     this.input = new Input();
     this.sound = new Sound();
+    this.music = new Music(this.sound);
     this.menu = new MenuScene();
     this.thumbs = new Thumbs();
     this.session = null;
@@ -95,6 +97,7 @@ class Game {
         if (this.session) { this.session.dispose(); this.session = null; }
         this.lastCfg = cfg;
         this.session = new Session(this, cfg);
+        this.music.setTheme(cfg.map);
         this.session.resize(innerWidth, innerHeight);
         this.state = "play";
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
@@ -140,6 +143,7 @@ class Game {
   quit() {
     if (this.session) { this.session.dispose(); this.session = null; }
     this.state = "menu";
+    this.music.setTheme("menu");
     this.hud.clear();
     this.ui.show("main");
     this._touchLayer();

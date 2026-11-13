@@ -443,6 +443,7 @@ export class UI {
     const g = this.game;
     if (path.startsWith("drone.")) g.menu.setLook(settings.drone);
     if (path === "volume") g.sound.setVolume(settings.volume);
+    if (path === "musicVolume") g.music.setVolume();
     if (path === "quality") g.applyQuality();
   }
 
@@ -551,7 +552,8 @@ export class UI {
       body = `
         <div class="opt"><label>그래픽 품질</label>${this.seg("quality", [["low", "낮음"], ["med", "보통"], ["high", "높음"]], settings.quality, "set")}
           <div class="hint">그림자·해상도가 바뀝니다. 다음 비행부터 완전히 적용됩니다.</div></div>
-        ${this.range("volume", "음량", 0, 1, 0.05)}
+        ${this.range("volume", "효과음 음량", 0, 1, 0.05)}
+        ${this.range("musicVolume", "배경 음악 음량", 0, 1, 0.05)}
         ${this._diff()}
         <div class="opt"><label>초기화</label><button class="ghost" data-a="reset">설정을 기본값으로</button></div>`;
     }
@@ -575,7 +577,7 @@ export class UI {
     settings.rates = structuredClone(RATE_PRESETS[v]);
     save(); this.redraw();
   }
-  a_reset() { resetSettings(); this.game.sound.setVolume(settings.volume); this.game.applyQuality(); this.redraw(); }
+  a_reset() { resetSettings(); this.game.sound.setVolume(settings.volume); this.game.music.setVolume(); this.game.applyQuality(); this.redraw(); }
 
   // ── 조작법 ──
   s_help() {
