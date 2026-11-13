@@ -44,7 +44,7 @@ npm run android
 Android Studio가 열리면 실행/APK 빌드. iOS는 macOS + Xcode에서 `npx cap add ios` 후 `npm run ios`.
 네이티브 앱에서 현재 위치를 쓰려면 Android `AndroidManifest.xml`에 위치 권한, iOS `Info.plist`에 `NSLocationWhenInUseUsageDescription`을 추가하세요.
 
-## 드론 시뮬레이터 — 하늘길 FPV (`sim/`)
+## 드론 시뮬레이터 — FPV PROJECT (`sim/`)
 지도 화면의 🎮 버튼 또는 `http://localhost:8080/sim/` 로 실행하는 **3D 드론 비행 게임**입니다.
 
 **PC·웹에서 쓰는 방법**

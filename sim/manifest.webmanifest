@@ -1,6 +1,6 @@
 {
-  "name": "하늘길 FPV — 드론 시뮬레이터",
-  "short_name": "하늘길 FPV",
+  "name": "FPV PROJECT — 드론 시뮬레이터",
+  "short_name": "FPV PROJECT",
   "description": "3D 드론 비행 게임: 레이싱·트래킹·프리스타일·서바이벌·챌린지",
   "lang": "ko",
   "start_url": "./index.html",

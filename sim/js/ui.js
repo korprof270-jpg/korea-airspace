@@ -171,7 +171,7 @@ export class UI {
     const d = settings.drone;
     return `<div class="screen home" style="--c:${MODE_META[cur].c}">
       <div class="lcol">
-        <div class="brand"><div class="logo">하늘길 <b>FPV</b></div><p>3D 드론 비행 시뮬레이터</p></div>
+        <div class="brand"><div class="logo"><b>FPV</b> PROJECT</div><p>3D 드론 비행 시뮬레이터</p></div>
         <nav class="mlist" aria-label="게임 모드">${items}</nav>
         <div class="dock">
           <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>

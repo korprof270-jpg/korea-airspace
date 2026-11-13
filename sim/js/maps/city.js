@@ -32,7 +32,7 @@ const SIGNS = [
       g.strokeStyle = "rgba(33,212,253,0.55)"; g.lineWidth = 3;
       for (let i = 0; i < 8; i++) { g.beginPath(); g.moveTo(0, 28 + i * 27); g.lineTo(36 + ((i * 53) % 90), 28 + i * 27); g.stroke(); }
       icon(g, "drone", 118, 118, 150, "#ffe14a");
-      neonText(g, ko ? "하늘길 FPV" : "SKYWAY FPV", 350, 84, 60, "#ffffff", 300);
+      neonText(g, ko ? "FPV PROJECT" : "SKYWAY FPV", 350, 84, 60, "#ffffff", 300);
       neonText(g, ko ? "그랑프리" : "GRAND PRIX", 350, 158, 52, "#ff2bd6", 300);
       for (let i = 0; i < 26; i++) { g.fillStyle = i % 2 ? "#ffffff" : "#0a0c14"; g.fillRect(i * 20, 220, 20, 14); g.fillStyle = i % 2 ? "#0a0c14" : "#ffffff"; g.fillRect(i * 20, 234, 20, 14); }
     },
