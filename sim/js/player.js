@@ -160,7 +160,7 @@ export class Player {
       mode.physicsStep(_prev, b.pos, STEP);
     }
     if (this.maxImpact > 1.2) {
-      const limit = settings.crashAssist ? 11 : 6, hard = this.maxImpact > limit;
+      const limit = settings.crashAssist ? 16.5 : 9, hard = this.maxImpact > limit;   // 파손 문턱(충돌 속도 m/s)
       s.fx.spark(b.pos, 0xffd27a, Math.min(14, 3 + this.maxImpact));
       if (this.maxImpact > 6) s.fx.ring(b.pos, 0xffe2a8, 0.5 + this.maxImpact * 0.06, 0.25);
       s.game.sound.play(hard ? "crash" : "hit", clamp(this.maxImpact / 10, 0.2, 1));

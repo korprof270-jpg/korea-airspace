@@ -20,7 +20,7 @@ export class CombatMode extends Mode {
   // 벽·지면 충돌은 추락 대신 피해
   onImpact(impact, hard) {
     // 세게 부딪히면 그대로 파괴, 가벼운 충돌은 피해만
-    if (this.state === "run" && impact > 5) this.combat.damage(this.me, hard ? 9999 : (impact - 5) * 4.5, null, this.s.player.body.pos);
+    if (this.state === "run" && impact > 7.5) this.combat.damage(this.me, hard ? 9999 : (impact - 7.5) * 2.25, null, this.s.player.body.pos);
   }
 
   // R: 제자리에서 기체를 바로 세움
