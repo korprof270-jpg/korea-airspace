@@ -82,8 +82,11 @@ export function chalet(w, x, z, ry = 0, o = {}) {
   const cu = sx * 0.24, cv = sz * 0.18;
   F.box(cu, hw, cv, 0.9, top - hw + 0.5, 0.9, 0x8d4a3a, { mat: "std:brick", tile: 2 });
   F.box(cu, top + 0.5, cv, 1.15, 0.22, 1.15, SNOW, { col: false, ao: false });
+  CHALETS.push({ F, x, z, ry, sx, sz, hw, top, floors, accent, du, chim: [F.X(cu, cv), y0 + top + 0.9, F.Z(cu, cv)] });
   return { F, top, hw };
 }
+// 지은 산장 목록(디테일 모듈이 굴뚝 연기·처마 고드름·문 앞 소품을 붙인다). 빌드를 시작할 때 비운다
+export const CHALETS = [];
 
 // 부채꼴 원뿔(삼각형 7개): 밑면 y = 0 반경 1, 꼭짓점 y = 1. 숲을 싸게 그리려고 쓴다
 export const FAN = (() => {
@@ -135,14 +138,16 @@ export function icicle(w, T, x, yTop, z, r, len, color = ICE) {
   w.mesh(T.coneO, M(x, yTop, z, r, len, r, 180, 0, 0), color, "paint");
 }
 
+const DOT = (() => { const g = new THREE.IcosahedronGeometry(1, 1); g.computeBoundingBox(); return g; })();
 // 눈사람(높이 약 11m × s)
 export function snowman(w, x, z, s = 1, ry = 0) {
   const y = w.h(x, z), F = frame(w, x, z, ry, y);
   for (const [yy, r] of [[3 * s, 3.4 * s], [7.3 * s, 2.5 * s], [10.4 * s, 1.7 * s]]) { w.mesh(BALL, M(x, y + yy, z, r, r * 0.94, r), SNOW, "std"); w.col.addSphere(new THREE.Vector3(x, y + yy, z), r * 0.95); }
   F.cyl(0, 11.6 * s, 0, 1.9 * s, 0.18 * s, 0x23262e, { col: false }); F.cyl(0, 11.7 * s, 0, 1.2 * s, 1.7 * s, 0x23262e, {}); F.cyl(0, 11.95 * s, 0, 1.24 * s, 0.4 * s, 0xd9432f, { col: false });
   w.mesh(new THREE.ConeGeometry(0.3 * s, 1.8 * s, 6), M(F.X(0, -2.3 * s), y + 10.3 * s, F.Z(0, -2.3 * s), 1, 1, 1, -90, ry, 0), 0xff8a2a, "paint");
-  for (const u of [-0.6, 0.6]) F.sph(u * s, 10.9 * s, -1.5 * s, 0.22 * s, 0x1c1f26, { col: false });
-  for (const dy of [6.6, 7.6, 8.5]) F.sph(0, dy * s, -2.42 * s + Math.abs(dy - 7.6) * 0.5 * s, 0.26 * s, 0x1c1f26, { col: false });
+  const dot = (u, yy, v, rr) => w.mesh(DOT, M(F.X(u, v), y + yy, F.Z(u, v), rr, rr, rr), 0x1c1f26, "std");
+  for (const u of [-0.6, 0.6]) dot(u * s, 10.9 * s, -1.5 * s, 0.22 * s);
+  for (const dy of [6.6, 7.6, 8.5]) dot(0, dy * s, -2.42 * s + Math.abs(dy - 7.6) * 0.5 * s, 0.26 * s);
   F.cyl(0, 8.75 * s, 0, 1.95 * s, 0.7 * s, 0xd9432f, { col: false, mat: "paint" }); F.box(1.2 * s, 6.6 * s, -1.9 * s, 0.9 * s, 2.4 * s, 0.3 * s, 0xd9432f, { col: false, mat: "paint", rz: -12 });
   // 나뭇가지 팔
   for (const sd of [-1, 1]) {

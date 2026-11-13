@@ -2,8 +2,10 @@
 // 얼음 골짜기의 트레슬 다리, 빙하 크레바스와 얼음 동굴, 정상 천문대
 import * as THREE from "../../vendor/three.module.min.js";
 import { M, flora } from "./canyon-kit.js";
-import { height, colorFn, forest, valE, lakeE, gorgeAt, crevAt, LAKE, POND, MESA, PISTE, GORGE, CREV, ROAD, ROAD_CP, FLATS, flat } from "./snow-terrain.js";
-import { SNOW, snowPine } from "./snow-kit.js";
+import { height, colorFn, forest, valE, lakeE, gorgeAt, crevAt, LAKE, POND, MESA, PISTE, GORGE, CREV, ROAD, ROAD_CP, PLOUGH_CP, FLATS, flat } from "./snow-terrain.js";
+import { SNOW, snowPine, CHALETS } from "./snow-kit.js";
+import { snowGround, decals, groundPaint, wild } from "./snow-detail.js";
+import { props } from "./snow-props.js";
 import { places, SITE } from "./snow-places.js";
 
 export { height };
@@ -26,9 +28,13 @@ function build(w) {
   KEEP.length = 0;
   const K = flora(w);
   w.terrain(height, colorFn, { flat: "dirt", flatTint: "1.06, 1.11, 1.24", rockTint: "0.86, 0.92, 1.08", rockLo: 0.3, rockHi: 0.5 });
+  snowGround(w);
   const slope = (x, z) => Math.max(Math.abs(H(x + 2, z) - H(x - 2, z)), Math.abs(H(x, z + 2) - H(x, z - 2))) / 4;
 
+  CHALETS.length = 0;
   places(w, K, KEEP);
+  // 디테일: 지면 그림(스키 자국·발자국·얼음 금)과 구역별 소품·작은 움직임
+  { const D = decals(w); groundPaint(w, D); props(w, K, KEEP, D, { blue: flat("blue"), red: flat("red"), depots: DEPOTS }); D.finish(); }
 
   // ── 식생·바위 (트랙·차량 경로·거점 주변은 비운다) ──
   for (const f of FLATS) KEEP.push([f[0], f[1], f[2] + 4]);
@@ -40,6 +46,7 @@ function build(w) {
   const clear = (x, z, m = 0) => {
     if (lakeE(x, z) < 1.1 || Math.hypot(x - POND.x, z - POND.z) < POND.r + 3) return false;
     if (x > -52 && x < 126 && z > 120 && z < 228) return false;                           // 마을 안은 손으로 심는다
+    if (x > 36 && x < 84 && z > 66 && z < 124) return false;                              // 비행 훈련 코스 구역은 비워 둔다
     const ps = PISTE.at(x, z); if (ps && ps[0] < 19 + m) return false;
     { const A = LIFT.A, dx = LIFT.B[0] - A[0], dz = LIFT.B[1] - A[1], t = Math.min(1, Math.max(0, ((x - A[0]) * dx + (z - A[1]) * dz) / (dx * dx + dz * dz))); if (Math.hypot(x - A[0] - dx * t, z - A[1] - dz * t) < 9 + m) return false; }   // 곤돌라 줄 아래
     const rd = ROAD.at(x, z); if (rd && rd[0] < 8 + m) return false;
@@ -54,7 +61,7 @@ function build(w) {
   };
   const scatter = (count, tries, fn, R = 345) => { let n = 0; for (let i = 0; i < tries && n < count; i++) if (fn((r() * 2 - 1) * R, (r() * 2 - 1) * R)) n++; };
   // 산자락의 눈 덮인 소나무 숲 (수목 한계선 아래)
-  scatter(1750, 26000, (x, z) => {
+  scatter(1480, 26000, (x, z) => {
     const y = H(x, z);
     if (y < 0.7 || y > 128 || slope(x, z) > 0.46 || !clear(x, z)) return false;
     const f = forest(x, z); if (f < 0.42 && r() > 0.22) return false;
@@ -83,6 +90,7 @@ function build(w) {
   });
   scatter(110, 5000, (x, z) => { if (slope(x, z) > 0.2 || !clear(x, z, -2)) return false; K.rock(x, z, 0.8 + r() * 1.4, r() < 0.5 ? SNOW : 0xdfe9f5, false); return true; });
   // 얼음 골짜기 바닥의 얼음 덩어리
+  wild(w, K, clear, slope);
   for (let t = 0.1; t < 0.98; t += 0.05 + r() * 0.05) { const p = GORGE.point(t), d = GORGE.dir(t), s = r() < 0.5 ? -1 : 1, x = p[0] - d[1] * s * (5 + r() * 2), z = p[1] + d[0] * s * (5 + r() * 2); K.rock(x, z, 1 + r() * 1.2, r() < 0.5 ? 0xcfeaf7 : 0x9fb0c4, false); }
 }
 
@@ -100,7 +108,7 @@ const STRIKE = { turrets: [[208, -212], [270, -160], [226, -130], [250, -84], [1
 
 // 지상 경로: 눈길 한 바퀴(스노모빌), 마을 길(제설차), 호수 위(스케이터)
 const SLED = [...ROAD_CP, [146, 190]].map(([x, z]) => [x, 0, z, 13]);
-const PLOUGH = [[40, 118], [40, 150], [40, 190], [40, 220], [54, 233], [98, 228], [115, 216], [118, 190], [118, 150], [116, 128], [102, 118], [56, 113]].map(([x, z]) => [x, 0, z, 7.5]);
+const PLOUGH = PLOUGH_CP.map(([x, z]) => [x, 0, z, 7.5]);
 const SKATER = Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * Math.PI * 2; return [LAKE.x + Math.cos(a) * LAKE.rx * 0.76, 0, LAKE.z + Math.sin(a) * LAKE.rz * 0.76, 5.4]; });
 const GROUND_PATHS = [SLED, PLOUGH, SKATER];
 const DRONE = [T(120, 96, 10), LP(GORGE, 0.95, 12), LP(GORGE, 0.87, 9), LP(GORGE, 0.8, 9), LP(GORGE, 0.72, 10), LP(GORGE, 0.66, 14), [TR.x, (TR.floor + TR.deck) / 2, TR.z], LP(GORGE, 0.53, 34), T(126, -126, 18), T(70, -160, 26), [14, 196, -206], [-40, 200, -236], T(-84, -196, 16),

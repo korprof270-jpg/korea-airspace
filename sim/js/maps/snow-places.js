@@ -5,6 +5,9 @@ import { height, LAKE, POND, MESA, PISTE, GORGE, CREV, ROAD, flat } from "./snow
 import { SNOW, SNOW_SH, ICE, ICE_D, STONE, STONE_D, TIMBER, TIMBER_D, WARM, PRISM, PYR, DOME, HALFTORUS, BALL, place, roof, win, chalet, garland, iceColumn, snowman, snowfall, polyPath } from "./snow-kit.js";
 
 const DEG = Math.PI / 180, V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+// 불빛 알: 기본 구(삼각형 600개) 대신 저폴리 공을 쓴다. F 가 있으면 그 좌표계 기준
+const BULB = (() => { const g = new THREE.IcosahedronGeometry(1, 1); g.computeBoundingBox(); return g; })();
+const bulb = (w, F, u, y, v, r, color) => w.mesh(BULB, F ? M(F.X(u, v), F.y0 + y, F.Z(u, v), r, r, r) : M(u, y, v, r, r, r), color, "glow");
 const STEEL = 0x59606a, RED = 0xd9432f, BLUE = 0x2f6fb0, YEL = 0xffc23a, PLASTER = 0xece6d8, DARK = 0x23262e;
 
 // ── 지형 함수로 미리 정해지는 지물 좌표 (트랙 데이터와 건물이 함께 쓴다) ──
@@ -53,7 +56,7 @@ function village(w, K, KEEP) {
     w.mesh(PYR, M(x, y + 24.4, z, 0.9, 2.2, 0.9), 0xffe27a, "glow"); w.mesh(PYR, M(x, y + 25.6, z, 0.9, 2.2, 0.9, 180, 0, 0), 0xffe27a, "glow");
     for (const a of [60, 125, 180, 235, 300]) {
       const px = x + Math.cos(a * DEG) * 19, pz = z + Math.sin(a * DEG) * 19, py = H(px, pz);
-      w.pipe(px, py, pz, px, py + 8.4, pz, 0.14, 0x2c3138); w.sph(px, py + 8.7, pz, 0.36, WARM, { mat: "glow", col: false });
+      w.pipe(px, py, pz, px, py + 8.4, pz, 0.14, 0x2c3138); bulb(w, null, px, py + 8.7, pz, 0.36, WARM);
       garland(w, [px, py + 8.3, pz], [x, y + 16, z], 1.6, 10);
       KEEP.push([px, pz, 3]);
     }
@@ -115,7 +118,7 @@ function village(w, K, KEEP) {
     for (const a of [-1, 1]) for (const b of [-1, 1]) { F.box(a * 3.6, -0.5, b * 3.6, 1.6, 12, 1.6, a * b > 0 ? ICE : ICE_D, { mat: "paint", ao: false }); place(w, F, PYR, a * 3.6, 13.6, b * 3.6, 1.2, 3, 1.2, 0xdff2fb, "paint"); }
     F.box(0, 11.5, 0, 9.2, 1.3, 9.2, ICE, { mat: "paint", ao: false });
     place(w, F, PYR, 0, 12.8, 0, 5.6, 9, 5.6, ICE_D, "paint"); w.col.addCapsule(V3(x, y + 13.5, tower), V3(x, y + 20, tower), 1.6);
-    F.sph(0, 22.3, 0, 0.6, 0x9fe8ff, { mat: "glow", col: false });
+    bulb(w, F, 0, 22.3, 0, 0.6, 0x9fe8ff);
     F.cone(0, 0, 0, 0.7, 2, 0x9fe8ff, { mat: "glow", col: false });
     F.gap("얼음 탑", 0, 5.6, 0, 0, 5.4, 10.4, 500); F.gap("얼음 탑", 0, 5.6, 0, 90, 5.4, 10.4, 500);
     KEEP.push([x, tower, 8]);
@@ -126,7 +129,7 @@ function village(w, K, KEEP) {
     roof(w, F2, 4.1, 3.1, 28, 20, { gable: RED, gmat: "paint", ov: 0.5, ovz: 0.4 });
     for (let v = -14; v <= 14.1; v += 4.667) for (const u of [-3, 3]) F2.pipe(u, 0, v, u, 4.1, v, 0.13, 0x3a2f28);
     for (let v = -11.7; v <= 12; v += 4.667) {
-      F2.sph(0, 3.7, v, 0.26, WARM, { mat: "glow", col: false });
+      bulb(w, F2, 0, 3.7, v, 0.26, WARM);
       F2.box(4.5, 0, v, 1.3, 1, 3.2, TIMBER, { mat: "std:wood", tile: 2 }); F2.box(4.6, 2.5, v, 1.9, 0.14, 3.6, (Math.round(v) & 1) ? 0xf2f0ea : YEL, { rz: 14, col: false });
       F2.box(4.5, 1, v, 0.9, 0.4, 2.4, [0xd9772f, 0x35b06a, 0xb44cff][Math.abs(Math.round(v)) % 3], { col: false, mat: "paint" });
     }
@@ -181,7 +184,7 @@ function lake(w, K, KEEP) {
       F.box(s * 6, 0.12, 0, 0.3, 0.02, 19.6, BLUE, { col: false, ao: false }); F.box(s * 15, 0.12, 0, 0.12, 0.02, 19.6, RED, { col: false, ao: false });
       // 골대
       for (const dv of [-0.9, 0.9]) F.pipe(s * 15.2, 0, dv, s * 15.2, 1.2, dv, 0.05, RED, { col: false }); F.pipe(s * 15.2, 1.2, -0.9, s * 15.2, 1.2, 0.9, 0.05, RED, { col: false }); F.box(s * 15.8, 0, 0, 0.1, 1.1, 1.8, 0xf2f2f2, { col: false });
-      for (const t of [-1, 1]) { F.pipe(s * 18, 0, t * 10, s * 18, 8, t * 10, 0.13, 0x2c3138); F.sph(s * 18, 8.3, t * 10, 0.4, 0xfff2c8, { mat: "glow", col: false }); }
+      for (const t of [-1, 1]) { F.pipe(s * 18, 0, t * 10, s * 18, 8, t * 10, 0.13, 0x2c3138); bulb(w, F, s * 18, 8.3, t * 10, 0.4, 0xfff2c8); }
     }
     F.box(0, 0.12, 0, 0.3, 0.02, 19.6, RED, { col: false, ao: false });
     for (const u of [-12, 0, 12]) { F.pipe(u, 0, -10.4, u, 8, -10.4, 0.1, 0x2c3138); F.pipe(u, 0, 10.4, u, 8, 10.4, 0.1, 0x2c3138); garland(w, [x + u, 8, z - 10.4], [x + u, 8, z + 10.4], 1.3, 12); }
@@ -258,6 +261,7 @@ function ski(w, K, KEEP) {
       F.box(0, n.g + 2.2, -0.6, 0.9, 0.9, 0.06, YEL, { col: false, mat: "paint" });
       KEEP.push([n.x, n.z, 5]);
     }
+    SITE.lift.nodes = nodes;
     const side = (s) => nodes.map((n) => [n.x + ux * s * 2.4, n.y, n.z + uz * s * 2.4]);
     const up = side(1), down = side(-1);
     for (const L of [up, down]) for (let i = 0; i < N; i++) beam(w, L[i], L[i + 1], 0.09, 0x22262c, { col: false });
@@ -385,7 +389,7 @@ function summit(w, K, KEEP) {
       beam(w, [mx + c0 * ra, ya, mz + s0 * ra], [mx + c1 * rb, yb, mz + s1 * rb], 0.12, col, { col: false });
     }
   }
-  w.pipe(mx, y + Ht, mz, mx, y + Ht + 7, mz, 0.1, WH); w.sph(mx, y + Ht + 7.3, mz, 0.4, 0xff3030, { mat: "glow", col: false }); w.sph(mx, y + 15.4, mz, 0.34, 0xff3030, { mat: "glow", col: false });
+  w.pipe(mx, y + Ht, mz, mx, y + Ht + 7, mz, 0.1, WH); bulb(w, null, mx, y + Ht + 7.3, mz, 0.4, 0xff3030); bulb(w, null, mx, y + 15.4, mz, 0.34, 0xff3030);
   for (const [dy, a] of [[21, 0.6], [25, 2.9]]) w.mesh(K.T.col8, M(mx + Math.cos(a) * 1.3, y + dy, mz + Math.sin(a) * 1.3, 1.1, 0.35, 1.1, 0, -a / DEG, 90), WH, "paint");
   for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + Math.PI / 3 + 0.5, gx = mx + Math.cos(a) * 20, gz = mz + Math.sin(a) * 20; beam(w, [gx, w.h(gx, gz), gz], [mx, y + 24, mz], 0.1, 0xb9c0c8); KEEP.push([gx, gz, 3]); }
   w.gap("송신탑 버팀줄 사이", mx, y + 13, mz, 30 + 0.5 / DEG, 8, 12, 500);
@@ -421,7 +425,7 @@ function gorge(w, K, KEEP) {
     }
     F.gap("트레슬 다리 아래", 0, (T.floor + dk) / 2, 0, 0, 15, dk - T.floor - 8, 400);
     F.gap("트레슬 다리 위 스치기", 0, dk + 2.6, 0, 0, 30, 3.4, 450);
-    for (const u of [u0 + 2, u1 - 2]) { for (const s of [-2.2, 2.2]) { F.pipe(u, dk - 1, s, u, dk + 3.2, s, 0.16, TIMBER_D); F.sph(u, dk + 3.5, s, 0.34, WARM, { mat: "glow", col: false }); } KEEP.push([F.X(u, 0), F.Z(u, 0), 7]); }
+    for (const u of [u0 + 2, u1 - 2]) { for (const s of [-2.2, 2.2]) { F.pipe(u, dk - 1, s, u, dk + 3.2, s, 0.16, TIMBER_D); bulb(w, F, u, dk + 3.5, s, 0.34, WARM); } KEEP.push([F.X(u, 0), F.Z(u, 0), 7]); }
   }
   // 눈 다리(얼음 아치)
   {
@@ -439,14 +443,14 @@ function gorge(w, K, KEEP) {
     }
     F.box(0, deck, 0, 31, 0.4, 4.2, STONE_D, bo); F.box(0, deck + 0.4, 0, 31, 0.25, 3.4, SNOW, { col: false, ao: false });
     for (const v of [-2, 2]) F.box(0, deck + 0.4, v, 31, 0.7, 0.36, STONE, bo);
-    for (const s of [-1, 1]) for (const v of [-1.9, 1.9]) { F.pipe(s * 15, deck + 0.4, v, s * 15, deck + 3, v, 0.11, 0x3a3028); F.sph(s * 15, deck + 3.2, v, 0.3, WARM, { mat: "glow", col: false }); }
+    for (const s of [-1, 1]) for (const v of [-1.9, 1.9]) { F.pipe(s * 15, deck + 0.4, v, s * 15, deck + 3, v, 0.11, 0x3a3028); bulb(w, F, s * 15, deck + 3.2, v, 0.3, WARM); }
     F.gap("돌다리 아치", 0, 2.3, 0, 0, 6.4, 3.6, 500);
     KEEP.push([B.x, B.z, 17]);
   }
   // 골짜기 바닥의 등불과 벽의 고드름 다발
   for (let t = 0.12; t < 0.99; t += 0.085) {
     const p = GORGE.point(t), d = GORGE.dir(t), s = Math.round(t * 100) % 2 ? 1 : -1, x = p[0] - d[1] * s * 5, z = p[1] + d[0] * s * 5, y = H(x, z);
-    w.pipe(x, y - 0.3, z, x, y + 2.6, z, 0.1, TIMBER_D, { col: false }); w.sph(x, y + 2.9, z, 0.34, WARM, { mat: "glow", col: false });
+    w.pipe(x, y - 0.3, z, x, y + 2.6, z, 0.1, TIMBER_D, { col: false }); bulb(w, null, x, y + 2.9, z, 0.34, WARM);
     const ix = p[0] + d[1] * s * 11, iz = p[1] - d[0] * s * 11, iy = H(ix, iz);
     for (let k = 0; k < 4; k++) iceColumn(w, K.T, ix + d[0] * (k - 1.5) * 1.6, iy + 9 + (k % 2) * 3, iz + d[1] * (k - 1.5) * 1.6, 0.7 + (k % 3) * 0.2, 9 + (k % 2) * 3 + 1, k % 2 ? ICE : 0xcfeaf7, false);
   }

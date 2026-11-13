@@ -72,6 +72,8 @@ export const CREV = line([[-116, -6], [-150, -40], [-140, -80], [-170, -112], [-
 // 분지를 한 바퀴 도는 눈길(호송 경로이기도 하다)
 export const ROAD_CP = [[150, 140], [100, 118], [40, 112], [-30, 112], [-110, 116], [-170, 135], [-188, 172], [-165, 212], [-100, 226], [-30, 232], [40, 236], [110, 226]];
 export const ROAD = line(ROAD_CP, 8);
+// 마을 안을 도는 제설차 길
+export const PLOUGH_CP = [[40, 118], [40, 150], [40, 190], [40, 220], [54, 233], [98, 228], [115, 216], [118, 190], [118, 150], [116, 128], [102, 118], [56, 113]];
 // 평평하게 다진 터 [x, z, 반경, 이름]
 export const FLATS = [
   [178, 172, 36, "blue"], [240, -190, 36, "red"], [16, -178, 24, "top"], [-10, -226, 15, "summit"], [78, 76, 20, "base"], [95, -22, 13, "mid"],
@@ -172,6 +174,11 @@ export function colorFn(x, y, z, slope) {
   if (rd && rd[0] < 4.2) return mix(0xc9d2dc, 0xdbe3ec, n);                                       // 눈길
   const f = forest(x, z);
   let col = mix(SNOW, SNOW_B, sm(0.4, 0.62, n) * 0.8);                                            // 바람결 무늬
+  // 바람에 쓸린 긴 줄무늬와 완만한 비탈의 푸른 그늘: 넓은 설면이 한 톤으로 뭉치지 않게 한다
+  const wx = x * 0.94 + z * 0.34, wz = z * 0.94 - x * 0.34, st = vnoise(wx * 0.016 + 9, wz * 0.11 + 4);
+  col = mix(col, 0xc3d5ee, sm(0.6, 0.82, st) * 0.55);
+  col = mix(col, 0xfbfdff, sm(0.3, 0.12, st) * 0.6);
+  col = mix(col, 0xc9d9f0, sm(0.1, 0.34, slope) * 0.45);
   col = mix(col, 0xcfdcee, sm(0.5, 0.66, f) * 0.5 * sm(150, 110, y));                             // 숲 바닥의 푸른 그늘
   return mix(col, 0xf4f8fd, sm(110, 150, y));                                                     // 높은 곳은 더 희게
 }
