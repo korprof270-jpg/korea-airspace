@@ -57,10 +57,11 @@ body {
   position: absolute; z-index: 1000; right: 12px; top: calc(env(safe-area-inset-top) + 80px);
   display: flex; flex-direction: column; gap: 8px;
 }
-.map-buttons button {
+.map-buttons button, .map-buttons a {
   width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--bg); color: var(--fg);
   box-shadow: var(--shadow); font-size: 20px; cursor: pointer;
 }
+.map-buttons a { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 
 .legend {
   position: absolute; z-index: 900; left: 12px; bottom: calc(env(safe-area-inset-bottom) + 24px);

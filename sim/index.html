@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>FPV PROJECT — 드론 시뮬레이터</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="../icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+  <link rel="stylesheet" href="sim.css" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+
+  <!-- 터치 가상 스틱 -->
+  <div id="touch" hidden>
+    <div class="tz tz-left"><div class="base"><div class="knob"></div></div></div>
+    <div class="tz tz-right"><div class="base"><div class="knob"></div></div></div>
+    <div class="tbtns top">
+      <button data-act="pause">Ⅱ</button>
+      <button data-act="camera">시점</button>
+      <button data-act="modeNext">모드</button>
+      <button data-act="reset">리셋</button>
+      <button data-act="hud">HUD</button>
+    </div>
+    <div class="tbtns fire combat" hidden>
+      <button data-act="fire" class="b-fire">레이저</button>
+    </div>
+    <div class="tbtns aux combat" hidden>
+      <button data-act="missile" class="b-missile">미사일</button>
+      <button data-act="item" class="b-item">아이템</button>
+      <button data-act="itemNext" class="b-swap" hidden>⇄ 교체</button>
+    </div>
+  </div>
+
+  <div id="ui"></div>
+  <div id="loading" hidden><div class="spinner"></div><span>맵 생성 중…</span></div>
+  <div id="fatal" hidden></div>
+
+  <script>
+    // 설치형 앱(PWA)·오프라인 실행용 서비스 워커 (지도 앱과 같은 것을 사용)
+    if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
