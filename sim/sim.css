@@ -403,3 +403,11 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .dcard b { color: var(--dc); }
 .ovact { display: flex; justify-content: flex-end; margin-top: 14px; }
 .diffbtn { min-width: 120px; text-align: left; }
+
+/* 모드 목록: 썸네일 없이 제목 + 설명 */
+.home .mitem { grid-template-columns: 1fr 14px; padding: 12px 14px 12px 16px; border-left: 5px solid var(--c); }
+.home .mitem small { -webkit-line-clamp: 2; font-size: 12.5px; }
+@media (max-height: 500px), (max-width: 760px) {
+  .home .mitem { grid-template-columns: 1fr 12px; padding: 7px 10px 7px 12px; }
+  .home .mitem small { -webkit-line-clamp: 2; font-size: 11px; line-height: 1.3; }
+}

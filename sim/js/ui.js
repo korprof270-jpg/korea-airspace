@@ -87,7 +87,6 @@ export class UI {
     if (sc && this._scroll && this._scroll.name === name) sc.scrollTop = this._scroll.y;
     this._scroll = null;
     this._syncStage();
-    if (name === "main") this.game.thumbs.want("mode", Object.keys(MODE_META));
     if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
   }
 
@@ -160,8 +159,7 @@ export class UI {
 
   _cap(id) {
     const m = MODE_META[id];
-    return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.desc}</p>
-      <ul class="tags">${m.tags.map((t) => `<li>${t}</li>`).join("")}</ul>
+    return `<h1>${m.name}</h1><p>${m.desc}</p>
       <button class="primary go" data-a="mode" data-v="${id}"${id === "training" ? ' style="color:var(--ink);text-shadow:none"' : ""}>모드 설정 <span aria-hidden="true">→</span></button>`;
   }
 
@@ -207,7 +205,7 @@ export class UI {
     const cur = MODE_META[this.sel.mode] ? this.sel.mode : "race";
     const items = Object.entries(MODE_META).map(([id, m]) => `
       <button class="mitem ${id === cur ? "on" : ""}" style="--c:${m.c}" data-a="pick" data-v="${id}" aria-pressed="${id === cur}">
-        ${this._thumb("mode", id)}<span class="mtxt"><b>${m.name}</b><small>${m.desc}</small></span><span class="chev" aria-hidden="true">›</span>
+        <span class="mtxt"><b>${m.name}</b><small>${m.desc}</small></span><span class="chev" aria-hidden="true">›</span>
       </button>`).join("");
     const d = settings.drone;
     return `<div class="screen home" style="--c:${MODE_META[cur].c}">
