@@ -124,7 +124,35 @@ code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .log li { padding: 3px 8px; border-radius: 5px; background: var(--surface-2); overflow-wrap: anywhere; }
 .log li.bad { color: var(--bad); background: var(--bad-soft); } .log li.ok { color: var(--ok); background: var(--ok-soft); }
 
+.fcview { position: absolute; inset: 0; background: var(--surface); display: flex; flex-direction: column; gap: 10px; padding-block: 12px; padding-left: var(--gut-l); padding-right: 16px; overflow: auto; }
+.fchead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fchead h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.fcbody { flex: 1; min-height: 0; display: flex; gap: 16px; align-items: flex-start; }
+.fcsvg { flex: 1; min-width: 0; max-height: 100%; height: auto; max-width: 520px; font-family: var(--mono); }
+.fcsvg .board { fill: #1b1f24; stroke: #3a424a; stroke-width: 2; }
+.fcsvg .sock { fill: #e9e4d2; stroke: #8a8470; stroke-width: 1; }
+.fcsvg .pin { fill: #55503f; }
+.fcsvg .plabel { fill: #e6ebe9; font-size: 9.5px; text-anchor: middle; }
+.fcsvg .pcable { fill: #ffd45e; font-size: 9px; text-anchor: middle; font-family: var(--font); }
+.fcsvg .pcable.v { text-anchor: start; }
+.fcsvg .arrow { fill: #e6ebe9; opacity: 0.85; }
+.fcsvg .brk { stroke: #e6ebe9; stroke-width: 1; fill: none; opacity: 0.6; }
+.fcsvg .port { cursor: pointer; }
+.fcsvg .port:hover .sock, .fcsvg .port:focus-visible .sock { stroke: #40c2a4; stroke-width: 2.5; }
+.fcsvg .port:focus-visible { outline: none; }
+.fcsvg .port.used .sock { fill: #40c2a4; stroke: #1c7a64; }
+.fcsvg .port.used .pin { fill: #0b3a30; }
+.tray { width: 250px; flex: none; display: flex; flex-direction: column; gap: 4px; }
+.tray h3 { margin: 0 0 2px; font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+.cable { display: grid; grid-template-columns: 50px 1fr; gap: 2px 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: none; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 12.5px; }
+.cable .chip { grid-column: 2; justify-self: start; font-size: 11px; }
+.cable .glyph { grid-row: span 2; justify-self: center; }
+.cable .glyph .sock { fill: var(--surface-2); stroke: var(--fg); stroke-width: 1.2; } .cable .glyph .pin { fill: var(--fg); }
+.cable:hover:not(:disabled) { border-color: var(--accent); } .cable.on { border-color: var(--accent); background: var(--accent-soft); }
+.cable:disabled { opacity: 0.45; cursor: not-allowed; }
+
 @media (max-width: 760px) {
+  .fcbody { flex-direction: column; } .tray { width: 100%; } .fcsvg { max-width: 100%; flex: none; width: 100%; }
   .work { flex-direction: column; }
   .stage { flex: none; height: 46%; }
   .panel { width: auto; max-width: none; flex: 1; border-left: 0; border-top: 1px solid var(--line); }

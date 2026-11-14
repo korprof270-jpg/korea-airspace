@@ -53,10 +53,12 @@
   parts.push({ id: "gps", type: "gps", name: "GPS · 나침반 모듈" });
   parts.push({ id: "rx", type: "rx", name: "수신기" });
   parts.push({ id: "telem", type: "telem", name: "텔레메트리" });
+  parts.push({ id: "buzzer", type: "buzzer", name: "부저" });
+  parts.push({ id: "switch", type: "switch", name: "안전 스위치" });
   SIM.PARTS = parts;
   SIM.part = (id) => parts.find((p) => p.id === id);
 
-  SIM.SLOT_NAMES = { fc: "상판 중앙", pm: "하판 중앙", battery: "하판 아래", gps: "상판 뒤 마스트", rx: "상판 왼쪽", telem: "상판 오른쪽" };
+  SIM.SLOT_NAMES = { fc: "상판 중앙", pm: "하판 중앙", battery: "하판 아래", gps: "상판 뒤 마스트", rx: "상판 왼쪽", telem: "상판 오른쪽", buzzer: "상판 왼쪽 뒤", switch: "상판 오른쪽 뒤" };
   SIM.slotName = (s) => {
     const [t, pos] = s.split("@");
     if (pos) return SIM.POS[pos].name + (t === "prop" ? " 모터 축" : " 암");
@@ -68,13 +70,26 @@
   const servoPorts = ["RC IN", "SBUS OUT"];
   for (let i = 1; i <= 8; i++) servoPorts.push("MAIN OUT " + i);
   for (let i = 1; i <= 6; i++) servoPorts.push("AUX OUT " + i);
-  SIM.PORTS = { six: ["POWER", "GPS", "TELEM1", "TELEM2"], four: ["I2C", "CAN"], servo: servoPorts };
-  SIM.CONN_NAMES = { six: "6핀", four: "4핀", servo: "3핀 서보" };
+  // Pixhawk 기준 포트. 커넥터 종류: DF13 2·3·4·6·7핀, 마이크로 USB, 뒤쪽 서보 레일(3핀 헤더)
+  SIM.PORTS = {
+    df6: ["TELEM1", "TELEM2", "POWER", "SERIAL 4/5", "GPS"],
+    df4: ["CAN", "I2C"],
+    df3: ["SPKT/DSM", "ADC 3.3V", "SWITCH", "ADC 6.6V"],
+    df2: ["BUZZER"],
+    df7: ["SPI"],
+    usb: ["USB"],
+    servo: servoPorts,
+  };
+  SIM.CONN_NAMES = { df6: "DF13 6핀", df4: "DF13 4핀", df3: "DF13 3핀", df2: "DF13 2핀", df7: "DF13 7핀", usb: "마이크로 USB", servo: "3핀 서보" };
+  SIM.CONN_PINS = { df6: 6, df4: 4, df3: 3, df2: 2, df7: 7, usb: 5, servo: 3 };
+  SIM.portType = (port) => Object.keys(SIM.PORTS).find((t) => SIM.PORTS[t].includes(port));
   SIM.CABLES = {
-    pm: { name: "파워 모듈 케이블", conn: "six", need: ["pm"] },
-    gps: { name: "GPS 모듈 케이블 (굵은 쪽)", conn: "six", need: ["gps"] },
-    compass: { name: "GPS 모듈 케이블 (가는 쪽)", conn: "four", need: ["gps"] },
-    telem: { name: "텔레메트리 케이블", conn: "six", need: ["telem"] },
+    pm: { name: "파워 모듈 케이블", conn: "df6", need: ["pm"] },
+    gps: { name: "GPS 모듈 케이블 (굵은 쪽)", conn: "df6", need: ["gps"] },
+    compass: { name: "GPS 모듈 케이블 (가는 쪽)", conn: "df4", need: ["gps"] },
+    telem: { name: "텔레메트리 케이블", conn: "df6", need: ["telem"] },
+    buzzer: { name: "부저 케이블", conn: "df2", need: ["buzzer"] },
+    switch: { name: "안전 스위치 케이블", conn: "df3", need: ["switch"] },
     rx: { name: "수신기 신호선", conn: "servo", need: ["rx"] },
   };
   for (const id of SIM.POS_IDS) SIM.CABLES["esc" + id] = { name: SIM.POS[id].name + " ESC 신호선", conn: "servo", need: ["esc@" + id] };
@@ -92,6 +107,7 @@
     AHRS_ORIENTATION: { d: 0, desc: "FC 보드 장착 방향", opts: ORI },
     COMPASS_ORIENT: { d: 0, desc: "외장 나침반 장착 방향", opts: ORI },
     ARMING_CHECK: { d: 1, desc: "시동 전 점검 (1=전체, 0=끔)", opts: { 1: "전체 점검", 0: "점검 안 함" } },
+    BRD_SAFETYENABLE: { d: 1, desc: "안전 스위치 사용", opts: { 1: "사용", 0: "사용 안 함" } },
   });
   for (let i = 1; i <= 4; i++) {
     D["RC" + i + "_MIN"] = { d: 1100, desc: "RC" + i + " 최소 PWM", min: 800, max: 2200 };
@@ -217,7 +233,7 @@
     if (id === "pm") { w.plug.pm = ""; w.pmOut = ""; if (w.batt === "pm") w.batt = ""; }
     if (id === "battery") w.batt = "";
     if (id === "gps") w.plug.gps = w.plug.compass = "";
-    if (id === "rx" || id === "telem") w.plug[id] = "";
+    if (w.plug[id] !== undefined && id !== "pm" && id !== "gps") w.plug[id] = "";
     SIM.emit();
   };
   SIM.select = (id) => { SIM.selected = id; SIM.emit(); };
@@ -250,6 +266,10 @@
   SIM.gpsOk = () => SIM.has("gps") && SIM.state.wiring.plug.gps === "GPS";
   SIM.compassExt = () => SIM.has("gps") && SIM.state.wiring.plug.compass === "I2C";
   SIM.rxOk = () => SIM.has("rx") && SIM.state.wiring.plug.rx === "RC IN";
+  // 안전 스위치: 눌러서 해제해야 모터 출력이 나간다 (BRD_SAFETYENABLE=0이면 불필요)
+  SIM.switchOk = () => SIM.has("switch") && SIM.state.wiring.plug.switch === "SWITCH";
+  SIM.safetyPressed = false;
+  SIM.safetyOff = () => !SIM.state.params.BRD_SAFETYENABLE || (SIM.safetyPressed && SIM.switchOk());
 
   // 이 위치의 ESC가 받는 신호가 몇 번 모터 신호인지 (0=신호 없음)
   SIM.motorNumForPos = (pos) => {
@@ -335,6 +355,12 @@
       else if (Math.abs(Math.sin(SIM.headingErr() / 2)) > 0.01) add("bad", "GPS 장착 방향", "화살표가 앞에서 오른쪽으로 " + ROT_DEG(st.rot.gps) + "° 돌아가 있습니다 (COMPASS_ORIENT " + ORI[st.params.COMPASS_ORIENT] + ").");
       else add("ok", "나침반 케이블 (4핀)", "I2C 포트, 방향 일치");
     }
+    if (!SIM.has("switch")) add(st.params.BRD_SAFETYENABLE ? "bad" : "warn", "안전 스위치", "장착되지 않았습니다." + (st.params.BRD_SAFETYENABLE ? " BRD_SAFETYENABLE=1이면 시동을 걸 수 없습니다." : ""));
+    else if (w.plug.switch !== "SWITCH") add(st.params.BRD_SAFETYENABLE ? "bad" : "warn", "안전 스위치 케이블", w.plug.switch ? w.plug.switch + " 포트에 꽂혀 있습니다. SWITCH 포트여야 합니다." : "FC에 연결되지 않았습니다.");
+    else add("ok", "안전 스위치", "SWITCH 포트");
+    if (!SIM.has("buzzer")) add("warn", "부저", "장착되지 않았습니다. 시동·경고음을 들을 수 없습니다.");
+    else if (w.plug.buzzer !== "BUZZER") add("warn", "부저 케이블", "BUZZER 포트에 연결되지 않았습니다.");
+    else add("ok", "부저", "BUZZER 포트");
     if (!SIM.has("telem")) add("warn", "텔레메트리", "장착되지 않았습니다. (선택 장비)");
     else if (!/^TELEM/.test(w.plug.telem)) add("warn", "텔레메트리 케이블", "TELEM1 또는 TELEM2 포트여야 합니다. (선택 장비)");
     else add("ok", "텔레메트리", w.plug.telem + " 포트");
@@ -348,6 +374,7 @@
     if (!pw.fcBatt) return ["FC에 배터리 전원이 들어오지 않습니다"];
     if (p.FRAME_CLASS !== 1) f.push("PreArm: Check frame class and type (FRAME_CLASS가 Quad가 아님)");
     if (![33, 34, 35, 36].every((fn) => [1, 2, 3, 4, 5, 6, 7, 8].some((n) => p["SERVO" + n + "_FUNCTION"] === fn))) f.push("PreArm: Check SERVOx_FUNCTION (모터 출력 4개가 모두 지정되지 않음)");
+    if (!SIM.safetyOff()) f.push("PreArm: Hardware safety switch (안전 스위치가 해제되지 않음)");
     if (p.ARMING_CHECK) {
       if (!st.cal.accel) f.push("PreArm: 3D Accel calibration needed");
       if (!st.cal.compass) f.push("PreArm: Compass not calibrated");
@@ -373,15 +400,15 @@
       w.escPwr[id] = "ok";
       w.motorWires[id] = exp[id].spin === "ccw" ? "123" : "132";
     });
-    for (const id of ["fc", "pm", "battery", "gps", "rx", "telem"]) st.install[id] = id;
-    Object.assign(w.plug, { pm: "POWER", gps: "GPS", compass: "I2C", rx: "RC IN", telem: "TELEM1" });
+    for (const id of ["fc", "pm", "battery", "gps", "rx", "telem", "buzzer", "switch"]) st.install[id] = id;
+    Object.assign(w.plug, { pm: "POWER", gps: "GPS", compass: "I2C", rx: "RC IN", telem: "TELEM1", buzzer: "BUZZER", switch: "SWITCH" });
     w.batt = "pm"; w.pmOut = "ok";
     SIM.selected = null;
     SIM.emit();
   };
   SIM.autoConfigure = () => {
     const st = SIM.state, p = st.params, tx = SIM.TX;
-    Object.assign(p, { FRAME_CLASS: 1, FRAME_TYPE: 1, AHRS_ORIENTATION: 0, COMPASS_ORIENT: 0, ARMING_CHECK: 1 });
+    Object.assign(p, { FRAME_CLASS: 1, FRAME_TYPE: 1, AHRS_ORIENTATION: 0, COMPASS_ORIENT: 0, ARMING_CHECK: 1, BRD_SAFETYENABLE: 1 });
     for (const c of [1, 2, 4]) { p["RC" + c + "_MIN"] = tx.c[c] - tx.amp[c]; p["RC" + c + "_MAX"] = tx.c[c] + tx.amp[c]; p["RC" + c + "_TRIM"] = tx.c[c]; p["RC" + c + "_REVERSED"] = 0; }
     Object.assign(p, { RC3_MIN: tx.thrMin, RC3_MAX: tx.thrMax, RC3_TRIM: tx.thrMin, RC3_REVERSED: 0, RCMAP_ROLL: 1, RCMAP_PITCH: 2, RCMAP_THROTTLE: 3, RCMAP_YAW: 4, FLTMODE_CH: 5 });
     Object.assign(p, { FLTMODE1: 0, FLTMODE2: 0, FLTMODE3: 0, FLTMODE4: 2, FLTMODE5: 2, FLTMODE6: 5 });
@@ -408,6 +435,8 @@
     () => { SIM.state.rot.gps = 2; return { desc: "GPS·나침반 모듈이 뒤를 향해 장착되어 있습니다.", present: () => Math.abs(Math.sin(SIM.headingErr() / 2)) > 0.01 }; },
     () => { SIM.state.wiring.plug.rx = "SBUS OUT"; return { desc: "수신기 신호선이 RC IN이 아닌 SBUS OUT 포트에 꽂혀 있습니다.", present: () => !SIM.rxOk() }; },
     () => { const w = SIM.state.wiring; w.plug.gps = w.plug.telem === "TELEM2" ? "TELEM1" : "TELEM2"; return { desc: "GPS 케이블이 TELEM 포트에 꽂혀 있습니다.", present: () => !SIM.gpsOk() }; },
+    () => { SIM.state.wiring.plug.switch = "ADC 3.3V"; return { desc: "안전 스위치 케이블이 SWITCH가 아닌 ADC 3.3V 포트에 꽂혀 있습니다.", present: () => SIM.state.params.BRD_SAFETYENABLE === 1 && !SIM.switchOk() }; },
+    () => { SIM.state.wiring.plug.pm = "SERIAL 4/5"; return { desc: "파워 모듈 케이블이 SERIAL 4/5 포트에 꽂혀 있습니다.", present: () => SIM.state.wiring.plug.pm !== "POWER" }; },
     () => { SIM.state.params.RC2_REVERSED = 1; return { desc: "RC2(피치) 채널이 반전되어 있습니다 (RC2_REVERSED=1).", present: () => SIM.state.params.RC2_REVERSED === 1 }; },
     () => { SIM.state.params.FS_THR_ENABLE = 0; return { desc: "라디오 페일세이프가 꺼져 있습니다 (FS_THR_ENABLE=0).", present: () => SIM.state.params.FS_THR_ENABLE === 0 }; },
     () => { const p = SIM.state.params; p.SERVO1_FUNCTION = 34; p.SERVO2_FUNCTION = 33; return { desc: "SERVO1_FUNCTION과 SERVO2_FUNCTION이 서로 바뀌어 있습니다.", present: () => SIM.POS_IDS.some((x) => SIM.motorNumForPos(x) !== SIM.expected()[x].num) }; },

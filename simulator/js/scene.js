@@ -101,6 +101,10 @@
       const a1 = cyl(0.0008, 0.07, M.dark, -0.006, 0.03, 0.022, 6); a1.rotation.x = 0.5;
       const a2 = cyl(0.0008, 0.07, M.dark, 0.006, 0.03, 0.022, 6); a2.rotation.x = 0.5; a2.rotation.z = -0.5;
       g.add(a1, a2);
+    } else if (part.type === "buzzer") {
+      g.add(cyl(0.008, 0.007, M.dark, 0, 0.0035, 0), cyl(0.002, 0.0005, M.steel, 0, 0.0072, 0, 8));
+    } else if (part.type === "switch") {
+      g.add(box(0.014, 0.008, 0.014, M.dark, 0, 0.004, 0), cyl(0.0045, 0.004, M.red, 0, 0.01, 0, 16));
     } else if (part.type === "telem") {
       g.add(box(0.024, 0.01, 0.046, M.green, 0, 0.005, 0), cyl(0.003, 0.075, M.dark, 0, 0.045, 0.02, 8));
     }
@@ -154,9 +158,11 @@
       gps: { p: [0, 0.04, 0.062], ry: (-st.rot.gps * Math.PI) / 2 },
       rx: { p: [-0.046, 0.04, -0.01], ry: 0 },
       telem: { p: [0.046, 0.04, -0.01], ry: 0 },
+      buzzer: { p: [-0.048, 0.04, 0.05], ry: 0 },
+      switch: { p: [0.048, 0.04, 0.05], ry: 0 },
     }[slot];
   }
-  const SLOT_SIZE = { motor: [0.034, 0.03, 0.034], esc: [0.03, 0.014, 0.054], prop: [0.06, 0.012, 0.06], fc: [0.056, 0.02, 0.088], pm: [0.03, 0.014, 0.056], battery: [0.052, 0.038, 0.14], gps: [0.04, 0.09, 0.04], rx: [0.03, 0.016, 0.046], telem: [0.03, 0.016, 0.052] };
+  const SLOT_SIZE = { motor: [0.034, 0.03, 0.034], esc: [0.03, 0.014, 0.054], prop: [0.06, 0.012, 0.06], fc: [0.056, 0.02, 0.088], pm: [0.03, 0.014, 0.056], battery: [0.052, 0.038, 0.14], gps: [0.04, 0.09, 0.04], rx: [0.03, 0.016, 0.046], telem: [0.03, 0.016, 0.052], buzzer: [0.02, 0.012, 0.02], switch: [0.02, 0.016, 0.02] };
 
   // 작업대 위 부품 보관 위치 (partsRoot 기준 좌표)
   function homeOf(part) {
@@ -164,7 +170,7 @@
     if (part.type === "motor") return { p: [-0.6, 0, -0.26 + n * 0.1], ry: 0 };
     if (part.type === "esc") return { p: [-0.49, 0, -0.26 + n * 0.1], ry: 0 };
     if (part.type === "prop") return { p: [0.6, 0, -0.27 + n * 0.085], ry: 0 };
-    const row = { fc: -0.3, pm: -0.19, battery: -0.08, gps: 0.05, rx: 0.16, telem: 0.26 };
+    const row = { fc: -0.3, pm: -0.19, battery: -0.08, gps: 0.05, rx: 0.16, telem: 0.26, buzzer: 0.35, switch: 0.43 };
     return { p: [row[part.type], 0, 0.42], ry: 0 };
   }
 
@@ -179,7 +185,7 @@
     let m;
     if ((m = /^MAIN OUT (\d)$/.exec(port))) return [(m[1] - 4.5) * 0.0055, 0.046, 0.034];
     if ((m = /^AUX OUT (\d)$/.exec(port))) return [(m[1] - 3.5) * 0.0055, 0.053, 0.034];
-    return { "RC IN": [-0.023, 0.05, 0.034], "SBUS OUT": [0.023, 0.05, 0.034], POWER: [-0.012, 0.05, -0.05], GPS: [0.012, 0.05, -0.05], TELEM1: [0.026, 0.052, -0.035], TELEM2: [0.026, 0.052, -0.012], I2C: [-0.026, 0.052, -0.012], CAN: [-0.026, 0.052, -0.035] }[port];
+    return { "RC IN": [-0.023, 0.05, 0.034], "SBUS OUT": [0.023, 0.05, 0.034], POWER: [-0.012, 0.05, -0.05], GPS: [0.012, 0.05, -0.05], TELEM1: [0.026, 0.052, -0.035], TELEM2: [0.026, 0.052, -0.012], I2C: [-0.026, 0.052, -0.012], CAN: [-0.026, 0.052, -0.035], "SERIAL 4/5": [0, 0.05, -0.05], SWITCH: [0.02, 0.052, -0.046], BUZZER: [-0.02, 0.052, -0.046], "SPKT/DSM": [-0.024, 0.052, -0.046], "ADC 3.3V": [0.024, 0.052, -0.046], "ADC 6.6V": [0.026, 0.052, 0.012] }[port] || [0, 0.052, -0.04];
   }
   function rebuildWires() {
     while (wires.children.length) { const c = wires.children.pop(); c.geometry.dispose(); }
@@ -208,8 +214,8 @@
       const port = w.plug["esc" + id];
       if (fcIn && port) { const end = portPos(port); wires.add(tube([e, [e[0] * 0.8, 0.05, e[2] * 0.8 + 0.01], [end[0] * 2, 0.064, 0.064], [end[0], end[1] + 0.006, 0.046], end], sigCol[i], 0.0014)); }
     });
-    const devStart = { pm: [0, 0.01, -0.024], gps: [0.004, 0.046, 0.058], compass: [-0.004, 0.046, 0.058], rx: [-0.046, 0.05, -0.03], telem: [0.046, 0.05, -0.034] };
-    const devCol = { pm: 0xb04030, gps: 0x3a78d8, compass: 0x8a5ad0, rx: 0x44b060, telem: 0xd8c040 };
+    const devStart = { pm: [0, 0.01, -0.024], gps: [0.004, 0.046, 0.058], compass: [-0.004, 0.046, 0.058], rx: [-0.046, 0.05, -0.03], telem: [0.046, 0.05, -0.034], buzzer: [-0.048, 0.046, 0.044], switch: [0.048, 0.046, 0.044] };
+    const devCol = { pm: 0xb04030, gps: 0x3a78d8, compass: 0x8a5ad0, rx: 0x44b060, telem: 0xd8c040, buzzer: 0x202020, switch: 0xd05050 };
     for (const d in devStart) {
       const port = w.plug[d];
       if (!port || !fcIn || !SIM.cableReady(d)) continue;

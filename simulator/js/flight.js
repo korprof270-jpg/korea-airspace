@@ -246,7 +246,7 @@
     const escCal = SIM.state.cal.esc;
     for (const id of SIM.POS_IDS) {
       const ph = SIM.motorPhysical(id), num = SIM.motorNumForPos(id), ps = SIM.POS[id];
-      let cmd = ph.canSpin && num && pw.fcBatt ? dout[num] : 0;
+      let cmd = ph.canSpin && num && pw.fcBatt && SIM.safetyOff() ? dout[num] : 0;
       if (!escCal) cmd *= ESC_GAIN[id];
       let u = SIM.motorU[id]; u += (cmd * battK - u) * Math.min(1, dt / 0.06); SIM.motorU[id] = u;
       const thrust = TMAX * u * ph.thrust * MOTOR_VAR[id], s = ph.dir === "ccw" ? 1 : -1;
@@ -307,6 +307,7 @@
   MT.run = function (letters, pct, dur) {
     const pw = SIM.power();
     if (!pw.fc) return "FC가 연결되지 않았습니다.";
+    if (!SIM.safetyOff()) return "Motor Test: Safety switch (안전 스위치가 해제되지 않음)";
     MT.queue = letters.map((l) => ({ l, pct, dur }));
     MT.cur = null;
     return "";
