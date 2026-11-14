@@ -49,6 +49,10 @@
     const fx = Math.sin(e), fz = -Math.cos(e), rx = Math.cos(e), rz = Math.sin(e); // FC가 앞/오른쪽이라고 믿는 방향
     let roll = Math.atan2(-(_up.x * rx + _up.z * rz), _up.y), pitch = Math.atan2(_up.x * fx + _up.z * fz, _up.y);
     if (!st.cal.accel) roll += 4 * DEG; // 미교정 가속도계: 수평 기준이 틀어짐
+    if (SIM.fcOffCenter()) { // 무게 중심에서 벗어난 FC: 회전에 따른 가속도 오차와 진동
+      let u = 0; for (const id of SIM.POS_IDS) u += SIM.motorU[id] / 4;
+      roll += 2.5 * DEG + (Math.random() - 0.5) * 3 * DEG * u; pitch -= 1.5 * DEG + (Math.random() - 0.5) * 3 * DEG * u;
+    }
     _f.set(0, 0, -1).applyQuaternion(q);
     let hdg = Math.atan2(_f.x, -_f.z) + SIM.headingErr();
     if (!st.cal.compass) hdg += 25 * DEG;

@@ -58,13 +58,16 @@
   SIM.PARTS = parts;
   SIM.part = (id) => parts.find((p) => p.id === id);
 
-  SIM.SLOT_NAMES = { fc: "상판 중앙", pm: "하판 중앙", battery: "하판 아래", gps: "상판 뒤 마스트", rx: "상판 왼쪽", telem: "상판 오른쪽", buzzer: "상판 왼쪽 뒤", switch: "상판 오른쪽 뒤" };
+  // 기체 위 장착 자리. 부품 모양만 맞으면 어느 자리에든 붙일 수 있다 (맞는 자리인지는 직접 판단).
+  SIM.SLOTS = { "deck:C": "상판 중앙", "deck:L": "상판 왼쪽", "deck:R": "상판 오른쪽", "deck:RL": "상판 왼쪽 뒤", "deck:RR": "상판 오른쪽 뒤", mast: "상판 뒤 마스트", "bot:C": "하판 중앙", under: "하판 아래" };
+  const DECK = ["deck:C", "deck:L", "deck:R", "deck:RL", "deck:RR"];
+  SIM.ACCEPT = { fc: [...DECK, "bot:C"], gps: ["mast", ...DECK], pm: ["bot:C", ...DECK], battery: ["under"], rx: [...DECK, "bot:C"], telem: [...DECK, "bot:C"], buzzer: [...DECK, "bot:C"], switch: [...DECK, "bot:C"] };
   SIM.slotName = (s) => {
     const [t, pos] = s.split("@");
-    if (pos) return SIM.POS[pos].name + (t === "prop" ? " 모터 축" : " 암");
-    return SIM.SLOT_NAMES[s];
+    if (pos) return SIM.POS[pos].name + (t === "prop" ? " 모터 축" : t === "motor" ? " 모터 마운트" : " 암");
+    return SIM.SLOTS[s] || s;
   };
-  SIM.slotsFor = (part) => (["motor", "esc", "prop"].includes(part.type) ? SIM.POS_IDS.map((p) => part.type + "@" + p) : [part.type]);
+  SIM.slotsFor = (part) => (["motor", "esc", "prop"].includes(part.type) ? SIM.POS_IDS.map((p) => part.type + "@" + p) : SIM.ACCEPT[part.type]);
 
   // ---------- 커넥터와 포트: 모양이 같은 것끼리만 꽂힌다 ----------
   const servoPorts = ["RC IN", "SBUS OUT"];
@@ -171,6 +174,7 @@
       install,
       rot: { fc: 0, gps: 0 }, // 오른쪽으로 90°씩 돌린 횟수
       flip: { prop1: false, prop2: false, prop3: false, prop4: false }, // 프로펠러를 뒤집어 끼웠는지
+      bench: {}, // 작업대 위에 내려놓은 위치 [x, z]
       wiring: {
         plug: Object.fromEntries(Object.keys(SIM.CABLES).map((k) => [k, ""])), // 케이블 → FC 포트
         escPwr: { FR: "", RR: "", RL: "", FL: "" }, // ESC 전원선 → PDB 패드: "", "ok", "rev"
@@ -184,14 +188,14 @@
     };
   }
 
-  const KEY = "drone-maint-sim-v3";
+  const KEY = "drone-maint-sim-v4";
   function load() {
     const s = defaults();
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) || "null");
       if (raw && raw.install) {
         Object.assign(s.install, raw.install);
-        Object.assign(s.rot, raw.rot); Object.assign(s.flip, raw.flip);
+        Object.assign(s.rot, raw.rot); Object.assign(s.flip, raw.flip); Object.assign(s.bench, raw.bench || {});
         for (const k in s.wiring) if (raw.wiring && raw.wiring[k] !== undefined) s.wiring[k] = typeof s.wiring[k] === "object" ? Object.assign(s.wiring[k], raw.wiring[k]) : raw.wiring[k];
         Object.assign(s.params, raw.params);
         Object.assign(s.cal, raw.cal);
@@ -218,7 +222,9 @@
 
   // ---------- 조립 ----------
   SIM.partAt = (slot) => { for (const id in SIM.state.install) if (SIM.state.install[id] === slot) return SIM.part(id); return null; };
-  SIM.has = (slot) => !!SIM.partAt(slot);
+  // "esc@FR"·"deck:C" 같은 자리 이름이면 그 자리에 부품이 있는지, "fc" 같은 부품 이름이면 그 부품이 기체에 달렸는지
+  SIM.has = (x) => (x.includes("@") || SIM.SLOTS[x] ? !!SIM.partAt(x) : !!SIM.state.install[x]);
+  SIM.placeOnBench = (id, x, z) => { SIM.state.bench[id] = [x, z]; SIM.emit(); };
   SIM.canInstall = (part, slot) => {
     if (!SIM.slotsFor(part).includes(slot)) return "이 부품은 그 자리에 맞지 않습니다.";
     if (SIM.partAt(slot)) return "이미 다른 부품이 장착된 자리입니다.";
@@ -314,8 +320,14 @@
   const ROT_DEG = (n) => n * 90;
   // FC 장착 방향과 AHRS_ORIENTATION 설정의 차이 (rad, 오른쪽 회전 +)
   SIM.mountErr = () => ((ROT_DEG(SIM.state.rot.fc) - SIM.state.params.AHRS_ORIENTATION * 45) * Math.PI) / 180;
+  SIM.fcOffCenter = () => SIM.has("fc") && SIM.state.install.fc !== "deck:C";
+  SIM.gpsOffMast = () => SIM.has("gps") && SIM.state.install.gps !== "mast";
   SIM.headingErr = () => {
-    if (SIM.compassExt()) return ((ROT_DEG(SIM.state.rot.gps) - SIM.state.params.COMPASS_ORIENT * 45) * Math.PI) / 180;
+    if (SIM.compassExt()) {
+      // 마스트에서 내려 달면 전원선·모터 전류의 자기장이 나침반을 흔든다 (전류가 클수록 커짐)
+      const amps = (SIM.flight && SIM.flight.active && SIM.flight.amps) || 0, intf = SIM.gpsOffMast() ? 0.3 + 0.6 * Math.min(1, amps / 120) : 0;
+      return ((ROT_DEG(SIM.state.rot.gps) - SIM.state.params.COMPASS_ORIENT * 45) * Math.PI) / 180 + intf;
+    }
     return SIM.mountErr(); // 내장 나침반은 FC와 함께 돈다
   };
 
@@ -355,6 +367,7 @@
       }
     }
     if (!SIM.has("fc")) add("bad", "비행 컨트롤러", "FC가 장착되지 않았습니다.");
+    else if (SIM.fcOffCenter()) add("bad", "FC 위치", SIM.slotName(st.install.fc) + "에 있습니다. 무게 중심(상판 중앙)에서 벗어나 진동과 가속도 오차가 커집니다.");
     else if (Math.abs(Math.sin(SIM.mountErr() / 2)) > 0.01) add("bad", "FC 장착 방향", "화살표가 앞에서 오른쪽으로 " + ROT_DEG(st.rot.fc) + "° 돌아가 있고 AHRS_ORIENTATION은 " + ORI[st.params.AHRS_ORIENTATION] + "입니다.");
     else add("ok", "FC 장착 방향", st.rot.fc ? "돌려 달았지만 AHRS_ORIENTATION으로 보정됨" : "화살표가 앞쪽");
     if (!SIM.has("battery")) add("bad", "배터리", "장착되지 않았습니다.");
@@ -374,6 +387,7 @@
     else add("ok", "수신기 신호선", "RC IN 포트");
     if (!SIM.has("gps")) add("bad", "GPS · 나침반", "장착되지 않았습니다.");
     else {
+      if (SIM.gpsOffMast()) add("bad", "GPS 위치", SIM.slotName(st.install.gps) + "에 있습니다. 전원선·모터와 가까워 나침반이 자기 간섭을 받습니다.");
       if (w.plug.gps !== "GPS") add("bad", "GPS 케이블 (6핀)", w.plug.gps ? w.plug.gps + " 포트에 꽂혀 있습니다. GPS 포트여야 합니다." : "FC에 연결되지 않았습니다.");
       else add("ok", "GPS 케이블 (6핀)", "GPS 포트");
       if (w.plug.compass !== "I2C") add("bad", "나침반 케이블 (4핀)", w.plug.compass ? w.plug.compass + " 포트에 꽂혀 있습니다. I2C 포트여야 합니다." : "FC에 연결되지 않았습니다. 외장 나침반을 쓰지 못합니다.");
@@ -419,7 +433,7 @@
   // ---------- 일괄 작업 ----------
   SIM.autoAssemble = () => {
     const st = SIM.state, fresh = defaults();
-    st.install = fresh.install; st.rot = { fc: 0, gps: 0 }; st.flip = fresh.flip; st.wiring = fresh.wiring;
+    st.install = fresh.install; st.rot = { fc: 0, gps: 0 }; st.flip = fresh.flip; st.wiring = fresh.wiring; st.bench = {};
     for (let i = 1; i <= 8; i++) st.params["SERVO" + i + "_FUNCTION"] = i <= 4 ? 32 + i : 0;
     const exp = SIM.expected(), w = st.wiring;
     const take = (type, key, val) => parts.find((p) => p.type === type && p[key] === val && !st.install[p.id]);
@@ -432,7 +446,7 @@
       w.motorWires[id] = exp[id].spin === "ccw" ? { 1: "A", 2: "B", 3: "C" } : { 1: "A", 2: "C", 3: "B" };
       w.escTelem[id] = "harness";
     });
-    for (const id of ["fc", "pm", "battery", "gps", "rx", "telem", "buzzer", "switch"]) st.install[id] = id;
+    Object.assign(st.install, { fc: "deck:C", gps: "mast", pm: "bot:C", battery: "under", rx: "deck:L", telem: "deck:R", buzzer: "deck:RL", switch: "deck:RR" });
     Object.assign(w.plug, { pm: "POWER", gps: "GPS", compass: "I2C", rx: "RC IN", telem: "TELEM1", buzzer: "BUZZER", switch: "SWITCH", escTelem: "TELEM2" });
     w.batt = "pm"; w.pmOut = "ok";
     SIM.selected = null;
@@ -465,6 +479,8 @@
     () => { const [a, b] = adj(); swapSlots("motor@" + a, "motor@" + b); return { desc: SIM.POS[a].name + "과 " + SIM.POS[b].name + "의 모터 종류(축 나사 방향)가 바뀌어 있습니다. 비행 중 프로펠러가 풀려 나갑니다.", present: () => [a, b].some((x) => { const m = SIM.partAt("motor@" + x); return !m || m.thread !== SIM.expected()[x].spin; }) }; },
     () => { const a = pick(SIM.POS_IDS); SIM.state.wiring.escPwr[a] = "rev"; return { desc: SIM.POS[a].name + " ESC 전원선의 극성이 반대로 납땜되어 있습니다.", present: () => SIM.state.wiring.escPwr[a] !== "ok" }; },
     () => { SIM.state.rot.fc = pick([1, 2, 3]); return { desc: "FC가 돌아간 방향으로 장착되어 있는데 AHRS_ORIENTATION 보정이 없습니다.", present: () => Math.abs(Math.sin(SIM.mountErr() / 2)) > 0.01 }; },
+    () => { const i = SIM.state.install; i.rx = "bot:C"; i.fc = "deck:L"; return { desc: "FC가 상판 중앙이 아닌 상판 왼쪽에 장착되어 있습니다.", present: () => SIM.fcOffCenter() }; },
+    () => { const i = SIM.state.install, t = i.telem; i.telem = "bot:C"; i.gps = t; return { desc: "GPS·나침반 모듈이 마스트가 아닌 상판 위에 직접 장착되어 있습니다 (자기 간섭).", present: () => SIM.gpsOffMast() }; },
     () => { SIM.state.rot.gps = 2; return { desc: "GPS·나침반 모듈이 뒤를 향해 장착되어 있습니다.", present: () => Math.abs(Math.sin(SIM.headingErr() / 2)) > 0.01 }; },
     () => { SIM.state.wiring.plug.rx = "SBUS OUT"; return { desc: "수신기 신호선이 RC IN이 아닌 SBUS OUT 포트에 꽂혀 있습니다.", present: () => !SIM.rxOk() }; },
     () => { const w = SIM.state.wiring; w.plug.gps = w.plug.telem === "TELEM2" ? "TELEM1" : "TELEM2"; return { desc: "GPS 케이블이 TELEM 포트에 꽂혀 있습니다.", present: () => !SIM.gpsOk() }; },

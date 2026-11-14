@@ -2,7 +2,7 @@
 (function () {
   const SIM = window.SIM, $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const ui = (SIM.ui = { tab: "hw", page: { hw: "parts", sw: "frame", test: "preflight" }, accel: null, compass: null, radio: null, paramFilter: "", mt: { pct: 12, dur: 2 } });
+  const ui = (SIM.ui = { open: false, hover: "", tab: "hw", page: { hw: "parts", sw: "frame", test: "preflight" }, accel: null, compass: null, radio: null, paramFilter: "", mt: { pct: 12, dur: 2 } });
   const P = () => SIM.state.params;
 
   const NAV = {
@@ -31,36 +31,41 @@
 
   // ---------- 하드웨어 ----------
   function pgParts() {
-    const st = SIM.state, s = SIM.selected && SIM.part(SIM.selected);
+    const st = SIM.state;
     let h = "";
-    if (s) {
-      const slot = st.install[s.id];
-      h += '<div class="card sel"><h3>' + esc(s.name) + "</h3>";
-      if (slot) {
-        h += '<p class="where">' + SIM.slotName(slot) + '</p><div class="btns">';
-        if (s.type === "fc") h += btn("fcView", "세부 보기 · 포트 배선", "primary");
-        if (s.type === "fc" || s.type === "gps") h += btn("rotate", "90° 돌려 달기", "", s.id);
-        if (s.type === "prop") h += btn("flip", "뒤집어 끼우기", "", s.id);
-        h += btn("remove", "분리", "", s.id) + "</div>";
-      } else {
-        h += '<div class="btns">';
-        for (const sl of SIM.slotsFor(s)) { const err = SIM.canInstall(s, sl); h += btn("install", SIM.slotName(sl), "", sl, !!err); }
-        if (s.type === "prop") h += btn("flip", "뒤집기", "", s.id);
-        h += "</div>";
-      }
-      h += "</div>";
-    }
     const groups = [["구동부", ["motor", "esc", "prop"]], ["제어·전원", ["fc", "pm", "battery"]], ["주변장치", ["gps", "rx", "telem", "buzzer", "switch"]]];
     for (const [g, types] of groups) {
       h += "<h4>" + g + '</h4><div class="partlist">';
       for (const p of SIM.PARTS.filter((x) => types.includes(x.type))) {
         const slot = st.install[p.id];
-        h += '<button type="button" class="part' + (SIM.selected === p.id ? " on" : "") + '" data-act="select" data-arg="' + p.id + '"><span>' + esc(p.name) + '</span><span class="chip ' + (slot ? "ok" : "") + '">' + (slot ? SIM.slotName(slot) : "작업대") + "</span></button>";
+        h += '<button type="button" class="part' + (SIM.selected === p.id ? " on" : "") + '" data-act="focusPart" data-arg="' + p.id + '"><span>' + esc(p.name) + '</span><span class="chip ' + (slot ? "ok" : "") + '">' + (slot ? SIM.slotName(slot) : "작업대") + "</span></button>";
       }
       h += "</div>";
     }
     h += '<div class="btns foot">' + btn("autoAssemble", "정답대로 자동 조립") + btn("resetAll", "전체 분해·초기화", "ghost") + "</div>";
     return h;
+  }
+  // 3D에서 부품을 눌렀을 때 뜨는 정보창
+  function popHtml(id) {
+    const st = SIM.state, w = st.wiring, p = SIM.part(id), slot = st.install[id], pos = slot && slot.split("@")[1];
+    const row = (k, v) => '<li class="' + (v ? "on" : "") + '"><span>' + k + "</span><span>" + (v || "미연결") + "</span></li>";
+    const pol = (v) => (v === "ok" ? "빨강→＋ 패드" : v === "rev" ? "빨강→－ 패드" : "");
+    let leads = "";
+    if (slot) {
+      if (p.type === "motor") for (let k = 1; k <= 3; k++) leads += row("선 " + "①②③"[k - 1], w.motorWires[pos][k] && SIM.has("esc@" + pos) ? "ESC 단자 " + w.motorWires[pos][k] : "");
+      if (p.type === "esc") leads += row("전원선", pol(w.escPwr[pos])) + row("신호선", w.plug["esc" + pos]) + row("통신선", w.escTelem[pos] ? "하네스" : "");
+      if (p.type === "pm") leads += row("FC 케이블", w.plug.pm) + row("출력선", pol(w.pmOut)) + row("입력", w.batt === "pm" && SIM.has("battery") ? "배터리" : "");
+      if (p.type === "battery") leads += row("커넥터", w.batt === "pm" ? "파워 모듈 입력" : w.batt === "pdb" ? "PDB 패드" : "");
+      if (p.type === "gps") leads += row("굵은 선", w.plug.gps) + row("가는 선", w.plug.compass);
+      if (["rx", "telem", "buzzer", "switch"].includes(p.type)) leads += row("케이블", w.plug[id]);
+    }
+    let b = "";
+    if (slot && p.type === "fc") b += btn("fcView", "세부 보기 · 포트", "primary");
+    if (slot && (p.type === "fc" || p.type === "gps")) b += btn("rotate", "90° 돌리기", "", id);
+    if (p.type === "prop") b += btn("flip", "뒤집기", "", id);
+    if (slot) b += btn("remove", "분리", "", id);
+    b += btn("select", "닫기", "ghost", "");
+    return "<h3>" + esc(p.name) + '</h3><p class="where">' + (slot ? SIM.slotName(slot) : "작업대") + "</p>" + (leads ? "<ul>" + leads + "</ul>" : "") + '<div class="btns">' + b + "</div>";
   }
   const off = (t) => '<span class="muted">' + t + "</span>";
   function pgWiring() {
@@ -302,7 +307,10 @@
   // ---------- 렌더 ----------
   function render() {
     const tab = ui.tab, page = ui.page[tab], pw = SIM.power(), F = SIM.flight;
-    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.arg === tab));
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-pressed", ui.open && b.dataset.arg === tab));
+    $("#panel").hidden = !ui.open; $("#panel-title").textContent = { hw: "하드웨어", sw: "소프트웨어 설정", test: "테스트" }[tab];
+    const pop = $("#pop"), showPop = !!SIM.selected && !F.active && SIM.scene.env === "bench" && !ui.fcView;
+    pop.hidden = !showPop; if (showPop) pop.innerHTML = popHtml(SIM.selected);
     $("#subnav").innerHTML = NAV[tab].map(([k, n]) => '<button type="button" data-act="page" data-arg="' + k + '"' + (k === page ? ' aria-current="true"' : "") + ">" + n + "</button>").join("");
     const body = $("#page"), keep = body.scrollTop, focus = document.activeElement && document.activeElement.id;
     let html = "<h2>" + NAV[tab].find((n) => n[0] === page)[1] + "</h2>";
@@ -310,7 +318,7 @@
     else html += PAGES[page]();
     body.innerHTML = html; body.scrollTop = keep;
     if (focus && document.getElementById(focus) && focus === "pfilter") { const el = document.getElementById(focus); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-    if (ui.fcView && !(tab === "hw" && pw.fc && !F.active)) ui.fcView = false;
+    if (ui.fcView && !(pw.fc && !F.active)) ui.fcView = false;
     const fv = $("#fcview"); fv.hidden = !ui.fcView; if (ui.fcView) fv.innerHTML = fcViewHtml();
     if (!SIM.switchOk()) SIM.safetyPressed = false;
     $("#st-power").className = "chip " + (pw.main ? "ok" : ""); $("#st-power").textContent = pw.main ? "배터리 연결" : "전원 없음";
@@ -322,7 +330,11 @@
     $("#tx-power").textContent = SIM.tx.on ? "송신기 켜짐" : "송신기 꺼짐"; $("#tx-power").className = "btn " + (SIM.tx.on ? "on" : "bad");
     document.querySelectorAll("#tx-sw button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.arg === SIM.tx.sw));
     SIM.scene.dragDrone = (tab === "test" && page === "sensor") || (tab === "sw" && page === "compass" && !!ui.compass);
-    $("#hint").textContent = F.active ? "드래그: 시점 · 휠/핀치: 거리" : SIM.scene.dragDrone ? "드래그: 기체를 손으로 돌리기" : "드래그: 360° 회전 · 휠/핀치: 확대 · 부품 클릭: 선택";
+    setHint();
+  }
+  function setHint() {
+    const F = SIM.flight;
+    $("#hint").textContent = ui.hover || (F.active ? "드래그: 시점 · 휠/핀치: 거리" : SIM.scene.dragDrone ? "드래그: 기체를 손으로 돌리기" : "부품 끌기: 옮기기·장착 · 선 끝 누르기: 연결 · 빈 곳 드래그: 회전 · 휠: 확대");
   }
   function go(tab, page) {
     const leaving = ui.tab + "/" + ui.page[ui.tab];
@@ -341,8 +353,13 @@
 
   // ---------- 동작 ----------
   const ACT = {
-    tab: (a) => go(a), page: (a) => go(ui.tab, a),
-    select: (a) => SIM.select(SIM.selected === a ? null : a),
+    tab: (a) => { if (ui.open && ui.tab === a) { ui.open = false; render(); } else { ui.open = true; go(a); } },
+    closePanel: () => { ui.open = false; render(); },
+    page: (a) => go(ui.tab, a),
+    home: () => SIM.scene.home(),
+    xray: () => { SIM.scene.xray = !SIM.scene.xray; $("#xray").setAttribute("aria-pressed", SIM.scene.xray); },
+    focusPart: (a) => { SIM.select(a); SIM.scene.focus(a); },
+    select: (a) => SIM.select(a && SIM.selected !== a ? a : null),
     install: (a) => { const e = SIM.install(SIM.selected, a); if (e) SIM.toast(e, "bad"); },
     remove: (a) => SIM.remove(a), rotate: (a) => SIM.rotate(a), flip: (a) => SIM.flipProp(a),
     fcView: () => { ui.fcView = true; ui.cable = null; render(); }, fcClose: () => { ui.fcView = false; render(); },
@@ -505,6 +522,12 @@
       const et = SIM.escTelemetry();
       for (let n = 1; n <= 4; n++) { const d = et[n]; txt("et-r" + n, d ? String(d.rpm) : "—"); txt("et-a" + n, d ? d.amps.toFixed(1) + " A" : "—"); txt("et-t" + n, d ? d.temp + " °C" : "—"); txt("et-v" + n, d ? d.volt.toFixed(1) + " V" : "—"); }
     }
+    const pop = $("#pop");
+    if (!pop.hidden && SIM.selected) {
+      const s = SIM.scene.screenOf(SIM.selected), st = pop.parentElement, W = st.clientWidth, H = st.clientHeight;
+      pop.style.left = Math.max(8, Math.min(W - pop.offsetWidth - 8, s.x + 16)) + "px";
+      pop.style.top = Math.max(8, Math.min(H - pop.offsetHeight - 8, s.y - 24)) + "px";
+    }
     const armChip = $("#st-arm"); if ((armChip.textContent === "ARMED") !== F.armed) { armChip.className = "chip " + (F.armed ? "bad" : ""); armChip.textContent = F.armed ? "ARMED" : "DISARMED"; }
   };
 
@@ -515,7 +538,14 @@
     document.body.addEventListener("input", (e) => { if (e.target.dataset.input === "pfilter") { ui.paramFilter = e.target.value; render(); } });
     setL = bindStick($("#stickL"), (x, y) => { SIM.tx.lx = x; if (y !== null) SIM.tx.ly = y; }, false);
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
-    SIM.scene.onPick = (id) => { if (id !== SIM.selected) { if (id && ui.tab !== "hw") return; if (id) ui.page.hw = "parts"; SIM.select(id); } };
+    SIM.scene.onPick = (id) => SIM.select(id && id !== SIM.selected ? id : null);
+    SIM.scene.onFcCable = (c) => { ui.fcView = true; ui.cable = SIM.cableReady(c) ? c : null; render(); };
+    SIM.scene.onHover = (t) => { ui.hover = t; setHint(); };
+    // 메뉴 창 끌어서 옮기기 (넓은 화면)
+    const panel = $("#panel"), head = $("#panel-head"); let pd = null;
+    head.addEventListener("pointerdown", (e) => { if (e.target.closest("button") || innerWidth <= 760) return; const r = panel.getBoundingClientRect(), s = panel.parentElement.getBoundingClientRect(); pd = { dx: e.clientX - r.left, dy: e.clientY - r.top, s }; head.setPointerCapture(e.pointerId); });
+    head.addEventListener("pointermove", (e) => { if (!pd) return; const x = Math.max(0, Math.min(pd.s.width - panel.offsetWidth, e.clientX - pd.s.left - pd.dx)), y = Math.max(0, Math.min(pd.s.height - 60, e.clientY - pd.s.top - pd.dy)); panel.style.left = x + "px"; panel.style.top = y + "px"; panel.style.right = "auto"; });
+    head.addEventListener("pointerup", () => (pd = null));
     SIM.on(render);
     render();
   };
