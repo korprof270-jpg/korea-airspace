@@ -514,3 +514,5 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 }
 @media (max-width: 640px) { .hcards.wide .hcard .htx { width: 80%; } .hcards.wide .hcard .hno { display: none; } .hcards.wide.n4 { grid-template-columns: 1fr; } }
 @media (max-height: 500px) { .hcards.wide .hcard .hno { right: 60px; } .hcards.wide .hcard .hbadge { right: 12px; } .hcards.wide .hcard .hgo { right: 14px; } }
+.grid.c4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 900px) { .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

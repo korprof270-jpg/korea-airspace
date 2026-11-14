@@ -32,12 +32,13 @@ const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", 
   ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"]];
 // 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
 const HUB = {
-  practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "free"] },
+  practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "신입 파일럿이 되어 8개 맵을 잇는 챕터를 한 단계씩 깨 나갑니다." },
   game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·촬영·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
 };
 const SUB = {
   training: { img: "7-training" },
+  trick: { name: "트릭 연습", en: "TRICKS", c: "#ff5ad6", img: "3-freestyle", desc: "롤·플립·스핀·루프를 시범으로 보고 스틱 타이밍대로 따라 해 봅니다." },
   free: { name: "자유 비행", en: "FREE FLIGHT", c: "#21d4fd", img: "8-snow", desc: "원하는 맵을 시간 제한 없이 마음껏 날아다니며 연습합니다." },
   race: { img: "1-race" }, tracking: { img: "5-tracking" }, freestyle: { img: "3-freestyle" }, survival: { img: "2-combat" },
 };
@@ -261,6 +262,7 @@ export class UI {
   }
   a_sub(v) {
     if (v === "free") { this.sel.mode = "freestyle"; this.sel.fs = "free"; }
+    else if (v === "trick" || v === "training") { this.sel.mode = "training"; this.sel.course = v === "trick" ? "trick" : null; this.sel.lesson = null; }
     else { this.sel.mode = v; if (v === "freestyle" && this._group === "game") this.sel.fs = "timed"; }
     this._persist(); this.show("setup");
   }
@@ -354,19 +356,20 @@ export class UI {
     const s = this.sel, m = MODE_META.training, prog = TR.progress(), all = TR.LESSONS;
     let cur = all.find((l) => l.id === s.lesson);
     if (cur && s.course && cur.course !== s.course) cur = null;
-    const co = TR.COURSES.find((c) => c.id === (cur ? cur.course : s.course)) || TR.COURSES.find((c) => c.id === all[Math.min(prog, all.length - 1)].course);
+    const next = all.find((l) => l.course !== "trick" && TR.unlocked(l) && !TR.cleared(l)) || all[0];
+    const co = TR.COURSES.find((c) => c.id === (cur ? cur.course : s.course)) || TR.COURSES.find((c) => c.id === next.course);
     const list = TR.lessonsOf(co.id);
-    if (!cur) cur = list.find((l) => l.index === prog) || [...list].reverse().find((l) => TR.unlocked(l)) || list[0];
+    if (!cur) cur = list.find((l) => TR.unlocked(l) && !TR.cleared(l)) || [...list].reverse().find((l) => TR.unlocked(l)) || list[0];
     s.course = co.id; s.lesson = cur.id;
     if (!TR_MAPS.includes(s.tmap)) s.tmap = TR_MAPS[0];
     const coCards = TR.COURSES.map((c, i) => {
-      const ls = TR.lessonsOf(c.id), done = ls.filter((l) => l.index < prog).length, open = TR.unlocked(ls[0]);
+      const ls = TR.lessonsOf(c.id), done = ls.filter(TR.cleared).length, open = TR.unlocked(ls[0]);
       return `<button class="card ${c.id === co.id ? "sel" : ""} ${open ? "" : "locked"}" data-a="sel" data-k="course" data-v="${c.id}">
-        <div class="ic">${["🛫", "🧭", "🌀"][i]}</div><div class="tag">${open ? `${done}/${ls.length}` : "🔒"}</div>
+        <div class="ic">${["🛫", "🧭", "🌀", "🎬"][i]}</div><div class="tag">${open ? `${done}/${ls.length}` : "🔒"}</div>
         <div class="nm"><small>${c.en}</small>${c.name}</div><div class="ds">${c.desc}</div></button>`;
     }).join("");
     const lCards = list.map((l) => {
-      const open = TR.unlocked(l), cleared = l.index < prog;
+      const open = TR.unlocked(l), cleared = TR.cleared(l);
       return `<button class="card stage ${l.id === cur.id ? "sel" : ""} ${open ? "" : "locked"} ${cleared ? "cleared" : ""}" data-a="sel" data-k="lesson" data-v="${l.id}">
         <span class="sno">${open ? l.no : "🔒"}</span><span class="stx"><b>${l.name}</b><small>과제 ${l.tasks.length}개 · 기준 ${l.par}초${l.limit ? ` · 제한 ${l.limit}초` : ""}</small></span>
         <span class="stars">${cleared ? starStr(TR.lessonStars(l)) : open ? "도전" : ""}</span></button>`;
@@ -378,13 +381,14 @@ export class UI {
     if (!open) brief += `<p class="hint2">앞 과목을 먼저 통과해야 열립니다.</p>`;
     brief += `<div class="opt"><label>훈련장</label>${this.seg("tmap", TR_MAPS.map((id) => [id, MAPS[id].name]), s.tmap)}</div>`;
     brief += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
+    if (cur.demo) brief += `<p class="hint2">🎬 먼저 시범 비행을 보여 줍니다. 단계마다 스틱을 어떻게, 언제 움직이는지 화면 아래 두 스틱으로 보여 준 뒤 직접 따라 합니다. 훈련 중 E 키로 시범을 다시 볼 수 있습니다.</p>`;
     brief += `<p class="hint2">훈련은 ACRO 모드로만 진행합니다. 추락하면 출발 지점에서 다시 시작하고, 하던 과제부터 이어집니다.</p>`;
-    const body = this._step(1, "과정 선택", co.name, `<div class="grid c3">${coCards}</div>`)
+    const body = this._step(1, "과정 선택", co.name, `<div class="grid c4">${coCards}</div>`)
       + this._step(2, "과목 선택", `${cur.no}. ${cur.name}`, `<div class="stages">${lCards}</div>`)
       + this._step(3, "브리핑", "", brief);
     return `<div class="screen split tr" style="--c:${m.c}">
       <div class="pane" data-scroll>
-        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2><span class="prog">${prog}/${all.length} 과목</span></div>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${co.id === "trick" ? "TRICKS" : m.en}</span>${co.id === "trick" ? "트릭 연습" : m.name}</h2><span class="prog">${prog}/${all.length} 과목</span></div>
         ${body}
         <div class="startbar"><span class="sum">${esc(co.name)} · ${cur.no}. ${esc(cur.name)} · ACRO</span>
           <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "훈련 시작" : "잠김"} <span aria-hidden="true">→</span></button></div>
@@ -713,6 +717,7 @@ export class UI {
       <div class="opt" style="justify-content:center"><span class="lbl">HUD</span>${this.seg("hud.density", HUD_DENSITY.map((k) => [k, HUD_DENSITY_NAMES[k]]), settings.hud.density, "set")}</div>
       <div class="list">
         <button class="primary" data-a="resume">계속하기</button>
+        ${s && s.mode.demoKey ? `<button data-a="replay">🎬 시범 다시 보기</button>` : ""}
         <button data-a="restart">다시 시작</button>
         <button data-a="hud">HUD·효과 설정</button>
         <button data-a="go" data-v="settings">설정</button>
@@ -723,6 +728,7 @@ export class UI {
   a_pfm(v) { const s = this.game.session; if (s) s.player.setFlightMode(v); this.redraw(); }
   a_pcam(v) { const s = this.game.session; if (s) { s.player.camMode = v; s.player.camInit = false; } settings.camera = v; save(); this.redraw(); }
   a_resume() { this.game.resume(); }
+  a_replay() { const m = this.game.session && this.game.session.mode; this.game.resume(); if (m && m.startDemo) m.startDemo(); }
   a_restart() { this.game.restart(); }
   a_quit() { this.game.quit(); }
 

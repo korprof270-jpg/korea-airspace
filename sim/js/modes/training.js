@@ -1,8 +1,8 @@
 // 비행훈련: ACRO 전용. 과목의 수행 과제를 순서대로 해내면 통과
 import * as THREE from "../../vendor/three.module.min.js";
 import { Mode } from "./base.js";
-import { settings, save, fmtTime } from "../config.js";
-import { LESSONS, COURSES } from "../training.js";
+import { settings, save, fmtTime, STICK_MODES, clamp } from "../config.js";
+import { LESSONS, COURSES, TRICK_DEMO } from "../training.js";
 
 const TAU = Math.PI * 2;
 const _up = new THREE.Vector3(), _v = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1);
@@ -36,6 +36,8 @@ export class TrainingMode extends Mode {
     this.group = new THREE.Group();
     this.objs = [];
     this.pulse = 0;
+    this.demoKey = this.lesson.demo || null;    // 트릭 과목: 시범을 먼저 보여 준다
+    this.demo = null;
   }
 
   start() {
@@ -51,6 +53,70 @@ export class TrainingMode extends Mode {
     s.player.flightMode = "ACRO";
     s.world.scene.add(this.group);
     this.enter(0);
+    if (this.demoKey) this.startDemo();
+  }
+
+  // ── 시범: 스크립트대로 기체를 움직이며 스틱 입력과 설명을 보여 준다 ──
+  startDemo() {
+    const s = this.s, pl = s.player, phases = TRICK_DEMO[this.demoKey];
+    if (!phases) return;
+    const yaw = Math.atan2(-this.fwd.x, -this.fwd.z), alt = this.demoKey === "dive" ? 34 : this.demoKey === "inv" ? 24 : 16;
+    let q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), p = this.P([0, alt, 8]);
+    const up = new THREE.Vector3(0, 1, 0), AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+    let t0 = 0;
+    const list = phases.map((ph) => {
+      const o = { ...ph, t0, q0: q.clone(), p0: p.clone() };
+      o.qEnd = ph.rot ? q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(AX[ph.rot[0]], ph.rot[1] * Math.PI / 180)) : q.clone();
+      o.off = (k) => {
+        const v = new THREE.Vector3();
+        if (ph.mv) v.addScaledVector(this.fwd, ph.mv[0] * k).addScaledVector(up, ph.mv[1] * k).addScaledVector(this.right, ph.mv[2] * k);
+        if (ph.arc) { const a = (ph.arc.deg * k * Math.PI) / 180; v.addScaledVector(this.fwd, ph.arc.r * Math.sin(a)).addScaledVector(up, ph.arc.r * (1 - Math.cos(a))); }
+        return v;
+      };
+      q = o.qEnd; p = p.clone().add(o.off(1)); t0 += ph.d;
+      return o;
+    });
+    this.demo = { t: -0.6, list, total: t0, st: [0.5, 0, 0, 0], prev: list[0].p0.clone(), trail: [] };
+    this.state = "demo";
+    this._cam = pl.camMode; pl.camMode = "chase"; pl.camInit = false;
+    pl.model.scale.setScalar(1.7);   // 시범 중에는 기체를 크게 보여 준다
+    for (const t of this.tasks) t.acc = 0;
+  }
+  _demoStep(dt) {
+    const d = this.demo, pl = this.s.player, b = pl.body;
+    if (this.s.game.input.take("item")) d.t = d.total + 1;   // E: 건너뛰기
+    d.t += dt;
+    if (d.t > d.total + 0.8) return this.endDemo();
+    const tt = Math.max(0, d.t);
+    let ph = d.list[d.list.length - 1];
+    for (const x of d.list) if (tt < x.t0 + x.d) { ph = x; break; }
+    const k0 = clamp((tt - ph.t0) / ph.d, 0, 1), k = k0 * k0 * (3 - 2 * k0);
+    d.ph = ph; d.k = k0;
+    b.quat.copy(ph.q0).slerp(ph.qEnd, ph.rot && Math.abs(ph.rot[1]) > 180 ? 0 : k);
+    if (ph.rot && Math.abs(ph.rot[1]) > 180) {   // 한 바퀴 이상은 slerp 로 안 되니 축 각도로 직접
+      const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) }[ph.rot[0]];
+      b.quat.copy(ph.q0).multiply(new THREE.Quaternion().setFromAxisAngle(AX, ph.rot[1] * k * Math.PI / 180));
+    }
+    const pos = ph.p0.clone().add(ph.off(k));
+    b.vel.copy(pos).sub(d.prev).multiplyScalar(1 / Math.max(dt, 1e-3)); d.prev.copy(pos);
+    b.pos.copy(pos); b.omega.set(0, 0, 0); b.onGround = false; b.thrust = ph.s[0];
+    pl.crashed = false; pl.battery = 1;
+    for (let i = 0; i < 4; i++) d.st[i] += (ph.s[i] - d.st[i]) * Math.min(1, dt * 16);
+    // 시범 카메라: 출발점 기준 비스듬히 뒤·옆 고정 위치에서 기체를 따라 본다 (루프·다이브처럼 크게 움직이면 조금 물러난다)
+    const far = this.demoKey === "loop" || this.demoKey === "dive" ? 1.9 : 1;
+    if (!d.camBase) d.camBase = d.list[0].p0.clone().addScaledVector(this.fwd, -2.6 * far).addScaledVector(this.right, 1.5 * far).add(new THREE.Vector3(0, 0.55 * far, 0));
+    d.look = d.look ? d.look.lerp(pos, Math.min(1, dt * 8)) : pos.clone();
+    this.s.debugCam = { pos: d.camBase.toArray(), look: d.look.toArray(), fov: this.demoKey === "dive" ? 70 : 58 };
+  }
+  endDemo() {
+    const pl = this.s.player;
+    this.demo = null; this.s.debugCam = null; pl.model.scale.setScalar(1);
+    pl.camMode = this._cam || settings.camera; pl.camInit = false;
+    const yaw = Math.atan2(-this.fwd.x, -this.fwd.z);
+    this.placePlayer(this.origin, yaw);
+    this.state = "countdown"; this.count = 3.6; this._lastBeep = 4; this.time = 0;
+    this.enter(0);
+    this.s.hud.toast("이제 직접 해 보세요!", "#35ff7a", 1.8, 30);
   }
 
   // 훈련장 좌표 [오른쪽, 높이, 앞] → 월드
@@ -192,6 +258,8 @@ export class TrainingMode extends Mode {
   }
 
   update(dt) {
+    if (this.state === "demo") { this.s.player.flightMode = "ACRO"; return this._demoStep(dt); }
+    if (this.demoKey && this.state === "run" && this.s.game.input.take("item")) return this.startDemo();   // E: 시범 다시 보기
     super.update(dt);
     const s = this.s, pl = s.player, b = pl.body;
     if (pl.flightMode !== "ACRO") {
@@ -308,8 +376,38 @@ export class TrainingMode extends Mode {
   }
   hudObjective() { return this.state === "run" ? this.target() : null; }
 
+  // 시범 화면: 설명 자막 + 단계 표시 + 두 스틱의 움직임
+  _demoHud(h) {
+    const d = this.demo, u = h.u, L = h.L, W = h.W, g = h.g, ph = d.ph || d.list[0], idx = d.list.indexOf(ph);
+    h.plate(L.cx - 130 * u, L.t, 260 * u, 30 * u, { fill: "rgba(12,18,34,0.92)", accent: "#ff5ad6", skew: 0.2 });
+    h.text(`시범 · ${this.lesson.name}`, L.cx, L.t + 16 * u, { size: 15, align: "center", base: "middle", color: "#ff9be6", shadow: false });
+    h.text(d.t < 0 ? "잘 보세요" : `${idx + 1}. ${ph.cap}`, L.cx, L.t + 64 * u, { size: 20, align: "center", color: "#fff" });
+    // 단계 막대
+    const n = d.list.length, bw = Math.min(46 * u, (W * 0.6) / n), x0 = L.cx - (n * bw) / 2;
+    d.list.forEach((x, i) => h.bar(x0 + i * bw + 2 * u, L.t + 76 * u, bw - 4 * u, 5 * u, i < idx ? 1 : i === idx && d.t >= 0 ? d.k : 0, i === idx ? "#ff5ad6" : "#9fe7ff"));
+    // 스틱 두 개 (스틱 모드에 맞춰 채널을 배치)
+    const M = STICK_MODES[settings.stickMode] || STICK_MODES[2], val = { throttle: d.st[0] * 2 - 1, yaw: d.st[1], pitch: d.st[2], roll: d.st[3] };
+    const NAME = { throttle: "스로틀", yaw: "요", pitch: "피치", roll: "롤" };
+    const S = Math.min(120 * u, h.H * 0.22), gap = 34 * u, by = L.conTop - S - 52 * u;
+    [["l", L.cx - gap / 2 - S], ["r", L.cx + gap / 2]].forEach(([side, bx]) => {
+      const cx = bx + S / 2, cy = by + S / 2, r = S / 2 - 10 * u, xc = M[side + "x"], yc = M[side + "y"];
+      const vx = val[xc], vy = val[yc];
+      g.beginPath(); g.roundRect(bx, by, S, S, 16 * u); g.fillStyle = "rgba(10,16,30,0.82)"; g.fill(); g.lineWidth = 3 * u; g.strokeStyle = "#0b0f24"; g.stroke();
+      g.beginPath(); g.moveTo(cx, by + 10 * u); g.lineTo(cx, by + S - 10 * u); g.moveTo(bx + 10 * u, cy); g.lineTo(bx + S - 10 * u, cy); g.lineWidth = 1.5 * u; g.strokeStyle = "rgba(255,255,255,0.25)"; g.stroke();
+      // 움직인 방향 화살 (가운데에서 멀리 갈수록 진하게)
+      const mag = Math.hypot(vx, vy);
+      if (mag > 0.15) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + vx * r, cy - vy * r); g.lineWidth = 5 * u; g.lineCap = "round"; g.strokeStyle = `rgba(255,90,214,${Math.min(1, mag)})`; g.stroke(); }
+      g.beginPath(); g.arc(cx + vx * r, cy - vy * r, 11 * u, 0, 7); h.fill2(side === "l" ? "#ffd24a" : "#3ad8ff", 3);
+      h.text(side === "l" ? "왼쪽 스틱" : "오른쪽 스틱", cx, by - 8 * u, { size: 12, align: "center", color: "#b4c2d4" });
+      h.text(`↕ ${NAME[yc]}   ↔ ${NAME[xc]}`, cx, by + S + 18 * u, { size: 12, align: "center", color: "#ffe9a8" });
+    });
+    h.text(`MODE ${settings.stickMode}`, L.cx, by + S / 2 + 4 * u, { size: 11, align: "center", color: "#7b8aa3" });
+    h.text("E · 건너뛰기", W - L.l - 4 * u, L.b - 10 * u, { size: 12, align: "right", color: "#b4c2d4" });
+  }
+
   hud(h) {
     const u = h.u, L = h.L, W = h.W;
+    if (this.state === "demo") return this._demoHud(h);
     this.hudCountdown(h);
     if (h.lvl === "off") return;
     const full = h.lvl === "full", lim = this.lesson.limit;
@@ -329,6 +427,7 @@ export class TrainingMode extends Mode {
       h.text(s, x + 32 * u, yy, { size: 12, base: "middle", color: ok ? "#7fdca6" : cur ? "#fff" : "#8f9db3", bold: cur, shadow: false });
     });
 
+    if (this.demoKey && full && this.state === "run") h.text("E · 시범 다시 보기", x + 4 * u, y + ph + 18 * u, { size: 12, color: "#ff9be6" });
     const t = this.task;
     if (!t || this.state === "done") return;
     // 가운데 위: 지금 과제 · 상태 · 요령
@@ -353,6 +452,7 @@ export class TrainingMode extends Mode {
   }
 
   dispose() {
+    if (this.demo) { this.s.player.camMode = this._cam || settings.camera; this.s.debugCam = null; this.s.player.model.scale.setScalar(1); }
     this.clearObjs();
     this.s.world.scene.remove(this.group);
   }

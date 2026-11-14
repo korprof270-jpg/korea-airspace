@@ -17,6 +17,7 @@ export const COURSES = [
   { id: "basic", name: "기초 과정", en: "BASIC", desc: "이륙·호버링·고도·요 — ACRO 로 떠 있는 법" },
   { id: "move", name: "기동 과정", en: "MANEUVER", desc: "전진·정지·선회·8자 — 원하는 곳으로 가는 법" },
   { id: "acro", name: "곡예 과정", en: "AEROBATICS", desc: "롤·플립·루프·배면·다이브 — ACRO 만의 기동" },
+  { id: "trick", name: "트릭 연습", en: "TRICKS", desc: "시범 영상과 스틱 타이밍을 보고 따라 하는 프리스타일 기술", free: true },
 ];
 
 // 과제 종류
@@ -130,12 +131,118 @@ export const LESSONS = [
     { type: "land", p: [0, 0, 0], r: 4, text: "착륙장 안에 착륙" },
   ], { limit: 150 }),
 ];
+// ── 프리스타일 트릭: 시범(demo) → 따라 하기 ──
+// 시범 구간: d 초, cap 설명, s = 스틱 [스로틀 0..1, 요, 피치, 롤] (-1..1, 피치 + = 앞으로 밀기, 롤·요 + = 오른쪽)
+//   rot = [축 "x"(피치)·"y"(요)·"z"(롤), 각도°] 기체 기준 회전, mv = [앞, 위, 오른쪽] m 이동, arc = { r, deg } 세로 원(루프)
+const HOV = 0.5;
+const P = (d, cap, s, o = {}) => ({ d, cap, s, ...o });
+const DEMO = {
+  roll: [
+    P(1.2, "고도를 넉넉히 잡고 수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(0.35, "스로틀을 살짝 올려 위로 띄운다", [0.85, 0, 0, 0], { mv: [0, 1.4, 0] }),
+    P(0.55, "롤 스틱을 오른쪽 끝까지 — 동시에 스로틀은 줄인다", [0.25, 0, 0, 1], { rot: ["z", -360], mv: [0, 0.4, 0.6] }),
+    P(0.25, "한 바퀴가 되면 롤 스틱을 바로 가운데로", [0.3, 0, 0, 0], { mv: [0, -0.3, 0] }),
+    P(0.8, "스로틀을 올려 떨어지는 높이를 받쳐 준다", [0.72, 0, 0, 0], { mv: [0, -0.5, 0] }),
+    P(0.8, "수평을 잡고 다시 떠 있기", [HOV, 0, 0, 0]),
+  ],
+  flipB: [
+    P(1.2, "고도를 넉넉히 잡고 수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(0.4, "스로틀을 크게 올려 위로 솟구친다", [0.92, 0, 0, 0], { mv: [0, 2, 0] }),
+    P(0.6, "피치 스틱을 아래(뒤)로 끝까지 당기고 스로틀은 줄인다", [0.2, 0, -1, 0], { rot: ["x", 360], mv: [-0.6, 0.4, 0] }),
+    P(0.25, "기수가 다시 앞을 보면 피치 스틱을 가운데로", [0.3, 0, 0, 0], { mv: [0, -0.4, 0] }),
+    P(0.8, "스로틀을 올려 낙하를 멈춘다", [0.75, 0, 0, 0], { mv: [0, -0.6, 0] }),
+    P(0.7, "수평을 잡고 다시 떠 있기", [HOV, 0, 0, 0]),
+  ],
+  flipF: [
+    P(1.2, "고도를 넉넉히 잡고 수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(0.4, "스로틀을 크게 올려 위로 솟구친다", [0.92, 0, 0, 0], { mv: [0, 2, 0] }),
+    P(0.6, "피치 스틱을 위(앞)로 끝까지 밀고 스로틀은 줄인다", [0.2, 0, 1, 0], { rot: ["x", -360], mv: [0.6, 0.3, 0] }),
+    P(0.25, "한 바퀴가 되면 피치 스틱을 가운데로", [0.3, 0, 0, 0], { mv: [0, -0.4, 0] }),
+    P(0.8, "스로틀을 올려 낙하를 멈춘다", [0.75, 0, 0, 0], { mv: [0, -0.6, 0] }),
+    P(0.7, "수평을 잡고 다시 떠 있기", [HOV, 0, 0, 0]),
+  ],
+  spin: [
+    P(1.2, "수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(1.3, "요 스틱을 오른쪽 끝까지 — 롤·피치는 가운데, 스로틀로 높이 유지", [0.55, 1, 0, 0], { rot: ["y", -720] }),
+    P(0.3, "두 바퀴를 돌면 요 스틱을 가운데로", [HOV, 0, 0, 0], { rot: ["y", -40] }),
+    P(0.8, "수평을 잡고 다시 떠 있기", [HOV, 0, 0, 0]),
+  ],
+  loop: [
+    P(0.9, "수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(1.0, "피치를 조금 밀어 앞으로 속도를 붙인다", [0.65, 0, 0.35, 0], { rot: ["x", -20], mv: [9, 0, 0] }),
+    P(1.7, "스로틀을 크게 올리며 피치를 당겨 큰 원을 그린다", [0.95, 0, -0.55, 0], { rot: ["x", 360], arc: { r: 5, deg: 360 } }),
+    P(0.4, "원을 다 그리면 피치를 가운데로", [0.6, 0, 0, 0], { rot: ["x", 20], mv: [3, 0, 0] }),
+    P(0.9, "수평을 잡고 속도를 줄인다", [HOV, 0, -0.2, 0], { mv: [2, 0, 0] }),
+  ],
+  inv: [
+    P(1.2, "높이 올라가 수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(0.35, "롤 스틱을 끝까지 쳐서 반 바퀴만 뒤집는다", [0.3, 0, 0, 1], { rot: ["z", -180] }),
+    P(1.6, "뒤집힌 채 스로틀은 거의 0 — 계속 떨어지니 짧게 버틴다", [0.06, 0, 0, 0], { mv: [0, -3, 0] }),
+    P(0.35, "다시 롤을 쳐서 반 바퀴 바로 세운다", [0.3, 0, 0, 1], { rot: ["z", -180], mv: [0, -0.8, 0] }),
+    P(0.9, "스로틀을 올려 낙하를 멈춘다", [0.8, 0, 0, 0], { mv: [0, -0.6, 0] }),
+  ],
+  dive: [
+    P(1.0, "아주 높이 올라가 수평으로 떠 있기", [HOV, 0, 0, 0]),
+    P(0.45, "피치를 밀어 기수를 아래로 떨군다", [0.2, 0, 1, 0], { rot: ["x", -80], mv: [1, 0, 0] }),
+    P(1.3, "스로틀을 줄인 채 급강하", [0.1, 0, 0, 0], { mv: [1.5, -12, 0] }),
+    P(0.7, "절반쯤에서 피치를 당기고 스로틀을 끝까지 올린다", [1, 0, -1, 0], { rot: ["x", 80], mv: [4, -2.5, 0] }),
+    P(0.9, "수평을 잡고 높이를 되찾는다", [0.6, 0, 0, 0], { mv: [3, 0.5, 0] }),
+  ],
+};
+DEMO.combo = [...DEMO.roll.slice(0, 5), ...DEMO.flipB.slice(1, 5), P(0.9, "수평을 잡고 다시 떠 있기", [HOV, 0, 0, 0])];
+export const TRICK_DEMO = DEMO;
+const TK = (id, name, brief, par, tasks) => L(id, "trick", name, brief, par, tasks, { demo: id.replace("t-", "") });
+LESSONS.push(
+  TK("t-roll", "롤", "앞뒤 축으로 한 바퀴 구르는 가장 기본 트릭입니다. 살짝 띄우고, 끝까지 치고, 바로 놓는 세 박자를 익히세요.", 45, [
+    { type: "alt", min: 12, text: "고도 12m 이상 확보", tip: "트릭은 늘 넉넉한 높이에서 시작합니다." },
+    { type: "trick", trick: "rollR", any: ["rollL", "rollR"], n: 2, text: "롤 2번 (어느 쪽이든)", tip: "스로틀 살짝 ↑ → 롤 끝까지 → 한 바퀴에서 놓기 → 스로틀로 받치기" },
+  ]),
+  TK("t-flipB", "백플립", "좌우 축으로 뒤로 한 바퀴. 먼저 솟구쳐 시간을 벌고, 피치를 끝까지 당깁니다.", 50, [
+    { type: "alt", min: 14, text: "고도 14m 이상 확보" },
+    { type: "trick", trick: "flipB", n: 2, text: "백플립 2번", tip: "스로틀 크게 ↑ → 피치 끝까지 당기기(스로틀 ↓) → 앞을 보면 놓기 → 스로틀로 받치기" },
+  ]),
+  TK("t-flipF", "프론트 플립", "앞으로 한 바퀴. 백플립과 같은 박자에 피치 방향만 반대입니다.", 50, [
+    { type: "alt", min: 14, text: "고도 14m 이상 확보" },
+    { type: "trick", trick: "flipF", n: 2, text: "프론트 플립 2번", tip: "스로틀 크게 ↑ → 피치 끝까지 밀기(스로틀 ↓) → 한 바퀴에서 놓기 → 스로틀로 받치기" },
+  ]),
+  TK("t-spin", "요 스핀", "제자리에서 팽이처럼 도는 트릭. 도는 동안 높이를 지키는 것이 핵심입니다.", 40, [
+    { type: "alt", min: 8, text: "고도 8m 이상 확보" },
+    { type: "trick", trick: "spin", n: 2, text: "요 스핀 2바퀴", tip: "요 끝까지 유지, 롤·피치는 가운데, 스로틀은 호버보다 살짝 위" },
+  ]),
+  TK("t-loop", "파워 루프", "속도를 붙인 채 크게 솟구쳐 뒤로 한 바퀴. 플립보다 큰 원을 그립니다.", 60, [
+    { type: "alt", min: 6, text: "고도 6m 이상 확보" },
+    { type: "speed", kmh: 35, text: "시속 35km 이상으로 전진" },
+    { type: "trick", trick: "loop", text: "파워 루프 1번", tip: "스로틀 크게 ↑ + 피치를 천천히 당기기 → 꼭대기에서 스로틀 ↓ → 내려오며 다시 ↑" },
+  ]),
+  TK("t-inv", "배면 비행", "반 롤로 뒤집혀 잠시 버팁니다. 뒤집히면 스로틀이 땅 쪽을 향한다는 것을 몸으로 익힙니다.", 60, [
+    { type: "alt", min: 22, text: "고도 22m 이상 확보" },
+    { type: "inv", hold: 1.5, text: "배면 자세 1.5초 유지", tip: "롤을 쳐서 반 바퀴 → 스로틀 거의 0 → 다시 반 롤로 바로 세우기" },
+    { type: "alt", min: 3, max: 40, hold: 2, upright: true, text: "바로 세워 2초 안정" },
+  ]),
+  TK("t-dive", "다이브", "높은 곳에서 기수를 떨구어 급강하하고 끌어올립니다. 회복은 생각보다 일찍.", 60, [
+    { type: "alt", min: 32, text: "고도 32m 이상 확보" },
+    { type: "dive", m: 12, text: "12m 이상 급강하 후 회복", tip: "피치 밀어 기수 ↓ → 스로틀 ↓ 낙하 → 절반에서 피치 당기며 스로틀 끝까지" },
+  ]),
+  TK("t-combo", "콤보: 롤 + 플립", "롤과 백플립을 끊지 않고 이어 봅니다. 첫 트릭 뒤 받치는 스로틀이 다음 트릭의 솟구치기가 됩니다.", 70, [
+    { type: "alt", min: 16, text: "고도 16m 이상 확보" },
+    { type: "trick", trick: "rollR", any: ["rollL", "rollR"], text: "롤 1번" },
+    { type: "trick", trick: "flipB", any: ["flipB", "flipF"], text: "이어서 플립 1번", tip: "롤 뒤 스로틀로 받치는 순간 그대로 솟구쳐 플립으로" },
+  ]),
+);
+
 LESSONS.forEach((l, i) => { l.index = i; l.no = LESSONS.filter((x, j) => j <= i && x.course === l.course).length; });
 
 export const lessonsOf = (course) => LESSONS.filter((l) => l.course === course);
-export const progress = () => Math.min(records.training || 0, LESSONS.length);   // 마친 과목 수
-export const unlocked = (l) => l.index <= progress();
 export const lessonStars = (l) => records[`training:${l.id}`] || 0;
+export const cleared = (l) => lessonStars(l) > 0 || (l.course !== "trick" && l.index < (records.training || 0));   // 예전 저장(선형 진행)도 인정
+export const progress = (course) => LESSONS.filter((l) => (!course || l.course === course) && cleared(l)).length;   // 마친 과목 수
+export function unlocked(l) {
+  const ls = lessonsOf(l.course), i = ls.indexOf(l);
+  if (i > 0) return cleared(ls[i - 1]);
+  const ci = COURSES.findIndex((c) => c.id === l.course);
+  if (COURSES[ci].free || ci === 0) return true;
+  return lessonsOf(COURSES[ci - 1].id).every(cleared);
+}
 export const lessonConfig = (l, map) => ({ mode: "training", map, lesson: l.id, training: l.id });
 
 // 결과 판정·진행도 저장
@@ -146,9 +253,9 @@ export function complete(id, result) {
   const info = { lesson: l, passed, next: null, done: false };
   if (passed) {
     if ((result.stars || 1) > lessonStars(l)) records[`training:${l.id}`] = Math.max(1, result.stars || 1);
-    if (l.index === progress()) records.training = l.index + 1;
     save();
-    info.next = LESSONS[l.index + 1] || null;
+    const ls = lessonsOf(l.course), nx = ls[ls.indexOf(l) + 1] || (l.course !== "trick" && COURSES.findIndex((c) => c.id === l.course) < 2 ? lessonsOf(COURSES[COURSES.findIndex((c) => c.id === l.course) + 1].id)[0] : null);
+    info.next = nx || null;
     info.done = !info.next;
   }
   return info;
