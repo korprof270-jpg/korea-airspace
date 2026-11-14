@@ -516,3 +516,5 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 @media (max-height: 500px) { .hcards.wide .hcard .hno { right: 60px; } .hcards.wide .hcard .hbadge { right: 12px; } .hcards.wide .hcard .hgo { right: 14px; } }
 .grid.c4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 900px) { .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bosstag { font-style: normal; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 999px; border: 1.5px solid var(--ink); background: #ff3d4d; color: #fff; vertical-align: 2px; margin-left: 4px; }
+.bosstag.mid { background: #ffb02e; color: #0b0f24; }

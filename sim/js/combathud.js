@@ -10,7 +10,39 @@ const _s = {};
 const LOCK_T = 0.7;
 const PLATE = "rgba(12,18,32,0.7)";
 
+// 보스 등장 컷신: 위아래 검은 띠, 경고 문구, 보스 이름, 차오르는 체력바
+export function drawBossCut(h, k) {
+  const g = h.g, u = h.u, W = h.W, H = h.H, e = Math.min(1, k.t / 0.35), bar = H * 0.13 * e, a = k.a;
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, bar); g.fillRect(0, H - bar, W, bar);
+  const col = k.mid ? "#ffb02e" : "#ff3d4d";
+  if (Math.floor(k.t * 4) % 2 === 0) h.text("⚠ WARNING ⚠", W / 2, bar + 34 * u, { size: 22, align: "center", color: col });
+  const s = Math.min(1, Math.max(0, (k.t - 0.4) / 0.4));
+  h.fade(s);
+  h.text(k.sub, W / 2, H * 0.62, { size: 15, align: "center", color: col });
+  h.text(k.name, W / 2, H * 0.62 + 44 * u, { size: 40, align: "center", color: "#fff" });
+  const bw = Math.min(520 * u, W * 0.6), fill = Math.min(1, Math.max(0, (k.t - 0.9) / 1.2));
+  h.bar(W / 2 - bw / 2, H * 0.62 + 64 * u, bw, 12 * u, (a.hp / a.maxHp) * fill, col);
+  h.fade(1);
+  if (k.t > 0.6) h.text("레이저 버튼 · 건너뛰기", W - 18 * u, H - bar + 22 * u > H - 8 ? H - 12 * u : H - bar - 10 * u, { size: 12, align: "right", color: "#9aa8bc" });
+}
+
+// 보스 체력바: 위 가운데 넓게 (살아 있는 보스 모두, 위에서 아래로 쌓는다)
+function bossBars(c, h) {
+  const u = h.u, L = h.L, W = h.W;
+  let y = L.subY + 30 * u;
+  for (const a of c.actors) {
+    if (!a.alive || !a.bossBar || !a.targetable) continue;
+    const bw = Math.min(460 * u, W * 0.5), x = W / 2 - bw / 2, col = a.bossBar.mid ? "#ffb02e" : "#ff3d4d", k = a.hp / a.maxHp;
+    h.text(`${a.bossBar.mid ? "중간 보스" : "BOSS"} · ${a.name}`, W / 2, y, { size: 14, align: "center", color: col });
+    h.plate(x - 6 * u, y + 6 * u, bw + 12 * u, 20 * u, { fill: "rgba(10,14,28,0.92)", accent: col, skew: 0.12 });
+    h.segbar(x + 8 * u, y + 10 * u, bw - 14 * u, 12 * u, k, 20, col);
+    h.text(`${Math.ceil(k * 100)}%`, x + bw + 14 * u, y + 17 * u, { size: 12, base: "middle", mono: true, color: "#fff" });
+    y += 44 * u;
+  }
+}
+
 export function drawCombatHud(c, h, o = {}) {
+  if (c.s.mode.cut) return drawBossCut(h, c.s.mode.cut);
   if (h.lvl === "off") return;
   const g = h.g, u = h.u, H = h.H, s = c.s, cam = s.camera, p = c.player;
   const full = h.lvl === "full";
@@ -70,6 +102,7 @@ export function drawCombatHud(c, h, o = {}) {
 
   if (p.alive) reticle(c, h);
   status(c, h);
+  bossBars(c, h);
 
   if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.banner("⚠ 미사일 접근", H * 0.72, HC.warn, 20);
   if (!p.alive) h.banner(`격추됨 — ${Math.max(0, p.respawnT || 0).toFixed(1)}초 후 재출격`, H * 0.4, HC.warn, 24);

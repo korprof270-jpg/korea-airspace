@@ -13,6 +13,11 @@ const SUBJ = {
   forklift: { h: 1.2, dmin: 3, dmax: 12, ground: true },
   boat: { h: 0.8, dmin: 5, dmax: 18, ground: false },
   drone: { h: 0, dmin: 3, dmax: 14, ground: false, bank: 1.5 },
+  skier: { h: 0.9, dmin: 3, dmax: 14, ground: true },
+  bike: { h: 0.9, dmin: 4, dmax: 18, ground: true },
+  supercar: { h: 0.6, dmin: 5, dmax: 22, ground: true },
+  heli: { h: 1.6, dmin: 8, dmax: 30, ground: false, bank: 0.8 },
+  fpv: { h: 0, dmin: 3, dmax: 16, ground: false, bank: 2.2 },
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 

@@ -104,6 +104,26 @@ const CHAPTERS = [
   },
 ];
 
+// 보스 배치: 단계 제목 → { name, kind: "boss"(보스) | "gunship"(중간 보스), at: 등장 시각(초), hp: 체력 배율 }
+const BOSSES = {
+  "모의 공중전": { name: "교관기 ‘블랙호크’", kind: "gunship", at: 45, hp: 1.6 },
+  "졸업 시험": { name: "훈련 모선 ‘해머’" },
+  "증거 호송": { name: "매복 포격기 ‘까마귀 2호’", kind: "gunship", at: 40 },
+  "광장 탈환": { name: "까마귀 강습기 ‘흑익’", kind: "boss", at: 70, hp: 0.45 },
+  "방공망 제거": { name: "방공 지휘기 ‘철갑’", kind: "gunship", at: 35 },
+  "부두 사수": { name: "밀수 수송선 ‘고래’", kind: "boss", at: 60, hp: 0.5 },
+  "끊긴 보급로": { name: "약탈 포격기 ‘모래매’", kind: "gunship", at: 45 },
+  "고원 방어전": { name: "사막 포함 ‘전갈’", kind: "boss", at: 60, hp: 0.55 },
+  "밀서 호송": { name: "추격 포격기 ‘야차’", kind: "gunship", at: 40 },
+  "궁궐 수복": { name: "흑룡 포격기", kind: "boss", at: 70, hp: 0.5 },
+  "통신소 무력화": { name: "설원 경비기 ‘눈매’", kind: "gunship", at: 35 },
+  "눈 속의 반격": { name: "설원 요새기 ‘빙벽’", kind: "boss", at: 60, hp: 0.6 },
+  "폭약 운반": { name: "용암 포격기 ‘불새’", kind: "gunship", at: 40 },
+  "공장 수호기": { name: "용암 강습함 ‘화산’" },
+  "코어 해체 장비": { name: "근위 포격기 ‘검은 날개’", kind: "gunship", at: 40, hp: 3 },
+  "까마귀의 둥지": { name: "모선 ‘까마귀 둥지’" },
+};
+
 // 지금 있는 맵과 데이터로 할 수 있는 단계만 추려 번호를 매긴다
 function build() {
   const chapters = [], flat = [];
@@ -114,7 +134,7 @@ function build() {
     for (const [kind, title, brief, o] of c.stages) {
       if (NEEDS[kind] && !map[NEEDS[kind]]) continue;
       if (kind === "waves" && !(map.combat && map.combat.blue)) continue;
-      const st = { id: `${c.id}-${ch.stages.length + 1}`, kind, title, brief, o: o || {}, chapter: ch, index: flat.length, no: ch.stages.length + 1 };
+      const st = { id: `${c.id}-${ch.stages.length + 1}`, kind, title, brief, o: o || {}, chapter: ch, index: flat.length, no: ch.stages.length + 1, boss: BOSSES[title] || null };
       ch.stages.push(st); flat.push(st);
     }
     if (ch.stages.length) chapters.push(ch);
@@ -129,7 +149,7 @@ export const unlocked = (st) => st.index <= progress();
 export const stageStars = (st) => records[`story:${st.id}`] || 0;
 
 // 목표 설명
-export function goalText(st) {
+function goalBase(st) {
   const o = st.o, need = o.need || 1;
   switch (st.kind) {
     case "race": return o.rivals ? (need >= 3 ? "1위로 완주" : need === 2 ? "2위 안으로 완주" : "완주") : "완주";
@@ -139,6 +159,11 @@ export function goalText(st) {
     case "base": case "cargo": return "우리 팀 승리";
     default: return "임무 성공";
   }
+}
+export function goalText(st) {
+  const g = goalBase(st), b = st.boss;
+  if (!b || st.kind === "boss") return g;
+  return MISSION.has(st.kind) ? `${g} + ${b.kind === "boss" ? "보스" : "중간 보스"} 격파` : `${g} (${b.kind === "boss" ? "보스" : "중간 보스"} 출현)`;
 }
 
 // 단계 → 세션 설정
@@ -151,8 +176,8 @@ export function stageConfig(st, team) {
   }
   if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: map.tracking[((o.si ?? 0) % n + n) % n].id }); }
   if (st.kind === "free") return Object.assign(cfg, { mode: "freestyle", session: "timed" });
-  if (st.kind === "dm" || st.kind === "base" || st.kind === "cargo") return Object.assign(cfg, { mode: "survival", variant: st.kind, bots: o.bots || 5, time: o.time || 180 });
-  return Object.assign(cfg, { mode: "challenge", mission: st.kind, team: team ?? o.team ?? 0, power: o.power || 1 });
+  if (st.kind === "dm" || st.kind === "base" || st.kind === "cargo") return Object.assign(cfg, { mode: "survival", variant: st.kind, bots: o.bots || 5, time: o.time || 180, boss: st.boss });
+  return Object.assign(cfg, { mode: "challenge", mission: st.kind, team: team ?? o.team ?? 0, power: o.power || 1, boss: st.boss });
 }
 export const usesTeam = (st) => MISSION.has(st.kind);
 

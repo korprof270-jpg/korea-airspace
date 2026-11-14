@@ -326,7 +326,7 @@ export class UI {
     const stCards = ch.stages.map((x) => {
       const open = unlocked(x), cleared = x.index < prog;
       return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cleared ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
-        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
+        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (x.kind === "boss" || x.boss.kind === "boss" ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
         <span class="stars">${cleared ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
     }).join("");
     const open = unlocked(st);

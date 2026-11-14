@@ -177,6 +177,64 @@ export function makeForklift(color = 0xf5a623) {
   return g;
 }
 
+// 스키 타는 사람: 무릎을 굽힌 활강 자세, 스키·폴. 회전할 때 몸을 안쪽으로 기울인다
+export function makeSkier(color = 0xff3d6a) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const jacket = mat(color), pants = mat(0x1d2a44), skin = mat(0xe6b48f), helmet = gloss(0xffffff, 0.5), ski = gloss(0xffd24a, 0.4), pole = mat(0x9aa4b4);
+  part(body, new THREE.BoxGeometry(0.42, 0.5, 0.3), jacket, 0, 1.0, -0.08).rotation.x = -0.55;   // 앞으로 숙인 상체 (-z 가 앞)
+  part(body, new THREE.SphereGeometry(0.14, 10, 8), helmet, 0, 1.3, -0.3);
+  part(body, new THREE.BoxGeometry(0.3, 0.06, 0.1), gloss(0x222222, 0.8), 0, 1.3, -0.43);
+  for (const x of [-0.13, 0.13]) {
+    part(body, new THREE.BoxGeometry(0.14, 0.45, 0.16), pants, x, 0.6, -0.1).rotation.x = 0.7;     // 허벅지: 엉덩이에서 무릎(앞)으로
+    part(body, new THREE.BoxGeometry(0.14, 0.42, 0.16), pants, x, 0.22, -0.12).rotation.x = -0.45;  // 정강이: 무릎에서 발로
+    part(body, new THREE.BoxGeometry(0.11, 0.03, 1.7), ski, x, 0.02, -0.05);
+    const p1 = part(body, new THREE.CylinderGeometry(0.012, 0.012, 1.1, 5), pole, x * 2.6, 0.55, 0.05); p1.rotation.x = -0.75;
+    part(body, new THREE.BoxGeometry(0.1, 0.36, 0.1), jacket, x * 2.3, 0.92, -0.3).rotation.x = 0.9;
+  }
+  let lean = 0, prev = 0;
+  g.userData.tick = (dt, speed) => {
+    const yaw = g.rotation.y, turn = ((yaw - prev + Math.PI * 3) % (Math.PI * 2)) - Math.PI; prev = yaw;
+    lean += (Math.max(-0.6, Math.min(0.6, -turn / Math.max(dt, 1e-3) * 0.35)) - lean) * Math.min(1, dt * 4);
+    body.rotation.z = lean;
+  };
+  g.userData.radius = 1.0;
+  return g;
+}
+
+// 오토바이와 운전자
+export function makeBike(color = 0x21d4fd) {
+  const g = new THREE.Group(), paint = gloss(color, 0.3), dark = mat(0x1a1d24), tire = mat(0x111111), suit = mat(0x23272f);
+  const wheels = [];
+  for (const z of [-0.75, 0.75]) { const w = part(g, new THREE.CylinderGeometry(0.33, 0.33, 0.14, 16), tire, 0, 0.33, z); w.rotation.z = Math.PI / 2; wheels.push(w); }
+  part(g, new THREE.BoxGeometry(0.3, 0.35, 1.2), paint, 0, 0.62, 0);
+  part(g, new THREE.BoxGeometry(0.34, 0.22, 0.5), paint, 0, 0.82, -0.45).rotation.x = -0.3;
+  part(g, new THREE.BoxGeometry(0.26, 0.16, 0.45), dark, 0, 0.82, 0.3);
+  part(g, new THREE.BoxGeometry(0.5, 0.05, 0.05), dark, 0, 0.98, -0.62);
+  const r = part(g, new THREE.BoxGeometry(0.38, 0.5, 0.28), suit, 0, 1.12, 0.05); r.rotation.x = -0.7;
+  part(g, new THREE.SphereGeometry(0.16, 10, 8), gloss(color, 0.4), 0, 1.35, -0.25);
+  g.userData.tick = (dt, speed) => { for (const w of wheels) w.rotation.x -= (speed / 0.33) * dt; };
+  g.userData.radius = 1.2;
+  return g;
+}
+
+// 헬리콥터: 주 로터·꼬리 로터가 돈다
+export function makeHeli(color = 0xd13b3b) {
+  const g = new THREE.Group(), paint = gloss(color, 0.35), dark = mat(0x22262e), glass = gloss(0x7ec8ff, 0.9);
+  part(g, new THREE.SphereGeometry(1.1, 16, 12), paint, 0, 1.4, 0).scale.set(1, 0.9, 1.5);
+  part(g, new THREE.SphereGeometry(0.75, 14, 10), glass, 0, 1.55, -0.95).scale.set(1, 0.8, 0.8);
+  part(g, new THREE.CylinderGeometry(0.18, 0.32, 3.2, 8), paint, 0, 1.6, 2.4).rotation.x = Math.PI / 2;
+  part(g, new THREE.BoxGeometry(0.08, 0.9, 0.6), paint, 0, 2.0, 3.9);
+  for (const x of [-0.7, 0.7]) part(g, new THREE.BoxGeometry(0.08, 0.08, 2.4), dark, x, 0.3, 0);
+  part(g, new THREE.CylinderGeometry(0.1, 0.1, 0.5, 8), dark, 0, 2.45, 0);
+  const rotor = new THREE.Group(); rotor.position.set(0, 2.72, 0); g.add(rotor);
+  for (let i = 0; i < 4; i++) { const b = part(rotor, new THREE.BoxGeometry(0.22, 0.04, 4.6), dark, 0, 0, 0); b.rotation.y = (i * Math.PI) / 2; b.position.set(0, 0, 0); b.geometry.translate(0, 0, 2.3); }
+  const tail = new THREE.Group(); tail.position.set(0.12, 2.0, 3.95); g.add(tail);
+  for (let i = 0; i < 2; i++) { const b = part(tail, new THREE.BoxGeometry(0.03, 0.9, 0.12), dark, 0, 0, 0); b.rotation.x = (i * Math.PI) / 2; }
+  g.userData.tick = (dt) => { rotor.rotation.y += dt * 28; tail.rotation.x += dt * 40; };
+  g.userData.radius = 3;
+  return g;
+}
+
 // 종류 이름 → 모델
 export function makeSubjectModel(type, color) {
   switch (type) {
@@ -186,6 +244,17 @@ export function makeSubjectModel(type, color) {
     case "runner": return makeRunner(color);
     case "boat": return makeBoat(color);
     case "forklift": return makeForklift(color);
+    case "skier": return makeSkier(color);
+    case "bike": return makeBike(color);
+    case "heli": return makeHeli(color);
+    case "supercar": { const c = makeCar(color ?? 0xff2d3d, true); c.scale.set(1.05, 0.85, 1.12); return c; }
+    case "fpv": {   // 다른 레이싱 드론: 작고 빠르며, 꼬리 불빛이 남는다
+      const d = buildDrone({ ...botLook("racer", 0), accentColor: "#ff2bd6", ledColor: "#ff2bd6", propColor: "#21d4fd" }, 1.6, { halo: 0xff2bd6 });
+      d.userData.radius = 0.5;
+      const tick = d.userData.tick; let t = 0;
+      d.userData.tick = (dt) => { t += dt; tick(dt, 0.9, t); };
+      return d;
+    }
     case "drone": {
       const d = buildDrone({ ...botLook("racer", 1), accentColor: "#ffd400", ledColor: "#ffd400", propColor: "#ffffff" }, 2.2, { halo: 0xffd400 });
       d.userData.radius = 0.6;

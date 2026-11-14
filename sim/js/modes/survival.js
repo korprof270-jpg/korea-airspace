@@ -190,6 +190,12 @@ export class SurvivalMode extends CombatMode {
       });
     }
     if (this.outposts) this._outposts();
+    const bc = this.cfg.boss;
+    if (bc && !this.bossA && !this.cut && this.time >= (bc.at ?? 60)) {
+      const live = this.outposts ? this.outposts.filter((b) => b.core.alive) : [], c = this.combat;
+      const at = live.length ? live[0].pos : this.basePos ? this.basePos[1] : c.randomPoint(20, 30);
+      this.bossA = this.spawnBoss({ ...bc, pos: c.randomPoint(18, 28, 0, at.x, at.z, 30) });
+    }
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (this.time >= this.duration) this._end();
   }
@@ -238,6 +244,7 @@ export class SurvivalMode extends CombatMode {
   hud(h) {
     const u = h.u, L = h.L, s = this.s, c = this.combat, me = this.me;
     drawCombatHud(c, h);
+    if (this.cut) return;
     this.hudCountdown(h);
     if (h.lvl === "off") return;
     const full = h.lvl === "full", dm = this.variant === "dm";

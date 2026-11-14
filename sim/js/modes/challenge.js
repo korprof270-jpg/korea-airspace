@@ -38,6 +38,7 @@ export class ChallengeMode extends CombatMode {
     });
     super.start();
     this.home = this.s.player.spawn.pos.clone();
+    this.bossCfg = this.cfg.boss || null;   // 스토리 단계가 정한 보스 (등장 시각 at 초, 또는 목표 달성 직후)
     this[`setup_${this.id}`](c, this.s.map, this.s.world);
     for (let i = 0; i < this.teamN; i++) {
       const b = c.spawnBot({ kind: "grunt", team: 0, respawns: true, hpScale: 1.5, leader: this.me, slot: i, name: `윙맨 ${i + 1}` });
@@ -87,9 +88,22 @@ export class ChallengeMode extends CombatMode {
 
   update(dt) {
     super.update(dt);
-    if (this.state !== "run") return;
+    if (this.state !== "run" || this.cut) return;
+    if (this.introBoss) { const b = this.introBoss; this.introBoss = null; return this.bossIntro(b, b.name, "보스", false); }
     if (this.failT > 0) { if ((this.failT -= dt) <= 0) this.fail(this.failWhy); return; }
-    if (this.winT > 0) { if ((this.winT -= dt) <= 0) this.winFn(); return; }
+    // 정해진 시각이 되거나 목표를 먼저 끝내면 보스가 나타난다. 보스를 잡아야 임무 완료
+    const bc = this.bossCfg;
+    if (bc && !this.bossA && (this.time >= (bc.at ?? 60) || this.winT > 0)) {
+      const me = this.me.pos, f = _v.set(-Math.sin(this.s.player.body.heading), 0, -Math.cos(this.s.player.body.heading));
+      const p = this.combat.randomPoint(18, 30, 0, me.x + f.x * 70, me.z + f.z * 70, 30);
+      this.bossA = this.spawnBoss({ ...bc, pos: p });
+      return;
+    }
+    if (this.winT > 0) {
+      if (this.bossA && this.bossA.alive) { this.objective = `${this.bossA.name} 격파`; return; }
+      if ((this.winT -= dt) <= 0) this.winFn();
+      return;
+    }
     this[`tick_${this.id}`](dt, this.combat);
     if (this.limit && this.time >= this.limit && this.failT < 0 && this.winT < 0) { this.failT = 0.01; this.failWhy = "제한 시간 초과"; }
   }
@@ -97,6 +111,7 @@ export class ChallengeMode extends CombatMode {
   hud(h) {
     const u = h.u, L = h.L;
     drawCombatHud(this.combat, h, { radarRange: 200 });
+    if (this.cut) return;
     this.hudCountdown(h);
     if (h.lvl === "off") return;
     const full = h.lvl === "full";
@@ -299,7 +314,9 @@ export class ChallengeMode extends CombatMode {
   // ── 5. 모선 격추 ──────────────────────────────────────────
   setup_boss(c, map, w) {
     const bp = map.boss || { pos: [0, 30, 0] };
-    const boss = (this.boss = c.spawnBot({ kind: "boss", team: 1, name: "모선", pos: new THREE.Vector3(...bp.pos), hpScale: 0.8 + 0.25 * this.scale }));
+    const bname = (this.cfg.boss && this.cfg.boss.name) || "모선";
+    const boss = (this.boss = c.spawnBot({ kind: "boss", team: 1, name: bname, pos: new THREE.Vector3(...bp.pos), hpScale: 0.8 + 0.25 * this.scale }));
+    this.introBoss = boss; this.bossCfg = null;   // 보스전: 출격하자마자 등장 컷신
     boss.armor = 0.12; boss.ai.altOff = 14;
     this.pods = [];
     const geo = (this.podGeo = new THREE.IcosahedronGeometry(1.5, 1));
@@ -343,10 +360,7 @@ export class ChallengeMode extends CombatMode {
       }
     }
   }
-  hud_boss(h) {
-    const b = this.boss;
-    this.topBar(h, this.open ? "모선" : "모선 (보호막)", b.hp / b.maxHp, this.open ? "#ff5a66" : "#8a6bd6");
-  }
+  hud_boss() {}   // 보스 체력바는 전투 HUD 가 위 가운데에 그린다
 
   dispose() {
     super.dispose();

@@ -346,7 +346,7 @@ export class Hud {
     L.compassY = L.t + 46 * u; L.subY = L.t + 74 * u;        // 나침반 / 그 아래 모드별 표시줄
     L.tapeX = (touch ? 176 : 248) * u; L.tapeH = (touch ? 150 : 190) * u;
     // 아래 가운데 조종 콘솔: [왼 스틱][모드·스로틀][오른 스틱]
-    L.conM = 128 * u; L.stick = 52 * u; L.conGap = 10 * u;
+    L.conM = (L.combat ? 230 : 128) * u; L.stick = 52 * u; L.conGap = 10 * u;   // 전투 중에는 가운데에 큰 체력바
     L.sticks = this.vis("sticks") && !touch;                  // 터치 중에는 화면 스틱이 대신 보인다
     L.conHalf = L.conM / 2 + (L.sticks ? L.conGap + L.stick : 0);
     L.conTop = L.b - 52 * u;
@@ -568,21 +568,17 @@ export class Hud {
   // 아래 가운데 콘솔: 스틱 모니터 + 비행 모드 배지 + 스로틀 게이지
   _console(session, dt) {
     const g = this.g, u = this.u, L = this.L, pl = session.player, b = pl.body;
-    const showThr = this.vis("throttle"), cb = session.mode.combat, me = cb && cb.player;
-    const x0 = L.cx - L.conM / 2, top = L.conTop;
+    const cb = session.mode.combat, me = cb && cb.player;
     if (me) {
-      // 체력바: 실드는 위에 하늘색 띠로 겹친다. 25% 이하면 깜빡인다
-      const k = clamp(me.hp / me.maxHp, 0, 1), low = k <= 0.25, col = k > 0.5 ? HC.ok : k > 0.25 ? HC.gold : HC.warn;
-      this.plate(x0, top, L.conM, 25 * u, { fill: PLATE_HI, accent: low ? HC.warn : HC.ok, skew: 0.3 });
-      if (!(low && Math.floor(this.t * 6) % 2)) this.segbar(x0 + 14 * u, top + 6.5 * u, L.conM - 62 * u, 12 * u, k, 10, col);
-      this.text(`${Math.max(0, Math.ceil(me.hp))}`, x0 + L.conM - 8 * u, top + 13.5 * u, { size: 16, align: "right", base: "middle", mono: true, color: low ? HC.warn : "#fff", shadow: false });
-      if (me.shield > 0) { g.fillStyle = INK; g.fillRect(x0 + 13 * u, top + 1.5 * u, L.conM - 54 * u, 5 * u); g.fillStyle = HC.cyan; g.fillRect(x0 + 14 * u, top + 2.5 * u, (L.conM - 56 * u) * clamp(me.shield / 120, 0, 1), 3 * u); }
-      if (this.lvl === "full") this.text("체력", L.cx, top - 6 * u, { size: 10, align: "center", color: low ? HC.warn : HC.dim });
-    }
-    if (showThr) {
-      const y = top + 32 * u, thr = b.disabled ? 0 : clamp(b.thrust, 0, 1);
-      this.segbar(x0 + 30 * u, y + 2 * u, L.conM - 34 * u, 11 * u, thr, 10, thr > 0.85 ? HC.orange : HC.gold);
-      this.text("추력", x0 + 2 * u, y + 8 * u, { size: 10, base: "middle", color: HC.dim });
+      // 체력바: 아래 가운데에 크게. 실드는 하늘색 띠로 겹치고, 25% 이하면 빨갛게 깜빡인다
+      const k = clamp(me.hp / me.maxHp, 0, 1), low = k <= 0.25, col = k > 0.5 ? "#3dff8c" : k > 0.25 ? "#ffd24a" : "#ff4a3a";
+      const w = L.conM, h = 40 * u, x = L.cx - w / 2, y = L.b - h;
+      this.plate(x, y, w, h, { fill: low && Math.floor(this.t * 5) % 2 ? "rgba(90,12,12,0.92)" : "rgba(10,14,28,0.94)", accent: col, skew: 0.18, lw: 3 });
+      this.text("HP", x + 22 * u, y + h / 2 + 1 * u, { size: 14, align: "center", base: "middle", color: col, shadow: false });
+      const bx = x + 40 * u, bw = w - 100 * u, bh = 18 * u, by = y + (h - bh) / 2;
+      this.segbar(bx, by, bw, bh, k, 12, col);
+      if (me.shield > 0) { g.fillStyle = INK; g.fillRect(bx - 1 * u, by - 7 * u, bw + 2 * u, 6 * u); g.fillStyle = HC.cyan; g.fillRect(bx, by - 6 * u, bw * clamp(me.shield / 120, 0, 1), 4 * u); }
+      this.text(`${Math.max(0, Math.ceil(me.hp))}`, x + w - 12 * u, y + h / 2 + 1 * u, { size: 22, align: "right", base: "middle", mono: true, color: low ? "#ff6b5a" : "#fff" });
     }
     if (!L.sticks) return;
     // 스틱 모니터(궤적 포함)

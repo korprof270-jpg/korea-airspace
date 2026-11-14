@@ -17,6 +17,41 @@ export class CombatMode extends Mode {
     return this.combat;
   }
 
+  // 컷신 중에는 조종 불가
+  get locked() { return this.state !== "run" || !!this.cut; }
+
+  // ── 보스 ──
+  // o: { name, sub, kind: "gunship"(중간 보스) | "boss"(보스), hp: 체력 배율, pos }
+  spawnBoss(o) {
+    const c = this.combat, mid = o.kind !== "boss";
+    const b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6) });
+    if (mid) b.model.scale.multiplyScalar(1.35);
+    this.bossIntro(b, o.name, o.sub || (mid ? "중간 보스" : "보스"), mid);
+    return b;
+  }
+  // 등장 컷신: 레터박스 + 보스 둘레를 도는 카메라 + 이름·체력바. 그동안 전투는 멈춘다
+  bossIntro(a, name, sub, mid = false) {
+    a.bossBar = { name, mid };
+    this.cut = { t: 0, dur: 3.6, a, name, sub, mid, ang: Math.atan2(this.s.player.body.pos.x - a.pos.x, this.s.player.body.pos.z - a.pos.z) };
+    this.s.player.frozen = true;
+    this.s.game.sound.play("warn"); this.s.game.sound.play("bigkill", 0.6);
+    this.s.feel.emit("blast", 0.5, a.pos);
+  }
+  _cutStep(dt) {
+    const k = this.cut, a = k.a, s = this.s;
+    k.t += dt;
+    if ((k.t > 0.6 && s.game.input.take("fire")) || k.t >= k.dur || !a.alive) {   // 사격 버튼으로 건너뛰기
+      this.cut = null; s.debugCam = null; s.player.frozen = false; s.player.camInit = false;
+      s.hud.toast(`${k.name} 출현!`, k.mid ? "#ffb02e" : "#ff4a5a", 1.6, 26);
+      return;
+    }
+    if (k.t < 0.15 && Math.floor(k.t * 60) % 20 === 0) s.game.sound.play("warn");
+    const R = a.radius * 2.2 + 5, ang = k.ang + k.t * 0.55, e = Math.min(1, k.t / 0.8);
+    const r = R * (1.6 - 0.6 * e * e * (3 - 2 * e));
+    s.debugCam = { pos: [a.pos.x + Math.sin(ang) * r, a.pos.y + R * 0.25 + 2, a.pos.z + Math.cos(ang) * r], look: [a.pos.x, a.pos.y, a.pos.z], fov: 55 };
+    a.model.position.copy(a.pos);
+  }
+
   // 벽·지면 충돌은 추락 대신 피해
   onImpact(impact, hard) {
     // 세게 부딪히면 그대로 파괴, 가벼운 충돌은 피해만
@@ -34,6 +69,7 @@ export class CombatMode extends Mode {
   onOutOfBounds() { if (this.me.alive) { this.s.hud.toast("비행 구역 이탈", "#ff6b5a"); this.combat.damage(this.me, 9999, null); } }
 
   update(dt) {
+    if (this.cut) return this._cutStep(dt);
     super.update(dt);
     if (this.state !== "countdown") this.combat.update(dt);
   }

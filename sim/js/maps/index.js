@@ -9,4 +9,6 @@ import island from "./island.js";
 import moon from "./moon.js";
 
 export const MAP_LIST = [city, canyon, factory, arena, palace, snow, island, moon];
+import { addSubjects } from "./extra-subjects.js";
+addSubjects(MAP_LIST);
 export const MAPS = Object.fromEntries(MAP_LIST.map((m) => [m.id, m]));

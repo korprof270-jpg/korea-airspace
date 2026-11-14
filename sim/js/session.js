@@ -77,7 +77,7 @@ export class Session {
     const h = this.hud;
     h.clear();
     this.feel.draw(h);
-    h.drawFlight(this, this.game.dt);
+    if (!this.mode.cut) h.drawFlight(this, this.game.dt);   // 보스 컷신 중에는 비행 계기를 숨긴다
     this.mode.hud(h);
     h.drawToasts(this.game.dt);
   }
