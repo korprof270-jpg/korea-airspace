@@ -7,7 +7,7 @@
   const ARM_R = 0.225, S2 = Math.SQRT1_2, REST_Y = 0.09 * K;
   let renderer, scene, camera, drone, benchGroup, fieldGroup, partsRoot, wires, slotGroup, expectGroup, selBox, sun;
   const air = {};
-  const orbit = { theta: 0.45, phi: 0.95, dist: 2.7, target: new T.Vector3(0, 0.2, 0) };
+  const orbit = (sc.orbit = { theta: 0.45, phi: 0.95, dist: 2.7, target: new T.Vector3(0, 0.2, 0) });
   const poseQ = new T.Quaternion();
   sc.poseQ = poseQ;
 
@@ -61,6 +61,13 @@
     return s;
   }
 
+  // 부품에서 나오는 선 (가닥 끝은 납땜 팁): 끝점 목록을 함께 저장
+  const LEAD = { y: mat(0xe0c020), b: mat(0x2c6fd0), g: mat(0x2f9a4a), r: mat(0xc8281e), k: mat(0x161616), w: mat(0xf2f2f2), o: mat(0xe88a20) };
+  function lead(g, from, to, m, r) {
+    const curve = new T.CatmullRomCurve3([new T.Vector3(...from), new T.Vector3((from[0] + to[0]) / 2, Math.max(from[1], to[1]) + 0.002, (from[2] + to[2]) / 2), new T.Vector3(...to)]);
+    const t = new T.Mesh(new T.TubeGeometry(curve, 8, r || 0.0011, 5), m); t.castShadow = true; g.add(t);
+    g.add(cyl((r || 0.0011) * 1.3, 0.003, M.steel, to[0], to[1], to[2], 6));
+  }
   // ---------- 부품 모델 (원점 = 장착면 중앙) ----------
   function makePart(part) {
     const g = new T.Group();
@@ -73,6 +80,8 @@
       bell.add(cyl(0.0025, 0.012, M.steel, 0, 0.03, 0, 10));
       bell.add(cyl(0.0055, 0.004, part.thread === "cw" ? M.dark : M.steel, 0, 0.0345, 0, 6));
       bell.add(box(0.004, 0.0012, 0.012, M.red, 0, 0.0256, 0.007));
+      // 3상 선 ①②③ (노랑·파랑·초록) — 암 안쪽(-z)으로 나온다
+      ["y", "b", "g"].forEach((c, k) => lead(g, [(k - 1) * 0.004, 0.004, -0.012], [(k - 1) * 0.006, 0.003, -0.034], LEAD[c], 0.0014));
       g.add(bell); o.spinner = bell;
     } else if (part.type === "prop") {
       const sp = new T.Group(), pitch = part.dir === "ccw" ? 0.3 : -0.3;
@@ -85,6 +94,14 @@
       g.add(sp, disc); o.spinner = sp; o.disc = disc;
     } else if (part.type === "esc") {
       g.add(box(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0), box(0.018, 0.0012, 0.02, M.yellow, 0, 0.0086, 0));
+      // 바깥쪽(+z): 3상 출력 단자 A·B·C
+      ["A", "B", "C"].forEach((_, k) => g.add(box(0.005, 0.0016, 0.006, M.copper, (k - 1) * 0.007, 0.0088, 0.021)));
+      // 안쪽(-z): 전원선(빨강·검정), 신호선(흰·검정 꼬임), 통신선(주황 단선)
+      lead(g, [-0.007, 0.004, -0.024], [-0.009, 0.003, -0.044], LEAD.r, 0.0019);
+      lead(g, [-0.003, 0.004, -0.024], [-0.004, 0.003, -0.044], LEAD.k, 0.0019);
+      lead(g, [0.003, 0.005, -0.024], [0.004, 0.004, -0.04], LEAD.w, 0.0009);
+      lead(g, [0.0045, 0.005, -0.024], [0.0055, 0.004, -0.04], LEAD.k, 0.0009);
+      lead(g, [0.008, 0.005, -0.024], [0.01, 0.004, -0.038], LEAD.o, 0.0008);
     } else if (part.type === "fc") {
       g.add(box(0.05, 0.015, 0.082, M.dark, 0, 0.0075, 0));
       const d = arrowDecal(0.044, 0.066, "FC", "#1b1e22"); d.position.y = 0.0152; g.add(d);
@@ -202,17 +219,20 @@
       const p = SIM.POS[id];
       if (!SIM.has("esc@" + id)) return;
       const e = [p.x * 0.115 * S2, 0.02, p.z * 0.115 * S2];
-      const order = w.motorWires[id];
-      if (SIM.has("motor@" + id) && order) { // 모터선 세 가닥 (노랑·파랑·초록), ESC 단자 순서대로
+      const mw = w.motorWires[id];
+      if (SIM.has("motor@" + id)) { // 모터선 ①②③ → ESC 단자 A/B/C (꽂은 대로)
         const tx = -p.z * S2, tz = p.x * S2, cols = [0xe0c020, 0x2c6fd0, 0x2f9a4a];
-        for (let k = 0; k < 3; k++) {
-          const mo = (k - 1) * 0.006, eo = (+order[k] - 2) * 0.006;
-          wires.add(tube([[p.x * 0.14 * S2 + tx * eo, 0.019, p.z * 0.14 * S2 + tz * eo], [p.x * 0.175 * S2 + tx * (mo + eo) / 2, 0.026, p.z * 0.175 * S2 + tz * (mo + eo) / 2], [p.x * 0.208 * S2 + tx * mo, 0.016, p.z * 0.208 * S2 + tz * mo]], cols[k], 0.0018));
+        for (let k = 1; k <= 3; k++) {
+          if (!mw[k]) continue;
+          const mo = (k - 2) * 0.006, eo = ("ABC".indexOf(mw[k]) - 1) * 0.007, ro = p.x * S2, rz = p.z * S2;
+          const m0 = [ro * (ARM_R - 0.034) + tx * mo, 0.013, rz * (ARM_R - 0.034) + tz * mo], e0 = [ro * 0.136 + tx * eo, 0.0195, rz * 0.136 + tz * eo];
+          wires.add(tube([m0, [(m0[0] + e0[0]) / 2, 0.026, (m0[2] + e0[2]) / 2], e0], cols[k - 1], 0.0016));
         }
       }
-      if (w.escPwr[id]) pair([p.x * 0.092 * S2, 0.017, p.z * 0.092 * S2], PADS[id], w.escPwr[id] === "rev", 0.02);
+      if (w.escTelem[id] === "harness") { const a0 = [p.x * 0.077 * S2 + p.z * S2 * 0.01, 0.014, p.z * 0.077 * S2 - p.x * S2 * 0.01]; wires.add(tube([a0, [a0[0] * 0.6, 0.03, a0[2] * 0.6], [0.0, 0.034, 0.02]], 0xe88a20, 0.0009)); }
+      if (w.escPwr[id]) pair([p.x * 0.072 * S2, 0.014, p.z * 0.072 * S2], PADS[id], w.escPwr[id] === "rev", 0.02);
       const port = w.plug["esc" + id];
-      if (fcIn && port) { const end = portPos(port); wires.add(tube([e, [e[0] * 0.8, 0.05, e[2] * 0.8 + 0.01], [end[0] * 2, 0.064, 0.064], [end[0], end[1] + 0.006, 0.046], end], sigCol[i], 0.0014)); }
+      if (fcIn && port) { const end = portPos(port), e = [p.x * 0.078 * S2, 0.015, p.z * 0.078 * S2]; wires.add(tube([e, [e[0] * 0.8, 0.05, e[2] * 0.8 + 0.01], [end[0] * 2, 0.064, 0.064], [end[0], end[1] + 0.006, 0.046], end], sigCol[i], 0.0014)); }
     });
     const devStart = { pm: [0, 0.01, -0.024], gps: [0.004, 0.046, 0.058], compass: [-0.004, 0.046, 0.058], rx: [-0.046, 0.05, -0.03], telem: [0.046, 0.05, -0.034], buzzer: [-0.048, 0.046, 0.044], switch: [0.048, 0.046, 0.044] };
     const devCol = { pm: 0xb04030, gps: 0x3a78d8, compass: 0x8a5ad0, rx: 0x44b060, telem: 0xd8c040, buzzer: 0x202020, switch: 0xd05050 };
@@ -223,6 +243,7 @@
       const mid = d === "pm" ? [0.0, 0.03, -0.09] : d === "gps" || d === "compass" ? [(d === "gps" ? 0.06 : -0.06), 0.08, 0.0] : [(a[0] + b[0]) / 2 + Math.sign(a[0]) * 0.02, 0.07, (a[2] + b[2]) / 2];
       wires.add(tube([a, [a[0], a[1] + 0.012, a[2] - 0.006], mid, [b[0], b[1] + 0.012, b[2]], b], devCol[d], 0.0016));
     }
+    if (fcIn && w.plug.escTelem && SIM.cableReady("escTelem") && SIM.POS_IDS.some((id) => w.escTelem[id] === "harness")) { const b = portPos(w.plug.escTelem); wires.add(tube([[0, 0.034, 0.02], [0.03, 0.06, 0.0], [b[0], b[1] + 0.012, b[2]], b], 0xe88a20, 0.0016)); }
     const hasB = SIM.has("battery"), bat = [0.012, -0.018, 0.074];
     if (hasB && w.batt === "pm" && SIM.has("pm")) wires.add(tube([bat, [0.034, -0.012, 0.115], [0.028, 0.014, 0.1], [0, 0.006, 0.034]], RED, 0.0032));
     if (hasB && w.batt === "pdb") pair([0.012, -0.016, 0.076], PADS.batt, false, 0.0), wires.add(tube([bat, [0.02, -0.012, 0.112], [0, 0.004, 0.1]], RED, 0.0032));
@@ -438,7 +459,7 @@
       const u = SIM.motorU[id], ph = SIM.motorPhysical(id), s = ph.dir === "ccw" ? 1 : -1;
       const m = SIM.partAt("motor@" + id), pr = SIM.partAt("prop@" + id);
       const rate = u > 0.01 ? s * (4 + 26 * u) * dt : 0;
-      if (m) objs[m.id].spinner.rotateOnAxis(yAxis, rate);
+      if (m) objs[m.id].spinner.rotateOnAxis(yAxis, ph.jitter && (SIM.motorCmd[id] || 0) > 0.02 ? (Math.random() - 0.5) * 0.25 : rate);
       if (pr) { objs[pr.id].spinner.rotateOnAxis(yAxis, rate); objs[pr.id].disc.material.opacity = Math.min(0.32, u * 0.7); }
       if (pr) objs[pr.id].group.visible = !(SIM.flight.active && SIM.flight.lost[id]);
       const A = air[id], flow = pr && u > 0.03 ? ph.thrust : 0; // 추력 방향과 반대로 공기가 흐른다

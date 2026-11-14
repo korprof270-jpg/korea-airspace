@@ -246,7 +246,8 @@
     const escCal = SIM.state.cal.esc;
     for (const id of SIM.POS_IDS) {
       const ph = SIM.motorPhysical(id), num = SIM.motorNumForPos(id), ps = SIM.POS[id];
-      let cmd = ph.canSpin && num && pw.fcBatt && SIM.safetyOff() ? dout[num] : 0;
+      const raw = num && pw.fcBatt && SIM.safetyOff() ? dout[num] : 0; SIM.motorCmd[id] = raw;
+      let cmd = ph.canSpin ? raw : 0;
       if (!escCal) cmd *= ESC_GAIN[id];
       let u = SIM.motorU[id]; u += (cmd * battK - u) * Math.min(1, dt / 0.06); SIM.motorU[id] = u;
       const thrust = TMAX * u * ph.thrust * MOTOR_VAR[id], s = ph.dir === "ccw" ? 1 : -1;
@@ -303,6 +304,19 @@
   }
 
   // ---------- 모터 테스트 (작업대) ----------
+  SIM.motorCmd = { FR: 0, RR: 0, RL: 0, FL: 0 };
+  // ESC 텔레메트리: ESC 번호 = 신호선이 꽂힌 MAIN OUT 번호
+  SIM.escTelemetry = function () {
+    const out = {};
+    for (let n = 1; n <= 4; n++) {
+      const pos = SIM.POS_IDS.find((id) => SIM.state.wiring.plug["esc" + id] === "MAIN OUT " + n);
+      if (!pos || !SIM.escTelemOk(pos) || !SIM.power().pdb || SIM.state.wiring.escPwr[pos] !== "ok") { out[n] = null; continue; }
+      const u = SIM.motorU[pos], ph = SIM.motorPhysical(pos);
+      SIM._escT = SIM._escT || {}; const tk = SIM._escT[pos] = (SIM._escT[pos] || 24) + (u * 40 + 24 - (SIM._escT[pos] || 24)) * 0.002;
+      out[n] = { rpm: Math.round(u * (ph.prop ? 5200 : 7400)), amps: +(Math.pow(u, 1.5) * (ph.prop ? 15 : 1.2)).toFixed(1), temp: Math.round(tk), volt: SIM.flight.active ? SIM.flight.volt : 25.1 };
+    }
+    return out;
+  };
   const MT = (SIM.motorTest = { queue: [], cur: null, results: {} });
   MT.run = function (letters, pct, dur) {
     const pw = SIM.power();
@@ -331,7 +345,7 @@
     if (MT.cur) { MT.cur.t -= dt; if (MT.cur.t <= 0) { MT.cur = null; MT.targets = {}; if (SIM.onMotorTest) SIM.onMotorTest(); } }
     const escCal = SIM.state.cal.esc;
     for (const id of SIM.POS_IDS) {
-      let tgt = (MT.cur && MT.targets[id]) || 0;
+      let tgt = (MT.cur && MT.targets[id]) || 0; SIM.motorCmd[id] = tgt;
       if (!SIM.motorPhysical(id).canSpin) tgt = 0;
       if (!escCal) tgt *= ESC_GAIN[id];
       SIM.motorU[id] += (tgt - SIM.motorU[id]) * Math.min(1, dt / 0.12);

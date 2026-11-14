@@ -7,7 +7,7 @@
 
   const NAV = {
     hw: [["parts", "부품·조립"], ["wiring", "배선"], ["inspect", "정답 확인"]],
-    sw: [["frame", "프레임 타입"], ["accel", "가속도계 교정"], ["compass", "나침반 교정"], ["radio", "라디오 교정"], ["esccal", "ESC 교정"], ["modes", "비행 모드"], ["failsafe", "페일세이프"], ["battery", "배터리 모니터"], ["servo", "서보 출력"], ["orient", "보드 방향"], ["tuning", "튜닝"], ["params", "전체 파라미터"]],
+    sw: [["frame", "프레임 타입"], ["accel", "가속도계 교정"], ["compass", "나침반 교정"], ["radio", "라디오 교정"], ["esccal", "ESC 교정"], ["modes", "비행 모드"], ["failsafe", "페일세이프"], ["battery", "배터리 모니터"], ["servo", "서보 출력"], ["serial", "시리얼 포트"], ["orient", "보드 방향"], ["tuning", "튜닝"], ["params", "전체 파라미터"]],
     test: [["preflight", "시동 전 점검"], ["motor", "모터 테스트"], ["sensor", "자세 센서"], ["flight", "비행 테스트"], ["fault", "고장 진단 훈련"]],
   };
 
@@ -69,14 +69,20 @@
     h += '<label class="row" for="w-batt"><span><b>배터리 커넥터</b></span>' + (SIM.has("battery") ? sel("w-batt", "wire", Object.assign({ "": "분리됨" }, SIM.has("pm") ? { pm: "파워 모듈 입력 커넥터" } : {}, { pdb: "PDB 배터리 패드에 직접" }), w.batt, "batt") : off("배터리 없음")) + "</label>";
     const pol = { "": "미연결", ok: "빨강→＋ / 검정→－", rev: "빨강→－ / 검정→＋" };
     h += '<label class="row" for="w-pmOut"><span><b>파워 모듈 출력선</b><code>→ PDB 배터리 패드</code></span>' + (SIM.has("pm") ? sel("w-pmOut", "wire", pol, w.pmOut, "pmOut") : off("파워 모듈 없음")) + "</label>";
-    h += "<h4>ESC 전원선 → PDB 패드</h4>";
-    for (const id of SIM.POS_IDS) h += '<label class="row" for="w-pwr-' + id + '"><span><b>' + SIM.POS[id].name + " ESC</b></span>" + (SIM.has("esc@" + id) ? sel("w-pwr-" + id, "escPwr", pol, w.escPwr[id], id) : off("ESC 없음")) + "</label>";
-    h += "<h4>모터선 ①②③ → ESC 단자 순서</h4>";
-    const perms = { "": "미연결" }; SIM.WIRE_PERMS.forEach((p) => (perms[p] = p.split("").join(" - ")));
-    for (const id of SIM.POS_IDS) h += '<label class="row" for="w-mw-' + id + '"><span><b>' + SIM.POS[id].name + " 모터</b></span>" + (SIM.has("esc@" + id) && SIM.has("motor@" + id) ? sel("w-mw-" + id, "motorWires", perms, w.motorWires[id], id) : off("모터·ESC 필요")) + "</label>";
+    const pads = { "": "미연결", A: "단자 A", B: "단자 B", C: "단자 C" }, sigPorts = { "": "미연결" };
+    SIM.PORTS.servo.forEach((p) => (sigPorts[p] = p));
+    for (const id of SIM.POS_IDS) {
+      const e = SIM.has("esc@" + id), m = SIM.has("motor@" + id);
+      h += "<h4>" + SIM.POS[id].name + "</h4>";
+      for (let k = 1; k <= 3; k++) h += '<label class="row" for="w-mw-' + id + k + '"><span><b>모터선 ' + "①②③"[k - 1] + "</b><code>→ ESC 3상 단자</code></span>" + (e && m ? sel("w-mw-" + id + k, "motorWire", pads, w.motorWires[id][k], id + k) : off("모터·ESC 필요")) + "</label>";
+      h += '<label class="row" for="w-pwr-' + id + '"><span><b>ESC 전원선</b><code>→ PDB 패드</code></span>' + (e ? sel("w-pwr-" + id, "escPwr", pol, w.escPwr[id], id) : off("ESC 없음")) + "</label>";
+      h += '<label class="row" for="w-plug-esc' + id + '"><span><b>ESC 신호선</b><code>3핀 서보 → FC</code></span>' + (SIM.cableReady("esc" + id) ? sel("w-plug-esc" + id, "plug", sigPorts, w.plug["esc" + id], "esc" + id) : off(fc ? "ESC 없음" : "FC 없음")) + "</label>";
+      h += '<label class="row" for="w-tl-' + id + '"><span><b>ESC 통신선</b><code>단선</code></span>' + (e ? sel("w-tl-" + id, "escTelem", { "": "미연결", harness: "통신선 하네스" }, w.escTelem[id], id) : off("ESC 없음")) + "</label>";
+    }
     h += "<h4>FC 포트에 꽂는 케이블</h4>";
     if (fc) h += '<div class="btns">' + btn("fcView", "FC 세부 보기에서 직접 꽂기") + "</div>";
     for (const c in SIM.CABLES) {
+      if (/^esc[A-Z]/.test(c)) continue;
       const cb = SIM.CABLES[c], ports = { "": "미연결" };
       SIM.PORTS[cb.conn].forEach((p) => (ports[p] = p));
       h += '<label class="row" for="w-plug-' + c + '"><span><b>' + cb.name + "</b><code>" + SIM.CONN_NAMES[cb.conn] + " 커넥터</code></span>" + (SIM.cableReady(c) ? sel("w-plug-" + c, "plug", ports, w.plug[c], c) : off(fc ? "부품 없음" : "FC 없음")) + "</label>";
@@ -226,6 +232,7 @@
     for (let i = 1; i <= 8; i++) h += prow("SERVO" + i + "_FUNCTION", "MAIN OUT " + i);
     return h;
   }
+  function pgSerial() { return [1, 2, 3, 4].map((n) => prow("SERIAL" + n + "_PROTOCOL")).join(""); }
   function pgOrient() {
     let h = prow("AHRS_ORIENTATION") + prow("COMPASS_ORIENT");
     h += "<p>FC 화살표: 앞에서 오른쪽으로 <b>" + SIM.state.rot.fc * 90 + "°</b> · GPS 화살표: <b>" + SIM.state.rot.gps * 90 + "°</b></p>";
@@ -255,8 +262,9 @@
     h += '<label class="row" for="mt-dur"><span><b>시간 (초)</b></span><input id="mt-dur" type="number" min="1" max="10" value="' + ui.mt.dur + '" data-change="mtDur"></label>';
     h += '<div class="btns">' + ["A", "B", "C", "D"].map((l) => btn("mt", "Test motor " + l, "", l)).join("") + "</div>";
     h += '<div class="btns">' + btn("mtSeq", "Test all in Sequence") + btn("mtAll", "Test all motors") + btn("mtStop", "Stop", "ghost") + "</div>";
-    return h + '<div class="btns">' + safetyBtn() + "</div>";
+    return h + '<div class="btns">' + safetyBtn() + "</div>" + escTelemHtml();
   }
+  const escTelemHtml = () => '<h4>ESC 텔레메트리</h4><table class="tbl"><thead><tr><th>ESC</th><th>RPM</th><th>전류</th><th>온도</th><th>전압</th></tr></thead><tbody>' + [1, 2, 3, 4].map((n) => '<tr><td>' + n + '</td><td id="et-r' + n + '" class="mono">—</td><td id="et-a' + n + '" class="mono">—</td><td id="et-t' + n + '" class="mono">—</td><td id="et-v' + n + '" class="mono">—</td></tr>').join("") + "</tbody></table>";
   function pgSensor() {
     return '<div class="btns">' + btn("tilt", "수평", "", "0,0") + btn("tilt", "오른쪽으로 25°", "", "25,0") + btn("tilt", "왼쪽으로 25°", "", "-25,0") + btn("tilt", "기수 들기 25°", "", "0,25") + btn("tilt", "기수 숙이기 25°", "", "0,-25") + "</div>";
   }
@@ -273,7 +281,7 @@
     let h = '<div class="stat"><div><span>모드</span><b id="f-mode"></b></div><div><span>상태</span><b id="f-arm"></b></div><div><span>고도</span><b id="f-alt" class="mono"></b></div><div><span>배터리</span><b id="f-batt" class="mono"></b></div></div>';
     h += '<div class="btns">' + safetyBtn() + btn("arm", "시동 (ARM)", "primary") + btn("disarm", "시동 끄기") + btn("flightReset", "기체 리셋") + "</div>";
     h += '<div class="btns">' + btn("drain", F.drain > 1 ? "배터리 소모 ×40 켜짐" : "배터리 빨리 소모시키기", F.drain > 1 ? "on" : "") + btn("flightStop", "작업대로 복귀", "ghost") + "</div>";
-    h += '<h4>메시지</h4><ul class="log" id="msglog">' + logHtml() + "</ul>";
+    h += '<h4>메시지</h4><ul class="log" id="msglog">' + logHtml() + "</ul>" + escTelemHtml();
     return h;
   }
   function pgFault() {
@@ -289,7 +297,7 @@
     return h;
   }
 
-  const PAGES = { parts: pgParts, wiring: pgWiring, inspect: pgInspect, frame: pgFrame, accel: pgAccel, compass: pgCompass, radio: pgRadio, esccal: pgEscCal, modes: pgModes, failsafe: pgFailsafe, battery: pgBattery, servo: pgServo, orient: pgOrient, tuning: pgTuning, params: pgParams, preflight: pgPreflight, motor: pgMotor, sensor: pgSensor, flight: pgFlight, fault: pgFault };
+  const PAGES = { parts: pgParts, wiring: pgWiring, inspect: pgInspect, frame: pgFrame, accel: pgAccel, compass: pgCompass, radio: pgRadio, esccal: pgEscCal, modes: pgModes, failsafe: pgFailsafe, battery: pgBattery, servo: pgServo, serial: pgSerial, orient: pgOrient, tuning: pgTuning, params: pgParams, preflight: pgPreflight, motor: pgMotor, sensor: pgSensor, flight: pgFlight, fault: pgFault };
 
   // ---------- 렌더 ----------
   function render() {
@@ -398,7 +406,8 @@
     plug: (v, a) => SIM.setPlug(a, v),
     wire: (v, a) => { SIM.state.wiring[a] = v; SIM.emit(); },
     escPwr: (v, a) => { SIM.state.wiring.escPwr[a] = v; SIM.emit(); },
-    motorWires: (v, a) => { SIM.state.wiring.motorWires[a] = v; SIM.emit(); },
+    motorWire: (v, a) => { SIM.state.wiring.motorWires[a.slice(0, 2)][a[2]] = v; SIM.emit(); },
+    escTelem: (v, a) => { SIM.state.wiring.escTelem[a] = v; SIM.emit(); },
     expect: (v, a, el) => { SIM.scene.showExpect = el.checked; SIM.scene.sync(); },
     rev: (v, a, el) => SIM.setParam("RC" + a + "_REVERSED", el.checked ? 1 : 0),
     mtPct: (v) => { ui.mt.pct = Math.min(40, Math.max(5, +v || 12)); },
@@ -491,6 +500,10 @@
     } else if (page === "test/flight" && F.active) {
       txt("f-mode", SIM.MODES[F.mode] + (F.fsRadio ? " (FS)" : "")); txt("f-arm", F.crashed ? "전복" : F.armed ? "ARMED" : "DISARMED");
       txt("f-alt", (F.pos.y - F.home.y).toFixed(1) + " m"); txt("f-batt", F.volt.toFixed(1) + " V · " + Math.max(0, 100 - (F.used / F.cap) * 100).toFixed(0) + "%");
+    }
+    if (page === "test/motor" || (page === "test/flight" && F.active)) {
+      const et = SIM.escTelemetry();
+      for (let n = 1; n <= 4; n++) { const d = et[n]; txt("et-r" + n, d ? String(d.rpm) : "—"); txt("et-a" + n, d ? d.amps.toFixed(1) + " A" : "—"); txt("et-t" + n, d ? d.temp + " °C" : "—"); txt("et-v" + n, d ? d.volt.toFixed(1) + " V" : "—"); }
     }
     const armChip = $("#st-arm"); if ((armChip.textContent === "ARMED") !== F.armed) { armChip.className = "chip " + (F.armed ? "bad" : ""); armChip.textContent = F.armed ? "ARMED" : "DISARMED"; }
   };
