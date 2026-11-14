@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>드론 정비 시뮬레이터</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="sim.css" />
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>드론 정비 시뮬레이터</h1>
+    <nav class="tabs" role="tablist" aria-label="주 메뉴">
+      <button type="button" role="tab" data-act="tab" data-arg="hw">하드웨어 조립</button>
+      <button type="button" role="tab" data-act="tab" data-arg="sw">소프트웨어 설정</button>
+      <button type="button" role="tab" data-act="tab" data-arg="test">테스트</button>
+    </nav>
+    <div class="status" aria-live="polite">
+      <span id="st-power" class="chip">전원 없음</span>
+      <span id="st-fc" class="chip">FC 없음</span>
+      <span id="st-arm" class="chip">DISARMED</span>
+    </div>
+  </header>
+  <main class="work">
+    <section class="stage" aria-label="3D 작업대">
+      <canvas id="gl"></canvas>
+      <canvas id="hud" hidden></canvas>
+      <div class="viewbtns">
+        <button type="button" class="btn" data-act="view" data-arg="back">뒤</button>
+        <button type="button" class="btn" data-act="view" data-arg="top">위</button>
+        <button type="button" class="btn" data-act="view" data-arg="side">옆</button>
+        <button type="button" class="btn" data-act="view" data-arg="front">앞</button>
+        <button type="button" class="btn" data-act="zoomIn" aria-label="확대">＋</button>
+        <button type="button" class="btn" data-act="zoomOut" aria-label="축소">－</button>
+      </div>
+      <p id="hint" class="hint"></p>
+      <div id="toast" class="toast" role="status"></div>
+      <div id="tx" class="tx" hidden>
+        <div class="stickwrap"><div id="stickL" class="stick" aria-label="왼쪽 스틱: 스로틀·요"><i></i></div><span>스로틀 · 요</span></div>
+        <div class="txmid">
+          <div id="tx-sw" class="sw" role="group" aria-label="비행 모드 스위치">
+            <button type="button" data-act="txSw" data-arg="0">모드 1</button>
+            <button type="button" data-act="txSw" data-arg="1">모드 4</button>
+            <button type="button" data-act="txSw" data-arg="2">모드 6</button>
+          </div>
+          <button type="button" id="tx-power" class="btn on" data-act="txPower">송신기 켜짐</button>
+        </div>
+        <div class="stickwrap"><div id="stickR" class="stick" aria-label="오른쪽 스틱: 피치·롤"><i></i></div><span>피치 · 롤</span></div>
+      </div>
+    </section>
+    <aside class="panel" aria-label="작업 패널">
+      <nav id="subnav" class="subnav" aria-label="세부 메뉴"></nav>
+      <div id="page" class="page"></div>
+    </aside>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/flight.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
