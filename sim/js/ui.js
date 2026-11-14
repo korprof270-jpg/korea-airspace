@@ -30,6 +30,17 @@ const TR_MAPS = ["factory", "arena", "moon", "snow", "palace"].filter((id) => MA
 // 타이틀 배경 장면 (sim/img/title): 파일 이름, 아래 작은 표시
 const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", "서바이벌 · 네온 아레나"], ["3-freestyle", "프리스타일 · 붉은 협곡"], ["4-story", "스토리 · 달 기지 최종전"],
   ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"]];
+// 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
+const HUB = {
+  practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "free"] },
+  story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "신입 파일럿이 되어 8개 맵을 잇는 챕터를 한 단계씩 깨 나갑니다." },
+  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·촬영·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
+};
+const SUB = {
+  training: { img: "7-training" },
+  free: { name: "자유 비행", en: "FREE FLIGHT", c: "#21d4fd", img: "8-snow", desc: "원하는 맵을 시간 제한 없이 마음껏 날아다니며 연습합니다." },
+  race: { img: "1-race" }, tracking: { img: "5-tracking" }, freestyle: { img: "3-freestyle" }, survival: { img: "2-combat" },
+};
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -61,15 +72,13 @@ export class UI {
       // 타이틀: 아무 키나 누르면 메뉴로
       if (this.screen === "title" && !["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"].includes(e.code)) { e.preventDefault(); this.a_enter(); return; }
       if (e.code === "Escape" && this.root.querySelector("[data-ovl]")) { this.a_ovclose(); return; }
-      if (this.screen === "main" && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
-        const ids = Object.keys(MODE_META), i = ids.indexOf(this.sel.mode), d = e.code === "ArrowUp" || e.code === "ArrowLeft" ? -1 : 1;
-        this._picked = false; this.a_pick(ids[(i + d + ids.length) % ids.length]); this._picked = true;
-        const on = this.root.querySelector(".mitem.on"); if (on) on.focus({ preventScroll: true });
+      if ((this.screen === "main" || this.screen === "group") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+        const cards = [...this.root.querySelectorAll(".hcard")], i = cards.indexOf(document.activeElement), d = e.code === "ArrowUp" || e.code === "ArrowLeft" ? -1 : 1;
+        if (cards.length) cards[i < 0 ? 0 : (i + d + cards.length) % cards.length].focus();
         e.preventDefault(); return;
       }
-      if (this.screen === "main" && e.code === "Enter" && !(e.target instanceof HTMLButtonElement)) { this.a_mode(this.sel.mode); return; }
       if (e.code !== "Escape" || !this.screen) return;
-      if (["setup", "hangar", "settings", "help"].includes(this.screen)) this.a_back();
+      if (["setup", "hangar", "settings", "help", "group"].includes(this.screen)) this.a_back();
     });
     // 정비소: 드래그로 회전
     let dragging = false, lx = 0;
@@ -217,26 +226,49 @@ export class UI {
     if (go) { this._diffOk = true; this.a_start(); } else this.redraw();
   }
 
+  // ── 메인: 연습 · 스토리 · 게임 세 갈래 ──
+  _hcard(act, id, o, i) {
+    return `<button class="hcard" style="--c:${o.c};--img:url(img/title/${o.img}.jpg);--d:${i * 70}ms" data-a="${act}" data-v="${id}">
+      <span class="hbg" aria-hidden="true"></span><span class="hshade" aria-hidden="true"></span>
+      <span class="hno" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
+      ${o.badge ? `<span class="hbadge">${o.badge}</span>` : ""}
+      <span class="htx"><small>${o.en}</small><b>${o.name}</b><em>${o.desc}</em>${o.list ? `<span class="hlist">${o.list.map((x) => `<i>${x}</i>`).join("")}</span>` : ""}</span>
+      <span class="hgo" aria-hidden="true">→</span>
+    </button>`;
+  }
   s_main() {
-    const cur = MODE_META[this.sel.mode] ? this.sel.mode : "race";
-    const items = Object.entries(MODE_META).map(([id, m]) => `
-      <button class="mitem ${id === cur ? "on" : ""}" style="--c:${m.c}" data-a="pick" data-v="${id}" aria-pressed="${id === cur}">
-        <span class="mtxt"><b>${m.name}</b><small>${m.desc}</small></span><span class="chev" aria-hidden="true">›</span>
-      </button>`).join("");
-    const d = settings.drone;
-    return `<div class="screen home" style="--c:${MODE_META[cur].c}">
-      <div class="lcol">
-        <div class="brand"><div class="logo"><b>FPV</b> PROJECT</div><p>3D 드론 비행 시뮬레이터</p></div>
-        <nav class="mlist" aria-label="게임 모드">${items}</nav>
-        <div class="dock">
-          <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>
-          <button class="dk" data-a="go" data-v="settings"><i aria-hidden="true">⚙</i><span><b>설정</b><small>MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</small></span></button>
-          <button class="dk" data-a="go" data-v="help"><i aria-hidden="true">🎮</i><span><b>조작법</b><small>키보드·패드·터치</small></span></button>
-        </div>
+    const d = settings.drone, sp = progress(), tp = TR.progress();
+    const hubs = Object.entries(HUB).map(([id, h], i) => this._hcard("hub", id, Object.assign({}, h,
+      id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => MODE_META[k].name) }), i)).join("");
+    return `<div class="screen hub">
+      <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div></header>
+      <nav class="hcards" aria-label="메뉴">${hubs}</nav>
+      <div class="dock">
+        <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>
+        <button class="dk" data-a="go" data-v="settings"><i aria-hidden="true">⚙</i><span><b>설정</b><small>MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</small></span></button>
+        <button class="dk" data-a="go" data-v="help"><i aria-hidden="true">🎮</i><span><b>조작법</b><small>키보드·패드·터치</small></span></button>
       </div>
-      <div class="rcol"><div class="stage" data-stage></div><section class="cap">${this._cap(cur)}</section></div>
     </div>`;
   }
+  a_hub(v) {
+    if (v === "story") { this._group = null; this.sel.mode = "challenge"; this._persist(); return this.show("setup"); }
+    if (HUB[v]) { this._group = v; this.show("group"); }
+  }
+  // ── 하위 메뉴: 연습(비행훈련·자유 비행) / 게임(레이싱·트래킹·프리스타일·서바이벌) ──
+  s_group() {
+    const g = HUB[this._group] || HUB.game;
+    const cards = g.items.map((k, i) => { const m = MODE_META[k] || {}; return this._hcard("sub", k, Object.assign({ name: m.name, en: m.en, c: m.c, desc: m.desc }, SUB[k]), i); }).join("");
+    return `<div class="screen hub group" style="--c:${g.c}">
+      <header class="hhead"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${g.en}</span>${g.name}</h2></header>
+      <nav class="hcards n${g.items.length}" aria-label="${g.name}">${cards}</nav>
+    </div>`;
+  }
+  a_sub(v) {
+    if (v === "free") { this.sel.mode = "freestyle"; this.sel.fs = "free"; }
+    else { this.sel.mode = v; if (v === "freestyle" && this._group === "game") this.sel.fs = "timed"; }
+    this._persist(); this.show("setup");
+  }
+
   // 목록에서 모드 고르기: 처음 누르면 미리보기, 같은 모드를 다시 누르면 설정으로
   a_pick(v) {
     if (!MODE_META[v]) return;
@@ -252,7 +284,12 @@ export class UI {
   }
   a_mode(v) { this.sel.mode = v; this._picked = false; this._persist(); this.show("setup"); }
   a_go(v) { this.show(v); }
-  a_back() { if (this.game.state === "pause") this.show("pause"); else this.show("main"); }
+  a_back() {
+    if (this.game.state === "pause") return this.show("pause");
+    if (this.screen === "setup" && this._group) return this.show("group");   // 하위 메뉴에서 들어왔으면 그리로
+    this._group = this.screen === "group" ? null : this._group;
+    this.show("main");
+  }
 
   _persist() { settings.last = this.sel; save(); }
 

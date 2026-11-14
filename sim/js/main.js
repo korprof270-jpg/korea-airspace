@@ -186,7 +186,7 @@ class Game {
     } else {
       this.input.update(dt);
       this.input.flush();
-      if (this.ui.screen !== "title") {   // 타이틀은 사진 슬라이드라 3D 를 그리지 않는다
+      if (!["title", "main", "group"].includes(this.ui.screen)) {   // 사진 배경 화면(타이틀·메인·하위 메뉴)에서는 3D 를 그리지 않는다
         this.menu.update(dt, innerWidth / innerHeight);
         this.draw(this.menu.scene, this.menu.camera);
       }
