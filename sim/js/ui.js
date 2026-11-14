@@ -237,17 +237,13 @@ export class UI {
     </button>`;
   }
   s_main() {
-    const d = settings.drone, sp = progress(), tp = TR.progress();
+    const sp = progress(), tp = TR.progress();
     const hubs = Object.entries(HUB).map(([id, h], i) => this._hcard("hub", id, Object.assign({}, h,
       id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => MODE_META[k].name) }), i)).join("");
     return `<div class="screen hub">
-      <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div></header>
-      <nav class="hcards" aria-label="메뉴">${hubs}</nav>
-      <div class="dock">
-        <button class="dk" data-a="go" data-v="hangar"><i aria-hidden="true">🛠</i><span><b>정비소</b><small>${esc(DRONE_CLASSES[d.cls].name)}</small></span></button>
-        <button class="dk" data-a="go" data-v="settings"><i aria-hidden="true">⚙</i><span><b>설정</b><small>MODE ${settings.stickMode} · ${FLIGHT_MODE_INFO[settings.flightMode].label}</small></span></button>
-        <button class="dk" data-a="go" data-v="help"><i aria-hidden="true">🎮</i><span><b>조작법</b><small>키보드·패드·터치</small></span></button>
-      </div>
+      <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div>
+        <span class="hicons"><button class="hic" data-a="go" data-v="hangar" title="정비소 (기체 설정)" aria-label="정비소">🛠</button><button class="hic" data-a="go" data-v="settings" title="설정" aria-label="설정">⚙</button><button class="hic" data-a="go" data-v="help" title="조작법" aria-label="조작법">🎮</button></span></header>
+      <nav class="hcards wide" aria-label="메뉴">${hubs}</nav>
     </div>`;
   }
   a_hub(v) {
@@ -260,7 +256,7 @@ export class UI {
     const cards = g.items.map((k, i) => { const m = MODE_META[k] || {}; return this._hcard("sub", k, Object.assign({ name: m.name, en: m.en, c: m.c, desc: m.desc }, SUB[k]), i); }).join("");
     return `<div class="screen hub group" style="--c:${g.c}">
       <header class="hhead"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${g.en}</span>${g.name}</h2></header>
-      <nav class="hcards n${g.items.length}" aria-label="${g.name}">${cards}</nav>
+      <nav class="hcards wide n${g.items.length}" aria-label="${g.name}">${cards}</nav>
     </div>`;
   }
   a_sub(v) {
