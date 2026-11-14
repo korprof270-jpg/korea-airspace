@@ -592,6 +592,12 @@ export class Combat {
         if (p.t <= 0) { p.active = true; p.g.visible = true; if (!p.fixed) { this._retype(p); p.pos.copy(this.randomPoint(4, 16, 0.62)); p.g.position.copy(p.pos); } }
         continue;
       }
+      if (!p.fixed && (p.life = (p.life ?? 25 + Math.random() * 25) - dt) <= 0) {
+        // 한동안 아무도 안 먹으면 빛 기둥과 함께 다른 곳으로 옮겨 간다
+        this.fx.ring(p.pos, ITEMS[p.type].color, 3, 0.4);
+        this._retype(p); p.pos.copy(this.randomPoint(4, 16, 0.62)); p.g.position.copy(p.pos); p.life = 25 + Math.random() * 25;
+        this.fx.ring(p.pos, ITEMS[p.type].color, 3, 0.5);
+      }
       p.gem.rotation.y += dt * 2; p.ring.rotation.x += dt * 1.3; p.ring.rotation.y += dt * 0.7; p.ring2.rotation.z += dt * 1.1;
       const pul = 1 + Math.sin(this.s.time * 4 + p.pos.x) * 0.14;
       p.gem.scale.setScalar(pul); p.halo.scale.setScalar(0.9 + (pul - 1) * 1.6); p.gem.position.y = Math.sin(this.s.time * 2 + p.pos.z) * 0.35;
@@ -604,7 +610,7 @@ export class Combat {
             continue;
           }
           this.give(a, p.type);
-          p.active = false; p.g.visible = false; p.t = 16;
+          p.active = false; p.g.visible = false; p.t = 9 + Math.random() * 14;
           break;
         }
       }

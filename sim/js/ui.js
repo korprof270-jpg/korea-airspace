@@ -55,6 +55,9 @@ export class UI {
     addEventListener("keydown", (e) => {
       // 비행 중 H: HUD 표시 수준 전환(전체 → 최소 → 끄기). 실제 전환은 HUD 가 입력 큐에서 꺼내 처리
       if (e.code === "KeyH" && !e.repeat && this.game.state === "play" && !(e.target instanceof HTMLInputElement)) { this.game.input.queue.push("hud"); return; }
+      // 타이틀: 아무 키나 누르면 메뉴로
+      if (this.screen === "title" && !["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"].includes(e.code)) { e.preventDefault(); this.a_enter(); return; }
+      if (e.code === "Escape" && this.root.querySelector("[data-ovl]")) { this.a_ovclose(); return; }
       if (this.screen === "main" && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
         const ids = Object.keys(MODE_META), i = ids.indexOf(this.sel.mode), d = e.code === "ArrowUp" || e.code === "ArrowLeft" ? -1 : 1;
         this._picked = false; this.a_pick(ids[(i + d + ids.length) % ids.length]); this._picked = true;
@@ -91,7 +94,7 @@ export class UI {
   // 3D 무대: 화면별 장면을 고르고, [data-stage] 영역 가운데에 오도록 맞춘다
   _syncStage() {
     const menu = this.game.menu;
-    menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
+    menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : this.screen === "title" ? "freestyle" : null);
     const st = this.root.querySelector("[data-stage]");
     if (!st || !st.offsetWidth) { menu.focus = null; return; }
     let x = 0, y = 0, e = st;
@@ -160,6 +163,49 @@ export class UI {
     return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.long}</p>
       <ul class="tags">${m.tags.map((t) => `<li>${t}</li>`).join("")}</ul>
       <button class="primary go" data-a="mode" data-v="${id}"${id === "training" ? ' style="color:var(--ink);text-shadow:none"' : ""}>모드 설정 <span aria-hidden="true">→</span></button>`;
+  }
+
+  // ── 타이틀 화면: 3D 장면을 배경으로 로고만. 누르면 메뉴로 ──
+  s_title() {
+    return `<div class="screen titlescreen" data-a="enter">
+      <div class="tstage" data-stage></div>
+      <div class="tbox">
+        <div class="tkick">3D DRONE FLIGHT SIMULATOR</div>
+        <div class="tlogo"><b>FPV</b> PROJECT</div>
+        <p>레이싱 · 촬영 · 묘기 · 공중전 · 스토리 · 비행훈련</p>
+      </div>
+      <div class="press">화면을 눌러 시작</div>
+      <div class="tfoot"><span>맵 ${MAP_LIST.length}종</span><span>키보드 · 게임패드 · 터치</span><span>MODE ${settings.stickMode}</span></div>
+    </div>`;
+  }
+  a_enter() { if (this.screen === "title") this.show("main"); }
+
+  // ── 난이도 선택 오버레이 (설정 화면 위에 겹쳐 뜬다) ──
+  _openDiff(andStart) {
+    this._ovStart = !!andStart;
+    const cur = settings.difficulty, info = {
+      easy: { icon: "🟢", lines: ["AI 드론이 느리고 조준이 서툽니다", "받는 피해 60%", "처음 하는 분께 추천"] },
+      normal: { icon: "🟡", lines: ["균형 잡힌 기본 난이도", "받는 피해 100%", "AI 가 적당히 따라붙습니다"] },
+      hard: { icon: "🔴", lines: ["AI 가 빠르고 정확합니다", "받는 피해 130%", "숙련자용 · 정예 기체 등장"] },
+    };
+    const cards = Object.entries(DIFFICULTY).map(([k, v]) => `<button class="dcard ${k === cur ? "sel" : ""} d-${k}" data-a="diffpick" data-v="${k}">
+        <span class="di">${info[k].icon}</span><b>${v.name}</b><ul>${info[k].lines.map((l) => `<li>${l}</li>`).join("")}</ul>
+        <span class="dgo">${this._ovStart ? "이 난이도로 출격 →" : k === cur ? "선택됨" : "선택"}</span></button>`).join("");
+    this.root.querySelector("[data-ovl]")?.remove();
+    this.root.insertAdjacentHTML("beforeend", `<div class="ovl" data-ovl><div class="ovbox">
+      <div class="ovh"><span class="en">DIFFICULTY</span><h2>난이도 선택</h2></div>
+      <div class="dgrid">${cards}</div>
+      <div class="ovact"><button class="ghost" data-a="ovclose">${this._ovStart ? "취소" : "닫기"}</button></div></div></div>`);
+    requestAnimationFrame(() => this.root.querySelector("[data-ovl]")?.classList.add("in"));
+  }
+  a_diffopen() { this._openDiff(false); }
+  a_ovclose() { this.root.querySelector("[data-ovl]")?.remove(); this._ovStart = false; }
+  a_diffpick(v) {
+    if (!DIFFICULTY[v]) return;
+    settings.difficulty = v; save();
+    const go = this._ovStart;
+    this.a_ovclose();
+    if (go) { this._diffOk = true; this.a_start(); } else this.redraw();
   }
 
   s_main() {
@@ -380,7 +426,7 @@ export class UI {
       <div class="rcol"><div class="stage" data-stage></div></div>
     </div>`;
   }
-  _diff() { return `<div class="opt"><label>난이도</label>${this.seg("difficulty", Object.entries(DIFFICULTY).map(([k, v]) => [k, v.name]), settings.difficulty, "set")}</div>`; }
+  _diff() { return `<div class="opt"><label>난이도</label><button class="ghost diffbtn" data-a="diffopen">${DIFFICULTY[settings.difficulty].name} <span aria-hidden="true">▸</span></button></div>`; }
 
   a_sel(v, el) {
     const k = el.dataset.k;
@@ -397,6 +443,9 @@ export class UI {
 
   a_start() {
     const s = this.sel;
+    // AI 와 겨루는 모드는 출격 전에 난이도 화면을 겹쳐 띄운다
+    if (((s.mode === "race" && s.rivals > 0) || s.mode === "survival") && !this._diffOk) return this._openDiff(true);
+    this._diffOk = false;
     const cfg = { mode: s.mode, map: s.map, difficulty: settings.difficulty };
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;

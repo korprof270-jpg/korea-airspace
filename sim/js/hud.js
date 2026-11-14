@@ -340,7 +340,7 @@ export class Hud {
     L.touch = touch; L.combat = !!(session && session.mode.combat);
     L.cx = W / 2; L.cy = H / 2;
     L.l = sf.l + 14 * u; L.r = W - sf.r - 14 * u; L.t = sf.t + 8 * u; L.b = H - sf.b - 10 * u;
-    L.batH = this.vis("battery") ? 22 * u : 0; L.t += L.batH;   // 배터리 줄만큼 위쪽 판들을 내린다
+    L.batH = this.vis("battery") || this.vis("mode") ? 22 * u : 0; L.t += L.batH;   // 배터리 줄만큼 위쪽 판들을 내린다
     L.roW = 94 * u;                                              // 속도·고도 판 너비
     L.trY = touch ? Math.max(L.t, sf.t + 52) : L.t;          // 오른쪽 위: 터치 버튼 아래부터
     L.compassY = L.t + 46 * u; L.subY = L.t + 74 * u;        // 나침반 / 그 아래 모드별 표시줄
@@ -394,6 +394,7 @@ export class Hud {
     if (this.vis("altitude")) { ALT_TAPE.max = session.world.ceiling - (b.pos.y - alt); this._tape(1, this._alt, ALT_TAPE, this._vs); }
     if (this.vis("compass")) this._compass(b);
     if (this.vis("battery")) this._battery(pl);
+    if (this.vis("mode")) this._modeBadge(pl);
     this._console(session, dt);
     if (this.obj && this.obj.pill !== false && this.vis("distance")) this._distance(this.obj, this.objDist);
     this._warnings(session);
@@ -424,6 +425,15 @@ export class Hud {
     g.fillStyle = PLATE; g.fill(); g.lineWidth = 2.5 * u; g.strokeStyle = INK; g.stroke();
     g.fillStyle = col; g.fillRect(x + 3 * u, y + 3 * u, (w - 6 * u) * k, h - 6 * u);
     this.text(`${Math.round(k * 100)}%`, x + w + 10 * u, y + h / 2 + 0.5 * u, { size: 12, base: "middle", mono: true, color: col });
+  }
+
+  // 비행 모드 배지: 배터리 오른쪽 (배터리를 끄면 그 자리)
+  _modeBadge(pl) {
+    const u = this.u, L = this.L, info = FLIGHT_MODE_INFO[pl.flightMode] || FLIGHT_MODE_INFO.ANGLE;
+    const x = L.l + (this.vis("battery") ? 108 * u : 0), y = L.t - L.batH - (L.batH ? 0 : 0), w = 70 * u, h = 16 * u;
+    this.plate(x, y, w, h, { fill: MODE_COLOR[pl.flightMode] || MODE_COLOR.ANGLE, skew: 0.3, lw: 2 });
+    this.text(info.label, x + w / 2, y + h / 2 + 0.5 * u, { size: 11, align: "center", base: "middle", shadow: false });
+    if (this.lvl === "full") this.text(`MODE ${settings.stickMode} · ${CAM_SHORT[pl.camMode] || ""}`, x + w + 8 * u, y + h / 2 + 0.5 * u, { size: 10, base: "middle", color: HC.dim });
   }
 
   // 나침반 띠 + 목표 방위
@@ -558,13 +568,16 @@ export class Hud {
   // 아래 가운데 콘솔: 스틱 모니터 + 비행 모드 배지 + 스로틀 게이지
   _console(session, dt) {
     const g = this.g, u = this.u, L = this.L, pl = session.player, b = pl.body;
-    const showMode = this.vis("mode"), showThr = this.vis("throttle");
+    const showThr = this.vis("throttle"), cb = session.mode.combat, me = cb && cb.player;
     const x0 = L.cx - L.conM / 2, top = L.conTop;
-    if (showMode) {
-      const info = FLIGHT_MODE_INFO[pl.flightMode] || FLIGHT_MODE_INFO.ANGLE;
-      this.plate(x0, top, L.conM, 25 * u, { fill: MODE_COLOR[pl.flightMode] || MODE_COLOR.ANGLE, skew: 0.3 });
-      this.text(info.label, L.cx, top + 13.5 * u, { size: 15, align: "center", base: "middle" });
-      if (this.lvl === "full") this.text(`MODE ${settings.stickMode} · ${CAM_SHORT[pl.camMode] || ""}`, L.cx, top - 6 * u, { size: 10, align: "center", color: HC.dim });
+    if (me) {
+      // 체력바: 실드는 위에 하늘색 띠로 겹친다. 25% 이하면 깜빡인다
+      const k = clamp(me.hp / me.maxHp, 0, 1), low = k <= 0.25, col = k > 0.5 ? HC.ok : k > 0.25 ? HC.gold : HC.warn;
+      this.plate(x0, top, L.conM, 25 * u, { fill: PLATE_HI, accent: low ? HC.warn : HC.ok, skew: 0.3 });
+      if (!(low && Math.floor(this.t * 6) % 2)) this.segbar(x0 + 14 * u, top + 6.5 * u, L.conM - 62 * u, 12 * u, k, 10, col);
+      this.text(`${Math.max(0, Math.ceil(me.hp))}`, x0 + L.conM - 8 * u, top + 13.5 * u, { size: 16, align: "right", base: "middle", mono: true, color: low ? HC.warn : "#fff", shadow: false });
+      if (me.shield > 0) { g.fillStyle = INK; g.fillRect(x0 + 13 * u, top + 1.5 * u, L.conM - 54 * u, 5 * u); g.fillStyle = HC.cyan; g.fillRect(x0 + 14 * u, top + 2.5 * u, (L.conM - 56 * u) * clamp(me.shield / 120, 0, 1), 3 * u); }
+      if (this.lvl === "full") this.text("체력", L.cx, top - 6 * u, { size: 10, align: "center", color: low ? HC.warn : HC.dim });
     }
     if (showThr) {
       const y = top + 32 * u, thr = b.disabled ? 0 : clamp(b.thrust, 0, 1);

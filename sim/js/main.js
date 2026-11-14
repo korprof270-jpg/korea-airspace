@@ -39,7 +39,7 @@ class Game {
     addEventListener("resize", () => this.resize());
     document.addEventListener("visibilitychange", () => { if (document.hidden && this.state === "play") this.pause(); });
     this.resize();
-    this.ui.show("main");
+    this.ui.show("title");
     requestAnimationFrame((t) => this.frame(t));
   }
 

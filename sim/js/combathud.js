@@ -182,20 +182,10 @@ function reticle(c, h) {
 // 체력·실드·미사일·아이템 상태판
 function status(c, h) {
   const g = h.g, u = h.u, L = h.L, p = c.player, t = c.s.time;
-  const w = L.statusW, x = L.statusRight ? L.statusX - w : L.statusX, yb = L.b, hh = 56 * u, y = yb - hh;
-  const hpK = clamp(p.hp / p.maxHp, 0, 1), low = hpK <= 0.25;
-  h.plate(x, y, w, hh, { skew: 0.08, accent: low ? HC.warn : "#3dd68c", fill: PLATE });
-  // 체력
-  const bx = x + 40 * u, bw = w - 92 * u;
-  h.text("체력", x + 13 * u, y + 17 * u, { size: 11, base: "middle", color: HC.dim, shadow: false });
-  if (!(low && Math.floor(t * 6) % 2)) h.segbar(bx, y + 11 * u, bw, 12 * u, hpK, 10, hpK > 0.5 ? "#3dd68c" : hpK > 0.25 ? HC.gold : HC.warn);
-  h.text(`${Math.max(0, Math.ceil(p.hp))}`, x + w - 10 * u, y + 18 * u, { size: 19, align: "right", base: "middle", mono: true, color: low ? HC.warn : "#fff", shadow: false });
-  if (p.shield > 0) {
-    g.fillStyle = INK; g.fillRect(bx - 1.5 * u, y + 3.5 * u, bw + 3 * u, 6 * u);
-    g.fillStyle = HC.cyan; g.fillRect(bx, y + 5 * u, bw * clamp(p.shield / 120, 0, 1), 3 * u);
-  }
-  // 미사일
-  const my = y + 33 * u, n = Math.max(4, p.missiles || 0);
+  const w = L.statusW, x = L.statusRight ? L.statusX - w : L.statusX, yb = L.b, hh = 30 * u, y = yb - hh;
+  h.plate(x, y, w, hh, { skew: 0.08, accent: "#ff9a3a", fill: PLATE });
+  // 미사일 (체력은 아래 가운데 체력바로 옮겼다)
+  const my = y + 8 * u, n = Math.max(4, p.missiles || 0);
   h.text("미사일", x + 11 * u, my + 7 * u, { size: 10, base: "middle", color: HC.dim, shadow: false });
   for (let i = 0; i < n; i++) {
     const mx = x + 48 * u + i * 13 * u, on = i < p.missiles;
