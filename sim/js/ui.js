@@ -12,17 +12,17 @@ import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam,
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
-  training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 모드를 이륙부터 곡예까지 과목별 과제로 익히는 훈련 과정",
+  training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 수동 비행을 이륙부터 곡예까지 단계별 과제로 배웁니다.",
     long: "스틱을 놓아도 수평으로 돌아오지 않는 ACRO(수동) 모드를 처음부터 배웁니다. 과목마다 주어진 과제를 순서대로 해내면 다음 과목이 열립니다.", tags: ["3개 과정 · 17개 과목", "과제별 요령 안내", "ACRO 전용"] },
-  race: { name: "레이싱", en: "RACE", icon: "🏁", c: "#ff5a1f", desc: "게이트와 경로를 순서대로 통과하며 기록과 순위에 도전",
+  race: { name: "레이싱", en: "RACE", icon: "🏁", c: "#ff5a1f", desc: "게이트를 순서대로 통과하며 기록과 순위를 다툽니다.",
     long: "네온 게이트와 공중 링을 순서대로 통과하세요. 통과할 때마다 다음 게이트로 가는 길이 화면과 공중에 표시됩니다.", tags: ["코스 13개", "AI 라이벌 최대 5기", "랩·구간 기록"] },
-  tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "차량·사람·드론 등 움직이는 피사체를 화면에 담아 따라가기",
+  tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "달리는 차·보트·드론을 화면 가운데에 담아 끝까지 따라가며 촬영합니다.",
     long: "달리는 차, 강을 내려가는 보트, 곡예 드론을 화면 가운데에 담아 끝까지 따라가면 촬영 점수가 오릅니다.", tags: ["피사체 17종", "프레이밍 점수", "시네 비행 연습"] },
-  freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·갭 통과로 콤보를 이어 묘기 점수 획득",
+  freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·틈새 통과를 이어 콤보 점수를 쌓습니다.",
     long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
-  survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 겨루는 점수제 전투",
+  survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 AI 드론과 싸우는 점수제 전투입니다.",
     long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·거점 공략전", "아이템 6종", "5초 재출격"] },
-  challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "신입 파일럿이 되어 챕터마다 단계를 하나씩 깨 나가는 이야기",
+  challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "챕터마다 이어지는 이야기를 따라 임무를 하나씩 깨 나갑니다.",
     long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·촬영·호송·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
 // 비행훈련장으로 쓸 수 있는 맵 (출발 지점 앞이 넓게 비어 있는 곳)
@@ -160,7 +160,7 @@ export class UI {
 
   _cap(id) {
     const m = MODE_META[id];
-    return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.long}</p>
+    return `<div class="kick"><span>${m.en}</span>게임 모드</div><h1>${m.name}</h1><p>${m.desc}</p>
       <ul class="tags">${m.tags.map((t) => `<li>${t}</li>`).join("")}</ul>
       <button class="primary go" data-a="mode" data-v="${id}"${id === "training" ? ' style="color:var(--ink);text-shadow:none"' : ""}>모드 설정 <span aria-hidden="true">→</span></button>`;
   }
@@ -169,13 +169,8 @@ export class UI {
   s_title() {
     return `<div class="screen titlescreen" data-a="enter">
       <div class="tstage" data-stage></div>
-      <div class="tbox">
-        <div class="tkick">3D DRONE FLIGHT SIMULATOR</div>
-        <div class="tlogo"><b>FPV</b> PROJECT</div>
-        <p>레이싱 · 촬영 · 묘기 · 공중전 · 스토리 · 비행훈련</p>
-      </div>
-      <div class="press">화면을 눌러 시작</div>
-      <div class="tfoot"><span>맵 ${MAP_LIST.length}종</span><span>키보드 · 게임패드 · 터치</span><span>MODE ${settings.stickMode}</span></div>
+      <div class="tbox"><div class="tlogo"><b>FPV</b> PROJECT</div></div>
+      <div class="press">START</div>
     </div>`;
   }
   a_enter() { if (this.screen === "title") this.show("main"); }
