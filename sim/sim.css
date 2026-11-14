@@ -363,7 +363,19 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 /* ── 타이틀 화면 ── */
 #ui > .screen.titlescreen { cursor: pointer; overflow: hidden; align-items: center; justify-content: flex-start; padding-top: clamp(28px, 11vh, 110px); text-align: center; user-select: none;
   background: radial-gradient(70% 60% at 50% 55%, rgba(6, 9, 20, 0) 30%, rgba(6, 9, 20, 0.55) 75%, rgba(6, 9, 20, 0.92)); }
-.titlescreen .tstage { position: absolute; inset: 0; pointer-events: none; }
+.titlescreen .slides { position: absolute; inset: 0; background: #070b18; pointer-events: none; }
+.titlescreen .slide { position: absolute; inset: 0; margin: 0; opacity: 0; transition: opacity 1.4s ease; }
+.titlescreen .slide img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.04); }
+.titlescreen .slide.on { opacity: 1; }
+.titlescreen .slide.on img { animation: kenburns 6.6s ease-out both; }
+.titlescreen .slide:nth-child(even).on img { animation-name: kenburns2; }
+.titlescreen .slide figcaption { position: absolute; left: calc(env(safe-area-inset-left) + 18px); bottom: calc(env(safe-area-inset-bottom) + 16px); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 0 var(--ink), 0 0 8px rgba(0, 0, 0, 0.6); z-index: 2; }
+.titlescreen::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(180deg, rgba(6, 9, 20, 0.55) 0%, rgba(6, 9, 20, 0) 34%, rgba(6, 9, 20, 0) 62%, rgba(6, 9, 20, 0.6) 100%); }
+.titlescreen .tbox, .titlescreen .press { z-index: 2; }
+@keyframes kenburns { from { transform: scale(1.04) translate(0, 0); } to { transform: scale(1.14) translate(-1.5%, -1%); } }
+@keyframes kenburns2 { from { transform: scale(1.14) translate(1.5%, 0.5%); } to { transform: scale(1.04) translate(0, 0); } }
 .titlescreen .tbox { position: relative; padding: 0 16px; animation: tIn 0.9s cubic-bezier(.2, .8, .2, 1) both; }
 .titlescreen .tkick { font-size: clamp(10px, 1.3vw, 13px); font-weight: 800; letter-spacing: 0.4em; color: var(--accent2); text-shadow: 0 2px 0 var(--ink); }
 .titlescreen .tlogo { margin-top: 10px; font-size: clamp(54px, 11vw, 132px); font-weight: 900; letter-spacing: -0.05em; line-height: 0.9; color: #fff;
@@ -378,7 +390,7 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 @keyframes tIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes tPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.82; } }
 @media (max-height: 460px) { #ui > .screen.titlescreen { padding-top: 18px; } .titlescreen .tlogo { font-size: clamp(44px, 9vw, 80px); } .titlescreen p { margin-top: 8px; } .titlescreen .press { bottom: 44px; } }
-@media (prefers-reduced-motion: reduce) { .titlescreen .press, .titlescreen .tbox { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .titlescreen .press, .titlescreen .tbox, .titlescreen .slide.on img { animation: none; } }
 
 /* ── 난이도 오버레이 ── */
 .ovl { position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto;

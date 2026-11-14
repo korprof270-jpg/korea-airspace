@@ -186,8 +186,10 @@ class Game {
     } else {
       this.input.update(dt);
       this.input.flush();
-      this.menu.update(dt, innerWidth / innerHeight);
-      this.draw(this.menu.scene, this.menu.camera);
+      if (this.ui.screen !== "title") {   // 타이틀은 사진 슬라이드라 3D 를 그리지 않는다
+        this.menu.update(dt, innerWidth / innerHeight);
+        this.draw(this.menu.scene, this.menu.camera);
+      }
     }
     this.ui.update(dt);
   }

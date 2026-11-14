@@ -27,6 +27,9 @@ const MODE_META = {
 };
 // 비행훈련장으로 쓸 수 있는 맵 (출발 지점 앞이 넓게 비어 있는 곳)
 const TR_MAPS = ["factory", "arena", "moon", "snow", "palace"].filter((id) => MAPS[id]);
+// 타이틀 배경 장면 (sim/img/title): 파일 이름, 아래 작은 표시
+const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", "서바이벌 · 네온 아레나"], ["3-freestyle", "프리스타일 · 붉은 협곡"], ["4-story", "스토리 · 달 기지 최종전"],
+  ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"]];
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -87,13 +90,14 @@ export class UI {
     if (sc && this._scroll && this._scroll.name === name) sc.scrollTop = this._scroll.y;
     this._scroll = null;
     this._syncStage();
+    if (name === "title") this._titleShow(); else clearInterval(this._slideT);
     if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
   }
 
   // 3D 무대: 화면별 장면을 고르고, [data-stage] 영역 가운데에 오도록 맞춘다
   _syncStage() {
     const menu = this.game.menu;
-    menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : this.screen === "title" ? "freestyle" : null);
+    menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
     const st = this.root.querySelector("[data-stage]");
     if (!st || !st.offsetWidth) { menu.focus = null; return; }
     let x = 0, y = 0, e = st;
@@ -165,11 +169,23 @@ export class UI {
 
   // ── 타이틀 화면: 3D 장면을 배경으로 로고만. 누르면 메뉴로 ──
   s_title() {
+    const slides = TITLE_SLIDES.map(([f, cap], i) => `<figure class="slide ${i ? "" : "on"}"><img src="img/title/${f}.jpg" alt="" ${i ? 'loading="lazy"' : ""}><figcaption>${cap}</figcaption></figure>`).join("");
     return `<div class="screen titlescreen" data-a="enter">
-      <div class="tstage" data-stage></div>
+      <div class="slides">${slides}</div>
       <div class="tbox"><div class="tlogo"><b>FPV</b> PROJECT</div></div>
       <div class="press">START</div>
     </div>`;
+  }
+  // 타이틀 슬라이드: 장면마다 천천히 밀고 당기며(켄 번스) 겹쳐 바뀐다
+  _titleShow() {
+    clearInterval(this._slideT);
+    let i = 0;
+    this._slideT = setInterval(() => {
+      const els = this.root.querySelectorAll(".titlescreen .slide");
+      if (!els.length) { clearInterval(this._slideT); return; }
+      els[i].classList.remove("on"); i = (i + 1) % els.length;
+      els[i].classList.add("on");
+    }, 4800);
   }
   a_enter() { if (this.screen === "title") this.show("main"); }
 
