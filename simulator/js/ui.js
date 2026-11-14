@@ -6,7 +6,7 @@
   const P = () => SIM.state.params;
 
   const NAV = {
-    hw: [["parts", "부품·조립"], ["wiring", "배선"], ["inspect", "조립 검사"]],
+    hw: [["parts", "부품·조립"], ["wiring", "배선"], ["inspect", "정답 확인"]],
     sw: [["frame", "프레임 타입"], ["accel", "가속도계 교정"], ["compass", "나침반 교정"], ["radio", "라디오 교정"], ["esccal", "ESC 교정"], ["modes", "비행 모드"], ["failsafe", "페일세이프"], ["battery", "배터리 모니터"], ["servo", "서보 출력"], ["orient", "보드 방향"], ["tuning", "튜닝"], ["params", "전체 파라미터"]],
     test: [["preflight", "시동 전 점검"], ["motor", "모터 테스트"], ["sensor", "자세 센서"], ["flight", "비행 테스트"], ["fault", "고장 진단 훈련"]],
   };
@@ -35,18 +35,20 @@
     let h = "";
     if (s) {
       const slot = st.install[s.id];
-      h += '<div class="card sel"><h3>' + esc(s.name) + "</h3><p>" + esc(s.desc) + "</p>";
+      h += '<div class="card sel"><h3>' + esc(s.name) + "</h3>";
       if (slot) {
-        h += '<p class="where">장착 위치: <b>' + SIM.slotName(slot) + "</b></p><div class=\"btns\">";
+        h += '<p class="where">' + SIM.slotName(slot) + '</p><div class="btns">';
         if (s.type === "fc" || s.type === "gps") h += btn("rotate", "90° 돌려 달기", "", s.id);
-        h += btn("remove", "분리해서 작업대로", "", s.id) + "</div>";
+        if (s.type === "prop") h += btn("flip", "뒤집어 끼우기", "", s.id);
+        h += btn("remove", "분리", "", s.id) + "</div>";
       } else {
-        h += '<p class="where">3D 화면에서 깜빡이는 자리를 누르거나 아래에서 고르세요.</p><div class="btns">';
+        h += '<div class="btns">';
         for (const sl of SIM.slotsFor(s)) { const err = SIM.canInstall(s, sl); h += btn("install", SIM.slotName(sl), "", sl, !!err); }
+        if (s.type === "prop") h += btn("flip", "뒤집기", "", s.id);
         h += "</div>";
       }
       h += "</div>";
-    } else h += note("부품을 3D 화면이나 아래 목록에서 고른 뒤, 장착할 자리를 누르세요. 화면을 드래그하면 360° 돌려 볼 수 있습니다.");
+    }
     const groups = [["구동부", ["motor", "esc", "prop"]], ["제어·전원", ["fc", "pm", "battery"]], ["주변장치", ["gps", "rx", "telem"]]];
     for (const [g, types] of groups) {
       h += "<h4>" + g + '</h4><div class="partlist">';
@@ -56,38 +58,33 @@
       }
       h += "</div>";
     }
-    const n = SIM.PARTS.filter((p) => st.install[p.id]).length;
-    h += '<div class="btns foot">' + btn("autoAssemble", "정답대로 자동 조립") + btn("resetAll", "전체 분해·초기화", "ghost") + '</div><p class="muted small">장착 ' + n + " / " + SIM.PARTS.length + "개</p>";
+    h += '<div class="btns foot">' + btn("autoAssemble", "정답대로 자동 조립") + btn("resetAll", "전체 분해·초기화", "ghost") + "</div>";
     return h;
   }
+  const off = (t) => '<span class="muted">' + t + "</span>";
   function pgWiring() {
     const st = SIM.state, w = st.wiring, fc = SIM.has("fc");
-    let h = note("배선 결과는 3D 화면에 선으로 나타납니다. 맞는지 여부는 <b>조립 검사</b>나 <b>모터 테스트</b>로 직접 확인하세요.");
-    h += "<h4>ESC 신호선 → FC MAIN OUT</h4>";
-    for (const id of SIM.POS_IDS) {
-      const ok = SIM.has("esc@" + id) && fc;
-      h += '<label class="row" for="w-esc-' + id + '"><span><b>' + SIM.POS[id].name + " ESC</b></span>" + (ok ? sel("w-esc-" + id, "escPort", { 0: "미연결", 1: "MAIN OUT 1", 2: "MAIN OUT 2", 3: "MAIN OUT 3", 4: "MAIN OUT 4" }, w.escPort[id], id) : '<span class="muted">' + (fc ? "ESC 없음" : "FC 없음") + "</span>") + "</label>";
+    let h = "<h4>배터리 · 파워 모듈 · PDB</h4>";
+    h += '<label class="row" for="w-batt"><span><b>배터리 커넥터</b></span>' + (SIM.has("battery") ? sel("w-batt", "wire", Object.assign({ "": "분리됨" }, SIM.has("pm") ? { pm: "파워 모듈 입력 커넥터" } : {}, { pdb: "PDB 배터리 패드에 직접" }), w.batt, "batt") : off("배터리 없음")) + "</label>";
+    const pol = { "": "미연결", ok: "빨강→＋ / 검정→－", rev: "빨강→－ / 검정→＋" };
+    h += '<label class="row" for="w-pmOut"><span><b>파워 모듈 출력선</b><code>→ PDB 배터리 패드</code></span>' + (SIM.has("pm") ? sel("w-pmOut", "wire", pol, w.pmOut, "pmOut") : off("파워 모듈 없음")) + "</label>";
+    h += "<h4>ESC 전원선 → PDB 패드</h4>";
+    for (const id of SIM.POS_IDS) h += '<label class="row" for="w-pwr-' + id + '"><span><b>' + SIM.POS[id].name + " ESC</b></span>" + (SIM.has("esc@" + id) ? sel("w-pwr-" + id, "escPwr", pol, w.escPwr[id], id) : off("ESC 없음")) + "</label>";
+    h += "<h4>모터선 ①②③ → ESC 단자 순서</h4>";
+    const perms = { "": "미연결" }; SIM.WIRE_PERMS.forEach((p) => (perms[p] = p.split("").join(" - ")));
+    for (const id of SIM.POS_IDS) h += '<label class="row" for="w-mw-' + id + '"><span><b>' + SIM.POS[id].name + " 모터</b></span>" + (SIM.has("esc@" + id) && SIM.has("motor@" + id) ? sel("w-mw-" + id, "motorWires", perms, w.motorWires[id], id) : off("모터·ESC 필요")) + "</label>";
+    h += "<h4>FC 포트에 꽂는 케이블</h4>";
+    for (const c in SIM.CABLES) {
+      const cb = SIM.CABLES[c], ports = { "": "미연결" };
+      SIM.PORTS[cb.conn].forEach((p) => (ports[p] = p));
+      h += '<label class="row" for="w-plug-' + c + '"><span><b>' + cb.name + "</b><code>" + SIM.CONN_NAMES[cb.conn] + " 커넥터</code></span>" + (SIM.cableReady(c) ? sel("w-plug-" + c, "plug", ports, w.plug[c], c) : off(fc ? "부품 없음" : "FC 없음")) + "</label>";
     }
-    h += "<h4>모터 3상 배선 (회전 방향)</h4>";
-    for (const id of SIM.POS_IDS) {
-      const ok = SIM.has("esc@" + id) && SIM.has("motor@" + id);
-      h += '<label class="row" for="w-dir-' + id + '"><span><b>' + SIM.POS[id].name + " 모터</b></span>" + (ok ? sel("w-dir-" + id, "motorDir", { cw: "↻ 시계 방향 (CW)", ccw: "↺ 반시계 방향 (CCW)" }, w.motorDir[id], id) : '<span class="muted">모터·ESC 필요</span>') + "</label>";
-    }
-    h += note("실제로는 모터와 ESC를 잇는 세 가닥 중 두 가닥을 서로 바꾸면 회전 방향이 뒤집힙니다.", "small");
-    h += "<h4>FC 포트 연결</h4>";
-    const ports = { "": "미연결" }; SIM.FC_PORTS.forEach((p) => (ports[p] = p));
-    for (const [d, label] of [["pm", "파워 모듈 6핀 케이블"], ["rx", "수신기 신호선"], ["gps", "GPS 케이블"], ["telem", "텔레메트리 케이블"]]) {
-      const ok = SIM.has(d) && fc;
-      h += '<label class="row" for="w-dev-' + d + '"><span><b>' + label + "</b></span>" + (ok ? sel("w-dev-" + d, "devPort", ports, w.devPort[d], d) : '<span class="muted">' + (fc ? "부품 없음" : "FC 없음") + "</span>") + "</label>";
-    }
-    h += "<h4>전원</h4>";
-    const bok = SIM.has("battery") && SIM.has("pm");
-    h += '<label class="row" for="w-batt"><span><b>배터리 XT60 커넥터</b></span>' + (bok ? sel("w-batt", "battPlug", { 0: "분리됨", 1: "파워 모듈에 연결" }, w.battPlug ? 1 : 0) : '<span class="muted">배터리·파워 모듈 필요</span>') + "</label>";
     return h;
   }
   function pgInspect() {
+    if (!ui.showAnswer) return '<div class="btns">' + btn("answer", "조립·배선 정답 확인", "primary") + "</div>";
     const items = SIM.hardwareCheck(), bad = items.filter((i) => i.lvl === "bad").length;
-    return '<div class="verdict ' + (bad ? "bad" : "ok") + '">' + (bad ? "조립·배선 오류 " + bad + "건" : "조립·배선 이상 없음") + "</div>" + checks(items) + note("이 검사는 정비사가 눈으로 확인하는 항목입니다. FC는 프로펠러나 모터 방향이 틀린 것을 스스로 알지 못합니다.", "small");
+    return '<div class="verdict ' + (bad ? "bad" : "ok") + '">' + (bad ? "조립·배선 오류 " + bad + "건" : "조립·배선 이상 없음") + "</div>" + checks(items) + '<div class="btns">' + btn("answerHide", "가리기", "ghost") + "</div>";
   }
 
   // ---------- 소프트웨어 ----------
@@ -98,7 +95,6 @@
     h += '<table class="tbl"><thead><tr><th>모터</th><th>테스트 순서</th><th>위치</th><th>회전</th></tr></thead><tbody>';
     f.order.forEach((n, i) => { const m = f.motors[n]; h += "<tr><td>Motor" + n + "</td><td>" + "ABCD"[i] + "</td><td>" + (m.z < 0 ? "앞" : m.z > 0 ? "뒤" : "") + (m.x && m.z ? "-" : "") + (m.x > 0 ? "오른쪽" : m.x < 0 ? "왼쪽" : "") + "</td><td>" + (m.spin === "cw" ? "↻ CW" : "↺ CCW") + "</td></tr>"; });
     h += "</tbody></table>";
-    h += note("이 기체의 암은 X형입니다. 프레임 타입이 실제 형상과 다르면 믹서가 엉뚱한 모터를 움직입니다. Plus로 두면 조종 반응이 45° 비틀리고, H로 두면 요 제어가 반대로 걸려 기체가 제자리에서 돕니다.");
     return h;
   }
   const ACCEL = [["level", "기체를 수평으로 놓으세요 (LEVEL)"], ["left", "왼쪽 면이 바닥을 향하게 세우세요 (LEFT)"], ["right", "오른쪽 면이 바닥을 향하게 세우세요 (RIGHT)"], ["nosedown", "기수를 아래로 세우세요 (NOSE DOWN)"], ["noseup", "기수를 위로 세우세요 (NOSE UP)"], ["back", "뒤집어 놓으세요 (BACK)"]];
@@ -106,7 +102,7 @@
   function pgAccel() {
     const a = ui.accel;
     let h = "<p>상태 " + calChip(SIM.state.cal.accel) + "</p>";
-    if (!a) return h + note("FC가 여섯 방향의 중력 값을 기록해 가속도계 오프셋을 계산합니다. 지시된 자세로 기체를 놓고 완료를 누르세요.") + '<div class="btns">' + btn("accelStart", "가속도계 교정 시작", "primary") + "</div>";
+    if (!a) return h + '<div class="btns">' + btn("accelStart", "가속도계 교정 시작", "primary") + "</div>";
     h += '<div class="card"><p class="muted small">단계 ' + (a.step + 1) + " / 6</p><h3>" + ACCEL[a.step][1] + "</h3><p>현재 기체 자세: <b>" + (POSE_KO[SIM.scene.poseName] || "임의 자세") + "</b></p>";
     h += '<div class="btns">' + ACCEL.map(([k]) => btn("pose", POSE_KO[k], SIM.scene.poseName === k ? "on" : "", k)).join("") + "</div>";
     h += '<div class="btns">' + btn("accelNext", "이 자세로 놓았음 (Click when Done)", "primary") + btn("accelCancel", "취소", "ghost") + "</div></div>";
@@ -114,9 +110,8 @@
   }
   function pgCompass() {
     const c = ui.compass;
-    let h = "<p>상태 " + calChip(SIM.state.cal.compass) + ' <span class="muted small">' + (SIM.gpsOk() ? "외장 나침반(GPS 모듈) 사용" : "내장 나침반 사용") + "</span></p>";
+    let h = "<p>상태 " + calChip(SIM.state.cal.compass) + ' <span class="muted small">' + (SIM.compassExt() ? "외장 나침반 사용" : "내장 나침반 사용") + "</span></p>";
     if (!c) {
-      h += note("기체를 모든 방향으로 돌려 지자기 값을 모읍니다. 시작한 뒤 3D 화면을 드래그해 기체를 직접 돌리세요.");
       h += '<div class="btns">' + btn("compassStart", "나침반 교정 시작", "primary") + "</div>";
       if (SIM.state.cal.compass) h += '<p class="mono small">OFS X ' + P().COMPASS_OFS_X + " · Y " + P().COMPASS_OFS_Y + " · Z " + P().COMPASS_OFS_Z + "</p>";
       return h;
@@ -129,66 +124,58 @@
   function pgRadio() {
     const r = ui.radio;
     let h = "<p>상태 " + calChip(SIM.state.cal.radio) + "</p>";
-    if (!SIM.rxOk()) h += note("수신기 신호가 없습니다. 수신기를 장착하고 RCIN 포트에 연결하세요.", "bad");
+    if (!SIM.rxOk()) h += note("수신기 신호가 없습니다 (No RC).", "bad");
     h += '<div class="rcbars">' + CH.map(([c, n]) => '<div class="rc"><span>' + n + '</span><div class="bar"><i id="rc' + c + '"></i></div><code id="rcv' + c + '">----</code></div>').join("") + "</div>";
     h += r ? note("모든 스틱과 스위치를 끝에서 끝까지 움직인 다음, 스틱을 가운데(스로틀은 맨 아래)에 두고 완료를 누르세요.") + '<div class="btns">' + btn("radioDone", "Click when Done", "primary") + btn("radioCancel", "취소", "ghost") + "</div>"
       : '<div class="btns">' + btn("radioStart", "Calibrate Radio", "primary") + "</div>";
     h += '<table class="tbl"><thead><tr><th>채널</th><th>MIN</th><th>TRIM</th><th>MAX</th><th>반전</th></tr></thead><tbody>';
     for (let c = 1; c <= 4; c++) h += "<tr><td>RC" + c + "</td><td>" + P()["RC" + c + "_MIN"] + "</td><td>" + P()["RC" + c + "_TRIM"] + "</td><td>" + P()["RC" + c + "_MAX"] + '</td><td><input id="rev' + c + '" aria-label="RC' + c + ' 반전" type="checkbox" data-change="rev" data-arg="' + c + '"' + (P()["RC" + c + "_REVERSED"] ? " checked" : "") + "></td></tr>";
-    h += "</tbody></table>" + note("화면 아래 가상 송신기의 스틱을 끌거나 키보드(W/S 스로틀, A/D 요, 방향키 롤·피치)로 조작합니다. 피치 스틱을 앞으로 밀면 PWM이 내려가는 것이 정상입니다.", "small");
+    h += "</tbody></table>";
     return h;
   }
   function pgEscCal() {
     const pw = SIM.power();
     let h = "<p>상태 " + calChip(SIM.state.cal.esc) + "</p>";
-    h += note("ESC마다 스로틀 최저·최고 PWM 범위를 똑같이 학습시킵니다. 교정하지 않으면 같은 명령에도 모터마다 회전수가 달라집니다.");
     h += "<ol class=\"steps\"><li>프로펠러를 모두 분리합니다.</li><li>송신기 스로틀을 최대로 올리고 배터리를 연결합니다.</li><li>ESC 비프음이 나면 스로틀을 최저로 내립니다.</li><li>긴 비프음이 끝나면 배터리를 분리합니다.</li></ol>";
     const props = SIM.POS_IDS.some((id) => SIM.has("prop@" + id));
     h += '<div class="btns">' + btn("escCal", "ESC 교정 실행", "primary") + "</div>";
-    if (!pw.main) h += note("배터리 전원이 연결되어야 합니다.", "bad");
-    if (props) h += note("프로펠러가 달려 있습니다. 실제 정비에서는 반드시 분리한 뒤 진행하세요.", "warn");
+    if (!pw.main)
+    if (props)
     return h;
   }
   function pgModes() {
     let h = '<p>현재 CH' + P().FLTMODE_CH + ' PWM <code id="mode-pwm">----</code> → <b id="mode-cur"></b></p>';
     const rng = ["0–1230", "1231–1360", "1361–1490", "1491–1620", "1621–1749", "1750+"];
     for (let i = 1; i <= 6; i++) h += '<label class="row moderow" id="mrow' + i + '" for="p-FLTMODE' + i + '"><span><b>비행 모드 ' + i + "</b><code>PWM " + rng[i - 1] + "</code></span>" + paramSel("FLTMODE" + i) + "</label>";
-    h += note("가상 송신기의 3단 스위치는 1165 / 1500 / 1815 PWM을 내므로 모드 1, 4, 6이 선택됩니다. Loiter와 RTL은 GPS가 있어야 진입합니다.", "small");
     return h;
   }
   function pgFailsafe() {
     let h = "<h4>라디오 (스로틀) 페일세이프</h4>" + prow("FS_THR_ENABLE") + prow("FS_THR_VALUE");
     h += '<p>현재 스로틀 PWM <code id="fs-pwm">----</code> <span id="fs-state" class="chip"></span></p>';
-    h += note("송신기를 끄면 수신기가 스로틀을 900 PWM으로 내립니다. 그 값이 FS_THR_VALUE보다 낮으면 페일세이프가 걸립니다. 가상 송신기의 전원 버튼으로 확인하세요.", "small");
     h += "<h4>배터리 페일세이프</h4>" + prow("BATT_LOW_VOLT") + prow("BATT_FS_LOW_ACT");
-    if (!P().BATT_MONITOR) h += note("배터리 모니터가 꺼져 있어 전압을 알 수 없습니다. 배터리 페일세이프가 동작하지 않습니다.", "warn");
-    h += note("4S 배터리는 보통 14.0V(셀당 3.5V) 근처를 저전압 기준으로 씁니다.", "small");
+    if (!P().BATT_MONITOR)
     return h;
   }
   function pgBattery() {
     const pw = SIM.power();
     let h = prow("BATT_MONITOR") + prow("BATT_CAPACITY");
     h += '<p>측정 전압 <code id="batt-v">--</code></p>';
-    if (P().BATT_MONITOR && !pw.battSense) h += note("전압이 들어오지 않습니다. 배터리 커넥터와 파워 모듈 → POWER 포트 연결을 확인하세요.", "bad");
+    if (P().BATT_MONITOR && !pw.battSense)
     return h;
   }
   function pgServo() {
-    let h = note("각 MAIN OUT 포트가 어떤 모터 신호를 내보낼지 정합니다. ESC 신호선을 다른 포트에 꽂았다면 여기서 맞출 수도 있습니다.");
-    for (let i = 1; i <= 4; i++) {
-      const pos = SIM.POS_IDS.find((id) => SIM.state.wiring.escPort[id] === i);
-      h += prow("SERVO" + i + "_FUNCTION", "MAIN OUT " + i + (pos ? " → " + SIM.POS[pos].name + " ESC" : " (연결 없음)"));
-    }
+    let h = "";
+    for (let i = 1; i <= 8; i++) h += prow("SERVO" + i + "_FUNCTION", "MAIN OUT " + i);
     return h;
   }
   function pgOrient() {
     let h = prow("AHRS_ORIENTATION") + prow("COMPASS_ORIENT");
     h += "<p>FC 화살표: 앞에서 오른쪽으로 <b>" + SIM.state.rot.fc * 90 + "°</b> · GPS 화살표: <b>" + SIM.state.rot.gps * 90 + "°</b></p>";
-    h += note("FC를 돌려 달았다면 같은 각도를 AHRS_ORIENTATION에 넣어야 합니다. 값이 맞는지는 테스트 메뉴의 <b>자세 센서</b>에서 기체를 기울여 HUD로 확인하세요.");
     return h;
   }
   function pgTuning() {
     const ks = ["ATC_RAT_RLL_P", "ATC_RAT_RLL_I", "ATC_RAT_RLL_D", "ATC_RAT_PIT_P", "ATC_RAT_PIT_I", "ATC_RAT_PIT_D", "ATC_RAT_YAW_P", "ATC_RAT_YAW_I", "ATC_ANG_RLL_P", "ATC_ANG_PIT_P", "ANGLE_MAX", "PILOT_SPEED_UP", "RTL_ALT", "MOT_SPIN_ARM", "MOT_SPIN_MIN"];
-    return note("값을 바꾼 뒤 비행 테스트에서 반응을 확인하세요. 각속도 P를 지나치게 올리면 기체가 떨고, 너무 낮추면 둔하게 흐릅니다.") + ks.map((k) => prow(k)).join("") + '<div class="btns">' + btn("tuneReset", "튜닝 값 기본으로", "ghost") + "</div>";
+    return ks.map((k) => prow(k)).join("") + '<div class="btns">' + btn("tuneReset", "튜닝 값 기본으로", "ghost") + "</div>";
   }
   function pgParams() {
     const f = ui.paramFilter.toUpperCase();
@@ -199,63 +186,40 @@
 
   // ---------- 테스트 ----------
   function pgPreflight() {
-    const fails = SIM.prearm(0), hw = SIM.hardwareCheck().filter((i) => i.lvl === "bad");
+    const fails = SIM.prearm(0);
     let h = '<div class="verdict ' + (fails.length ? "bad" : "ok") + '">' + (fails.length ? "시동 불가 · " + fails.length + "건" : "시동 가능 (Ready to Arm)") + "</div>";
-    h += "<h4>FC 시동 전 점검 (PreArm)</h4>" + (fails.length ? checks(fails.map((f) => ({ lvl: "bad", t: f, d: "" }))) : checks([{ lvl: "ok", t: "모든 PreArm 점검 통과", d: P().ARMING_CHECK ? "" : "ARMING_CHECK=0 — 점검이 꺼져 있습니다" }]));
-    h += "<h4>정비사 육안 점검</h4>" + (hw.length ? checks(hw) : checks([{ lvl: "ok", t: "조립·배선 이상 없음", d: "" }]));
-    if (!fails.length && hw.length) h += note("FC 점검은 통과했지만 조립 오류가 남아 있습니다. 이대로 이륙하면 사고가 납니다.", "warn");
+    h += fails.length ? checks(fails.map((f) => ({ lvl: "bad", t: f, d: "" }))) : checks([{ lvl: "ok", t: "모든 PreArm 점검 통과", d: P().ARMING_CHECK ? "" : "ARMING_CHECK=0" }]);
     return h + '<div class="btns foot">' + btn("autoConfigure", "소프트웨어 설정 자동 완료") + "</div>";
   }
   function pgMotor() {
-    const mt = SIM.motorTest, f = SIM.frame(), exp = {};
-    f.order.forEach((n, i) => (exp["ABCD"[i]] = f.motors[n]));
-    let h = note("미션플래너의 <b>선택 하드웨어 → Motor Test</b>와 같습니다. A는 앞-오른쪽에서 시작해 시계 방향으로 B, C, D 순서입니다. 어느 모터가 어느 방향으로 도는지 3D 화면에서 확인하세요.");
-    h += '<label class="row" for="mt-pct"><span><b>스로틀 %</b></span><input id="mt-pct" type="number" min="5" max="40" value="' + ui.mt.pct + '" data-change="mtPct"></label>';
+    let h = '<label class="row" for="mt-pct"><span><b>스로틀 %</b></span><input id="mt-pct" type="number" min="5" max="40" value="' + ui.mt.pct + '" data-change="mtPct"></label>';
     h += '<label class="row" for="mt-dur"><span><b>시간 (초)</b></span><input id="mt-dur" type="number" min="1" max="10" value="' + ui.mt.dur + '" data-change="mtDur"></label>';
     h += '<div class="btns">' + ["A", "B", "C", "D"].map((l) => btn("mt", "Test motor " + l, "", l)).join("") + "</div>";
     h += '<div class="btns">' + btn("mtSeq", "Test all in Sequence") + btn("mtAll", "Test all motors") + btn("mtStop", "Stop", "ghost") + "</div>";
-    h += '<label class="row" for="expect"><span><b>3D 화면에 모터 배치도 표시</b></span><input id="expect" type="checkbox" data-change="expect"' + (SIM.scene.showExpect ? " checked" : "") + "></label>";
-    h += '<table class="tbl"><thead><tr><th>테스트</th><th>실제로 돈 모터</th><th>방향·바람</th><th>판정</th></tr></thead><tbody>';
-    for (const l of "ABCD") {
-      const r = mt.results[l], e = exp[l];
-      const want = (e.z < 0 ? "앞" : e.z > 0 ? "뒤" : "") + (e.x && e.z ? "-" : "") + (e.x > 0 ? "오른쪽" : e.x < 0 ? "왼쪽" : "");
-      if (!r) { h += "<tr><td>" + l + '</td><td class="muted">미실시</td><td></td><td></td></tr>'; continue; }
-      const posOk = r.pos && SIM.POS[r.pos].name === want, dirOk = r.dir === e.spin, airOk = r.thrust > 0;
-      const ok = posOk && dirOk && airOk;
-      h += "<tr><td>" + l + "</td><td>" + (r.pos ? SIM.POS[r.pos].name : "회전 없음") + "</td><td>" + (r.pos ? (r.dir === "cw" ? "↻ CW" : "↺ CCW") + " · " + (r.prop ? (airOk ? "바람 ↓" : "바람 ↑") : "프롭 없음") : "—") + '</td><td><span class="chip ' + (ok ? "ok" : "bad") + '">' + (ok ? "정상" : !r.pos ? "무반응" : !posOk ? "위치 틀림" : !dirOk ? "방향 틀림" : "프롭 확인") + "</span></td></tr>";
-    }
-    h += "</tbody></table>";
-    if (SIM.POS_IDS.some((id) => SIM.has("prop@" + id))) h += note("프로펠러가 달려 있습니다. 실제 기체에서는 프로펠러를 떼고 모터 테스트를 하세요.", "warn");
     return h;
   }
   function pgSensor() {
-    let h = note("기체를 손으로 기울였을 때 FC가 인식하는 자세를 HUD에서 확인합니다. 3D 화면을 드래그해 기체를 직접 기울이거나 아래 버튼을 쓰세요.");
-    h += '<div class="btns">' + btn("tilt", "수평", "", "0,0") + btn("tilt", "오른쪽으로 25°", "", "25,0") + btn("tilt", "왼쪽으로 25°", "", "-25,0") + btn("tilt", "기수 들기 25°", "", "0,25") + btn("tilt", "기수 숙이기 25°", "", "0,-25") + "</div>";
-    h += '<table class="tbl"><thead><tr><th></th><th>실제 기체</th><th>FC 인식</th></tr></thead><tbody><tr><td>롤</td><td id="s-tr" class="mono"></td><td id="s-er" class="mono"></td></tr><tr><td>피치</td><td id="s-tp" class="mono"></td><td id="s-ep" class="mono"></td></tr><tr><td>방위</td><td id="s-th" class="mono"></td><td id="s-eh" class="mono"></td></tr></tbody></table>';
-    h += '<p id="s-verdict" class="note"></p>';
-    h += note("기체를 오른쪽으로 기울이면 HUD 수평선의 오른쪽 끝이 올라가야 하고, 기수를 들면 수평선이 아래로 내려가야 합니다.", "small");
-    return h;
+    return '<div class="btns">' + btn("tilt", "수평", "", "0,0") + btn("tilt", "오른쪽으로 25°", "", "25,0") + btn("tilt", "왼쪽으로 25°", "", "-25,0") + btn("tilt", "기수 들기 25°", "", "0,25") + btn("tilt", "기수 숙이기 25°", "", "0,-25") + "</div>";
   }
   function pgFlight() {
     const F = SIM.flight;
     if (!F.active) {
       const fails = SIM.prearm(0);
-      let h = note("기체를 야외 시험장으로 옮겨 실제로 띄워 봅니다. 조립·배선·설정이 틀리면 그 결과가 그대로 나타납니다.");
+      let h = "";
       h += '<div class="btns">' + btn("flightStart", "시험장으로 이동", "primary") + "</div>";
       if (fails.length) h += "<h4>현재 시동을 막는 항목</h4>" + checks(fails.map((f) => ({ lvl: "bad", t: f, d: "" })));
-      h += '<h4>조종 방법</h4><ul class="plain"><li>왼쪽 스틱: 스로틀(상하) · 요(좌우) — 키보드 W/S · A/D</li><li>오른쪽 스틱: 피치(상하) · 롤(좌우) — 방향키</li><li>시동: 스로틀 최하 + 요 오른쪽 유지, 또는 ARM 버튼</li><li>Stabilize에서는 스로틀 40% 부근이 호버링입니다.</li></ul>';
+      h += '<h4>조종 방법</h4><ul class="plain"><li>왼쪽 스틱: 스로틀(상하) · 요(좌우) — 키보드 W/S · A/D</li><li>오른쪽 스틱: 피치(상하) · 롤(좌우) — 방향키</li><li>시동: 스로틀 최하 + 요 오른쪽 유지, 또는 ARM 버튼</li></ul>';
       return h;
     }
     let h = '<div class="stat"><div><span>모드</span><b id="f-mode"></b></div><div><span>상태</span><b id="f-arm"></b></div><div><span>고도</span><b id="f-alt" class="mono"></b></div><div><span>배터리</span><b id="f-batt" class="mono"></b></div></div>';
     h += '<div class="btns">' + btn("arm", "시동 (ARM)", "primary") + btn("disarm", "시동 끄기") + btn("flightReset", "기체 리셋") + "</div>";
     h += '<div class="btns">' + btn("drain", F.drain > 1 ? "배터리 소모 ×40 켜짐" : "배터리 빨리 소모시키기", F.drain > 1 ? "on" : "") + btn("flightStop", "작업대로 복귀", "ghost") + "</div>";
-    h += note("송신기 전원 버튼을 눌러 비행 중 신호 두절(라디오 페일세이프)을, 배터리 빨리 소모로 저전압 페일세이프를 시험할 수 있습니다.", "small");
     h += '<h4>메시지</h4><ul class="log" id="msglog">' + logHtml() + "</ul>";
     return h;
   }
   function pgFault() {
     const fl = SIM.faults;
-    let h = note("정상 조립·설정된 기체에 고장을 몰래 심습니다. 조립 검사 화면을 보지 않고 모터 테스트·자세 센서·비행 테스트 증상만으로 원인을 찾아 고쳐 보세요.");
+    let h = "";
     h += '<div class="btns">' + btn("drill", "고장 1개 심기", "primary", 1) + btn("drill", "고장 2개", "", 2) + btn("drill", "고장 3개", "", 3) + "</div>";
     if (fl) {
       const left = fl.list.filter((f) => f.present()).length;
@@ -298,8 +262,8 @@
       if (SIM.flight.active && now !== "test/flight") SIM.flight.stop();
       ui.accel = ui.compass = ui.radio = null; SIM.motorTest.stop(); SIM.scene.tumble = 0;
       if (!SIM.flight.active) SIM.scene.setPose("level");
-      const wantExpect = now === "sw/frame" || now === "test/motor";
-      if (!wantExpect) SIM.scene.showExpect = false;
+      ui.showAnswer = false;
+      if (now !== "sw/frame") SIM.scene.showExpect = false;
       SIM.scene.sync();
     }
     render();
@@ -310,7 +274,8 @@
     tab: (a) => go(a), page: (a) => go(ui.tab, a),
     select: (a) => SIM.select(SIM.selected === a ? null : a),
     install: (a) => { const e = SIM.install(SIM.selected, a); if (e) SIM.toast(e, "bad"); },
-    remove: (a) => SIM.remove(a), rotate: (a) => SIM.rotate(a),
+    remove: (a) => SIM.remove(a), rotate: (a) => SIM.rotate(a), flip: (a) => SIM.flipProp(a),
+    answer: () => { ui.showAnswer = true; render(); }, answerHide: () => { ui.showAnswer = false; render(); },
     autoAssemble: () => { SIM.autoAssemble(); SIM.toast("정답대로 조립하고 배선했습니다.", "ok"); },
     autoConfigure: () => { SIM.autoConfigure(); SIM.toast("프레임·교정·모드·페일세이프 설정을 완료했습니다.", "ok"); },
     resetAll: () => { SIM.resetAll(); SIM.toast("모든 부품을 분해하고 설정을 초기화했습니다."); },
@@ -338,7 +303,7 @@
       for (let c = 1; c <= 4; c++) { p["RC" + c + "_MIN"] = r.min[c]; p["RC" + c + "_MAX"] = r.max[c]; p["RC" + c + "_TRIM"] = c === 3 ? r.min[c] : raw[c]; }
       SIM.state.cal.radio = true; SIM.toast("라디오 교정 완료", "ok"); SIM.emit();
     },
-    escCal: () => { if (!SIM.power().main) return SIM.toast("배터리 전원이 필요합니다.", "bad"); if (SIM.POS_IDS.some((id) => !SIM.has("esc@" + id))) return SIM.toast("ESC 4개가 모두 장착되어야 합니다.", "bad"); SIM.state.cal.esc = true; SIM.toast("ESC 교정 완료 · 네 개의 스로틀 범위가 같아졌습니다", "ok"); SIM.emit(); },
+    escCal: () => { if (SIM.POS_IDS.some((id) => !SIM.has("esc@" + id) || SIM.state.wiring.escPwr[id] !== "ok" || !SIM.motorNumForPos(id)) || !SIM.power().pdb) return SIM.toast("ESC 교정 실패 · ESC가 응답하지 않습니다", "bad"); SIM.state.cal.esc = true; SIM.toast("ESC 교정 완료 · 네 개의 스로틀 범위가 같아졌습니다", "ok"); SIM.emit(); },
     tuneReset: () => { for (const k in SIM.PARAM_DEFS) if (/^(ATC_|MOT_|ANGLE|PILOT|RTL)/.test(k)) P()[k] = SIM.PARAM_DEFS[k].d; SIM.emit(); },
     mt: (a) => mtRun(SIM.motorTest.run([a], ui.mt.pct, ui.mt.dur)),
     mtSeq: () => mtRun(SIM.motorTest.run(["A", "B", "C", "D"], ui.mt.pct, ui.mt.dur)),
@@ -350,7 +315,7 @@
     flightReset: () => { SIM.flight.reset(); render(); },
     arm: () => { SIM.flight.arm(); }, disarm: () => SIM.flight.disarm("버튼"),
     drain: () => { SIM.flight.drain = SIM.flight.drain > 1 ? 1 : 40; render(); },
-    drill: (a) => { if (SIM.flight.active) SIM.flight.stop(); SIM.startFaultDrill(+a); SIM.motorTest.results = {}; SIM.toast("고장 " + a + "개를 심었습니다. 찾아서 고쳐 보세요."); },
+    drill: (a) => { if (SIM.flight.active) SIM.flight.stop(); SIM.startFaultDrill(+a); SIM.motorTest.results = {}; SIM.toast("고장 " + a + "개를 심었습니다."); },
     reveal: () => { SIM.faults.revealed = true; render(); },
     txPower: () => { SIM.tx.on = !SIM.tx.on; render(); },
     txSw: (a) => { SIM.tx.sw = +a; render(); },
@@ -359,10 +324,10 @@
   function mtRun(err) { if (err) SIM.toast(err, "bad"); }
   const CHG = {
     param: (v, a) => SIM.setParam(a, v),
-    escPort: (v, a) => SIM.setEscPort(a, +v),
-    motorDir: (v, a) => { SIM.state.wiring.motorDir[a] = v; SIM.emit(); },
-    devPort: (v, a) => SIM.setDevPort(a, v),
-    battPlug: (v) => { SIM.state.wiring.battPlug = v === "1"; SIM.emit(); },
+    plug: (v, a) => SIM.setPlug(a, v),
+    wire: (v, a) => { SIM.state.wiring[a] = v; SIM.emit(); },
+    escPwr: (v, a) => { SIM.state.wiring.escPwr[a] = v; SIM.emit(); },
+    motorWires: (v, a) => { SIM.state.wiring.motorWires[a] = v; SIM.emit(); },
     expect: (v, a, el) => { SIM.scene.showExpect = el.checked; SIM.scene.sync(); },
     rev: (v, a, el) => SIM.setParam("RC" + a + "_REVERSED", el.checked ? 1 : 0),
     mtPct: (v) => { ui.mt.pct = Math.min(40, Math.max(5, +v || 12)); },
@@ -452,16 +417,9 @@
         const p = P(); p.COMPASS_OFS_X = Math.round(-80 + Math.random() * 160); p.COMPASS_OFS_Y = Math.round(40 + Math.random() * 120); p.COMPASS_OFS_Z = Math.round(-60 + Math.random() * 160);
         SIM.state.cal.compass = true; SIM.toast("나침반 교정 완료 · 오프셋 저장됨", "ok"); SIM.emit();
       }
-    } else if (page === "test/sensor" && h) {
-      const e = h.est;
-      txt("s-tr", deg(e.trueRoll)); txt("s-er", deg(e.roll)); txt("s-tp", deg(e.truePitch)); txt("s-ep", deg(e.pitch));
-      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(SIM.scene.drone.quaternion), th = Math.atan2(f.x, -f.z);
-      txt("s-th", deg(th < 0 ? th + 2 * Math.PI : th)); txt("s-eh", deg(e.hdg < 0 ? e.hdg + 2 * Math.PI : e.hdg));
-      const bad = Math.abs(e.roll - e.trueRoll) > 0.05 || Math.abs(e.pitch - e.truePitch) > 0.05, hb = Math.abs(Math.sin((e.hdg - th) / 2)) > 0.05, v = document.getElementById("s-verdict");
-      if (v) { v.className = "note " + (bad || hb ? "bad" : "ok"); txt("s-verdict", bad ? "FC가 인식한 기울기가 실제와 다릅니다. FC 장착 방향, AHRS_ORIENTATION, 가속도계 교정을 확인하세요." : hb ? "FC가 인식한 방위가 실제와 다릅니다. 나침반 교정과 GPS 장착 방향(COMPASS_ORIENT)을 확인하세요." : "FC가 인식한 자세와 방위가 실제와 일치합니다."); }
     } else if (page === "test/flight" && F.active) {
       txt("f-mode", SIM.MODES[F.mode] + (F.fsRadio ? " (FS)" : "")); txt("f-arm", F.crashed ? "전복" : F.armed ? "ARMED" : "DISARMED");
-      txt("f-alt", (F.pos.y - F.home.y).toFixed(1) + " m"); txt("f-batt", F.volt.toFixed(1) + " V · " + Math.max(0, 100 - (F.used / 3300) * 100).toFixed(0) + "%");
+      txt("f-alt", (F.pos.y - F.home.y).toFixed(1) + " m"); txt("f-batt", F.volt.toFixed(1) + " V · " + Math.max(0, 100 - (F.used / F.cap) * 100).toFixed(0) + "%");
     }
     const armChip = $("#st-arm"); if ((armChip.textContent === "ARMED") !== F.armed) { armChip.className = "chip " + (F.armed ? "bad" : ""); armChip.textContent = F.armed ? "ARMED" : "DISARMED"; }
   };
@@ -473,7 +431,6 @@
     setL = bindStick($("#stickL"), (x, y) => { SIM.tx.lx = x; if (y !== null) SIM.tx.ly = y; }, false);
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
     SIM.scene.onPick = (id) => { if (id !== SIM.selected) { if (id && ui.tab !== "hw") return; if (id) ui.page.hw = "parts"; SIM.select(id); } };
-    SIM.onMotorTest = () => { if (ui.tab === "test" && ui.page.test === "motor") render(); };
     SIM.on(render);
     render();
   };

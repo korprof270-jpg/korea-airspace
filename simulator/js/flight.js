@@ -1,8 +1,9 @@
 // 드론 정비 시뮬레이터 — 송신기, 자세 추정, 믹서, 비행 물리, 모터 테스트
 (function () {
   const SIM = window.SIM, T = THREE;
-  const DEG = Math.PI / 180, G = 9.81, MASS = 1.2, ARM = 0.159, TMAX = 7.36, KQ = 0.016;
-  const INERTIA = new T.Vector3(0.012, 0.022, 0.012);
+  // 2종급(약 12kg) 쿼드콥터 근사값
+  const DEG = Math.PI / 180, G = 9.81, MASS = 12, K = 2.2, ARM = 0.159 * K, TMAX = 73.6, KQ = 0.05, CAP = 16000, CELLS = 6;
+  const INERTIA = new T.Vector3(0.58, 1.06, 0.58);
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -59,27 +60,27 @@
   // ---------- 배터리 ----------
   function battVolt(used, cap, amps) {
     const dod = clamp(used / cap, 0, 1.05);
-    const cell = 4.2 - 0.75 * dod - (dod > 0.82 ? (dod - 0.82) * 5 : 0) - amps * 0.0035;
-    return 4 * cell;
+    const cell = 4.2 - 0.75 * dod - (dod > 0.82 ? (dod - 0.82) * 5 : 0) - amps * 0.0007;
+    return CELLS * cell;
   }
 
   // ---------- 비행 상태 ----------
   const F = (SIM.flight = {
     active: false, armed: false, crashed: false, mode: 0, drain: 1,
     pos: new T.Vector3(), vel: new T.Vector3(), q: new T.Quaternion(), w: new T.Vector3(),
-    used: 0, volt: 16.8, amps: 0, contact: 0,
+    used: 0, volt: 25.2, amps: 0, contact: 0, cap: CAP, lost: {},
   });
   const ESC_GAIN = { FR: 1, RR: 0.9, RL: 1, FL: 0.84 };
   const MOTOR_VAR = { FR: 1, RR: 0.975, RL: 1.015, FL: 0.985 }; // 모터·프로펠러 개체 차이
   const DELAY = 3, dbuf = [];
-  const CONTACTS = [[0.12, -0.09, 0.12], [-0.12, -0.09, 0.12], [0.12, -0.09, -0.12], [-0.12, -0.09, -0.12], [0.25, 0.05, 0.25], [-0.25, 0.05, 0.25], [0.25, 0.05, -0.25], [-0.25, 0.05, -0.25], [0, 0.11, 0.06], [0, -0.05, 0]].map((a) => new T.Vector3(a[0], a[1], a[2]));
+  const CONTACTS = [[0.12, -0.09, 0.12], [-0.12, -0.09, 0.12], [0.12, -0.09, -0.12], [-0.12, -0.09, -0.12], [0.25, 0.05, 0.25], [-0.25, 0.05, 0.25], [0.25, 0.05, -0.25], [-0.25, 0.05, -0.25], [0, 0.11, 0.06], [0, -0.05, 0]].map((a) => new T.Vector3(a[0] * K, a[1] * K, a[2] * K));
 
   function resetCtl() { F.iR = F.iP = F.iY = F.thrI = 0; F.dp = F.dq = 0; F.lastP = F.lastQ = 0; F.altT = F.pos.y; F.posT = F.pos.clone(); F.rtlPhase = 0; F.landT = 0; }
   F.start = function () {
     F.active = true; F.armed = false; F.crashed = false; F.drain = 1;
-    F.pos.set(0, 0.092, 0); F.vel.set(0, 0, 0); F.q.identity(); F.w.set(0, 0, 0);
+    F.pos.set(0, 0.092 * K, 0); F.lost = {}; F.looseT = {}; F.vel.set(0, 0, 0); F.q.identity(); F.w.set(0, 0, 0);
     F.used = 0; F.fsRadio = false; F.fsBatt = false; F.lowT = 0; F.gest = 0; F.lastSlot = 0; F.idleT = 0; F.tiltT = 0; F.hdgT = null;
-    F.home = new T.Vector3(0, 0.092, 0); dbuf.length = 0; F.gust = new T.Vector3();
+    F.home = new T.Vector3(0, 0.092 * K, 0); dbuf.length = 0; F.gust = new T.Vector3();
     for (const id of SIM.POS_IDS) SIM.motorU[id] = 0;
     resetCtl();
     tx.ly = -1; tx.lx = tx.rx = tx.ry = 0;
@@ -141,11 +142,11 @@
     if (!rc.lost) { if (F.fsRadio) { F.fsRadio = false; SIM.log("Radio Failsafe Cleared · 모드 스위치를 움직이면 조종권 회복"); F.lastSlot = 0; } F.rcWarn = false; }
 
     // 배터리
-    const cap = 3300;
-    F.amps = 0.4; for (const id of SIM.POS_IDS) F.amps += Math.pow(SIM.motorU[id], 1.5) * 12;
+    const cap = CAP;
+    F.amps = 1; for (const id of SIM.POS_IDS) F.amps += Math.pow(SIM.motorU[id], 1.5) * 60;
     F.used += ((F.amps * dt) / 3.6) * F.drain;
     F.volt = battVolt(F.used, cap, F.amps);
-    const battK = clamp((F.volt - 11.8) / 1.0, 0, 1); // ESC 저전압 컷오프
+    const battK = clamp((F.volt - 17.7) / 1.5, 0, 1); // ESC 저전압 컷오프
     if (pw.battSense && p.BATT_LOW_VOLT > 0 && F.volt < p.BATT_LOW_VOLT) {
       F.lowT += dt;
       if (F.lowT > 1.5 && !F.fsBatt) {
@@ -247,18 +248,22 @@
       const ph = SIM.motorPhysical(id), num = SIM.motorNumForPos(id), ps = SIM.POS[id];
       let cmd = ph.canSpin && num && pw.fcBatt ? dout[num] : 0;
       if (!escCal) cmd *= ESC_GAIN[id];
-      let u = SIM.motorU[id]; u += (cmd * battK - u) * Math.min(1, dt / 0.04); SIM.motorU[id] = u;
+      let u = SIM.motorU[id]; u += (cmd * battK - u) * Math.min(1, dt / 0.06); SIM.motorU[id] = u;
       const thrust = TMAX * u * ph.thrust * MOTOR_VAR[id], s = ph.dir === "ccw" ? 1 : -1;
       _force.y += thrust;
       _tq.x += -ps.z * ARM * thrust; _tq.z += ps.x * ARM * thrust;
       _tq.y += -s * KQ * TMAX * u * (ph.prop ? 1 : 0.05);
+      if (ph.loose && ph.prop && u > 0.2) { // 축 나사 방향이 반대인 모터: 너트가 서서히 풀린다
+        F.looseT[id] = (F.looseT[id] || 0) + u * dt;
+        if (F.looseT[id] > 3) { F.lost[id] = true; SIM.log(SIM.POS[id].name + " 프로펠러가 풀려 이탈했습니다", "bad"); }
+      }
     }
     _force.applyQuaternion(F.q); // 월드 좌표 힘
     _force.y -= MASS * G;
-    _force.addScaledVector(F.vel, -0.35);
-    _tq.addScaledVector(F.w, -0.004);
+    _force.addScaledVector(F.vel, -2.2);
+    _tq.addScaledVector(F.w, -0.06);
     if (!F.contact) { // 약한 난류
-      F.gust.x += ((Math.random() - 0.5) * 0.05 - F.gust.x) * dt * 4; F.gust.y += ((Math.random() - 0.5) * 0.02 - F.gust.y) * dt * 4; F.gust.z += ((Math.random() - 0.5) * 0.05 - F.gust.z) * dt * 4;
+      F.gust.x += ((Math.random() - 0.5) * 1.2 - F.gust.x) * dt * 4; F.gust.y += ((Math.random() - 0.5) * 0.4 - F.gust.y) * dt * 4; F.gust.z += ((Math.random() - 0.5) * 1.2 - F.gust.z) * dt * 4;
       _tq.add(F.gust);
     }
 
@@ -271,9 +276,9 @@
       if (y >= 0) continue;
       contact++; if (i >= 4 && i < 9) topHit = true;
       _b.copy(F.w).applyQuaternion(F.q).cross(_a).add(F.vel); // 접촉점 속도
-      const fn = Math.max(0, -y * 2600 - _b.y * 34);
-      _fw.set(-_b.x * 9, fn, -_b.z * 9);
-      const fl = Math.hypot(_fw.x, _fw.z), fmax = fn * 0.9 + 0.5;
+      const fn = Math.max(0, -y * 26000 - _b.y * 340);
+      _fw.set(-_b.x * 90, fn, -_b.z * 90);
+      const fl = Math.hypot(_fw.x, _fw.z), fmax = fn * 0.9 + 5;
       if (fl > fmax) { _fw.x *= fmax / fl; _fw.z *= fmax / fl; }
       _force.add(_fw);
       _tq.add(_a.cross(_fw).applyQuaternion(_qi));
@@ -301,8 +306,7 @@
   const MT = (SIM.motorTest = { queue: [], cur: null, results: {} });
   MT.run = function (letters, pct, dur) {
     const pw = SIM.power();
-    if (!pw.fc) return "FC가 없어 명령을 보낼 수 없습니다.";
-    if (!pw.main) return "모터 전원이 없습니다. 배터리와 파워 모듈을 장착하고 커넥터를 연결하세요.";
+    if (!pw.fc) return "FC가 연결되지 않았습니다.";
     MT.queue = letters.map((l) => ({ l, pct, dur }));
     MT.cur = null;
     return "";
@@ -362,7 +366,7 @@
     } else {
       benchStep(dt);
       const est = SIM.estimate(SIM.scene.drone.quaternion, null), pw = SIM.power();
-      SIM.hud = { roll: est.roll, pitch: est.pitch, hdg: est.hdg, alt: 0, vs: 0, volt: pw.battSense ? battVolt(0, 3300, 0.4) : null, mode: SIM.MODES[SIM.state.params["FLTMODE" + SIM.modeSlot(SIM.rcIn().modePwm)]], armed: false, on: pw.fc, est };
+      SIM.hud = { roll: est.roll, pitch: est.pitch, hdg: est.hdg, alt: 0, vs: 0, volt: pw.battSense ? battVolt(0, CAP, 1) : null, mode: SIM.MODES[SIM.state.params["FLTMODE" + SIM.modeSlot(SIM.rcIn().modePwm)]], armed: false, on: pw.fc, est };
     }
   };
 })();
