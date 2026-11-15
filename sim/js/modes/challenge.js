@@ -43,7 +43,7 @@ export class ChallengeMode extends CombatMode {
     this.bossCfg = this.cfg.boss || null;   // 스토리 단계가 정한 보스 (등장 시각 at 초, 또는 목표 달성 직후)
     this[`setup_${this.id}`](c, this.s.map, this.s.world);
     for (let i = 0; i < this.teamN; i++) {
-      const b = c.spawnBot({ kind: "grunt", team: 0, respawns: true, hpScale: 1.5, leader: this.me, slot: i, name: `윙맨 ${i + 1}` });
+      const b = c.spawnBot({ kind: "grunt", team: 0, respawns: true, hpScale: 1.5, leader: this.me, slot: i, name: (this.cfg.wing && this.cfg.wing[i]) || `윙맨 ${i + 1}` });
       b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
     }
   }

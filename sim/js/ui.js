@@ -10,6 +10,8 @@ import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
 import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
 import * as SY from "./story.js";
+import { VN, BONDS, rel } from "./vn.js";
+import { portrait } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
@@ -53,6 +55,7 @@ function setPath(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.r
 export class UI {
   constructor(game) {
     this.game = game;
+    this.vn = new VN(game);
     this.root = document.getElementById("ui");
     this.screen = null;
     this.tab = "control";
@@ -343,7 +346,7 @@ export class UI {
     const open = unlocked(st);
     if (!usesTeam(st)) s.team = s.team || 0;
     const talk = st.talk.map((l) => { const [who, line] = l.includes("|") ? l.split("|") : ["", l]; return `<div class="ln"><b style="color:${SY.CAST[who] || "#dfe7f1"}">${esc(who)}</b><span>${esc(line)}</span></div>`; }).join("");
-    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div><div class="goal">목표 <b>${goalText(st)}</b></div></div>`;
+    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div><div class="goal">목표 <b>${goalText(st)}</b></div>${SY.preScene(st) && open ? `<button class="ghost scenebtn" data-a="scene">▶ ${SY.sceneSeen(st) ? "장면 다시 보기" : "출격 전 장면 미리 보기"}</button>` : ""}</div>`;
     if (!open) brief += `<p class="hint2">${SY.chapterOpen(ch) ? "앞 단계를 먼저 깨야 열립니다." : "앞 장을 먼저 끝내야 열립니다."}</p>`;
     if (usesTeam(st)) brief += `<div class="opt"><label>편대</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team ?? st.o.team ?? 0)}<div class="hint">윙맨이 늘면 적도 늘어납니다. 권장: ${[0, 1, 3].includes(st.o.team) ? ["혼자", "2기 편대", "", "4기 편대"][st.o.team] : "혼자"}</div></div>`;
     brief += `<div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((k) => [k, FLIGHT_MODE_INFO[k].label]), settings.flightMode, "set")}</div>`;
@@ -351,7 +354,8 @@ export class UI {
     const body = `<p class="hint2 intro">${esc(SY.chapterIntro(ch))}</p>`
       + this._step(1, "장 선택", `${ch.no}. ${ch.title}`, `<div class="grid maps">${chCards}</div>`)
       + this._step(2, ch.routes ? "작전 선택 · 단계" : "단계 선택", `${rt ? rt.name + " · " : ""}${st.no}. ${st.title}`, rtCards + `<div class="stages">${stCards}</div>`)
-      + this._step(3, "브리핑", "", brief);
+      + this._step(3, "브리핑", "", brief)
+      + this._step(4, "동료와의 관계", "", this._bonds());
     return `<div class="screen split story" style="--c:${m.c}">
       <div class="pane" data-scroll>
         <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>노을의 날개</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
@@ -361,6 +365,14 @@ export class UI {
       </div>
       <div class="rcol"><div class="stage" data-stage></div></div>
     </div>`;
+  }
+
+  _bonds() {
+    const met = { 서하린: SY.cleared({ id: "c2-4" }) || progress() >= 7, 바우: progress() >= 8, 유리: progress() >= 8, 차도윤: true, 모아: progress() >= 4, 노을: progress() >= 7 };
+    return `<div class="bonds">${BONDS.map((n) => {
+      const v = Math.max(0, rel(n)), lv = Math.min(5, Math.floor(v / 2)), known = met[n] || v > 0;
+      return `<div class="bond ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}"><i class="face" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i><div><b>${known ? n : "???"}</b><small>${known ? esc(SY.CAST_ROLE[n] || "") : "아직 만나지 않았다"}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></div>`;
+    }).join("")}</div><p class="hint2">장면 속 선택에 따라 관계가 깊어집니다. 관계가 깊은 동료가 윙맨으로 함께 날고, 마지막 장면과 엔딩이 달라집니다.</p>`;
   }
 
   // 비행훈련: ① 과정 ② 과목 ③ 브리핑·과제
@@ -518,7 +530,7 @@ export class UI {
     else if (s.mode === "challenge") {
       const st = story().flat.find((x) => x.id === s.stage);
       if (!st || !unlocked(st)) return;
-      return this.game.startSession(stageConfig(st, usesTeam(st) ? s.team ?? st.o.team ?? 0 : 0));
+      return this._storyGo(st);
     }
     else { const ms = MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]; Object.assign(cfg, { mission: ms.id, map: ms.map, team: s.team }); }
     this.game.startSession(cfg);
@@ -756,13 +768,14 @@ export class UI {
       ${r.sub ? `<div class="sub">${esc(r.sub)}</div>` : ""}
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
-      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>${r.story.after ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
+      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
-        ${r.story && r.story.next ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
-        <button class="${(r.story && r.story.next) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
-        ${r.story ? `<button class="${r.story.choose ? "primary" : ""}" data-a="tostory">${r.story.choose ? "다음 장: 작전 선택 →" : "단계 목록으로"}</button>` : ""}
+        ${r.story && r.story.post ? `<button class="primary" data-a="storypost" data-v="${r.story.stage.id}">이야기 계속 →</button>` : ""}
+        ${r.story && r.story.next && !r.story.post ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
+        <button class="${(r.story && (r.story.next || r.story.post)) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
+        ${r.story ? `<button class="${r.story.choose && !r.story.post ? "primary" : ""}" data-a="tostory">${r.story.choose && !r.story.post ? "다음 장: 작전 선택 →" : "단계 목록으로"}</button>` : ""}
         ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div></div></div>`;
@@ -783,8 +796,37 @@ export class UI {
   a_nextstage(v) {
     const st = story().flat.find((x) => x.id === v);
     if (!st) return;
-    this.sel.chapter = st.chapter.id; this.sel.route = st.route ? st.route.id : null; this.sel.stage = st.id; this._persist();
-    this.game.startSession(stageConfig(st, usesTeam(st) ? this.sel.team ?? st.o.team ?? 0 : 0));
+    this._storyGo(st);
+  }
+  // 스토리 단계 출격: 처음이면 출격 전 장면부터
+  _storyGo(st, force = false) {
+    this.sel.mode = "challenge"; this.sel.chapter = st.chapter.id; this.sel.route = st.route ? st.route.id : null; this.sel.stage = st.id; this._persist();
+    const go = () => this.game.startSession(stageConfig(st, usesTeam(st) ? this.sel.team ?? st.o.team ?? 0 : 0));
+    const pre = SY.preScene(st);
+    if (pre && (force || !SY.sceneSeen(st))) {
+      if (this.game.session) { this.game.session.dispose(); this.game.session = null; this.game.state = "menu"; }
+      this.hide();
+      this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.chapter.title}`, onDone: () => { SY.markSeen(st); go(); } });
+    } else go();
+  }
+  // 출격 전 장면 다시 보기 (출격하지 않음)
+  a_scene() {
+    const st = story().flat.find((x) => x.id === this.sel.stage), pre = st && SY.preScene(st);
+    if (!pre) return;
+    this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 다시 보기`, onDone: () => { SY.markSeen(st); this.redraw(); } });
+  }
+  // 통과 후 장면 → (다음 단계가 이어지면) 그 단계의 출격 전 장면 → 출격
+  a_storypost(v) {
+    const st = story().flat.find((x) => x.id === v), post = st && SY.postScene(st);
+    if (!post) return;
+    this.game.quit();
+    this.hide();
+    this.vn.play(post, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, onDone: () => {
+      const nx = SY.nextOf(st) || SY.current();
+      if (nx && unlocked(nx) && !SY.cleared(nx)) return this._storyGo(nx);
+      if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }
+      this.sel.mode = "challenge"; this._persist(); this.show("setup");
+    } });
   }
   a_tostory() {
     const cur = story().flat.find((x) => x.id === (this.game.lastCfg || {}).story), nx = (cur && SY.cleared(cur) && SY.current()) || cur;

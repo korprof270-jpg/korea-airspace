@@ -13,6 +13,8 @@ import { SurvivalMode } from "./modes/survival.js";
 import { ChallengeMode } from "./modes/challenge.js";
 import { TrainingMode } from "./modes/training.js";
 import { ConquestMode } from "./modes/conquest.js";
+import { portrait } from "./portraits.js";
+import { CAST } from "./story.js";
 
 const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode };
 
@@ -81,7 +83,31 @@ export class Session {
     this.feel.draw(h);
     if (!this.mode.cut) h.drawFlight(this, this.game.dt);   // 보스 컷신 중에는 비행 계기를 숨긴다
     this.mode.hud(h);
+    this._radio(h);
     h.drawToasts(this.game.dt);
+  }
+
+  // 스토리 무전: 정해진 시각에 동료 얼굴과 한 줄 대사를 4.5초 띄운다
+  _radio(h) {
+    const R = this.cfg.radio, m = this.mode;
+    if (!R || m.state !== "run" || m.cut || h.lvl === "off") return;
+    const cur = R.find(([at]) => m.time >= at && m.time < at + 4.5);
+    if (!cur) return;
+    const [at, who, line] = cur, k = Math.min(1, (m.time - at) * 4, (at + 4.5 - m.time) * 3);
+    const u = h.u, L = h.L, g = h.g, w = Math.min(460 * u, h.W - 32 * u), ph = 58 * u, x = L.cx - w / 2, y = L.conTop - ph - 70 * u;
+    g.save(); g.globalAlpha = k;
+    h.plate(x, y, w, ph, { accent: CAST[who] || "#9fb3c8", skew: 0.05 });
+    const src = portrait(who, "normal");
+    if (src) {
+      this._rimg = this._rimg || {};
+      let img = this._rimg[who];
+      if (!img) { img = this._rimg[who] = new Image(); img.src = src; }
+      if (img.complete && img.naturalWidth) { g.save(); g.beginPath(); g.rect(x + 8 * u, y + 5 * u, 48 * u, ph - 10 * u); g.clip(); g.drawImage(img, 90, 70, 220, 240, x + 6 * u, y + 2 * u, 52 * u, 56 * u); g.restore(); }
+    }
+    const tx = x + (src ? 66 : 16) * u;
+    h.text(who, tx, y + 17 * u, { size: 12, base: "middle", bold: true, color: CAST[who] || "#9fb3c8", shadow: false });
+    h.text(line, tx, y + 38 * u, { size: 14, base: "middle", color: "#fff", shadow: false });
+    g.restore();
   }
 
   resize(w, h) {

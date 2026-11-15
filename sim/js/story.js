@@ -2,6 +2,8 @@
 // 장(챕터)마다 단계를 차례로 깨 나가고, 몇몇 장은 작전안(루트)을 골라 다른 임무를 겪는다. 단계는 기존 게임 모드에 목표를 붙인 것
 import { MAPS } from "./maps/index.js";
 import { records, save } from "./config.js";
+import { SCENES, RADIO } from "./scenes.js";
+import { rel } from "./vn.js";
 
 // 단계 종류 → 표시 이름
 export const KIND = {
@@ -185,7 +187,7 @@ export function story() { return cache || (cache = build()); }
 const KEY = (st) => `hs:${st.id}`;
 export const stageStars = (st) => records[KEY(st)] || 0;
 export const cleared = (st) => stageStars(st) > 0;
-export const routeOf = (ch) => records[`hsroute:${ch.id}`] || null;         // 처음 끝낸 루트
+export const routeOf = (ch) => records[`hspick:${ch.id}`] || records[`hsroute:${ch.id}`] || null;   // 장면에서 고른 작전 (없으면 처음 끝낸 루트)
 export const pathOf = (st) => (st.route ? st.route.stages : st.chapter.stages);
 export const routeDone = (r) => r.stages.every(cleared);
 export function chapterDone(ch) { return ch.routes ? ch.routes.some(routeDone) : ch.stages.every(cleared); }
@@ -237,11 +239,31 @@ export function goalText(st) {
 }
 export const isBoss = (st) => !!st.boss && (st.kind === "boss" || st.kind === "titan" || st.boss.kind === "boss");
 
+// ── 장면 ──
+// 출격 전 장면
+export const preScene = (st) => (SCENES[st.id] && SCENES[st.id].pre) || null;
+export const sceneSeen = (st) => !!records[`hsseen:${st.id}`];
+export function markSeen(st) { records[`hsseen:${st.id}`] = 1; save(); }
+// 통과 후 장면: 단계 장면 + (루트 장의 마지막 단계면) 장 마무리 장면
+export function postScene(st) {
+  const a = (SCENES[st.id] && SCENES[st.id].post) || [], p = pathOf(st), last = p[p.length - 1] === st;
+  const b = last && st.route && SCENES[`${st.chapter.id}:end`] ? SCENES[`${st.chapter.id}:end`].post : [];
+  const out = [...a, ...b];
+  return out.length ? out : null;
+}
+// 함께 나는 동료: 관계가 깊은 순서 (차도윤은 5장을 마친 뒤부터)
+export function wingNames(st) {
+  const pool = ["서하린", "바우", "유리"];
+  if (st.chapter.no > 5 || (st.chapter.no === 5 && st.route && st.route.id === "b" && st.no > 1)) pool.push("차도윤");
+  if (st.chapter.no < 3) return ["서하린"];
+  return pool.sort((a, b) => rel(b) - rel(a));
+}
+
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
   const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, title: `스토리 ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, radio: RADIO[st.id] || null, wing: wingNames(st), title: `스토리 ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
@@ -281,6 +303,7 @@ export function complete(id, result) {
     const cs = story().chapters, nc = cs[cs.indexOf(st.chapter) + 1];
     info.choose = last && !!nc && !!nc.routes;
     info.done = last && !nc;
+    info.post = !!postScene(st);
   }
   return info;
 }
