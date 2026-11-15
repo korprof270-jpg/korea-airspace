@@ -213,7 +213,7 @@ export class SurvivalMode extends CombatMode {
     const rows = c.board().map((a) => ({ name: a.name + (this.variant === "dm" ? "" : ` · ${TEAM_NAME[a.team]}`), me: a === me, vals: [Math.round(a.score), a.kills, a.deaths] }));
     const board = { cols: ["점수", "격추", "피격추"], rows };
     if (this.variant === "dm") {
-      const rank = 1 + c.board().filter((a) => a !== me && a.score > me.score).length;
+      const rank = (this.rank = 1 + c.board().filter((a) => a !== me && a.score > me.score).length);
       this.finish({
         title: rank === 1 ? "승리!" : `${rank}위`, sub: VARIANTS.dm.name, win: rank === 1, record: rec, stars: Math.max(0, 4 - rank), board,
         lines: [{ label: "내 점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey]}` }],

@@ -16,6 +16,7 @@ import { ConquestMode } from "./modes/conquest.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 import * as GP from "./garage.js";
+import { metrics, judge } from "./objectives.js";
 
 const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode };
 
@@ -88,7 +89,26 @@ export class Session {
     if (!this.mode.cut) h.drawFlight(this, this.game.dt);   // 보스 컷신 중에는 비행 계기를 숨긴다
     this.mode.hud(h);
     this._radio(h);
+    this._objHud(h);
     h.drawToasts(this.game.dt);
+  }
+
+  // 스토리 목표 체크리스트 (오른쪽 가운데): ✔ 달성 · ● 유지 중 · ✖ 실패 · ○ 판정 대기
+  _objHud(h) {
+    const L = this.cfg.objectives, m0 = this.mode;
+    if (!L || m0.cut || h.lvl === "off" || m0.state === "countdown" && m0.time < 0) return;
+    const u = h.u, m = metrics(m0), w = 230 * u, lh = 19 * u, ph = 26 * u + L.length * lh, x = h.L.r - w, y = h.H * 0.36;
+    h.plate(x, y, w, ph, { accent: "#ffd24a", side: "right", skew: 0.04 });
+    const got = L.filter((o) => judge(o, m).ok && (judge(o, m).final || judge(o, m).keep)).length;
+    h.text(`목표 ${this.cfg.need}개 이상 달성`, x + 12 * u, y + 13 * u, { size: 11.5, base: "middle", bold: true, color: "#ffd24a", shadow: false });
+    L.forEach((o, i) => {
+      const j = judge(o, m), yy = y + 30 * u + i * lh;
+      const mark = j.ok && j.final ? "✔" : j.ok && j.keep ? "●" : !j.ok && j.final ? "✖" : "○";
+      const col = mark === "✔" ? "#35ff7a" : mark === "●" ? "#9fe8b8" : mark === "✖" ? "#ff6b5a" : "#b4c2d4";
+      h.text(mark, x + 14 * u, yy, { size: 12, base: "middle", color: col, shadow: false });
+      h.text((o.req ? "★ " : "") + o.text, x + 30 * u, yy, { size: 12, base: "middle", color: mark === "✖" ? "#ff9a8a" : "#fff", shadow: false });
+    });
+    void got;
   }
 
   // 스토리 무전: 정해진 시각에 동료 얼굴과 한 줄 대사를 4.5초 띄운다

@@ -1,4 +1,4 @@
-// 트래킹: 움직이는 피사체(차량·사람·드론·보트)를 화면에 담아 따라가며 촬영 점수를 얻는다
+// 트래킹: 움직이는 피사체(차량·사람·드론·보트)를 화면에 담고 적정 거리를 유지하며 따라간다. 별점은 적정 거리 유지 비율
 import * as THREE from "../../vendor/three.module.min.js";
 import { Mode, stars } from "./base.js";
 import { PathMover, makeSubjectModel } from "../entities.js";
@@ -78,14 +78,19 @@ export class TrackingMode extends Mode {
       for (const c of sc) c.off = true;      // 피사체 자신의 충돌 상자는 시야 판정에서 제외
       this.visible = this.s.world.col.visible(cam.position, this.target, 0.8);
       for (const c of sc) c.off = false; }
-    let q = 0;
-    if (front && Math.abs(_p.x) < 1 && Math.abs(_p.y) < 1 && this.visible) {
+    // 점수 기준: 피사체가 화면 안에 있고, 적정 거리 범위를 "유지"할 때. 가까이 붙는다고 점수가 오르지 않는다
+    //  범위 가운데(ideal)일수록 1, 범위 끝에서는 0.8, 너무 가까우면 빠르게 0, 멀어지면 범위의 1.5배에서 0
+    let q = 0, band = false;
+    if (front && Math.abs(_p.x) < 0.95 && Math.abs(_p.y) < 0.95 && this.visible) {
+      const lo = info.dmin, hi = info.dmax, mid = (lo + hi) / 2, half = (hi - lo) / 2;
+      let dq;
+      if (dist < lo) dq = clamp((dist - lo * 0.7) / (lo * 0.3), 0, 0.8);
+      else if (dist > hi) dq = clamp(0.8 * (1 - (dist - hi) / (hi * 0.5)), 0, 0.8);
+      else { dq = 1 - 0.2 * Math.abs(dist - mid) / half; band = true; }
       const center = 1 - Math.min(1, Math.hypot(_p.x, _p.y * 0.8));
-      let dq = 1;
-      if (dist < info.dmin) dq = clamp((dist - info.dmin * 0.35) / (info.dmin * 0.65), 0, 1);
-      else if (dist > info.dmax) dq = clamp(1 - (dist - info.dmax) / (info.dmax * 1.5), 0, 1);
-      q = (0.3 + 0.7 * center) * dq;
+      q = dq * (0.85 + 0.15 * center);
     }
+    if (band) this.keepT = (this.keepT || 0) + dt;
     this.dist = dist;
     this.quality += (q - this.quality) * Math.min(1, dt * 6);
     this.qSum += q * dt;
@@ -96,11 +101,13 @@ export class TrackingMode extends Mode {
     this.score += q * 100 * dt * this.combo;
 
     if (this.time >= this.duration || this.mover.done) {
-      const sc = Math.round(this.score), max = this.duration * 100;
+      const sc = Math.round(this.score), keep = (this.keepT || 0) / Math.max(1, this.time);
+      this.keepRatio = keep;
       const rec = submitRecord(this.recKey, sc);
       this.finish({
-        title: "촬영 종료", sub: this.def.name, stars: stars(sc / max, [0.35, 0.8, 1.35]), record: rec,
+        title: "촬영 종료", sub: this.def.name, stars: stars(keep, [0.45, 0.68, 0.86]), record: rec,
         lines: [
+          { label: "적정 거리 유지", value: `${Math.round(keep * 100)}%` },
           { label: "점수", value: `${sc}` }, { label: "평균 프레이밍", value: `${Math.round((this.qSum / this.duration) * 100)}%` },
           { label: "최장 연속 추적", value: `${this.bestStreak.toFixed(1)}초` }, { label: "최고 기록", value: `${records[this.recKey]}` },
         ],
@@ -144,7 +151,7 @@ export class TrackingMode extends Mode {
     const q = this.quality, col = q > 0.6 ? "#35ff7a" : q > 0.3 ? "#ffd24a" : "#ff6b5a";
     const rw = 190 * u, rh = (full ? 62 : 34) * u, rx = L.r - rw, ry = L.trY;
     h.plate(rx, ry, rw, rh, { accent: col, side: "right", skew: full ? 0.1 : 0.2 });
-    h.text("프레이밍", rx + 22 * u, ry + 18 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
+    h.text(`유지 ${Math.round(((this.keepT || 0) / Math.max(1, this.time)) * 100)}%`, rx + 14 * u, ry + 18 * u, { size: 12, base: "middle", color: "#b4c2d4", shadow: false });
     h.segbar(rx + 78 * u, ry + 11 * u, rw - 100 * u, 13 * u, q, 8, col);
     if (full) {
       // 거리: 적정 범위(초록 구간) 안에 지시침이 들어오게

@@ -12,6 +12,7 @@ import { PostFX } from "./post.js";
 import { MenuScene, Thumbs } from "./menu3d.js";
 import { complete as completeStage } from "./story.js";
 import * as GP from "./garage.js";
+import { metrics, evaluate } from "./objectives.js";
 import { complete as completeLesson } from "./training.js";
 
 const MENU_BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.92 };
@@ -135,6 +136,8 @@ class Game {
   }
 
   showResult(result) {
+    const cf = this.lastCfg;
+    if (cf && cf.story && cf.objectives && this.session) result.obj = evaluate(cf.objectives, cf.need, metrics(this.session.mode, result));   // 스토리 목표 판정
     if (this.lastCfg && this.lastCfg.story) result.story = completeStage(this.lastCfg.story, result);   // 스토리 단계 판정·진행도 저장
     if (this.lastCfg && this.lastCfg.training) result.training = completeLesson(this.lastCfg.training, result);   // 비행훈련 과목 판정
     if (this.lastCfg) result.reward = GP.onResult(this.lastCfg, result);   // 포인트·퀘스트·업적

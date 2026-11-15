@@ -350,13 +350,14 @@ export class UI {
     const stCards = list.map((x) => {
       const open = unlocked(x), cl = SY.cleared(x);
       return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cl ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
-        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (SY.isBoss(x) ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
+        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (SY.isBoss(x) ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · 목표 ${SY.objectivesOf(x).list.length}개 중 ${SY.objectivesOf(x).need}개${SY.missionMod(x) ? " · ⚑ 작전 변경" : ""}</small></span>
         <span class="stars">${cl ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
     }).join("");
     const open = unlocked(st);
     if (!usesTeam(st)) s.team = s.team || 0;
     const talk = st.talk.map((l) => { const [who, line] = l.includes("|") ? l.split("|") : ["", l]; return `<div class="ln"><b style="color:${SY.CAST[who] || "#dfe7f1"}">${esc(who)}</b><span>${esc(line)}</span></div>`; }).join("");
-    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div><div class="goal">목표 <b>${goalText(st)}</b></div>${SY.preScene(st) && open ? `<button class="ghost scenebtn" data-a="scene">▶ ${SY.sceneSeen(st) ? "장면 다시 보기" : "출격 전 장면 미리 보기"}</button>` : ""}</div>`;
+    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div>${(() => { const md = SY.missionMod(st), OB = SY.objectivesOf(st);
+      return `${md && md.note ? `<div class="mnote">⚑ 작전 변경 · ${esc(md.note)}</div>` : ""}<div class="objs"><b>목표 — ${OB.list.length}개 중 ${OB.need}개 이상 달성</b><ul>${OB.list.map((o) => `<li class="${o.req ? "req" : ""}">${o.req ? "★ " : ""}${esc(o.text)}${o.req ? " <i>핵심</i>" : ""}</li>`).join("")}</ul></div>`; })()}${SY.preScene(st) && open ? `<button class="ghost scenebtn" data-a="scene">▶ ${SY.sceneSeen(st) ? "장면 다시 보기" : "출격 전 장면 미리 보기"}</button>` : ""}</div>`;
     if (!open) brief += `<p class="hint2">${SY.chapterOpen(ch) ? "앞 단계를 먼저 깨야 열립니다." : "앞 장을 먼저 끝내야 열립니다."}</p>`;
     if (usesTeam(st)) brief += `<div class="opt"><label>편대</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team ?? st.o.team ?? 0)}<div class="hint">윙맨이 늘면 적도 늘어납니다. 권장: ${[0, 1, 3].includes(st.o.team) ? ["혼자", "2기 편대", "", "4기 편대"][st.o.team] : "혼자"}</div></div>`;
     brief += `<div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((k) => [k, FLIGHT_MODE_INFO[k].label]), settings.flightMode, "set")}</div>`;
@@ -859,7 +860,7 @@ export class UI {
       ${r.sub ? `<div class="sub">${esc(r.sub)}</div>` : ""}
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
-      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
+      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
       ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">

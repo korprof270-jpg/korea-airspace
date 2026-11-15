@@ -144,7 +144,7 @@ export class RaceMode extends Mode {
     this._states();
     if (this.guide) this.guide.setTarget(null);
     const total = this.time;
-    const rank = 1 + this.bots.filter((b) => b.finished && b.finished < total).length;
+    const rank = (this.rank = 1 + this.bots.filter((b) => b.finished && b.finished < total).length);
     const rec = submitRecord(this.recKey, total, true);
     const lines = [
       { label: "기록", value: fmtTime(total) },

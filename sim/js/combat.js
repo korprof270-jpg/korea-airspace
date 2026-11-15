@@ -419,6 +419,7 @@ export class Combat {
     if (!a.alive) return;
     a.alive = false; a.hp = 0; a.deaths++;
     if (killer && killer !== a) killer.kills++;
+    if (a.bossBar) this.bossDown = (this.bossDown || 0) + 1;   // 스토리 목표: 보스·중간 보스 격파
     if (killer && killer.isPlayer && killer !== a && (this.ffa || killer.team !== a.team)) {
       if (a.kind === "bot") GP.ev("kill");
       if (a.kind === "turret" || (a.unit && a === a.unit.root)) GP.ev("turret");

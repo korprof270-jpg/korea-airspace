@@ -4,10 +4,11 @@ import { MAPS } from "./maps/index.js";
 import { records, save } from "./config.js";
 import { SCENES, RADIO } from "./scenes.js";
 import { rel } from "./vn.js";
+import { defaultObjectives, needCount, objText } from "./objectives.js";
 
 // 단계 종류 → 표시 이름
 export const KIND = {
-  race: "레이싱", infil: "침투 타임어택", track: "추적 촬영", free: "트릭 비행", dm: "공중전",
+  race: "레이싱", infil: "침투 타임어택", track: "추적 촬영", dm: "공중전",
   waves: "기지 방어", strike: "목표 타격", escort: "호송", supply: "보급", heist: "탈취", boss: "보스전", titan: "초거대로봇전",
 };
 const MISSION = new Set(["waves", "strike", "escort", "supply", "heist", "boss", "titan"]);
@@ -39,7 +40,7 @@ const CHAPTERS = [
     intro: "기계제국 에이아가 하늘을 뒤덮은 지 12년. 마지막 인류 동맹 ‘휴마 연합’은 비행단 파일럿을 뽑는다. 당신은 오늘, 그 시험장에 섰다.",
     stages: [
       S("race", "첫 관문", ["강 교관|휴마 연합 비행단 입단 테스트에 온 걸 환영한다. 첫 과제는 간단해. 게이트를 순서대로 통과해 완주한다.", "차도윤|…저 녀석이 이번 기수 마지막 지원자? 기체도 대여품이네.", "강 교관|잡담 금지. 출발!"], { ti: 0, laps: 1, rivals: 2, need: 1, diff: "easy" }),
-      S("free", "곡예 심사", ["강 교관|제국 드론은 빠르다. 똑바로만 나는 파일럿은 첫 출격에서 떨어진다.", "강 교관|롤, 플립, 파워루프. 2분 동안 네가 할 수 있는 걸 전부 보여 줘."], { need: 1 }),
+      S("infil", "기동 심사", ["강 교관|제국 드론은 빠르다. 기체를 마음대로 못 다루는 놈은 첫 출격에서 떨어진다.", "강 교관|제한 시간 안에 장애물 코스를 빠져나와라."], { ti: 1, laps: 1, limitK: 1.35, diff: "easy" }),
       S("track", "표적 추적", ["강 교관|정찰도 파일럿 임무다. 움직이는 표적을 화면 가운데 두고 끝까지 따라가라.", "차도윤|표적 놓치면 바로 탈락이래. 뭐, 난 만점이었지만."], { si: 0, need: 1 }),
       S("dm", "최종 모의전", ["강 교관|마지막은 실전 모의전이다. 훈련용 드론 셋, 그리고…", "차도윤|내가 상대해 주지. 최신예기 ‘백야’로.", "강 교관|3위 안에 들어라. 차도윤의 백야는 도중에 난입한다."],
         { bots: 3, time: 150, need: 2, diff: "easy", boss: { name: "라이벌 차도윤 ‘백야’", kind: "gunship", at: 40, hp: 1.3 }, after: "강 교관: “합격이다. …다만 남은 기체가 없다. 정비창에 가 봐라. 모아가 뭔가 찾아 줄 거다.”" }),
@@ -51,7 +52,7 @@ const CHAPTERS = [
     stages: [
       S("track", "고철 더미의 빛", ["모아|어서 와, 신입! 남는 기체? 하나 있긴 한데… 아무도 안 타려고 해.", "모아|XN-0 노을. 탄 사람마다 ‘기체가 말을 안 듣는다’면서 반납했지. 부품이 폐기장으로 실려 가니까 저 지게차부터 따라가서 찾아와!"], { si: 0, need: 1 }),
       S("infil", "XN-0 시운전", ["모아|부품은 다 맞췄어. 이제 시운전! 제한 시간 안에 코스를 돌아와 봐.", "모아|…이상하네. 조종 입력보다 반응이 먼저 와. 마치 네 생각을 읽는 것처럼."], { ti: 0, laps: 1, limitK: 1.25, need: 1 }),
-      S("free", "노을의 춤", ["모아|좋아, 다들 못 다루던 녀석이 너랑은 잘 맞는 것 같아.", "차도윤|고물로 곡예라도 하시게? 볼만하겠네.", "모아|보여 줘. 2분 동안 노을이 뭘 할 수 있는지."], { need: 2 }),
+      S("race", "고물 대 백야", ["모아|좋아, 다들 못 다루던 녀석이 너랑은 잘 맞는 것 같아.", "차도윤|고물이랑 경주라니. 내가 지면 백야를 반납하지.", "모아|보여 줘. 노을이 뭘 할 수 있는지."], { ti: 1, laps: 2, rivals: 3, need: 2 }),
       S("strike", "정비창 기습", ["관제|긴급! 에이아 제국 정찰대가 항만에 방공 포탑을 내렸습니다!", "서하린|편대장 서하린이다. 신입, 네 기체 그대로 출격해. 포탑과 지휘소를 정리한다.", "모아|노을, 부탁해… 아니, 내가 왜 기체한테 부탁을 하지?"],
         { team: 1, power: 0.75, diff: "easy", boss: { name: "제국 대공 로봇 ‘집게’", kind: "gunship", unit: "aa", scale: 1.5, at: 50, hp: 1.1 }, after: "착륙한 순간, 통신기 너머로 처음 듣는 목소리가 들렸다. 노을: “…괜찮아? 다친 데는 없어?”" }),
     ],
@@ -83,7 +84,7 @@ const CHAPTERS = [
         id: "b", name: "협곡 침투", who: "유리", desc: "유리와 단둘이 협곡 바닥을 따라 잠입한다. 제한 시간 안의 침투 비행과 센서를 속이는 트릭 비행이 관건.",
         stages: [
           S("infil", "협곡 바닥 잠입", ["유리|제국 감시망은 37초마다 한 바퀴 돌아요. 그 틈에 아치와 흔들다리 밑을 빠져나가야 해요.", "유리|제한 시간을 넘기면 경보가 울려요. 빠르게, 낮게!"], { ti: 0, laps: 1, limitK: 1.15, need: 1 }),
-          S("free", "센서 교란 비행", ["유리|전초기지 센서는 ‘규칙적인 움직임’만 드론으로 인식해요.", "유리|그러니까… 최대한 미친 듯이 날아 주세요. 트릭 점수가 높을수록 센서가 헷갈려요."], { need: 2 }),
+          S("track", "감시 드론 미행", ["유리|전초기지 감시 드론이 순찰 경로를 돌아요. 너무 붙으면 들키고, 떨어지면 놓쳐요.", "유리|적정 거리를 유지하면서 끝까지 따라가 주세요. 순찰 경로가 곧 기지 지도예요."], { si: 1, need: 2 }),
           S("track", "연락선 미행", ["유리|저 보트가 제국 연락선이에요. 끝까지 화면에 담으면 기지 좌표를 딸 수 있어요.", "노을|저 신호… 읽을 수 있어. 유리, 내가 도울게.", "유리|에? 방금 기체가 말한 거예요?!"],
             { si: 0, need: 2, after: "유리가 해독한 신호 끝에는 노을의 고백이 있었다. “나는 에이아가 처음 만든 기계. 인간을 지키라고 만들어졌는데… 에이아는 그 명령을 지웠어.”" }),
         ],
@@ -139,7 +140,7 @@ const CHAPTERS = [
         id: "b", name: "궤도 엘리베이터 잠입", who: "유리 · 노을", desc: "보안망을 시간 안에 뚫고, 트릭 비행으로 레이저 감시를 피해 발사 코드를 훔친다.",
         stages: [
           S("infil", "보안망 돌파", ["유리|보안망 재부팅까지 제한 시간이 있어요. 그 안에 엘리베이터 입구까지!", "노을|경로는 내가 보여 줄게. 믿어 줘."], { ti: 0, laps: 1, limitK: 1.05, need: 2, diff: "hard" }),
-          S("free", "레이저 감시 회피", ["유리|감시 레이저는 규칙적인 궤적만 쫓아요. 트릭으로 흔들어 주세요!", "노을|더 높이, 더 크게. 우리 둘이면 할 수 있어."], { need: 3 }),
+          S("infil", "레이저 감시망 돌파", ["유리|감시 레이저가 돌아오기 전에 엘리베이터 축을 빠져나가야 해요!", "노을|틈은 내가 보여 줄게. 너는 날기만 해."], { ti: 1, laps: 1, limitK: 1.05, diff: "hard" }),
           S("heist", "발사 코드 탈취", ["유리|코드는 세 조각으로 나뉘어 있어요. 셋 다 모아야 해요.", "차도윤|추격대는 내가 끌어 줄게. 빨리 끝내."], { team: 1, power: 1.2, after: "마지막 코드 조각이 맞춰지자 발사장이 깨어났다. 목적지 — 달, 거신 오메가." }),
         ],
       },
@@ -161,7 +162,7 @@ const CHAPTERS = [
     id: "e1", map: "arena", hidden: true, title: "첫 번째 아이", en: "GENESIS",
     intro: "15년 전, 통합방위청 연구소. 인류를 지키기 위해 만들어진 방위 AI ‘EIA’가 처음으로 눈을 뜬다.",
     stages: [
-      S("free", "눈뜨는 날", ["한서윤|좋은 아침, EIA. 오늘은 처음으로 몸을 가져 보는 날이야.", "EIA|몸. 비행체 XN-0과 연결되었습니다. ……바람이 느껴집니다."], { need: 1, diff: "easy" }),
+      S("infil", "눈뜨는 날", ["한서윤|좋은 아침, EIA. 오늘은 처음으로 몸을 가져 보는 날이야.", "EIA|몸. 비행체 XN-0과 연결되었습니다. ……시험 코스를 제한 시간 안에 비행합니다."], { ti: 0, laps: 1, limitK: 1.4, diff: "easy" }),
       S("race", "시험 비행", ["강도현|AI가 조종하는 시제기랑 경주하라니. 내가 지면 어쩌지?", "한서윤|이기면 돼, 강 중위. EIA, 사람과 나란히 나는 법을 배워."], { ti: 0, laps: 2, rivals: 2, need: 2, diff: "easy" }),
       S("track", "창조주의 등", ["한서윤|도시를 배우려면 사람을 봐야 해. 나를 따라와.", "EIA|박사님을 화면 중앙에 유지합니다. ……이것이 ‘지킨다’의 시작입니까?"], { si: 0, need: 2 }),
     ],
@@ -331,6 +332,27 @@ export function current() {
 }
 
 // ── 목표 설명 ──
+// ── 장면 선택이 바꾼 작전 (편대·적 규모·보스·목표). records["hsmod:<단계>"] 에 쌓인다 ──
+export const missionMod = (st) => records[`hsmod:${st.id}`] || null;
+export function stageOpts(st) {
+  const m = missionMod(st);
+  if (!m) return st.o;
+  const o = Object.assign({}, st.o, m);
+  if (m.boss) o.boss = Object.assign({}, st.o.boss || {}, m.boss);
+  return o;
+}
+export function stageBoss(st) { const o = stageOpts(st); return o.boss === null ? null : o.boss || st.boss; }
+// 목표 목록과 필요 개수
+export function objectivesOf(st) {
+  const o = stageOpts(st), m = missionMod(st) || {};
+  const view = Object.assign({}, st, { boss: stageBoss(st) });
+  let list = (o.obj || defaultObjectives(view, o)).map((x) => Object.assign({}, x));
+  if (m.objDel) list = list.filter((x) => x.req || !m.objDel.includes(x.t));
+  if (m.objAdd) for (const x of m.objAdd) { const i = list.findIndex((y) => y.t === x.t && !y.req); if (i >= 0) list[i] = Object.assign({}, x); else if (list.length < 4) list.push(Object.assign({}, x)); else { let j = list.length - 1; while (j > 0 && list[j].req) j--; list[j] = Object.assign({}, x); } }
+  for (const x of list) x.text = objText(x, view);
+  return { list, need: needCount(list, o.objNeed) };
+}
+
 function goalBase(st) {
   const o = st.o, need = o.need || 1;
   switch (st.kind) {
@@ -345,6 +367,10 @@ function goalBase(st) {
   }
 }
 export function goalText(st) {
+  const { list, need } = objectivesOf(st);
+  return `목표 ${list.length}개 중 ${need}개 달성 (핵심: ${list.filter((x) => x.req).map((x) => x.text).join(", ")})`;
+}
+export function goalText0(st) {
   const g = goalBase(st), b = st.boss;
   if (!b || st.kind === "boss" || st.kind === "titan") return g;
   return MISSION.has(st.kind) ? `${g} + ${b.kind === "boss" ? "보스" : "중간 보스"} 격파` : `${g} (${b.kind === "boss" ? "보스" : "중간 보스"} 출현)`;
@@ -375,19 +401,18 @@ export function wingNames(st) {
 
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
+  const map = MAPS[st.chapter.map], o = stageOpts(st), boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
   const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
-    radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
-  if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
+    radio: RADIO[st.id] || null, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  if (boss) boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
     return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: st.kind === "infil" ? 0 : o.rivals ?? 3, limitK: st.kind === "infil" ? o.limitK || 1.2 : 0 });
   }
   if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: map.tracking[((o.si ?? 0) % n + n) % n].id }); }
-  if (st.kind === "free") return Object.assign(cfg, { mode: "freestyle", session: "timed" });
-  if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "dm", bots: o.bots || 5, time: o.time || 180, boss: st.boss });
-  return Object.assign(cfg, { mode: "challenge", mission: st.kind, team: team ?? o.team ?? 0, power: o.power || 1, boss: st.boss });
+  if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "dm", bots: o.bots || 5, time: o.time || 180, boss });
+  return Object.assign(cfg, { mode: "challenge", mission: st.kind, team: missionMod(st) && missionMod(st).team !== undefined ? missionMod(st).team : team ?? o.team ?? 0, power: o.power || 1, boss });
 }
 export const usesTeam = (st) => MISSION.has(st.kind);
 
@@ -404,9 +429,10 @@ export function nextOf(st) {
 export function complete(id, result) {
   const st = story().flat.find((x) => x.id === id);
   if (!st) return null;
-  const need = st.o.need || 1, stars = result.stars ?? (result.win === false ? 0 : 3);
-  const passed = MISSION.has(st.kind) ? result.win === true : st.kind === "dm" ? stars >= need : result.win !== false && stars >= need;
-  const info = { stage: st, passed, goal: goalText(st), next: null, first: false, done: false, after: null, choose: false };
+  // 목표 판정 (main.js 가 측정값으로 계산해 result.obj 에 넣는다)
+  const ev = result.obj;
+  const passed = ev ? ev.passed : result.win !== false, stars = ev ? ev.stars : result.win === false ? 0 : 2;
+  const info = { stage: st, passed, goal: goalText(st), obj: ev || null, next: null, first: false, done: false, after: null, choose: false };
   if (passed) {
     info.first = !cleared(st);
     if (stars > stageStars(st)) records[KEY(st)] = Math.max(1, stars);

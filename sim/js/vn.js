@@ -229,6 +229,8 @@ export class VN {
     const msg = [];
     if (c.rel) for (const [n, v] of Object.entries(c.rel)) { records[`hsrel:${n}`] = rel(n) + v; msg.push(`${n} ${v > 0 ? "♥ +" + v : v}`); }
     if (c.flag) records[`hsflag:${c.flag}`] = 1;
+    // 작전 변경: { 단계id: { team, wing, power, diff, bots, time, boss, objAdd, objDel, note } }
+    if (c.mod) for (const [sid, m] of Object.entries(c.mod)) { const k = `hsmod:${sid}`; records[k] = Object.assign({}, records[k] || {}, m); if (m.note) msg.push("작전 변경"); }
     if (c.route) { const [ch, id] = c.route.split(":"); records[`hspick:${ch}`] = id; msg.push("작전 결정"); }
     save();
     if (msg.length) this._toast(msg.join("   "));

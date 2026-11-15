@@ -9,7 +9,13 @@ const walk = (L, k) => { for (const it of L || []) {
     if (it.startsWith("@bg ")) { const x = it.slice(4); if (!imgs.has(x) && !rooms.has(x)) bad.push(k + " bg " + x); }
     else if (it.startsWith("@cg ")) { const x = it.slice(4); if (x !== "-" && !imgs.has(x)) bad.push(k + " cg " + x); }
     else if (!it.startsWith("@")) { n++; const i = it.indexOf("|"); if (i > 0) { const [w, e] = it.slice(0, i).split(":"); if (!who.has(w)) bad.push(k + " who " + w); if (!ex.has(e)) bad.push(k + " expr " + e); } else if (i < 0) bad.push(k + " no bar: " + it.slice(0, 20)); }
-  } else if (it.choice) { ch++; for (const c of it.choice) { walk(c.then, k); for (const r of Object.keys(c.rel || {})) if (!["서하린","바우","유리","차도윤","모아","노을"].includes(r)) bad.push(k + " rel " + r); } }
+  } else if (it.choice) { ch++; for (const c of it.choice) { walk(c.then, k);
+    if (c.mod) for (const [sid, m] of Object.entries(c.mod)) {
+      if (!/^(c|e|s)\d[ab]?-\d$/.test(sid)) bad.push(k + " mod stage " + sid);
+      for (const key of Object.keys(m)) if (!["team", "wing", "power", "diff", "bots", "time", "boss", "objAdd", "objDel", "objNeed", "note", "laps", "rivals", "limitK"].includes(key)) bad.push(k + " mod key " + key);
+      for (const o of m.objAdd || []) if (!["win", "rank", "crash", "kills", "boss", "truck", "core", "time", "stars", "keep", "hp"].includes(o.t)) bad.push(k + " objAdd " + o.t);
+      if (m.wing && m.team !== undefined && m.wing.length < m.team) bad.push(k + " wing shorter than team");
+    } for (const r of Object.keys(c.rel || {})) if (!["서하린","바우","유리","차도윤","모아","노을"].includes(r)) bad.push(k + " rel " + r); } }
   else if (it.if) { walk(it.then, k); walk(it.else, k); }
 } };
 for (const [k, v] of Object.entries(SCENES)) { walk(v.pre, k); walk(v.post, k); }

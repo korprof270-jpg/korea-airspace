@@ -101,6 +101,7 @@ export class Player {
   crash() {
     if (this.crashed) return;
     this.crashed = true;
+    this.crashN = (this.crashN || 0) + 1;   // 스토리 목표(추락 횟수)용
     this.crashTimer = 0;
     this.body.disabled = true;
     this.session.feel.emit("crash");
