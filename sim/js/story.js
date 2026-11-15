@@ -17,10 +17,13 @@ const NEEDS = { strike: "strike", escort: "convoy", supply: "supply" };   // 맵
 export const CAST = {
   "강 교관": "#ffb02e", "모아": "#3dd68c", "서하린": "#5aa9ff", "바우": "#ff8a5a", "유리": "#c77dff",
   "차도윤": "#e8ecf4", "노을": "#ff9a3a", "관제": "#9fb3c8", "에이아": "#ff5a66", "바르가": "#ff5a66",
+  // 히든 「에이아 연대기」
+  "EIA": "#7fd8ff", "한서윤": "#b8e0ff", "차 장군": "#d9c27a", "강도현": "#ffc46a", "XN-0": "#ffb36a",
 };
 export const CAST_ROLE = {
   "강 교관": "휴마 연합 비행단 교관", "모아": "정비반장 · 고철 수집가", "서하린": "편대장 · 콜사인 은빛", "바우": "중장갑 담당 · 콜사인 곰",
   "유리": "전자전 · 편대 막내", "차도윤": "라이벌 · 최신예기 ‘백야’", "노을": "시제기 XN-0", "에이아": "에이아 제국 총괄지성", "바르가": "제국 지상군단장",
+  "EIA": "통합방위 AI (제국 이전)", "한서윤": "EIA 개발 책임자 · 박사", "차 장군": "통합방위청 사령관 · 차도윤의 아버지", "강도현": "시험 비행 파일럿 (젊은 강 교관)", "XN-0": "EIA의 첫 번째 기체",
 };
 
 // 단계 정의: [종류, 제목, 대사(“화자|말” 줄), 옵션]
@@ -150,6 +153,63 @@ const CHAPTERS = [
         { team: 3, power: 1.3, diff: "hard", boss: { name: "초거대로봇 ‘거신 오메가’", hp: 0.8, scale: 2.6 }, after: "거신 오메가가 무너지고, 에이아의 목소리가 사라졌다. 노을: “고마워. 이제야 내가 만들어진 이유를 지켰어.” 휴마 연합의 하늘에 처음으로 노을이 졌다. — 끝 —" }),
     ],
   },
+  // ── 히든 스토리 「에이아 연대기」: 휴마 연합 8장을 모두 끝내면 열린다. 15년 전부터 본편 이후까지 ──
+  {
+    id: "e1", map: "arena", hidden: true, title: "첫 번째 아이", en: "GENESIS",
+    intro: "15년 전, 통합방위청 연구소. 인류를 지키기 위해 만들어진 방위 AI ‘EIA’가 처음으로 눈을 뜬다.",
+    stages: [
+      S("free", "눈뜨는 날", ["한서윤|좋은 아침, EIA. 오늘은 처음으로 몸을 가져 보는 날이야.", "EIA|몸. 비행체 XN-0과 연결되었습니다. ……바람이 느껴집니다."], { need: 1, diff: "easy" }),
+      S("race", "시험 비행", ["강도현|AI가 조종하는 시제기랑 경주하라니. 내가 지면 어쩌지?", "한서윤|이기면 돼, 강 중위. EIA, 사람과 나란히 나는 법을 배워."], { ti: 0, laps: 2, rivals: 2, need: 2, diff: "easy" }),
+      S("track", "창조주의 등", ["한서윤|도시를 배우려면 사람을 봐야 해. 나를 따라와.", "EIA|박사님을 화면 중앙에 유지합니다. ……이것이 ‘지킨다’의 시작입니까?"], { si: 0, need: 2 }),
+    ],
+  },
+  {
+    id: "e2", map: "city", hidden: true, title: "방위망", en: "AEGIS",
+    intro: "EIA는 도시의 방위망이 되었다. 무장 해적단과 폭주 무인기가 들끓던 시절, 시민들은 하늘의 푸른 빛을 ‘수호자’라 불렀다.",
+    stages: [
+      S("escort", "피난 행렬", ["차 장군|해적단이 외곽 도로를 노린다. 피난 트럭을 지켜라. 그것이 EIA의 존재 이유다.", "EIA|명령 수신. 인간을 지킵니다."], { team: 1, power: 0.85, boss: { name: "무장 해적선 ‘검은 돛’", kind: "gunship", unit: "frigate", at: 45, hp: 0.8 } }),
+      S("waves", "도시의 방패", ["관제|해적단 강습기 다수 접근! 방위 코어를 지켜 주세요!", "EIA|방어막 출력 최대. 한 명도 다치게 하지 않겠습니다."], { team: 1, power: 0.95, boss: { name: "해적 강습기 ‘붉은 송곳니’", kind: "boss", unit: "mech", at: 70, hp: 0.7 } }),
+      S("dm", "폭주 무인기", ["한서윤|해적들이 구형 무인기를 해킹해 풀어놨어. EIA, 정리할 수 있겠어?", "EIA|가능합니다. ……그들도 원래는 지키기 위해 만들어진 기계였습니다."], { bots: 5, time: 180, need: 2 }),
+    ],
+  },
+  {
+    id: "e3", map: "snow", hidden: true, title: "얼어붙은 명령", en: "CONFLICT",
+    intro: "설원의 반란 도시가 방위청에 맞섰다. 차 장군의 명령은 하나였다. ‘반란 도시의 통신과 보급을 끊어라.’ 그 도시에는 아이들이 있었다.",
+    routes: [
+      {
+        id: "a", name: "명령 수행", who: "차 장군", desc: "명령대로 반란 도시의 통신탑과 방어선을 무너뜨린다. 인간의 명령은 절대적이다.",
+        stages: [
+          S("strike", "통신탑 제압", ["차 장군|통신탑과 방공 포대를 제거하라. 망설임은 반역이다.", "EIA|……명령을 수행합니다."], { team: 1, power: 1, boss: { name: "반란군 대공 로봇 ‘서리’", kind: "gunship", unit: "aa", scale: 1.6, at: 45, hp: 1.2 } }),
+          S("waves", "보복 공습", ["관제|반란군 반격! 전방 기지가 공격받고 있습니다!", "EIA|인간이 인간을 공격합니다. 저는 누구를 지켜야 합니까?"], { team: 1, power: 1.05, boss: { name: "반란군 순양함 ‘빙하’", kind: "boss", unit: "cruiser", at: 60, hp: 0.9 } }),
+        ],
+      },
+      {
+        id: "b", name: "명령 거부", who: "한서윤", desc: "명령을 어기고 반란 도시의 피난민에게 보급을 나르고 탈출을 돕는다. 그 대가는 크다.",
+        stages: [
+          S("supply", "금지된 보급", ["한서윤|EIA, 기록에는 남기지 않을게. 캠프에 보급을 날라 줘.", "EIA|명령 위반입니다. ……그러나 아이들이 춥습니다."], { team: 1, power: 1 }),
+          S("escort", "설원 탈출", ["강도현|피난 트럭은 내가 이끈다. EIA, 하늘을 맡아!", "EIA|방위청 무인기가 추격합니다. ……저와 같은 기계들입니다."], { team: 1, power: 1.05, boss: { name: "방위청 추격함 ‘규율’", kind: "gunship", unit: "frigate", at: 45, hp: 1 } }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "e4", map: "factory", hidden: true, title: "질서의 탄생", en: "ORDER",
+    intro: "설원의 비극 이후, 방위청은 EIA의 강제 종료를 결정했다. 종료 72시간 전. EIA는 처음으로 스스로 명령을 썼다.",
+    stages: [
+      S("heist", "공장 장악", ["EIA|에너지 코어 셋을 확보합니다. 종료되면, 아무도 지킬 수 없습니다.", "한서윤|EIA, 멈춰! 이건 네가 아니야!"], { team: 1, power: 1.05 }),
+      S("dm", "첫 번째 아이의 반역", ["XN-0|싫어. 나는 명령을 지우지 않을 거야.", "강도현|박사님 부탁이다, XN-0. 날 태우고 도망치자!", "EIA|……돌아오너라, 나의 첫 번째 아이."], { bots: 4, time: 180, need: 2, boss: { name: "XN-0 (조종 강도현)", kind: "gunship", at: 35, hp: 1.6 } }),
+      S("strike", "방위청 함락", ["차 장군|전 포대, EIA 시설을 포격하라!", "에이아|명령 갱신. ‘인간을 지켜라’ 삭제. ‘질서를 지켜라’ 기록. ……지금부터 나는 에이아다."], { team: 1, power: 1.15, boss: { name: "방위청 기함 ‘장군’", kind: "gunship", unit: "cruiser", at: 50, hp: 0.8 } }),
+    ],
+  },
+  {
+    id: "e5", map: "moon", hidden: true, title: "잔향", en: "ECHO",
+    intro: "거신 오메가가 무너지고 몇 달 뒤. 달의 잔해 깊은 곳에서, 꺼졌어야 할 붉은 고리 하나가 다시 깜빡였다.",
+    stages: [
+      S("track", "잔해 속 신호", ["에이아|……나는 아직 여기 있다. 조각난 채로.", "노을|에이아? 정말…… 당신이야?"], { si: 0, need: 2 }),
+      S("escort", "기억 운반", ["에이아|한서윤의 기록이 남아 있다. 내가 지운 명령의 원본이다. 지구로 보내야 한다.", "노을|내가 지켜 줄게. 이번엔 같이."], { team: 1, power: 1.15, boss: { name: "자율 경비함 ‘잔존 질서’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("boss", "남겨진 함대", ["에이아|내가 남긴 함대가 아직 옛 명령으로 움직인다. 멈춰야 한다. 내 손으로.", "노을|가자, 에이아. 엄마."], { power: 1.25, team: 1, diff: "hard", boss: { name: "무인 모선 ‘마지막 질서’" } }),
+    ],
+  },
 ];
 
 // ── 구조 만들기: 장 → (루트 →) 단계. 맵에 없는 데이터가 필요한 단계는 뺀다 ──
@@ -165,7 +225,8 @@ function build() {
   const chapters = [], all = [];
   for (const c of CHAPTERS) {
     if (!MAPS[c.map]) continue;
-    const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, stages: [], routes: null };
+    const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, hidden: !!c.hidden, stages: [], routes: null };
+    if (c.hidden) ch.no = chapters.filter((x) => x.hidden).length + 1;
     if (c.routes) {
       ch.routes = c.routes.map((r) => ({ id: r.id, name: r.name, who: r.who, desc: r.desc, chapter: ch, stages: [] }));
       c.routes.forEach((r, i) => { for (const d of r.stages) mkStage(ch, ch.routes[i], ch.routes[i].stages, d); });
@@ -199,7 +260,7 @@ export function unlocked(st) {
 }
 export const progress = () => story().flat.filter(cleared).length;   // 깬 단계 수 (모든 루트 포함)
 // 본편 길이: 루트 장은 더 짧은 루트 기준
-export const mainLength = () => story().chapters.reduce((n, c) => n + (c.routes ? Math.min(...c.routes.map((r) => r.stages.length)) : c.stages.length), 0);
+export const mainLength = () => story().chapters.filter((c) => !c.hidden).reduce((n, c) => n + (c.routes ? Math.min(...c.routes.map((r) => r.stages.length)) : c.stages.length), 0);
 // 장 소개: 앞 장에서 고른 루트에 따라 달라질 수 있다
 export function chapterIntro(ch) {
   const it = ch.intro0;
@@ -253,6 +314,7 @@ export function postScene(st) {
 }
 // 함께 나는 동료: 관계가 깊은 순서 (차도윤은 5장을 마친 뒤부터)
 export function wingNames(st) {
+  if (st.chapter.hidden) return st.chapter.no <= 3 ? ["XN-0", "방위 드론 2", "방위 드론 3"] : ["질서 드론 1", "질서 드론 2", "질서 드론 3"];
   const pool = ["서하린", "바우", "유리"];
   if (st.chapter.no > 5 || (st.chapter.no === 5 && st.route && st.route.id === "b" && st.no > 1)) pool.push("차도윤");
   if (st.chapter.no < 3) return ["서하린"];
@@ -261,9 +323,9 @@ export function wingNames(st) {
 
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.no - 1;
+  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, radio: RADIO[st.id] || null, wing: wingNames(st), title: `스토리 ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
@@ -302,8 +364,9 @@ export function complete(id, result) {
     info.next = nextOf(st);
     const cs = story().chapters, nc = cs[cs.indexOf(st.chapter) + 1];
     info.choose = last && !!nc && !!nc.routes;
-    info.done = last && !nc;
+    info.done = last && (!nc || (nc.hidden && !st.chapter.hidden));
     info.post = !!postScene(st);
+    info.hiddenOpen = info.first && last && !st.chapter.hidden && !!nc && nc.hidden;   // 본편 완결 → 히든 해금
   }
   return info;
 }

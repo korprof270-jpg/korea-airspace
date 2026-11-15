@@ -1,7 +1,7 @@
 import fs from "fs";
 const { SCENES, RADIO } = await import("/home/user/korea-airspace/sim/js/scenes.js");
 const imgs = new Set(fs.readdirSync("/home/user/korea-airspace/sim/img/story").map((f) => f.replace(".jpg", "")));
-const rooms = new Set(["briefing", "hangarin", "black", "night"]), who = new Set(["강 교관", "모아", "서하린", "바우", "유리", "차도윤", "노을", "관제", "에이아", "바르가", "나"]);
+const rooms = new Set(["briefing", "hangarin", "black", "night", "lab", "control"]), who = new Set(["강 교관", "모아", "서하린", "바우", "유리", "차도윤", "노을", "관제", "에이아", "바르가", "나", "EIA", "한서윤", "차 장군", "강도현", "XN-0"]);
 const ex = new Set(["normal", "smile", "angry", "sad", "surprise", "serious", undefined]);
 let n = 0, ch = 0; const bad = [];
 const walk = (L, k) => { for (const it of L || []) {

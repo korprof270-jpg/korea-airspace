@@ -27,7 +27,7 @@ function test(cond) {
 }
 
 // 실내 배경은 그림 파일 없이 CSS로
-const ROOMS = { briefing: "vn-room briefing", hangarin: "vn-room hangarin", black: "vn-room black", night: "vn-room night" };
+const ROOMS = { briefing: "vn-room briefing", hangarin: "vn-room hangarin", black: "vn-room black", night: "vn-room night", lab: "vn-room lab", control: "vn-room control" };
 
 export class VN {
   constructor(game) {
@@ -235,7 +235,7 @@ export class VN {
     this.game.sound && this.game.sound.play(c.rel ? "pickup" : "gate", 0.6);
     this.log.push(["선택", c.t, "#3dd68c"]);
     this._push(c.then);
-    this._push(["나|" + c.t]);
+    this._push([(this.opts.me || "나") + "|" + c.t]);   // 선택한 말은 주인공(히든 스토리는 EIA)이 한다
     this._step();
   }
   _showLog(on) {
