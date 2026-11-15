@@ -124,7 +124,7 @@ export default {
     fog: { color: 0x05070f, near: 700, far: 3200 }, exposure: 1.0, glow: 2.0, bloom: { strength: 0.45, radius: 0.5, threshold: 0.92 }, look: { scatter: 0.1 },
   },
   spawn: { pos: [0, 0, 100], yaw: 0 },
-  thumb: { pos: [190, 70, 210], look: [0, 20, -40] },
+  thumb: { pos: [-90, 95, -290], look: [20, 0, 60] },
   build,
   tracks: TRACKS,
   tracking: [

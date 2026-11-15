@@ -54,7 +54,7 @@ export function shard(w, x, y, z, r, h, tilt, az, color = VIO, o = {}) {
 }
 // 결정 무리: 가운데 큰 것 + 둘레로 기울어진 작은 것들, 안쪽에 빛나는 조각
 export function crystalCluster(w, x, z, s, r, o = {}) {
-  const y = o.y ?? 0, n = o.n ?? 5 + ((r() * 4) | 0), cols = o.colors || [0xa451ff, 0x8a3cf0, 0xc36dff];
+  const y = o.y ?? 0, n = o.n ?? 5 + ((r() * 4) | 0), cols = o.colors || [0xb45cff, 0x9b45f5, 0xd28cff];
   // 밑동: 짙은 생체 덩어리
   w.blob(x, y + 0.2 * s, z, 2.4 * s, 0.9 * s, 2.4 * s, FLESH, { mat: "paint", col: false, grad: [0.55, 1.1] });
   shard(w, x, y, z, 1.1 * s, (7 + r() * 5) * s, r() * 12, r() * 360, cols[0]);
