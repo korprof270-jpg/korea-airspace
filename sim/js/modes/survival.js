@@ -6,7 +6,8 @@ import { drawCombatHud } from "../combathud.js";
 
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
-  base: { name: "거점 공략전", icon: "🏰", desc: "맵 어딘가에 숨은 적 거점 5곳(코어 + 포탑)을 찾아내 부수고, 아군 기지를 지키는 팀전. 적 거점은 가까이 가야 드러납니다" },
+  conq: { name: "점령전", icon: "🚩", desc: "4개 팀이 지역 거점을 땅따먹기처럼 차지하는 팀전. 상대 본부를 부수면 그 팀은 탈락, 격추·점령·본부 파괴로 점수를 쌓아 순위를 겨룹니다" },
+  base: { name: "거점 공략전", icon: "🏰", desc: "숨은 적 거점 5곳을 찾아 부수는 팀전", hidden: true },
   cargo: { name: "화물 운반전", icon: "📦", desc: "보급 상자를 집어 아군 착륙장으로 운반. 적 운반 드론을 막으면 더 유리합니다", hidden: true },   // 스토리 단계에서만 쓴다
 };
 const TEAM_NAME = ["청팀", "홍팀"];

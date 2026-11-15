@@ -16,8 +16,8 @@ export const ITEMS = {
 export const ITEM_SLOTS = 2;   // 보관 아이템은 두 개까지. 가득 차면 더 집을 수 없다
 const ITEM_POOL = ["repair", "repair", "repair", "missiles", "missiles", "missiles", "shield", "shield", "boost", "overcharge", "emp"];
 const CALLSIGNS = ["독수리", "송골매", "까치", "올빼미", "참매", "황조롱이", "두루미", "갈매기", "부엉이", "제비", "물수리", "직박구리", "말똥가리", "솔부엉이"];
-export const TEAM_COLOR = [0x2f8cff, 0xff2d3d];
-export const TEAM_CSS = ["#5aa9ff", "#ff5a66"];
+export const TEAM_COLOR = [0x2f8cff, 0xff2d3d, 0xb44cff, 0xff8a1f];
+export const TEAM_CSS = ["#5aa9ff", "#ff5a66", "#c77dff", "#ff9a3a"];
 
 // AI 드론 종류
 export const KINDS = {
@@ -119,7 +119,7 @@ export class Combat {
     const enemy = this.ffa || team !== 0, rk = enemy ? rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.level, kind)) : null;
     const look = botLook(kind, this.ffa ? 1 : team);
     if (rk) { const hex = "#" + rk.color.toString(16).padStart(6, "0"); look.accentColor = hex; look.ledColor = hex; look.propColor = hex; }
-    const model = K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: rk ? rk.color : 0xe8f4ff });
+    const model = K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff });   // 4팀전: 고리는 팀 색, 포인트는 계급 색
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
     const a = this._actor({
