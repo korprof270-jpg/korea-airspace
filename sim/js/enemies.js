@@ -3,6 +3,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { clamp } from "./config.js";
 import { rollRank, rankStats, clampRank } from "./ranks.js";
+import { decorateUnit } from "./factions.js";
 
 const V3 = THREE.Vector3;
 const _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(), _q = new THREE.Quaternion();
@@ -16,22 +17,8 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const turn = (cur, want, max) => cur + clamp(wrap(want - cur), -max, max);
 
 export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇" };
-// 에일(외계) 진영 유닛 이름과 외피: 금속 회색을 짙은 보라 생체 외피로 물들인다 (밝은 발광부는 그대로)
+// 에일(외계) 진영 유닛 이름. 외피는 factions.js 의 decorateUnit
 export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체" };
-const _purple = new THREE.Color(0x4a1f8c);
-function tintAlien(g) {
-  const seen = new Map();
-  g.traverse((m) => {
-    if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
-    let mat = seen.get(m.material);
-    if (!mat) {
-      mat = m.material.clone();
-      if (mat.color) { const hsl = {}; mat.color.getHSL(hsl); if (hsl.l < 0.75) mat.color.lerp(_purple, hsl.s < 0.35 ? 0.6 : 0.3); }
-      seen.set(m.material, mat);
-    }
-    m.material = mat;
-  });
-}
 
 export class Units {
   constructor(combat) {
@@ -46,7 +33,7 @@ export class Units {
     const ail = this.c.s.cfg.faction === "ail";
     o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: `${rk.name} ${o.name || (ail ? AIL_NAME[type] : UNIT_NAME[type])}` });
     const u = MAKE[type](this, o);
-    if (ail) tintAlien(u.group);
+    if (this.c.s.cfg.faction) decorateUnit(u, type, this.c.s.cfg.faction);
     u.rk = rk; u.root.rk = rk; for (const p of u.parts) p.rk = rk;
     u.type = type; u.t = Math.random() * 10; u.cool = {};
     this.list.push(u);

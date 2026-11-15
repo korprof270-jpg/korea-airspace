@@ -377,7 +377,8 @@ export function wingNames(st) {
 export function stageConfig(st, team) {
   const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || undefined, radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
+    radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];

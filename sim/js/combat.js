@@ -3,6 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
 import { Units, buildJet } from "./enemies.js";
+import { factionModel } from "./factions.js";
 import { rollRank, rankStats, baseLevel, clampRank } from "./ranks.js";
 
 export const ITEMS = {
@@ -121,7 +122,8 @@ export class Combat {
     if (rk) { const hex = "#" + rk.color.toString(16).padStart(6, "0"); look.accentColor = hex; look.ledColor = hex; look.propColor = hex; }
     // 에일(외계) 진영: 짙은 보라 생체 외피, 촉수형 프레임, 보랏빛 날개 (포인트 색은 계급 색 유지)
     if (enemy && this.s.cfg.faction === "ail") Object.assign(look, { frame: kind === "gunship" || kind === "boss" ? "hexa" : "tri", canopy: "pod", skin: "solid", frameColor: "#1c0d33", propColor: "#c060ff", ledColor: "#e0b0ff", ledMode: "blink" });
-    const model = K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff });   // 4팀전: 고리는 팀 색, 포인트는 계급 색
+    const fm = enemy && this.s.cfg.faction ? factionModel(this.s.cfg.faction, kind, rk ? rk.color : 0xff2d3d) : null;   // 진영 외형 (기계 병기 / 외계 생명체)
+    const model = fm || (K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff }));   // 4팀전: 고리는 팀 색, 포인트는 계급 색
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
     const a = this._actor({
