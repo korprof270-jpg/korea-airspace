@@ -220,13 +220,15 @@ const P = {
   },
 };
 
-export const HAS_PORTRAIT = new Set([...Object.keys(P), ...Object.keys(ART)]);
+// 코드로 그린 임시 초상화는 쓰지 않는다: 등록된 일러스트(art.js)가 있는 인물만 그림을 보여 준다
+const USE_SVG = false;
+export const HAS_PORTRAIT = new Set([...(USE_SVG ? Object.keys(P) : []), ...Object.keys(ART)]);
 // 등록된 일러스트(전신 입간판)가 있는 인물
 export const hasArt = (who) => !!ART[who];
 export function portrait(who, expr = "normal") {
   const A = ART[who];
   if (A) return `img/story/chars/${A.id}_${(A.exprs || ["normal"]).includes(expr) ? expr : "normal"}.${A.ext || "png"}`;
-  if (!P[who]) return null;
+  if (!USE_SVG || !P[who]) return null;
   const k = `${who}:${expr}`;
   if (!cache.has(k)) cache.set(k, "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg(P[who](expr))));
   return cache.get(k);

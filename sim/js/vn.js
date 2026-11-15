@@ -173,7 +173,7 @@ export class VN {
       name.style.setProperty("--nc", CAST[who] || (who === "나" ? "#ffd24a" : "#9fb3c8"));
       name.classList.add("on");
       box.classList.remove("narr");
-      box.classList.toggle("radio", who === "관제" || (!HAS_PORTRAIT.has(who) && who !== "나"));
+      box.classList.toggle("radio", who === "관제");
     } else { name.classList.remove("on"); box.classList.add("narr"); box.classList.remove("radio"); }
     this._chars(active);
     this.log.push([who === "나" ? "나 (새벽)" : who || "", text, CAST[who] || (who === "나" ? "#ffd24a" : "")]);

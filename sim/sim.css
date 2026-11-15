@@ -712,3 +712,4 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 .rew span { color: #e8eef6; }
 .rew .rn { color: #35ff7a; font-weight: 700; }
 .rew small { color: var(--muted); }
+.bond .face.ini { display: grid; place-items: center; font-style: normal; font-weight: 900; font-size: 22px; color: var(--nc); background: rgba(255, 255, 255, 0.05); border: 2px solid var(--nc); }
