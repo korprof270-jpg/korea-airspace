@@ -27,17 +27,17 @@ function earthMat(sun, R) {
         vec3 n = normalize(vN), q = normalize(vL);
         float lat = abs(q.y);
         // 대륙: 잡음 등고선. 얕은 바다 → 깊은 바다 3단
-        float land = fb3(q * 3.1 + 4.0) + 0.06 * n3(q * 22.0) - lat * lat * 0.05;
-        vec3 c = land > 0.555 ? (fb3(q * 7.0 + 9.0) > 0.52 || lat > 0.62 ? vec3(0.27, 0.62, 0.30) : vec3(0.83, 0.71, 0.44))
-               : land > 0.525 ? vec3(0.27, 0.68, 0.93) : land > 0.44 ? vec3(0.12, 0.43, 0.84) : vec3(0.08, 0.30, 0.70);
-        if (land > 0.6 && fb3(q * 12.0 + 2.0) > 0.6) c = vec3(0.42, 0.40, 0.33);
-        if (lat > 0.88 + (land - 0.5) * 0.4) c = vec3(0.93, 0.96, 1.0);
+        float land = fb3(q * 4.3 + 4.0) + 0.07 * n3(q * 30.0) - lat * lat * 0.05;
+        vec3 c = land > 0.575 ? (fb3(q * 9.0 + 9.0) > 0.5 || lat > 0.62 ? vec3(0.2, 0.47, 0.22) : vec3(0.7, 0.58, 0.36))
+               : land > 0.55 ? vec3(0.18, 0.52, 0.82) : land > 0.45 ? vec3(0.07, 0.31, 0.7) : vec3(0.04, 0.2, 0.55);
+        if (land > 0.6 && fb3(q * 16.0 + 2.0) > 0.6) c = vec3(0.36, 0.34, 0.28);
+        if (lat > 0.88 + (land - 0.5) * 0.4) c = vec3(0.85, 0.9, 0.95);
         // 구름: 천천히 도는 띠 + 소용돌이
         float a = spin; mat2 rot = mat2(cos(a), -sin(a), sin(a), cos(a));
         vec3 cq = q; cq.xz = rot * cq.xz;
-        float cl = fb3(cq * vec3(4.0, 7.0, 4.0) + vec3(11.0, 3.0, 5.0)) + 0.1 * sin(cq.y * 18.0 + fb3(cq * 3.0) * 6.0);
-        float ck = smoothstep(0.585, 0.6, cl), ck2 = smoothstep(0.545, 0.56, cl) * 0.45;
-        c = mix(c, vec3(1.0), max(ck, ck2));
+        float cl = fb3(cq * vec3(7.0, 12.0, 7.0) + vec3(11.0, 3.0, 5.0)) + 0.08 * sin(cq.y * 26.0 + fb3(cq * 5.0) * 6.0);
+        float ck = smoothstep(0.6, 0.612, cl), ck2 = smoothstep(0.56, 0.572, cl) * 0.4;
+        c = mix(c, vec3(0.86, 0.89, 0.93), max(ck, ck2));
         float l = dot(n, sunDir), k = band(l);
         vec3 col = c * k;
         // 밤 쪽 도시 불빛
@@ -45,8 +45,8 @@ function earthMat(sun, R) {
         // 가장자리 대기: 시선과 비스듬할수록 파랗게
         vec3 v = normalize(cameraPosition - vW);
         float f = 1.0 - max(dot(n, v), 0.0), lit = smoothstep(-0.25, 0.35, l);
-        col = mix(col, vec3(0.42, 0.7, 1.0) * (0.25 + lit), smoothstep(0.55, 0.95, f) * 0.85);
-        col += vec3(0.25, 0.5, 1.0) * pow(f, 3.0) * 0.6 * lit;
+        col = mix(col, vec3(0.3, 0.55, 0.95) * (0.2 + 0.7 * lit), smoothstep(0.7, 0.97, f) * 0.7);
+        col += vec3(0.2, 0.42, 0.9) * pow(f, 4.0) * 0.35 * lit;
         gl_FragColor = vec4(col, 1.0);
         ${TAIL}
       }`,
@@ -161,7 +161,7 @@ export function sky(w) {
   const ap = new THREE.Vector3(...AIL.dir).normalize().multiplyScalar(AIL.dist);
   const ail = new THREE.Mesh(new THREE.SphereGeometry(AIL.R, 64, 40), ailMat(sun));
   ail.position.copy(ap); ail.rotation.set(0.25, 0.4, 0.35);
-  const ahalo = new THREE.Mesh(new THREE.SphereGeometry(AIL.R * 1.06, 48, 24), haloMat(sun, 0xc070ff, AIL.R, AIL.R * 1.06, 1.1));
+  const ahalo = new THREE.Mesh(new THREE.SphereGeometry(AIL.R * 1.06, 48, 24), haloMat(sun, 0xc070ff, AIL.R, AIL.R * 1.06, 0.6));
   ahalo.position.copy(ap);
   const rg = new THREE.RingGeometry(1.35, 2.45, 128, 1);
   const rng = new THREE.Mesh(rg, ringMat(sun, ap, AIL.R));
@@ -175,10 +175,10 @@ export function sky(w) {
   // ── 햇빛 번짐 ──
   const sp = sun.clone().multiplyScalar(3300);
   const gt = glareTex("glow"), st = glareTex("streak");
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0xfff1d8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
-  glow.scale.setScalar(900); glow.position.copy(sp);
-  const streak = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, color: 0xffe2b0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0.55 }));
-  streak.scale.set(2600, 60, 1); streak.position.copy(sp);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: gt, color: 0xa89c88, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
+  glow.scale.setScalar(300); glow.position.copy(sp);
+  const streak = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, color: 0xffe2b0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0.32 }));
+  streak.scale.set(1700, 36, 1); streak.position.copy(sp);
   add.push(glow, streak);
   w.disposables.push(gt, st);
 

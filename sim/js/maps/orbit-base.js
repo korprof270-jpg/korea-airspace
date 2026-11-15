@@ -30,7 +30,7 @@ export function deck(w) {
   }
   const g = g0.toNonIndexed(); g0.dispose();
   const P = g.attributes.position, U = g.attributes.uv, col = new Float32Array(P.count * 3), c = new THREE.Color();
-  const TONES = [0x8c929e, 0x838995, 0x959ba6, 0x7b818d, 0x8a8f98];
+  const TONES = [0x767d8a, 0x6c7380, 0x818894, 0x646b78, 0x737985];
   for (let t = 0; t < P.count; t += 3) {
     const cx = (P.getX(t) + P.getX(t + 1) + P.getX(t + 2)) / 3, cz = (P.getZ(t) + P.getZ(t + 1) + P.getZ(t + 2)) / 3;
     const sx = Math.floor((cx + 240) / 40), sz = Math.floor((cz + 240) / 40), h = hash(sx * 7 + 3, sz * 13 + 5);
@@ -117,6 +117,14 @@ export function markings(w, K) {
   w.box(px, 0.25, pz, 9, 0.06, 1.2, WH, { col: false, ao: false }); w.box(px, 0.25, pz, 1.2, 0.06, 9, WH, { col: false, ao: false });
   for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; K.blink.add(px + Math.cos(a) * 16.6, 0.6, pz + Math.sin(a) * 16.6, AMB, 0.3, k); }
   w.pool(px, 0.3, pz, 20, AMB, 0.18);
+  // 격납고 앞 유도로: 노란 선 두 줄 + 청록 유도등
+  for (const hx of HANGARS) {
+    for (const s of [-1, 1]) w.box(hx + s * 9, 0.04, HZ + HD / 2 + 12, 0.5, 0.05, 22, YEL, { col: false, ao: false });
+    for (let k = 0; k < 5; k++) K.blink.add(hx, 0.25, HZ + HD / 2 + 3 + k * 4.5, CYA, 0.22, k);
+    w.box(hx, 0.04, HZ + HD / 2 + 2, 20, 0.05, 1.2, WH, { col: false, ao: false });
+  }
+  // 주포대 앞 경고 구역
+  for (const [gx, gz] of GUNS) { const g = new THREE.RingGeometry(14, 15.2, 40, 1); g.rotateX(-Math.PI / 2); w.mesh(g, M(gx, 0.05, gz), YEL, "std"); }
   // 가로등: 도로 바깥 둘레
   for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2 + 0.2; w.lamp(Math.cos(a) * (ROAD_R + 9), Math.sin(a) * (ROAD_R + 9), 8, i % 4 ? 0xbfe8ff : AMB, -a / DEG + 90 + 180, 1.8); }
 }
@@ -130,46 +138,46 @@ export function reactor(w, K) {
   octa(w, x, 3, z, 18, 3, HULL2, { mat: "std:panel" });
   for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; w.box(x + Math.cos(a) * 21.5, 3, z + Math.sin(a) * 21.5, 3.2, 0.3, 1.2, CYA, { mat: "glow", col: false, ry: -a / DEG + 90 }); }
   // 코어 기둥
-  w.cyl(x, 6, z, 11, 58, WH, { mat: "std:panel", tile: 6 });
-  for (const y of [14, 26, 38, 50]) { w.cyl(x, y, z, 11.35, 1.6, CYA, { mat: "glow", col: false }); w.cyl(x, y + 1.6, z, 11.6, 0.6, DARK, { mat: "paint", col: false }); }
-  for (const y of [8, 20, 32, 44, 56]) w.cyl(x, y, z, 11.8, 0.9, NAVY, { mat: "paint", col: false });
+  w.cyl(x, 6, z, 11, 70, WH, { mat: "std:panel", tile: 6 });
+  for (const y of [14, 27, 40, 53, 66]) { w.cyl(x, y, z, 11.35, 1.6, CYA, { mat: "glow", col: false }); w.cyl(x, y + 1.6, z, 11.6, 0.6, DARK, { mat: "paint", col: false }); }
+  for (const y of [8, 21, 34, 47, 60, 72]) w.cyl(x, y, z, 11.8, 0.9, NAVY, { mat: "paint", col: false });
   // 버팀 날개 4장
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4, cx = x + Math.cos(a) * 14.5, cz = z + Math.sin(a) * 14.5, ry = -a / DEG;
     w.box(cx, 6, cz, 8, 26, 2.4, HULL, { mat: "std:panel", ry });
-    w.box(x + Math.cos(a) * 12.6, 32, z + Math.sin(a) * 12.6, 3.2, 10, 2.4, HULL, { mat: "std:panel", ry });
+    w.box(x + Math.cos(a) * 12.6, 32, z + Math.sin(a) * 12.6, 3.2, 16, 2.4, HULL, { mat: "std:panel", ry });
     w.box(x + Math.cos(a) * 18.4, 6, z + Math.sin(a) * 18.4, 0.3, 24, 0.6, CYA, { mat: "glow", col: false, ry });
     w.box(cx, 31.6, cz, 8.4, 0.6, 2.8, ORG, { col: false, ry });
   }
   // 왕관: 넓은 테두리 + 비스듬한 방출 갈퀴 + 에너지 구
-  w.cyl(x, 64, z, 14, 3.5, DARK, { mat: "paint" });
-  w.cyl(x, 67.5, z, 14.4, 0.6, CYA, { mat: "glow", col: false });
-  w.cyl(x, 68.1, z, 8, 3, HULL2, { mat: "paint", rt: 5 });
+  w.cyl(x, 76, z, 14, 3.5, DARK, { mat: "paint" });
+  w.cyl(x, 79.5, z, 14.4, 0.6, CYA, { mat: "glow", col: false });
+  w.cyl(x, 80.1, z, 8, 3, HULL2, { mat: "paint", rt: 5 });
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
-    beam(w, [x + c * 12, 67, z + s * 12], [x + c * 9.5, 84, z + s * 9.5], 1.3, HULL);
-    ball(w, x + c * 9.5, 84.6, z + s * 9.5, 0.9, CYA);
+    beam(w, [x + c * 12, 79, z + s * 12], [x + c * 9.5, 96, z + s * 9.5], 1.3, HULL);
+    ball(w, x + c * 9.5, 96.6, z + s * 9.5, 0.9, CYA);
   }
-  w.sph(x, 85, z, 5.6, CYA, { mat: "glow" });
-  ring(w, x, 85, z, 8.4, 0.35, CYA, { pitch: 90, col: false, mat: "glow" });
-  ring(w, x, 85, z, 10.8, 0.25, CYA2, { pitch: 70, yaw: 30, col: false, mat: "glow" });
+  w.sph(x, 97, z, 6.2, CYA, { mat: "glow" });
+  ring(w, x, 97, z, 9, 0.35, CYA, { pitch: 90, col: false, mat: "glow" });
+  ring(w, x, 97, z, 11.6, 0.25, CYA2, { pitch: 70, yaw: 30, col: false, mat: "glow" });
   // 하늘로 솟는 빛기둥 (가산, 충돌 없음)
   const bm = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.6, 120, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x3fd6ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  bm.position.set(x, 151, z); bm.renderOrder = 6; w.scene.add(bm);
+  bm.position.set(x, 163, z); bm.renderOrder = 6; w.scene.add(bm);
   const bm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 120, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xc8f6ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   bm2.position.copy(bm.position); bm2.renderOrder = 6; w.scene.add(bm2);
   w.updaters.push((dt, t) => { bm.material.opacity = 0.18 + 0.06 * Math.sin(t * 3.1); });
   // 자이로 고리: 수평 큰 고리 + 기울어진 두 고리. 고리와 기둥 사이로 날 수 있다
-  const RS = [[32, 42, 90, 0], [25, 28, 72, 20], [25, 54, 72, 110]];
+  const RS = [[34, 48, 90, 0], [27, 32, 72, 20], [27, 64, 72, 110]];
   for (const [R, y, pitch, yaw] of RS) {
     ring(w, x, y, z, R, 0.9, HULL2, { pitch, yaw, seg: 48 });
     ring(w, x, y + (pitch === 90 ? 0.9 : 0), z, R, 0.3, CYA, { pitch, yaw, seg: 48, mat: "glow", col: false });
   }
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + Math.PI / 4; beam(w, [x + Math.cos(a) * 11, 42, z + Math.sin(a) * 11], [x + Math.cos(a) * 31.2, 42, z + Math.sin(a) * 31.2], 0.7, STEEL); }
-  w.gap("반응로 고리 수직 통과", x + 22, 42, z, 0, 14, 14, 600, 90);
-  w.gap("반응로 고리 수직 통과", x - 22, 42, z, 0, 14, 14, 600, 90);
-  w.pipe(x, 88, z, x, 100, z, 0.25, WH);
-  K.blink.add(x, 100.5, z, RED, 0.5, 0);
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + Math.PI / 4; beam(w, [x + Math.cos(a) * 11, 48, z + Math.sin(a) * 11], [x + Math.cos(a) * 33.2, 48, z + Math.sin(a) * 33.2], 0.7, STEEL); }
+  w.gap("반응로 고리 수직 통과", x + 23, 48, z, 0, 14, 14, 600, 90);
+  w.gap("반응로 고리 수직 통과", x - 23, 48, z, 0, 14, 14, 600, 90);
+  w.pipe(x, 103, z, x, 112, z, 0.25, WH);
+  K.blink.add(x, 112.5, z, RED, 0.5, 0);
 }
 
 // ── 격납고 줄(북쪽): 남쪽 큰 문, 동서 옆문(세 동을 꿰는 터널), 안에는 셔틀과 정비 장비 ──

@@ -70,7 +70,7 @@ function build(w) {
   sky(w);
   deck(w); hull(w, K); markings(w, K);
   reactor(w, K); hangars(w, K); docks(w, K); radiators(w, K); guns(w, K); masts(w, K); bridges(w, K); conduits(w, K);
-  for (const a of ARCHES) arch(w, K, a.p[0], a.p[1], 26, 17, a.yaw, { name: "도로 아치 아래" });
+  for (const a of ARCHES) arch(w, K, a.p[0], a.p[1], 30, 22, a.yaw, { name: "도로 아치 아래" });
   for (const g of RINGS) ringGate(w, K, g.p[0], g.y, g.p[1], g.R, g.yaw);
   ringGate(w, K, FLOATRING.p[0], FLOATRING.p[1], FLOATRING.p[2], 9.5, FLOATRING.yaw, { stand: false, light: VIO2, accent: NAVY, name: "소행성대 고리문" });
   shuttle(w, PAD[0], PAD[1], 35);
@@ -120,7 +120,7 @@ export default {
     stars: true, lamps: true, cloud: 0, noWind: true,
     sky: { top: 0x000004, horizon: 0x03040c, bottom: 0x000000 }, sunDir: [0.62, 0.4, -0.67], sunColor: 0xfff4e4, sun: 3.5, sunDisc: 10,
     hemi: 0.55, hemiSky: 0x9fb8ff, hemiGround: 0x3d5a8a, toon: { sun: 0.66, fill: 0.22 },
-    fog: { color: 0x05070f, near: 700, far: 3200 }, exposure: 1.0, glow: 2.0, bloom: { strength: 0.45, radius: 0.5, threshold: 0.9 },
+    fog: { color: 0x05070f, near: 700, far: 3200 }, exposure: 1.0, glow: 2.0, bloom: { strength: 0.45, radius: 0.5, threshold: 0.92 }, look: { scatter: 0.1 },
   },
   spawn: { pos: [0, 0, 100], yaw: 0 },
   thumb: { pos: [190, 70, 210], look: [0, 20, -40] },

@@ -404,7 +404,7 @@ function tentacle(parent, name, x, y, z, segs, len, r0, mkBody = "belly", mkTip 
   for (let i = 0; i < segs; i++) {
     const r1 = r0 * (1 - (i + 1) / (segs + 0.6)), ri = r0 * (1 - i / (segs + 0.6));
     put(p, mkBody, cyl(ri, r1, len, 5), [0, -len / 2, 0]);
-    put(p, "vein", sph(ri * 0.55, 5, 3), [0, -len * 0.15, 0]);
+    if (r0 > 0.2) put(p, "vein", sph(ri * 0.55, 5, 3), [0, -len * 0.15, 0]);
     out.push(p);
     if (i < segs - 1) p = node(p, name + (i + 1), 0, -len, 0);
     else put(p, mkTip, sph(r1 * 1.6 + 0.02, 6, 4), [0, -len, 0]);
@@ -765,16 +765,16 @@ const DECOR = {
     mech: {
       waist(n) {
         for (const sx of [-1, 1]) {
-          for (let i = 0; i < 4; i++) put(n, "crystal", oct(0.5), [sx * (4.4 + i * 0.35), 8.0 + (i % 2) * 0.4, -1 + i * 0.6], qDir([sx * 0.7, 1, (i - 1.5) * 0.2]), [0.6, 2.8 - i * 0.3, 0.6]);
-          rod(n, "vein", box(1, 1, 1), [sx * 0.9, 2.2, -2.35], [sx * 3.2, 7.2, -2.3], 0.15, 0.1);
-          rod(n, "vein", box(1, 1, 1), [sx * 3.65, 1.6, -1.5], [sx * 3.65, 7.6, 1.5], 0.12, 0.1);
+          for (let i = 0; i < 4; i++) put(n, "crystal", oct(0.9), [sx * (4.2 + i * 0.4), 8.4 + (i % 2) * 0.5, -1.2 + i * 0.7], qDir([sx * 0.7, 1, (i - 1.5) * 0.2]), [0.6, 2.8 - i * 0.3, 0.6]);
+          rod(n, "vein", box(1, 1, 1), [sx * 0.9, 2.2, -2.3], [sx * 3.2, 7.2, -2.3], 0.25, 0.14);
+          rod(n, "vein", box(1, 1, 1), [sx * 3.62, 1.6, -1.5], [sx * 3.62, 7.6, 1.5], 0.2, 0.14);
           for (let i = 0; i < 3; i++) { const z = -1 + i; rod(n, "skin", cone(0.22, 1, 5), [sx * 3.2, 1.5, z], [sx * 3.6, -1.6 - i * 0.5, z - 0.4]); put(n, "pale", sph(0.18, 6, 4), [sx * 3.6, -1.6 - i * 0.5, z - 0.4]); }
         }
-        for (let i = 0; i < 4; i++) put(n, "crystal", oct(0.45), [0, 6.6 + i * 0.6, 2.5 + i * 0.15], [-0.6, 0, 0], [0.6, 2.6, 0.6]);
+        for (let i = 0; i < 4; i++) put(n, "crystal", oct(0.7), [0, 6.6 + i * 0.7, 2.6 + i * 0.15], [-0.6, 0, 0], [0.6, 2.6, 0.6]);
         put(n, "membrane", slab([[-3, 0], [3, 0], [2.2, 2.4], [-2.2, 2.4]], 0.08), [0, 7.9, 2.3], [-1.1, 0, 0]);
       },
       head(n) {
-        for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.42; put(n, "crystal", oct(0.32), [Math.sin(a) * 0.9, 1.4 + (i === 2 ? 0.4 : 0), Math.cos(a) * 0.4 - 0.1], qDir([Math.sin(a) * 0.8, 1, 0]), [0.6, i === 2 ? 3.2 : 2.3, 0.6]); }
+        for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.42; put(n, "crystal", oct(0.55), [Math.sin(a) * 1.0, 1.7 + (i === 2 ? 0.6 : 0), Math.cos(a) * 0.4 - 0.1], qDir([Math.sin(a) * 0.8, 1, 0]), [0.6, i === 2 ? 3.2 : 2.3, 0.6]); }
         for (const sx of [-1, 1]) put(n, "pale", sph(0.22, 8, 6), [sx * 0.65, 0.2, -1.38], 0, [1, 1, 0.6]);
       },
     },

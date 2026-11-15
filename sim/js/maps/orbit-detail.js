@@ -73,7 +73,7 @@ function vein(w, a, b, r, ctx, k = 1) {
 export function asteroids(w, K, ctx) {
   const r = w.rand;
   let n = 0;
-  for (let i = 0; i < 900 && n < 34; i++) {
+  for (let i = 0; i < 900 && n < 26; i++) {
     const x = (r() * 2 - 1) * 225, z = (r() * 2 - 1) * 225, y = 78 + r() * 95, s = 3 + r() * r() * 10;
     if (Math.hypot(x - REACTOR[0], z - REACTOR[1]) < 30 + s || !ctx.freeAir(x, y, z, s + 10)) continue;
     rock(w, x, y, z, s, r, true);
@@ -82,8 +82,8 @@ export function asteroids(w, K, ctx) {
     n++;
   }
   // 갑판 가장자리 바깥, 구역 안쪽 낮은 고도의 바위와 부서진 잔해
-  for (let i = 0; i < 600 && n < 52; i++) {
-    const a = r() * 6.28, d = 246 + r() * 20, x = Math.cos(a) * d, z = Math.sin(a) * d, y = -30 + r() * 80, s = 2 + r() * 6;
+  for (let i = 0; i < 600 && n < 36; i++) {
+    const a = r() * 6.28, d = 248 + r() * 18, x = Math.cos(a) * d, z = Math.sin(a) * d, y = -40 + r() * 90, s = 1.5 + r() * 4;
     if (onDeck(x, z, -6) || Math.abs(x) > 266 || Math.abs(z) > 266 || !ctx.freeAir(x, y, z, s + 8) || (x > 220 && DOCKS.some((dz) => Math.abs(z - dz) < 16))) continue;
     rock(w, x, y, z, s, r, true); ctx.air.push([x, y, z, s]); n++;
   }
@@ -94,8 +94,8 @@ export function asteroids(w, K, ctx) {
   }
   // 바깥 소행성대: 하나로 합친 메시가 요새 둘레를 아주 천천히 돈다 (충돌 없음)
   const G = icoG(), parts = [];
-  for (let i = 0; i < 150; i++) {
-    const a = r() * Math.PI * 2, d = 340 + r() * 700, y = -140 + r() * 320 + Math.sin(a * 3) * 40, s = 4 + r() * r() * 46;
+  for (let i = 0; i < 120; i++) {
+    const a = r() * Math.PI * 2, d = 430 + r() * 700, y = -160 + r() * 340 + Math.sin(a * 3) * 40, s = 4 + r() * r() * 30;
     parts.push([G, M(Math.cos(a) * d, y, Math.sin(a) * d, s * (0.8 + r() * 0.5), s * (0.6 + r() * 0.4), s * (0.8 + r() * 0.5), r() * 360, r() * 360, r() * 360), ROCKC[i % 4]]);
     if (r() < 0.2) parts.push([G, M(Math.cos(a) * d + s, y + s * 0.6, Math.sin(a) * d, s * 0.25, s * 0.9, s * 0.25, r() * 40, r() * 360, 0), VIO]);
   }
@@ -129,13 +129,14 @@ function debris(w, x, y, z, r) {
 export function props(w, K, ctx) {
   const r = w.rand, cc = [ORG, NAVY, HULL2, 0x2f6fb0, YEL];
   let n = 0;
-  for (let i = 0; i < 1600 && n < 70; i++) {
-    const x = (r() * 2 - 1) * 225, z = (r() * 2 - 1) * 225;
+  const SPOTS = [[-150, -160], [-75, -160], [-112, -140], [190, -10], [190, 70], [175, 30], [-120, 40], [-40, 40], [40, 40], [-170, 120], [120, 180], [-30, 170], [60, -110], [-100, -40], [100, 20]];
+  for (let i = 0; i < 1600 && n < 60; i++) {
+    const sp = SPOTS[i % SPOTS.length], x = sp[0] + (r() * 2 - 1) * 16, z = sp[1] + (r() * 2 - 1) * 16;
     if (!onDeck(x, z, 10) || !ctx.free(x, z, 6) || Math.hypot(x - 150, z + 150) < 120) continue;
     const k = r();
     if (k < 0.45) {
       // 화물 상자 더미
-      const ry = ((r() * 4) | 0) * 90 + (r() - 0.5) * 8;
+      const ry = ((r() * 2) | 0) * 90 + (r() - 0.5) * 4;
       for (let j = 0; j < 2 + ((r() * 3) | 0); j++) w.box(x + (j % 2) * 2.4, (j > 1 ? 1.8 : 0), z + ((j / 2) | 0) * 0.3, 2.2, 1.8, 2.2, cc[(i + j) % 5], { mat: "std:corrug", tile: 2, ry });
     } else if (k < 0.65) {
       // 연료 구
@@ -144,7 +145,7 @@ export function props(w, K, ctx) {
       w.box(x, 3.3, z, 5.4, 0.3, 0.3, DARK, { col: false });
     } else if (k < 0.8) {
       // 정비 카트
-      const ry = r() * 360;
+      const ry = ((r() * 4) | 0) * 90;
       w.box(x, 0.4, z, 2.4, 1.2, 4, YEL, { mat: "paint", ry });
       w.box(x, 1.6, z, 2.2, 0.9, 1.6, DARK, { mat: "paint", ry, col: false });
       K.blink.add(x, 2.7, z, AMB, 0.22, i);

@@ -54,7 +54,7 @@ export function shard(w, x, y, z, r, h, tilt, az, color = VIO, o = {}) {
 }
 // 결정 무리: 가운데 큰 것 + 둘레로 기울어진 작은 것들, 안쪽에 빛나는 조각
 export function crystalCluster(w, x, z, s, r, o = {}) {
-  const y = o.y ?? 0, n = o.n ?? 5 + ((r() * 4) | 0), cols = o.colors || [VIO, 0x7a3cf0, 0xa35cff];
+  const y = o.y ?? 0, n = o.n ?? 5 + ((r() * 4) | 0), cols = o.colors || [0xa451ff, 0x8a3cf0, 0xc36dff];
   // 밑동: 짙은 생체 덩어리
   w.blob(x, y + 0.2 * s, z, 2.4 * s, 0.9 * s, 2.4 * s, FLESH, { mat: "paint", col: false, grad: [0.55, 1.1] });
   shard(w, x, y, z, 1.1 * s, (7 + r() * 5) * s, r() * 12, r() * 360, cols[0]);
@@ -63,6 +63,9 @@ export function crystalCluster(w, x, z, s, r, o = {}) {
     const ax = x + Math.cos(a * DEG) * d, az = z + Math.sin(a * DEG) * d;
     shard(w, ax, y - 0.2, az, (0.35 + r() * 0.4) * s, h, 18 + r() * 38, -a + 90, cols[i % cols.length], { col: h > 3 });
   }
+  // 가운데 결정 속의 빛나는 심, 바닥에 번지는 보랏빛
+  shard(w, x, y + 0.5 * s, z, 0.5 * s, (5 + r() * 3) * s, 0, 0, VIO2, { mat: "glow", col: false });
+  w.pool(x, y + 0.06, z, 7 * s, VIO, 0.4);
   // 빛나는 작은 결정(보라 발광)
   for (let i = 0; i < 3; i++) {
     const a = r() * 6.28, d = (1.2 + r() * 1.6) * s;
