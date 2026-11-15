@@ -1,6 +1,7 @@
 // 프리스타일: 플립·롤·스핀·파워 루프·다이브·근접 비행·갭 통과를 감지해 콤보 점수를 준다
 import * as THREE from "../../vendor/three.module.min.js";
 import { Mode, stars } from "./base.js";
+import * as GP from "../garage.js";
 import { gapCrossed } from "../world.js";
 import { submitRecord, records, fmtTime } from "../config.js";
 
@@ -31,6 +32,7 @@ export class FreestyleMode extends Mode {
     if (key === this.lastTrick) this.repeat++; else { this.repeat = 0; this.lastTrick = key; }
     const p = Math.round(pts * Math.max(0.3, 1 - this.repeat * 0.25) * this.mult);
     this.score += p; this.comboPts += p; this.tricks++;
+    GP.ev("trick");
     this.bestCombo = Math.max(this.bestCombo, this.comboPts);
     this.log.unshift({ text: `${name}  +${p}`, t: 0 });
     if (this.log.length > 5) this.log.pop();

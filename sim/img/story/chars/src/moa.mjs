@@ -83,9 +83,10 @@ function wrench() {
   const head = "M300 300 C276 262 282 210 316 182 L334 168 L346 214 C352 236 374 244 396 236 L410 230 L388 186 L408 176 C446 186 466 228 452 268 C440 302 408 318 384 318 L380 330 L340 344 L334 322 C318 320 306 312 300 300 Z";
   const hsh = fillp("M384 318 C408 318 440 302 452 268 C466 228 446 186 408 176 L414 192 C440 210 446 250 430 276 C416 296 398 306 380 308Z", ME.d, ` opacity="0.7"`) +
     fillp("M310 210 C306 236 312 270 330 296 L320 300 C302 276 298 240 306 210Z", "#fff") + fillp("M318 192 L334 180 L340 206 L326 214Z", "#fff", ` opacity="0.8"`);
+  const glint = fillp("M326 196 l4 -16 l4 16 l16 4 l-16 4 l-4 16 l-4 -16 l-16 -4Z", "#fff") + `<circle cx="330" cy="200" r="4" fill="#fff"/>`;
   return part(shaft, `url(#${P}metalV)`, ssh, 4.5) + part(head, `url(#${P}metal)`, hsh, 4.5) + `<circle cx="372" cy="292" r="10" fill="${ME.s}" stroke="${INK}" stroke-width="3"/><circle cx="369" cy="289" r="3.5" fill="#fff"/>` +
     // 초록 테이프 감은 손잡이 끝
-    part("M478 632 L516 618 L524 646 C526 664 500 672 488 660 Z", AC, fillp("M500 626 L516 618 L524 646 C524 656 516 664 506 666Z", "#1e8a56"), 3.5) + line("M484 646 L520 632", 2, "#1e8a56");
+    part("M478 632 L516 618 L524 646 C526 664 500 672 488 660 Z", AC, fillp("M500 626 L516 618 L524 646 C524 656 516 664 506 666Z", "#1e8a56"), 3.5) + line("M484 646 L520 632", 2, "#1e8a56") + glint;
 }
 
 // ── 뒷머리 ─────────────────────────────────────────
@@ -102,8 +103,8 @@ function hairBack() {
 // ── 다리 (멜빵바지) ─────────────────────────────────
 function legs() {
   const hip = "M500 820 L702 820 C722 880 732 940 732 1000 C706 1100 652 1150 600 1162 C548 1150 496 1100 470 1000 C470 940 480 880 500 820 Z";
-  const R = "M732 990 C756 1180 744 1400 728 1600 C722 1760 718 1920 718 2130 L606 2134 C612 1940 620 1780 624 1640 C626 1480 612 1300 598 1150 Z";
-  const L = "M472 990 C462 1200 474 1420 484 1620 C474 1800 440 1960 410 2122 L516 2128 C534 1960 562 1800 574 1650 C586 1480 594 1300 602 1150 Z";
+  const R = "M732 990 C768 1180 760 1400 744 1600 C738 1760 734 1920 736 2132 L600 2136 C606 1940 614 1780 618 1640 C620 1480 610 1300 598 1150 Z";
+  const L = "M470 990 C446 1200 456 1420 466 1620 C454 1800 420 1960 396 2124 L524 2130 C542 1960 570 1800 580 1650 C592 1480 598 1300 602 1150 Z";
   const sh =
     fillp("M560 1150 C540 1300 522 1500 514 1700 C508 1880 506 2000 506 2130 L540 2130 L604 1150Z", OV.s) +
     fillp("M690 1000 C708 1200 702 1450 690 1650 C686 1820 684 1960 680 2140 L720 2140 L740 990Z", OV.s) +
@@ -121,11 +122,19 @@ function legs() {
     `<ellipse cx="660" cy="1460" rx="20" ry="12" fill="${OV.d}" opacity="0.55" transform="rotate(-20 660 1460)"/><ellipse cx="470" cy="1820" rx="14" ry="8" fill="${OV.d}" opacity="0.5"/>` +
     fillp("M712 1100 L736 1080 L740 1180 L716 1170Z", RIM, ` opacity="0.5"`);
   // 무릎 덧댐 (왼다리)
-  const patch = part("M444 1560 L534 1566 L530 1680 L438 1674 Z", "#4cb678", fillp("M500 1564 L534 1566 L530 1680 L496 1678Z", OV.s, ` opacity="0.7"`) + line("M450 1572 L526 1577 L522 1668 L446 1663 Z", 2, "#eaffef", ` stroke-dasharray="5 4" opacity="0.8"`), 3);
+  const patch = part("M468 1562 L560 1570 L554 1684 L462 1676 Z", "#4cb678", fillp("M524 1566 L560 1570 L554 1684 L520 1680Z", OV.s, ` opacity="0.7"`) + line("M474 1574 L552 1580 L547 1672 L470 1665 Z", 2, "#eaffef", ` stroke-dasharray="5 4" opacity="0.8"`), 3);
   // 접어 올린 바짓단
-  const cuffL = part("M410 2100 C440 2088 490 2090 518 2100 L522 2160 C490 2172 440 2170 408 2160 Z", "#56c085", fillp("M480 2092 L518 2100 L522 2160 L484 2168Z", OV.s) + line("M412 2128 C444 2138 490 2138 520 2130", 2.5, OV.d) + fillp("M412 2104 C440 2094 480 2094 500 2098 L498 2106 C470 2102 440 2104 412 2114Z", "#9ff0c2"), 4);
-  const cuffR = part("M606 2108 C640 2096 690 2096 714 2108 L716 2166 C690 2178 640 2178 606 2166 Z", "#56c085", fillp("M676 2100 L714 2108 L716 2166 L680 2174Z", OV.s) + line("M608 2136 C640 2146 690 2146 714 2138", 2.5, OV.d) + fillp("M610 2112 C640 2102 680 2102 700 2106 L698 2114 C670 2110 640 2112 610 2122Z", "#9ff0c2"), 4);
-  return union([hip, L, R], `url(#${P}ov)`, sh, 5) + patch + cuffL + cuffR;
+  const cuffL = part("M392 2100 C430 2086 494 2088 528 2100 L530 2160 C494 2174 430 2172 390 2160 Z", "#56c085", fillp("M480 2092 L518 2100 L522 2160 L484 2168Z", OV.s) + line("M412 2128 C444 2138 490 2138 520 2130", 2.5, OV.d) + fillp("M412 2104 C440 2094 480 2094 500 2098 L498 2106 C470 2102 440 2104 412 2114Z", "#9ff0c2"), 4);
+  const cuffR = part("M596 2108 C636 2094 700 2094 740 2108 L740 2166 C700 2180 636 2180 596 2166 Z", "#56c085", fillp("M676 2100 L714 2108 L716 2166 L680 2174Z", OV.s) + line("M608 2136 C640 2146 690 2146 714 2138", 2.5, OV.d) + fillp("M610 2112 C640 2102 680 2102 700 2106 L698 2114 C670 2110 640 2112 610 2122Z", "#9ff0c2"), 4);
+  // 오른 허벅지 카고 주머니
+  const cargo = part("M660 1300 L756 1290 L752 1440 C730 1452 684 1454 664 1444 Z", "#43a86c", fillp("M720 1294 L756 1290 L752 1440 C744 1446 732 1448 720 1450Z", OV.s, ` opacity="0.8"`) + line("M668 1340 L752 1332", 2.5, OV.d) + line("M668 1312 L750 1304 L746 1432 C726 1442 688 1444 670 1436 Z", 1.8, AC, ` stroke-dasharray="5 4" opacity="0.8"`), 3.5) +
+    part("M656 1294 L760 1284 L758 1336 L660 1346 Z", "#4cb678", fillp("M656 1294 L760 1284 L759 1294 L657 1304Z", "#9ff0c2") + fillp("M724 1288 L760 1284 L758 1336 L722 1340Z", OV.s, ` opacity="0.7"`), 3.5) +
+    `<circle cx="708" cy="1324" r="7" fill="url(#${P}metal)" stroke="${INK}" stroke-width="2.5"/>`;
+  // 추가 주름 (당김·뭉침)
+  const folds = line("M520 1180 C536 1240 552 1300 560 1360", 2, OV.d, ` opacity="0.7"`) + line("M690 1180 C676 1240 664 1300 656 1360", 2, OV.d, ` opacity="0.7"`) +
+    line("M420 2040 C450 2056 490 2058 520 2048", 2.2, OV.d) + line("M414 2074 C440 2088 480 2090 522 2080", 2.2, OV.d) + line("M604 2050 C640 2066 690 2066 732 2054", 2.2, OV.d) + line("M602 2080 C640 2094 690 2094 734 2084", 2.2, OV.d) +
+    line("M760 1200 C756 1400 744 1600 740 1800 C738 1950 738 2050 738 2120", 3, RIM, ` opacity="0.7"`);
+  return union([hip, L, R], `url(#${P}ov)`, sh, 5) + folds + patch + cargo + cuffL + cuffR;
 }
 function boots() {
   // 왼발: 뒤꿈치 들고 발끝으로 (바깥쪽)
@@ -164,7 +173,7 @@ function torso() {
   const collarL = "M566 446 C552 470 546 494 548 520 L590 540 L598 500 C592 484 580 466 566 446 Z";
   const collarR = "M634 446 C648 470 656 494 654 520 L612 540 L602 500 C608 484 620 466 634 446 Z";
   const vneck = "M572 460 L600 540 L628 460 Z";
-  let s = part(d, `url(#${P}shirt)`, sh, 5);
+  let s = part(d, `url(#${P}shirt)`, sh + line("M776 560 L746 640 C736 720 714 790 700 830", 3, RIM, ` opacity=\"0.7\"`), 5);
   s += part(vneck, SK.b, fillp("M572 460 L628 460 L620 484 C606 476 594 476 580 484Z", SK.s), 3);
   s += part(collarL, SH.b, fillp("M548 500 L590 540 L596 512Z", SH.s), 3.5) + part(collarR, SH.b, fillp("M602 500 L612 540 L654 520 L650 500Z", SH.s), 3.5);
   s += `<circle cx="600" cy="560" r="5" fill="#fff" stroke="${INK}" stroke-width="2"/><circle cx="600" cy="610" r="5" fill="#fff" stroke="${INK}" stroke-width="2"/>` + line("M600 540 L600 640", 2, SH.d);
@@ -212,6 +221,9 @@ function toolBelt() {
   const hammer = part("M700 960 L716 958 L728 1120 L712 1122 Z", "#c8783a", fillp("M708 959 L716 958 L728 1120 L720 1121Z", "#8a4a20"), 3) + part("M682 1110 L752 1102 L756 1134 L686 1142 Z", `url(#${P}metal)`, "", 3.5);
   const pouch2 = "M640 930 L702 920 L708 1010 C692 1024 656 1026 646 1012 Z";
   s += hammer + part(pouch2, `url(#${P}lea)`, fillp("M680 922 L702 920 L708 1010 C700 1016 690 1020 682 1020Z", LE.s) + fillp("M640 930 L702 920 L703 950 L641 958Z", LE.s, ` opacity="0.6"`) + line("M648 962 L704 954", 2, LE.d), 4) + part("M664 944 L680 942 L681 962 L665 964 Z", `url(#${P}metal)`, "", 2);
+  const keys = line("M620 960 C610 980 612 1000 626 1008 C640 1012 648 996 642 980 C638 968 630 962 620 960", 5, INK) + line("M620 960 C610 980 612 1000 626 1008 C640 1012 648 996 642 980 C638 968 630 962 620 960", 2.5, AC) +
+    part("M618 1006 L630 1004 L640 1048 L628 1052 Z", `url(#${P}metal)`, "", 2.5) + part("M634 1004 L644 1008 L636 1050 L626 1046 Z", "#ffcf3a", "", 2.5) + part("M612 1046 L644 1040 L648 1070 L616 1076 Z", "#ff8a2a", line("M618 1056 L640 1052", 1.5, "#fff"), 2.5);
+  s += keys;
   // 허리에 꽂은 걸레
   const rag = "M470 990 C456 1040 452 1090 460 1140 C468 1160 486 1170 498 1164 C490 1120 494 1060 506 1000 Z";
   s = part(rag, "#ffcf8a", fillp("M490 996 C480 1060 478 1120 486 1166 L498 1164 C490 1120 494 1060 506 1000Z", "#e09a50") + line("M462 1060 L500 1056 M460 1100 L496 1098 M466 1140 L494 1138", 3, "#e8603a", ` opacity="0.7"`) + line("M474 1000 L470 1150 M486 998 L480 1160", 2, "#e8603a", ` opacity="0.5"`), 3.5) + s;
@@ -220,7 +232,7 @@ function toolBelt() {
 
 // ── 목 ─────────────────────────────────────────────
 function neck() {
-  return part("M570 384 L566 466 Q600 486 634 466 L630 384 Z", SK.b, fillp("M560 384 L640 384 L640 430 C620 414 580 414 560 430Z", SK.s) + fillp("M618 400 L640 400 L640 470 L620 478Z", SK.s));
+  return part("M576 384 L572 466 Q600 484 628 466 L624 384 Z", SK.b, fillp("M560 384 L640 384 L640 430 C620 414 580 414 560 430Z", SK.s) + fillp("M618 400 L640 400 L640 470 L620 478Z", SK.s));
 }
 
 // ── 팔 ─────────────────────────────────────────────
@@ -258,7 +270,7 @@ function armRight() {
   const fore = "M790 712 C796 736 828 742 846 724 C862 690 880 650 900 612 L860 594 C842 630 816 670 790 712 Z";
   const fsh = fillp("M846 724 C862 690 880 650 900 612 L888 606 C870 646 852 686 834 720Z", SK.s) + fillp("M804 708 C824 674 842 640 860 604 L866 608 C848 644 828 680 810 712Z", SK.h, ` opacity="0.8"`);
   const band = part("M856 590 L906 612 L894 640 L846 618 Z", AC, fillp("M880 600 L906 612 L894 640 L872 630Z", "#1e8a56") + line("M852 604 L900 626", 1.5, "#bfffe0"), 3.5);
-  return part(sleeve, `url(#${P}shirt)`, ssh, 4.5) + part(fore, `url(#${P}skin)`, fsh, 4.5) + part(roll, SH.b, rsh, 4) + band;
+  return part(sleeve, `url(#${P}shirt)`, ssh + line("M796 540 C806 600 822 650 838 690", 3, RIM, ` opacity=\"0.8\"`), 4.5) + part(fore, `url(#${P}skin)`, fsh + line("M846 722 C864 688 882 648 898 614", 3, RIM, ` opacity=\"0.8\"`), 4.5) + part(roll, SH.b, rsh, 4) + band;
 }
 function handRight() {
   // 엄지 척 주먹
@@ -314,6 +326,9 @@ function eye(s, e) {
   inner += fillp(`M${f(icx - irx * 0.8)} ${f(icy + iry * 0.3)} Q${icx} ${f(icy + iry * 1.1)} ${f(icx + irx * 0.8)} ${f(icy + iry * 0.3)} Q${icx} ${f(icy + iry * 0.7)} ${f(icx - irx * 0.8)} ${f(icy + iry * 0.3)}Z`, "#f4ffb0", ` opacity="0.75"`);
   inner += fillp(`M${f(icx - irx)} ${f(icy - iry)} L${f(icx + irx)} ${f(icy - iry)} L${f(icx + irx)} ${f(icy - iry * 0.3)} Q${icx} ${f(icy - iry * 0.55)} ${f(icx - irx)} ${f(icy - iry * 0.3)}Z`, "#0b2a1c", ` opacity="0.5"`);
   inner += `<ellipse cx="${f(icx - 7)}" cy="${f(icy - 9)}" rx="${f(7 * cfg.ir)}" ry="${f(9 * cfg.ir)}" fill="#fff"/><circle cx="${f(icx + 8)}" cy="${f(icy + 10)}" r="3.4" fill="#fff"/><circle cx="${f(icx + 4)}" cy="${f(icy - 12)}" r="2.2" fill="#fff" opacity="0.85"/>`;
+  for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + 0.2; inner += line(`M${f(icx + Math.cos(a) * irx * 0.5)} ${f(icy + 2 + Math.sin(a) * iry * 0.5)} L${f(icx + Math.cos(a) * irx * 0.9)} ${f(icy + 2 + Math.sin(a) * iry * 0.9)}`, 1.4, "#d8ffb0", ` opacity="0.35"`); }
+  inner += `<ellipse cx="${icx}" cy="${icy}" rx="${f(irx * 0.92)}" ry="${f(iry * 0.92)}" fill="none" stroke="#d8ffb0" stroke-width="1.2" opacity="0.4"/>`;
+  inner += fillp(`M${f(icx + irx * 0.2)} ${f(icy - iry * 0.75)} l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3Z`, "#fff", ` opacity="0.9"`);
   let o = fillp(scl, "#fffdfb");
   const id = `${P}c${clipN++}`;
   clips.push(`<clipPath id="${id}"><path d="${scl}"/></clipPath>`);
@@ -394,7 +409,7 @@ function hairFront() {
   // 아호게 (정수리 한 가닥)
   s += part("M596 128 C590 96 604 66 636 54 C626 72 620 92 622 112 C616 108 610 110 608 128 Z", `url(#${P}hair)`, fillp("M600 120 C598 96 610 74 630 60 C618 80 614 100 616 112Z", HR.h, ` opacity="0.6"`), 3.5);
   // 림 라이트
-  s += line("M716 200 C732 260 726 320 720 340", 3.5, RIM, ` opacity="0.85"`) + line("M742 132 C760 160 768 190 770 216", 3, RIM, ` opacity="0.7"`);
+  s += line("M716 200 C732 260 726 320 720 340", 3.5, RIM, ` opacity="0.85"`);
   return s;
 }
 function goggles() {
@@ -410,6 +425,8 @@ function goggles() {
       [0, 1, 2, 3, 4, 5].map((i) => { const a = i * Math.PI / 3 + 0.3; return `<circle cx="${f(cx + Math.cos(a) * (r + 4.5))}" cy="${f(196 + Math.sin(a) * (r + 4.5))}" r="2.4" fill="${ME.d}"/>`; }).join("");
   };
   s += lens(552) + lens(648);
+  const tuft = [leaf([476, 226], [500, 212], [458, 186], -6), leaf([700, 210], [726, 226], [744, 190], 6), leaf([592, 184], [608, 184], [606, 150], 3)];
+  s += union(tuft, `url(#${P}hair)`, fillp("M480 200 L720 200 L720 214 L480 214Z", HR.s, ` opacity="0.7"`), 3.5);
   s += part("M590 186 L610 186 L612 206 L588 206 Z", `url(#${P}metal)`, "", 3);
   return s;
 }
@@ -418,6 +435,6 @@ export function svg(expr = "normal") {
   if (!["normal", "smile", "angry", "sad", "surprise", "serious"].includes(expr)) expr = "normal";
   clipN = 0; clips.length = 0;
   const body = wrench() + hairBack() + neck() + legs() + boots() + torso() + bib() + straps() + toolBelt() + armRight() + handRight() + armLeft() + handLeft();
-  const head = `<g transform="rotate(3 600 420)">` + ears() + face() + cheeks(expr) + nose() + mouth(expr) + eye(-1, expr) + eye(1, expr) + hairFront() + brow(-1, expr) + brow(1, expr) + goggles() + `</g>`;
+  const head = `<g transform="translate(600 440) scale(1.05) translate(-600 -440)"><g transform="rotate(3 600 420)">` + ears() + face() + cheeks(expr) + nose() + mouth(expr) + `<g transform="translate(552 308) scale(1.08) translate(-552 -308)">${eye(-1, expr)}</g><g transform="translate(648 308) scale(1.08) translate(-648 -308)">${eye(1, expr)}</g>` + hairFront() + brow(-1, expr) + brow(1, expr) + goggles() + `</g></g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2400"><defs>${defs()}${clips.join("")}</defs>${body}${head}</svg>`;
 }

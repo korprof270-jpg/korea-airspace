@@ -83,7 +83,9 @@ function scarfTail() {
     fillp("M650 478 C730 446 790 496 862 466 C930 438 958 372 1036 356 L1036 366 C962 382 934 448 864 476 C790 506 730 456 650 488Z", "#fff", ` opacity="0.85"`);
   let fr = "";
   for (let i = 0; i < 8; i++) { const t = i / 7, x = 1156 + 16 * t, y = 248 + 112 * t; fr += line(`M${f(x)} ${f(y)} q${f(16 - 3 * t)} ${f(-4 + 8 * t)} ${f(28 - 4 * t)} ${f(-2 + 14 * t)}`, 4.5, SC.s) + line(`M${f(x)} ${f(y)} q${f(16 - 3 * t)} ${f(-4 + 8 * t)} ${f(28 - 4 * t)} ${f(-2 + 14 * t)}`, 1.5, INK, ` opacity="0.6"`); }
-  return part(d, `url(#${P}scarf)`, sh) + fr + line("M1146 266 L1162 362", 3.5, GD.b) + line("M1134 284 L1148 376", 2.5, GD.b);
+  const d2 = "M660 520 C740 560 790 620 860 640 C930 660 980 620 1040 646 C1016 668 992 688 960 700 C900 716 840 700 790 676 C740 650 700 600 670 570 Z";
+  const t2 = part(d2, SC.s, fillp("M860 640 C930 660 980 620 1040 646 C1016 668 992 688 960 700 C930 690 900 670 860 640Z", SC.d, ` opacity="0.5"`) + line("M700 560 C760 610 820 650 900 676", 2, SC.d) + line("M880 652 C930 664 970 650 1010 650", 2, "#fff"), 4);
+  return t2 + part(d, `url(#${P}scarf)`, sh) + fr + line("M1146 266 L1162 362", 3.5, GD.b) + line("M1134 284 L1148 376", 2.5, GD.b);
 }
 // ── 뒷머리 ─────────────────────────────────────────
 function hairBack() {
@@ -149,7 +151,10 @@ function boots() {
   const cuffR = part("M682 1846 C720 1830 760 1830 794 1842 L796 1876 C760 1864 720 1864 684 1880 Z", `url(#${P}gold)`, fillp("M762 1832 L794 1842 L796 1876 L764 1866Z", GD.s, ` opacity="0.6"`) + line("M686 1856 C720 1842 760 1842 792 1852", 1.5, GD.h), 3.5);
   const strap = (x1, x2, y, sk = 0) => part(`M${x1} ${y} L${x2} ${y - 4 + sk} L${x2} ${y + 18 + sk} L${x1} ${y + 22}Z`, "#121120", fillp(`M${x1} ${y} L${x2} ${y - 4 + sk} L${x2} ${y + 4 + sk} L${x1} ${y + 8}Z`, "#4a4966"), 3) +
     part(`M${(x1 + x2) / 2 - 12} ${y - 4 + sk / 2} L${(x1 + x2) / 2 + 12} ${y - 6 + sk / 2} L${(x1 + x2) / 2 + 12} ${y + 22 + sk / 2} L${(x1 + x2) / 2 - 12} ${y + 24 + sk / 2}Z`, `url(#${P}gold)`, "", 2.5) + line(`M${(x1 + x2) / 2 - 5} ${y + 2 + sk / 2} L${(x1 + x2) / 2 - 5} ${y + 18 + sk / 2}`, 2, GD.s);
-  return part(BL, `url(#${P}boot)`, shL, 5) + part(BR, `url(#${P}boot)`, shR, 5) + cuffL + cuffR + strap(488, 592, 2010) + strap(702, 804, 2000, 4) + strap(498, 588, 2140) + strap(720, 818, 2130, 4);
+  const gl = fillp("M500 1910 C498 1990 504 2080 512 2180 L518 2180 C512 2080 508 1990 508 1910Z", "#fff", ` opacity="0.75"`) + fillp("M712 1900 C716 1980 728 2080 742 2170 L748 2170 C736 2080 724 1980 720 1900Z", "#fff", ` opacity="0.7"`) +
+    fillp("M486 2350 C492 2336 506 2326 520 2322 L524 2328 C510 2334 498 2344 494 2356Z", "#fff", ` opacity="0.7"`) + fillp("M792 2340 C810 2346 830 2352 846 2360 L842 2366 C826 2360 808 2354 790 2348Z", "#fff", ` opacity="0.6"`) +
+    line("M586 1900 C584 2050 582 2180 588 2300", 3, RIM, ` opacity="0.6"`) + line("M792 1880 C800 2000 818 2140 834 2250", 3, RIM, ` opacity="0.7"`);
+  return part(BL, `url(#${P}boot)`, shL + gl, 5) + part(BR, `url(#${P}boot)`, shR, 5) + gl + cuffL + cuffR + strap(488, 592, 2010) + strap(702, 804, 2000, 4) + strap(498, 588, 2140) + strap(720, 818, 2130, 4);
 }
 // ── 몸통 ───────────────────────────────────────────
 function torso() {
@@ -187,7 +192,12 @@ function torso() {
   const pouch = part("M684 990 L734 984 L740 1060 C726 1072 698 1074 688 1062 Z", "#22213a", fillp("M714 986 L734 984 L740 1060 C732 1066 724 1070 716 1070Z", SU.d) + fillp("M684 990 L734 984 L735 1004 L685 1010Z", "#3a3953")) + part("M704 1000 L716 999 L716 1016 L704 1017Z", `url(#${P}gold)`, "", 1.6);
   // 허리 아래 금색 라인 (바지 옆선)
   const rim = line("M796 580 L758 652 C744 740 706 820 696 880", 3, RIM, ` opacity="0.8"`) + "";
-  return part(d, `url(#${P}suit)`, sh + flapIn + pocket, 5) + trim + zip + emblem + belt + buckle + pouch + rim;
+  const cord = (d) => line(d, 8, INK) + line(d, 4.5, GD.b) + line(d, 2, GD.h, ` stroke-dasharray="3 5"`);
+  const aig = cord("M788 556 C778 690 700 730 640 676") + cord("M796 566 C790 760 690 790 632 690") + cord("M640 676 C636 700 634 720 634 744") +
+    part("M626 740 L642 740 L640 772 L628 772 Z", `url(#${P}gold)`, "", 2.5) + part("M646 716 L660 714 L662 744 L648 746 Z", `url(#${P}gold)`, "", 2.5) + cord("M636 690 C646 700 652 708 654 716") + `<circle cx="638" cy="680" r="8" fill="url(#${P}gold)" stroke="${INK}" stroke-width="2.5"/><circle cx="636" cy="677" r="2.5" fill="#fff"/>`;
+  const rib = ["#c8323c", "#e0b84a", "#2f6fd0", "#ffffff", "#2a9a5a", "#c8323c"].map((c, i) => `<rect x="${474 + (i % 3) * 28}" y="${566 + Math.floor(i / 3) * 14}" width="28" height="14" fill="${c}" stroke="${INK}" stroke-width="2"/>`).join("") + line("M478 570 L556 572", 1.5, "#fff", ` opacity="0.5"`);
+  const gloss = fillp("M490 958 C540 972 560 974 590 974 L588 980 C560 980 530 978 490 966Z", "#fff", ` opacity="0.5"`);
+  return part(d, `url(#${P}suit)`, sh + flapIn + pocket, 5) + trim + zip + emblem + belt + gloss + buckle + pouch + rim + rib + aig;
 }
 
 // ── 목·머플러 ───────────────────────────────────────
@@ -320,6 +330,9 @@ function eye(s, e) {
   inner += fillp(`M${f(icx - irx * 0.8)} ${f(icy + iry * 0.3)} Q${icx} ${f(icy + iry * 1.1)} ${f(icx + irx * 0.8)} ${f(icy + iry * 0.3)} Q${icx} ${f(icy + iry * 0.7)} ${f(icx - irx * 0.8)} ${f(icy + iry * 0.3)}Z`, "#d9fbff", ` opacity="0.7"`);
   inner += fillp(`M${f(icx - irx)} ${f(icy - iry)} L${f(icx + irx)} ${f(icy - iry)} L${f(icx + irx)} ${f(icy - iry * 0.35)} Q${icx} ${f(icy - iry * 0.55)} ${f(icx - irx)} ${f(icy - iry * 0.35)}Z`, "#0f1a33", ` opacity="0.55"`);
   inner += `<ellipse cx="${f(icx - 6)}" cy="${f(icy - 7)}" rx="${f(5.5 * cfg.ir)}" ry="${f(7 * cfg.ir)}" fill="#fff"/><circle cx="${f(icx + 7)}" cy="${f(icy + 8)}" r="2.6" fill="#fff"/><circle cx="${f(icx + 2)}" cy="${f(icy - 10)}" r="1.6" fill="#fff" opacity="0.8"/>`;
+  for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + 0.2; inner += line(`M${f(icx + Math.cos(a) * irx * 0.5)} ${f(icy + 2 + Math.sin(a) * iry * 0.5)} L${f(icx + Math.cos(a) * irx * 0.9)} ${f(icy + 2 + Math.sin(a) * iry * 0.9)}`, 1.4, "#bff0ff", ` opacity="0.35"`); }
+  inner += `<ellipse cx="${icx}" cy="${icy}" rx="${f(irx * 0.92)}" ry="${f(iry * 0.92)}" fill="none" stroke="#bff0ff" stroke-width="1.2" opacity="0.4"/>`;
+  inner += fillp(`M${f(icx + irx * 0.2)} ${f(icy - iry * 0.75)} l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3Z`, "#fff", ` opacity="0.9"`);
   let o = fillp(scl, "#fbfcff");
   const id = `${P}c${clipN++}`;
   clips.push(`<clipPath id="${id}"><path d="${scl}"/></clipPath>`);
@@ -410,7 +423,7 @@ function hairFront() {
   s += part(strand2, `url(#${P}hair)`, fillp("M590 210 L606 214 L594 232Z", HR.s), 2.5);
   s += part(strand, `url(#${P}hair)`, fillp("M598 206 L640 206 L636 230 C620 226 606 230 598 240Z", HR.s) + fillp("M606 248 C614 240 620 232 626 222 C622 238 612 252 600 264Z", HR.d, ` opacity="0.6"`) + line("M616 222 C604 244 590 262 580 290", 2.5, "#fff"), 3.5);
   // 림 라이트 + 잔머리
-  s += line("M724 150 C738 196 736 250 716 312", 3.5, RIM, ` opacity="0.9"`) + line("M700 62 C724 62 740 66 748 70", 3, RIM, ` opacity="0.8"`) + line("M760 132 C770 140 778 148 786 156", 3, RIM, ` opacity="0.8"`);
+  s += line("M724 150 C738 196 736 250 716 312", 3.5, RIM, ` opacity="0.9"`) + line("M760 132 C770 140 778 148 786 156", 3, RIM, ` opacity="0.8"`);
   s += line("M422 204 C412 202 404 206 398 212", 2.5) + line("M748 70 C760 64 772 64 782 68", 2.5) + line("M790 246 C800 248 808 244 814 238", 2.5);
   return s;
 }
@@ -419,6 +432,6 @@ export function svg(expr = "normal") {
   clipN = 0; clips.length = 0;
   const body = scarfTail() + hairBack() + legs() + boots() + torso() + armRight() + handRight() + armLeft() + helmet() + handLeft() +
     neck() + collar() + scarfFront() + epaulette(-1) + epaulette(1);
-  const head = `<g transform="rotate(-2 600 420)">` + ears() + face() + blush(expr) + nose() + mouth(expr) + `<g transform="translate(553 302) scale(1.1) translate(-553 -302)">${eye(-1, expr)}</g><g transform="translate(647 302) scale(1.1) translate(-647 -302)">${eye(1, expr)}</g>` + brow(-1, expr) + brow(1, expr) + hairFront() + extra(expr) + `</g>`;
+  const head = `<g transform="translate(600 440) scale(1.05) translate(-600 -440)"><g transform="rotate(-2 600 420)">` + ears() + face() + blush(expr) + nose() + mouth(expr) + `<g transform="translate(553 302) scale(1.1) translate(-553 -302)">${eye(-1, expr)}</g><g transform="translate(647 302) scale(1.1) translate(-647 -302)">${eye(1, expr)}</g>` + brow(-1, expr) + brow(1, expr) + hairFront() + extra(expr) + `</g></g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2400"><defs>${defs()}${clips.join("")}</defs>${body}${head}</svg>`;
 }

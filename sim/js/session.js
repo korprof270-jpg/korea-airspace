@@ -13,8 +13,9 @@ import { SurvivalMode } from "./modes/survival.js";
 import { ChallengeMode } from "./modes/challenge.js";
 import { TrainingMode } from "./modes/training.js";
 import { ConquestMode } from "./modes/conquest.js";
-import { portrait } from "./portraits.js";
+import { portrait, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
+import * as GP from "./garage.js";
 
 const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode };
 
@@ -35,6 +36,8 @@ export class Session {
     this.resultTimer = 0;
     this.mode = new MODES[cfg.mode](this, cfg);
     if (cfg.title) this.mode.title = cfg.title;   // 스토리 단계 이름
+    GP.setToast((t, c) => this.hud.toast(t, c, 2, 18));   // 퀘스트·업적 달성 알림
+    if (!this.mode.combat && cfg.mode !== "training") this.player.body.boost = 1 + GP.loadout().thrust;   // 모터 업그레이드 (전투 없는 모드)
     this.mode.start();
     this.player.updateCamera(0, this.camera);
     game.input.flush();
@@ -43,6 +46,7 @@ export class Session {
   update(dt) {
     const g = this.game, inp = g.input, pl = this.player, mode = this.mode;
     this.time += dt;
+    if (mode.state === "run" && !pl.crashed && !pl.body.onGround) GP.ev("fly", dt);
     // 지난 프레임의 화면 흔들림을 걷어낸다: 모드·판정 코드는 흔들리지 않은 카메라만 본다
     this.feel.restore(this.camera);
 
@@ -102,7 +106,7 @@ export class Session {
       this._rimg = this._rimg || {};
       let img = this._rimg[who];
       if (!img) { img = this._rimg[who] = new Image(); img.src = src; }
-      if (img.complete && img.naturalWidth) { g.save(); g.beginPath(); g.rect(x + 8 * u, y + 5 * u, 48 * u, ph - 10 * u); g.clip(); g.drawImage(img, 90, 70, 220, 240, x + 6 * u, y + 2 * u, 52 * u, 56 * u); g.restore(); }
+      if (img.complete && img.naturalWidth) { g.save(); g.beginPath(); g.rect(x + 8 * u, y + 5 * u, 48 * u, ph - 10 * u); g.clip(); if (hasArt(who)) { const k = img.naturalWidth / 1200; g.drawImage(img, 330 * k, 70 * k, 540 * k, 580 * k, x + 6 * u, y + 2 * u, 52 * u, 56 * u); } else g.drawImage(img, 90, 70, 220, 240, x + 6 * u, y + 2 * u, 52 * u, 56 * u); g.restore(); }
     }
     const tx = x + (src ? 66 : 16) * u;
     h.text(who, tx, y + 17 * u, { size: 12, base: "middle", bold: true, color: CAST[who] || "#9fb3c8", shadow: false });

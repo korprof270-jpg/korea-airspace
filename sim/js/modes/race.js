@@ -5,6 +5,7 @@ import { Gate, orientGates } from "../world.js";
 import { buildDrone, botLook } from "../dronemodel.js";
 import { settings, submitRecord, records, fmtTime, clamp } from "../config.js";
 import { RaceGuide } from "./raceguide.js";
+import * as GP from "../garage.js";
 
 const PACE = { easy: 0.42, normal: 0.62, hard: 0.86 };
 const NAMES = ["번개", "솔개", "매", "바람", "혜성", "제비"];
@@ -121,6 +122,7 @@ export class RaceMode extends Mode {
     this.lastGate = g;
     this.cueT = 0;
     s.game.sound.play("gate");
+    GP.ev("gate");
     if (this.loop && this.next === 0 && this.passed > 1) {
       // 한 바퀴 완료
       const lt = this.time - this.lapStart;

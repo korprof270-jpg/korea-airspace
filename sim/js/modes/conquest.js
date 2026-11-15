@@ -5,6 +5,7 @@ import { CombatMode } from "./combatmode.js";
 import { TEAM_COLOR, TEAM_CSS } from "../combat.js";
 import { submitRecord, records, fmtTime, clamp } from "../config.js";
 import { drawCombatHud } from "../combathud.js";
+import * as GP from "../garage.js";
 
 export const TEAM_NAMES = ["청팀", "홍팀", "자팀", "주팀"];
 const CAP_R = 16, CAP_H = 64, CAP_TIME = 6;
@@ -179,6 +180,7 @@ export class ConquestMode extends CombatMode {
     for (const a of c.actors) if (a.alive && a.team === t && (a.kind === "player" || a.kind === "bot") && Math.hypot(a.pos.x - p.pos.x, a.pos.z - p.pos.z) < CAP_R) a.score += PTS.capture;
     this.teams[t].score += PTS.capture;
     h.feed(`${this.teams[t].name} ▸ ${p.name} 점령`, TEAM_CSS[t]);
+    if (this.inPt === p && t === 0) GP.ev("capture");
     if (this.inPt === p && t === 0) { h.toast(`${p.name} 점령  +${PTS.capture}`, "#35ff7a", 1.5, 24); this.s.game.sound.play("lap"); }
   }
 

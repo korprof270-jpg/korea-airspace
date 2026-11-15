@@ -3,5 +3,14 @@
 // 표정: normal smile angry sad surprise serious — 없는 표정은 normal 로 대신한다
 // 규격·인물 설정은 docs/story-art-spec.md 참고
 export const ART = {
+  노을: { id: "noeul", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  에이아: { id: "eia", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  바르가: { id: "varga", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  차도윤: { id: "doyun", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  모아: { id: "moa", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  바우: { id: "bau", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  "강 교관": { id: "kang", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  서하린: { id: "harin", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  유리: { id: "yuri", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 서하린: { id: "harin", ext: "png", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
 };

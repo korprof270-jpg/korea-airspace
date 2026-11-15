@@ -4,6 +4,7 @@ import { buildDrone, botLook } from "./dronemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
 import { Units, buildJet } from "./enemies.js";
 import { factionModel } from "./factions.js";
+import * as GP from "./garage.js";
 import { rollRank, rankStats, baseLevel, clampRank } from "./ranks.js";
 
 export const ITEMS = {
@@ -51,6 +52,8 @@ export class Combat {
     this.feel = session.feel;      // 화면 효과 관리자: 공격·명중·피해 사건을 알린다
     this.h = handlers;
     this.ffa = !!handlers.ffa;
+    this.L = GP.loadout();                       // 격납고 파츠·효과
+    this.lockNeed = 0.7 * Math.max(0.35, 1 + this.L.lock);
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
     this.actors = []; this.shots = []; this.missiles = []; this.pickups = [];
     this.id = 1;
@@ -105,7 +108,7 @@ export class Combat {
   // ── 액터 생성 ──
   addPlayer(team = 0, name = "나") {
     const pl = this.s.player, b = pl.body;
-    this.player = this._actor({ name, kind: "player", team, pos: b.pos, vel: b.vel, quat: b.quat, radius: Math.max(0.45, b.radius * 2), hp: PLAYER_HP, maxHp: PLAYER_HP, missiles: 4, respawns: true, isPlayer: true });
+    this.player = this._actor({ name, kind: "player", team, pos: b.pos, vel: b.vel, quat: b.quat, radius: Math.max(0.45, b.radius * 2), hp: PLAYER_HP * (1 + this.L.hp), maxHp: PLAYER_HP * (1 + this.L.hp), missiles: 4 + this.L.mStart, respawns: true, isPlayer: true });
     const sm = new THREE.Mesh(new THREE.SphereGeometry(0.42 * pl.cls.scale + 0.12, 16, 12), new THREE.MeshBasicMaterial({ color: 0x21d4fd, transparent: true, opacity: 0.25, depthWrite: false }));
     sm.visible = false;
     pl.model.add(sm);
@@ -239,8 +242,9 @@ export class Combat {
 
   give(a, type) {
     const it = ITEMS[type];
-    if (type === "repair") a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.5);
-    else if (type === "missiles") a.missiles = Math.min(8, a.missiles + 3);
+    const L = a.isPlayer ? this.L : null;
+    if (type === "repair") a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.5 * (L ? 1 + L.repair : 1));
+    else if (type === "missiles") a.missiles = Math.min(8 + (L ? L.mCap : 0), a.missiles + 3);
     else if (a.isPlayer) { a.items.push(type); if (a.items.length === 1) a.sel = 0; }
     else this.useItem(a, type);
     if (a.isPlayer) { this.feel.pickColor = it.color; this.snd.play("pickup"); this.s.hud.toast(`${it.name} 획득${it.instant ? "" : this.touchUI() ? "" : a.items.length > 1 ? "  [E] 사용 · [Q] 교체" : "  [E] 사용"}`, "#" + it.color.toString(16).padStart(6, "0"), 1.3, 20); }
@@ -259,15 +263,22 @@ export class Combat {
 
   useItem(a, type = a.items && a.items[a.sel]) {
     if (!type) return;
-    if (a.isPlayer) { a.items.splice(a.sel, 1); a.sel = 0; a.swapT = 0.35; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type); }
-    if (type === "shield") { a.shield = SHIELD_HP; a.shieldT = 10; if (a.isPlayer) this.feel.emit("shieldUp"); }
-    else if (type === "boost") a.boostT = 6;
-    else if (type === "overcharge") a.overT = 10;
+    const L = a.isPlayer ? this.L : null, dk = L ? 1 + L.itemDur : 1;
+    if (a.isPlayer) {
+      a.items.splice(a.sel, 1); a.sel = 0; a.swapT = 0.35; this.snd.play(type === "emp" ? "emp" : "item"); this.feel.emit("item", 1, type);
+      GP.ev("item");
+      const fx = L.fx.item;   // 아이템 사용 효과 (격납고)
+      if (fx.color) { this.fx.ring(a.pos, fx.color, 9, 0.45); if (fx.burst) this.fx.burst(a.pos, fx.color, 24, 12, 0.6, 0.4, 0); }
+    }
+    if (type === "shield") { a.shield = SHIELD_HP * (L ? 1 + L.shieldK : 1); a.shieldT = 10 * dk; if (a.isPlayer) this.feel.emit("shieldUp"); }
+    else if (type === "boost") a.boostT = 6 * (L ? dk + L.boostDur : 1);
+    else if (type === "overcharge") a.overT = 10 * (L ? dk + L.overDur : 1);
     else if (type === "emp") {
       this.fx.flash(a.pos, 0x9fc0ff, 30, 0.5);
       this.fx.ring(a.pos, 0xb8d0ff, 45, 0.55);
       this.fx.burst(a.pos, 0xb8c8ff, 60, 40, 0.5, 0.4, 0);
-      for (const o of this.actors) if (this.hostile(a, o) && o.pos.distanceTo(a.pos) < 45 && o.kind !== "core" && o.kind !== "prop") {
+      const er = 45 * (L ? 1 + L.emp : 1);
+      for (const o of this.actors) if (this.hostile(a, o) && o.pos.distanceTo(a.pos) < er && o.kind !== "core" && o.kind !== "prop") {
         o.stunT = 3.5;
         if (o.isPlayer) { this.s.hud.toast("EMP 피격 — 조종 불능!", "#b8c8ff", 1.5, 24); this.feel.emit("stun"); }
         else this.fx.spark(o.pos, 0xb8c8ff, 10);
@@ -284,7 +295,8 @@ export class Combat {
   fireMissile(a, origin, dir, target, dmg = 55) {
     const mesh = new THREE.Mesh(this.missileGeo, this.missileMat);
     // 불빛: 내가 쏜 것은 주황, 나를 노리는 것은 빨강
-    const mcol = target && target.isPlayer ? 0xff2a2a : a.isPlayer ? 0xffa030 : this.hostile(a, this.player) ? 0xff5a3a : 0x5ab4ff;
+    if (a.isPlayer) dmg *= 1 + this.L.mDmg;
+    const mcol = target && target.isPlayer ? 0xff2a2a : a.isPlayer ? this.L.fx.missile : this.hostile(a, this.player) ? 0xff5a3a : 0x5ab4ff;
     const glow = new THREE.Mesh(this.mGlowGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(mcol).multiplyScalar(2.4), transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     glow.position.z = -0.9; mesh.add(glow); mesh.userData.glow = glow; mesh.userData.col = mcol;
     mesh.position.copy(origin);
@@ -337,11 +349,13 @@ export class Combat {
       p.side = -(p.side || 1);
       _x.set(1, 0, 0).applyQuaternion(pl.body.quat);
       _b.copy(pl.aimPos).addScaledVector(_x, p.side * 0.12).addScaledVector(_d, 0.5);
-      this.fireLaser(p, _b, _d, over ? 18 : 9, over ? 0xff4ad6 : 0x4dd8ff);
+      const L = this.L, crit = L.crit && Math.random() < L.crit;
+      this.fireLaser(p, _b, _d, (over ? 18 : 9) * (1 + L.laserDmg) * (crit ? 2 : 1), over ? 0xff4ad6 : crit ? 0xffffff : L.fx.laser);
+      const sh = this.shots[this.shots.length - 1]; sh.wk = L.fx.beam.wk; sh.sk = L.fx.beam.spark * (crit ? 1.6 : 1);
       this.snd.play("laser", 1, p.side * 0.3, over ? 0.8 : 1);
       this.feel.emit("fire", over ? 1.5 : 1, p.side);
-      if (pl.camMode !== "fpv") this.fx.muzzle(_b, _d, over ? 0xff4ad6 : 0x4dd8ff, 0.9);   // FPV 에서는 화면 모서리 섬광으로 대신한다
-      if (!over) { p.heat += 0.055; if (p.heat >= 1) { p.overheated = true; this.s.hud.toast("과열!", "#ff6b5a", 0.8, 22); this.feel.emit("overheat"); } }
+      if (pl.camMode !== "fpv") this.fx.muzzle(_b, _d, over ? 0xff4ad6 : L.fx.laser, 0.9);   // FPV 에서는 화면 모서리 섬광으로 대신한다
+      if (!over) { p.heat += 0.055 * Math.max(0.3, 1 + L.heat); if (p.heat >= 1) { p.overheated = true; this.s.hud.toast("과열!", "#ff6b5a", 0.8, 22); this.feel.emit("overheat"); } }
     } else if (p.overheated && inp.isHeld("fire")) {
       // 과열 중 방아쇠: 헛도는 소리
       if ((p.dryT = (p.dryT || 0) - dt) <= 0) { p.dryT = 0.3; this.feel.emit("dry"); }
@@ -354,14 +368,14 @@ export class Combat {
     if (cand && cand === this.lock && this.w.col.visible(pl.aimPos, cand.pos)) {
       const was = this.lockT < 0.7;
       this.lockT += dt;
-      if (was && this.lockT >= 0.7) this.snd.play("lock");
+      if (was && this.lockT >= this.lockNeed) this.snd.play("lock");
     } else { this.lock = cand; this.lockT = 0; }
-    const autoMissile = auto && this.lockT >= 0.9 && p.missiles > 0 && p.missileT <= 0;
+    const autoMissile = auto && this.lockT >= this.lockNeed + 0.2 && p.missiles > 0 && p.missileT <= 0;
     if (inp.take("missile") || autoMissile) {
       if (p.missiles > 0 && p.missileT <= 0) {
         p.missiles--; p.missileT = autoMissile ? 2.5 : 0.7;
         _b.copy(pl.aimPos).addScaledVector(pl.aimDir, 0.6);
-        this.fireMissile(p, _b, pl.aimDir, this.lockT >= 0.7 ? this.lock : null);
+        this.fireMissile(p, _b, pl.aimDir, this.lockT >= this.lockNeed ? this.lock : null);
       } else if (p.missiles <= 0) this.feel.emit("dry");
     }
     if (inp.take("itemNext")) this.nextItem(p);
@@ -374,6 +388,8 @@ export class Combat {
   damage(a, amount, attacker, point) {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
     if (a.armor) amount *= a.armor;
+    if (a.isPlayer) a.hurtAt = this.s.time;
+    if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
     if (attacker && attacker.kind !== "player" && a.isPlayer) amount *= this.diff.dmg;
     const src = attacker && attacker !== a ? attacker.pos : point || null;   // 피해가 온 곳 (효과 방향용)
     if (a.shield > 0) {
@@ -403,6 +419,11 @@ export class Combat {
     if (!a.alive) return;
     a.alive = false; a.hp = 0; a.deaths++;
     if (killer && killer !== a) killer.kills++;
+    if (killer && killer.isPlayer && killer !== a && (this.ffa || killer.team !== a.team)) {
+      if (a.kind === "bot") GP.ev("kill");
+      if (a.kind === "turret" || (a.unit && a === a.unit.root)) GP.ev("turret");
+      if (a.bossBar || a.botKind === "boss" || a.botKind === "gunship") GP.ev("boss");
+    }
     const big = a.kind === "core" || a.botKind === "boss" ? 4 : a.kind === "turret" || a.botKind === "gunship" ? 2 : 1;
     this.fx.explosion(a.pos, big);
     this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2), a.isPlayer ? 0 : this.panAt(a.pos));
@@ -428,7 +449,7 @@ export class Combat {
     const pos = sp ? sp.pos : this.randomPoint(8, 24);
     a.alive = true; a.hp = a.maxHp; a.shield = 0; a.heat = 0; a.overheated = false; a.stunT = 0; a.boostT = 0; a.overT = 0;
     if (a.isPlayer) {
-      a.missiles = Math.max(a.missiles, 3); a.shield = 40; a.shieldT = 3;
+      a.missiles = Math.max(a.missiles, 3 + this.L.mStart); a.shield = 40 + this.L.spawnShield; a.shieldT = 3 + (this.L.spawnShield ? 2 : 0);
       this.s.player.respawn(pos, sp ? sp.yaw || 0 : Math.atan2(pos.x, pos.z));
     } else {
       a.pos.copy(pos); a.vel.set(0, 0, 0); a.missiles = a.K.missiles;
@@ -457,7 +478,16 @@ export class Combat {
     if (p) {
       p.heat = Math.max(0, p.heat - dt * 0.42);
       if (p.overheated && p.heat < 0.45) { p.overheated = false; this.feel.emit("cool"); }
-      pl.body.boost = p.boostT > 0 ? 1.6 : 1;
+      pl.body.boost = (p.boostT > 0 ? 1.6 * (1 + this.L.boost) : 1) * (1 + this.L.thrust);
+      // 부스트 효과 (격납고)
+      const bf = this.L.fx.boost;
+      if (p.alive && p.boostT > 0 && (bf.color || bf.rainbow) && (this._bt = (this._bt || 0) - dt) <= 0) {
+        this._bt = 0.035;
+        const c = bf.rainbow ? new THREE.Color().setHSL((this.s.time * 0.7) % 1, 1, 0.6).getHex() : bf.color;
+        this.fx.puff(pl.body.pos, c, 0.35, 0.6, 0.25);
+      }
+      // 재생 (장갑·배터리 단계 효과): 4초 동안 맞지 않으면
+      if (this.L.regen && p.alive && p.hp < p.maxHp && this.s.time - (p.hurtAt || -99) > 4) p.hp = Math.min(p.maxHp, p.hp + this.L.regen * dt);
       if (p.alive) pl.body.disabled = p.stunT > 0 || pl.crashed;
       this.shieldMesh.visible = p.alive && p.shield > 0;
     }
@@ -523,7 +553,7 @@ export class Combat {
       for (let d = 0.7; d <= len; d += 0.7) { _b.copy(s.pos).addScaledVector(s.dir, d); if (col.blocked(_b, 0.03)) { wall = d; break; } }
       if (victim && (wall < 0 || bestT <= wall)) {
         _b.copy(s.pos).addScaledVector(s.dir, bestT);
-        fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? 8 : 5, victim.radius > 1.5);
+        fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(8 * (s.sk || 1)) : 5, victim.radius > 1.5);
         this.damage(victim, s.dmg, s.owner, _b);
         this.shots.splice(i, 1); continue;
       }
@@ -544,7 +574,7 @@ export class Combat {
       if (s.life <= 0) { this.shots.splice(i, 1); continue; }
       // 굵은 머리 + 길게 끌리는 꼬리. 가까이서는 가늘게(화면을 덮지 않게), 멀수록 굵게(멀리서도 보이게)
       const cd = s.pos.distanceTo(this.s.camera.position), mine = s.owner.isPlayer;
-      const wd = (mine ? 0.17 : 0.26) * clamp(cd / 12, 0.25, 1) * clamp(cd / 30, 1, 3.4);   // 가늘지만 멀어질수록 굵혀 화면에서는 늘 2~3픽셀 이상
+      const wd = (mine ? 0.17 : 0.26) * (s.wk || 1) * clamp(cd / 12, 0.25, 1) * clamp(cd / 30, 1, 3.4);   // 가늘지만 멀어질수록 굵혀 화면에서는 늘 2~3픽셀 이상
       s.far = (s.far || 0) + len;   // 날아간 거리: 총구 근처에서는 꼬리를 그리지 않아 화면을 가리지 않는다
       if (s.far > 11) fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -5), s.dir, 10, s.color, wd);
       else fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -s.far * 0.45), s.dir, s.far * 0.9, s.color, wd);
@@ -590,6 +620,7 @@ export class Combat {
         this.fx.explosion(m.pos, 1.3);
         this.snd.play("explode", this.volAt(m.pos) * 0.8, this.panAt(m.pos));
         this._blast(m.pos, 1.3);
+        if (direct && m.owner && m.owner.isPlayer && (this.ffa || m.owner.team !== direct.team)) this._mHit = true;
         if (direct) this.damage(direct, m.dmg, m.owner, m.pos);
         this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct);
         this.w.scene.remove(m.mesh); m.mesh.userData.glow.material.dispose();

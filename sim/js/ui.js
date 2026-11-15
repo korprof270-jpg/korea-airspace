@@ -11,7 +11,8 @@ import * as TR from "./training.js";
 import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
 import * as SY from "./story.js";
 import { VN, BONDS, rel } from "./vn.js";
-import { portrait } from "./portraits.js";
+import * as GP from "./garage.js";
+import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
@@ -248,7 +249,7 @@ export class UI {
       id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => MODE_META[k].name) }), i)).join("");
     return `<div class="screen hub">
       <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div>
-        <span class="hicons"><button class="hic" data-a="go" data-v="hangar" title="정비소 (기체 설정)" aria-label="정비소">🛠</button><button class="hic" data-a="go" data-v="settings" title="설정" aria-label="설정">⚙</button><button class="hic" data-a="go" data-v="help" title="조작법" aria-label="조작법">🎮</button></span></header>
+        <span class="hicons"><button class="hpts" data-a="gq" title="포인트 · 퀘스트">◆ ${GP.points().toLocaleString()}P${(() => { const q = GP.quests(); const n = [...q.daily, ...q.weekly].filter((x) => !x.done).length; return n ? `<i>${n}</i>` : ""; })()}</button><button class="hic" data-a="go" data-v="hangar" title="격납고 (커스텀·업그레이드)" aria-label="격납고">🛠</button><button class="hic" data-a="go" data-v="settings" title="설정" aria-label="설정">⚙</button><button class="hic" data-a="go" data-v="help" title="조작법" aria-label="조작법">🎮</button></span></header>
       <nav class="hcards wide" aria-label="메뉴">${hubs}</nav>
     </div>`;
   }
@@ -379,7 +380,7 @@ export class UI {
     const met = { 서하린: SY.cleared({ id: "c2-4" }) || progress() >= 7, 바우: progress() >= 8, 유리: progress() >= 8, 차도윤: true, 모아: progress() >= 4, 노을: progress() >= 7 };
     return `<div class="bonds">${BONDS.map((n) => {
       const v = Math.max(0, rel(n)), lv = Math.min(5, Math.floor(v / 2)), known = met[n] || v > 0;
-      return `<div class="bond ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}"><i class="face" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i><div><b>${known ? n : "???"}</b><small>${known ? esc(SY.CAST_ROLE[n] || "") : "아직 만나지 않았다"}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></div>`;
+      return `<div class="bond ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}"><i class="face${hasArt(n) ? " art" : ""}" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i><div><b>${known ? n : "???"}</b><small>${known ? esc(SY.CAST_ROLE[n] || "") : "아직 만나지 않았다"}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></div>`;
     }).join("")}</div><p class="hint2">장면 속 선택에 따라 관계가 깊어집니다. 관계가 깊은 동료가 윙맨으로 함께 날고, 마지막 장면과 엔딩이 달라집니다.</p>`;
   }
 
@@ -575,42 +576,123 @@ export class UI {
     if (path === "quality") { settings.qualityAuto = false; save(); g.applyQuality(); }
   }
 
-  // ── 정비소 ──
+  // ── 격납고: 외형 · 테마 · 효과 · 파츠 · 퀘스트 (포인트로 구매·업그레이드) ──
   s_hangar() {
-    const d = settings.drone, cls = DRONE_CLASSES[d.cls];
-    const chips = (key, obj, cur) => `<div class="chips">${Object.entries(obj).map(([k, v]) =>
-      `<button class="chip ${String(cur) === k ? "on" : ""}" data-a="set" data-k="drone.${key}" data-v="${k}">${typeof v === "string" ? v : v.name}</button>`).join("")}</div>`;
+    const d = settings.drone, cls = DRONE_CLASSES[d.cls], tab = this._gtab || "look";
+    const P = (n) => `${n.toLocaleString()}P`;
     const bar = (v) => `<div class="b"><i style="width:${Math.round(Math.min(1, v) * 100)}%"></i></div>`;
-    const color = (key, label) => `<div class="opt"><label>${label}</label><input type="color" value="${d[key]}" data-set="drone.${key}"></div>`;
+    // 잠금 칩: 가진 것은 바로 적용, 아니면 가격 표시 → 누르면 구매 후 적용
+    const chips = (kind, key, obj, cur, label = (v) => (typeof v === "string" ? v : v.name)) => `<div class="chips">${Object.entries(obj).map(([k, v]) => {
+      const own = GP.owns(kind, k), on = String(cur) === k;
+      return `<button class="chip ${on ? "on" : ""} ${own ? "" : "lock"}" data-a="gbuy" data-kind="${kind}" data-key="${key}" data-v="${k}">${own ? "" : "🔒 "}${label(v)}${own ? "" : ` <em>${P(GP.priceOf(kind, k))}</em>`}</button>`;
+    }).join("")}</div>`;
+    const tabs = [["look", "외형"], ["theme", "테마"], ["fx", "효과"], ["parts", "파츠"], ["quest", "퀘스트"]];
+    let body = "";
+    if (tab === "look") {
+      const paint = GP.owns("paint", "on");
+      const color = (key, label) => `<div class="opt"><label>${label}</label>${paint ? `<input type="color" value="${d[key]}" data-set="drone.${key}">` : `<span class="hint">커스텀 페인트 필요</span>`}</div>`;
+      body = `<h3 style="margin-top:0">기체 등급 (성능)</h3>
+        <div class="grid">${Object.entries(DRONE_CLASSES).map(([k, c]) => `<button class="card ${d.cls === k ? "sel" : ""}" data-a="set" data-k="drone.cls" data-v="${k}"><div class="nm">${c.name}</div><div class="ds">${c.desc}</div></button>`).join("")}</div>
+        <div class="spec"><span>추력</span>${bar(cls.twr / 8)}<span>최고 속도</span>${bar(cls.pitchSpeed / 62)}<span>민첩성</span>${bar(0.028 / cls.rateTau)}<span>안정감</span>${bar(cls.cdaT / 0.045 * 0.6 + cls.rateTau / 0.05 * 0.4)}</div>
+        <h3>프레임 (형상)</h3>${chips("frame", "frame", FRAMES, d.frame)}
+        <h3>캐노피</h3>${chips("canopy", "canopy", CANOPIES, d.canopy)}
+        <h3>프로펠러</h3><div class="chips">${[["2", "2엽"], ["3", "3엽"]].map(([k, l]) => `<button class="chip ${String(d.props) === k ? "on" : ""}" data-a="set" data-k="drone.props" data-v="${k}">${l}</button>`).join("")}</div>
+        <h3>스킨</h3>${chips("skin", "skin", SKINS, d.skin)}
+        <h3>색 조합</h3><div class="swatches">${COLOR_PRESETS.map((pr, n) => { const own = GP.owns("preset", String(n)); return `<button class="swatch ${own ? "" : "lock"}" data-a="gbuy" data-kind="preset" data-v="${n}"><i style="background:${pr.accentColor}"></i><i style="background:${pr.propColor}"></i>${own ? "" : "🔒 "}${pr.name}${own ? "" : ` <em>${P(GP.priceOf("preset", String(n)))}</em>`}</button>`; }).join("")}</div>
+        <h3>커스텀 페인트</h3>${paint ? "" : `<button class="chip lock" data-a="gbuy" data-kind="paint" data-v="on">🔒 색을 직접 고르기 <em>${P(GP.priceOf("paint", "on"))}</em></button>`}
+        ${color("frameColor", "프레임")}${color("accentColor", "포인트")}${color("propColor", "프로펠러")}${color("ledColor", "LED")}
+        <h3>LED</h3>${chips("led", "ledMode", LED_MODES, d.ledMode)}
+        <h3>연기 꼬리</h3>${chips("trail", "trail", Object.fromEntries(TRAILS), d.trail)}`;
+    } else if (tab === "theme") {
+      body = `<p class="hint2">테마는 외형(프레임·캐노피·스킨·색)과 효과(레이저·미사일·부스트·아이템)를 한 번에 바꾸는 세트입니다. 장착 후 따로 바꿔도 됩니다.</p><div class="themes">${Object.entries(GP.THEMES).map(([id, t]) => {
+        const own = GP.themeOwns(id), lockStory = t.need && !SY.chapterDone(story().chapters.find((c) => c.id === t.need) || { stages: [] });
+        return `<button class="card theme ${own ? "" : "locked"}" data-a="gtheme" data-v="${id}" ${lockStory && !own ? "disabled" : ""}>
+          <span class="sw"><i style="background:${t.look.frameColor}"></i><i style="background:${t.look.accentColor}"></i><i style="background:${t.look.propColor}"></i></span>
+          <div class="nm">${t.name}</div><div class="ds">${esc(t.desc)}</div>
+          <div class="pr">${own ? "보유 · 눌러서 장착" : lockStory ? `🔒 ${t.need.startsWith("e") ? "에이아 연대기" : "별의 저편"} 클리어 필요` : `🔒 ${P(t.price)}`}</div></button>`;
+      }).join("")}</div>`;
+    } else if (tab === "fx") {
+      body = Object.entries(GP.FX).map(([slot, F]) => `<h3>${F.name}</h3><div class="chips">${Object.entries(F.items).map(([k, it]) => {
+        const own = GP.fxOwns(slot, k), on = GP.fxEquipped(slot) === k, c = it.color ? "#" + it.color.toString(16).padStart(6, "0") : it.rainbow ? "conic-gradient(#f55,#fd5,#5f8,#5df,#a5f,#f55)" : "";
+        return `<button class="chip fxc ${on ? "on" : ""} ${own ? "" : "lock"}" data-a="gfx" data-slot="${slot}" data-v="${k}">${c ? `<b class="dot" style="background:${c}"></b>` : ""}${own ? "" : "🔒 "}${it.name}${own ? "" : ` <em>${P(it.price)}</em>`}</button>`;
+      }).join("")}</div>`).join("") + `<p class="hint2">레이저 형태: 헤비 빔은 굵고 화려한 명중 불꽃, 니들은 가늘고 날카롭게, 노바는 명중 순간 큰 섬광. 부스트 효과는 부스터 아이템을 쓰는 동안 기체 뒤에 꼬리를 남깁니다.</p>`;
+    } else if (tab === "parts") {
+      const L = GP.loadout();
+      body = `<p class="hint2">파츠는 교체(변형 구매)와 업그레이드(0~5단계)로 성능을 올립니다. 3단계와 5단계에서 추가 효과가 열립니다. 효과는 전투 모드(서바이벌·점령전·스토리 임무)에서 적용되고, 모터는 모든 비행에 적용됩니다(비행훈련 제외).</p>`
+        + Object.entries(GP.PARTS).map(([slot, Pt]) => {
+          const cur = GP.partOf(slot), V = Pt.variants[cur.v], cost = GP.UP_COST[cur.lv];
+          return `<div class="part"><div class="ph"><b>${Pt.icon} ${Pt.name}</b><span class="lv">${"◆".repeat(cur.lv)}${"◇".repeat(5 - cur.lv)} <small>Lv.${cur.lv}</small></span></div>
+            <div class="chips">${Object.entries(Pt.variants).map(([k, v]) => { const own = GP.variantOwns(slot, k); return `<button class="chip ${cur.v === k ? "on" : ""} ${own ? "" : "lock"}" data-a="gpart" data-slot="${slot}" data-v="${k}">${own ? "" : "🔒 "}${v.name}${own ? "" : ` <em>${P(v.price)}</em>`}</button>`; }).join("")}</div>
+            <div class="pd">${esc(V.desc)} · <span class="${cur.lv >= 3 ? "on" : ""}">3단계: ${esc(V.b3[0])}</span> · <span class="${cur.lv >= 5 ? "on" : ""}">5단계: ${esc(V.b5[0])}</span></div>
+            ${cur.lv < 5 ? `<button class="primary small" data-a="gup" data-v="${slot}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${cur.lv + 1} · ${P(cost)}</button>` : `<span class="maxed">최대 단계</span>`}</div>`;
+        }).join("")
+        + `<div class="sumL"><b>현재 보정</b> 내구도 +${Math.round(L.hp * 100)}% · 추력 +${Math.round(L.thrust * 100)}% · 레이저 +${Math.round(L.laserDmg * 100)}%${L.crit ? ` · 치명타 ${Math.round(L.crit * 100)}%` : ""} · 미사일 피해 +${Math.round(L.mDmg * 100)}% · 락온 ${Math.round(L.lock * 100)}% · 아이템 지속 +${Math.round(L.itemDur * 100)}%${L.regen ? ` · 재생 ${L.regen}/초` : ""}</div>`;
+    } else {
+      const q = GP.quests(), rin = GP.resetIn(), hm = (ms) => `${Math.floor(ms / 3600000)}시간 ${Math.floor((ms % 3600000) / 60000)}분`;
+      const qrow = (x) => { const cur = x.unit === "s" ? Math.floor(x.prog / 60) : x.prog, max = x.unit === "s" ? x.n / 60 : x.n; return `<div class="q ${x.done ? "done" : ""}"><div class="qt"><b>${esc(x.text)}</b><span>${x.done ? "✔ 완료" : `${cur} / ${max}`}</span></div><div class="b"><i style="width:${Math.round((x.prog / x.n) * 100)}%"></i></div><em>+${x.pts}P</em></div>`; };
+      body = `<h3 style="margin-top:0">일일 퀘스트 <small>초기화까지 ${hm(rin.daily)}</small></h3>${q.daily.map(qrow).join("")}<div class="qb ${q.dailyBonus ? "done" : ""}">모두 달성 보너스 +${GP.DAILY_BONUS}P ${q.dailyBonus ? "✔" : ""}</div>
+        <h3>주간 퀘스트 <small>초기화까지 ${hm(rin.weekly)}</small></h3>${q.weekly.map(qrow).join("")}<div class="qb ${q.weeklyBonus ? "done" : ""}">모두 달성 보너스 +${GP.WEEKLY_BONUS}P ${q.weeklyBonus ? "✔" : ""}</div>
+        <h3>업적 (인게임 과제)</h3><div class="achs">${GP.ACH.map((a) => { const st = GP.achState(a), dv = a.div || 1; return `<div class="ach ${st.max ? "done" : ""}"><b>${a.name}</b><small>${st.max ? "모든 단계 달성" : `${Math.floor(st.v / dv)} / ${a.tiers[st.got] / dv}${a.unit} · 다음 +${a.pts[st.got]}P`}</small><span class="tiers">${a.tiers.map((_, n) => `<i class="${n < st.got ? "on" : ""}"></i>`).join("")}</span></div>`; }).join("")}</div>
+        <p class="hint2">게임을 마치면 기본 보상과 별·승리 보상이 들어오고, 퀘스트와 업적은 달성하는 순간 자동으로 포인트가 지급됩니다.</p>`;
+    }
     return `<div class="screen hangar">
       <div class="view" data-stage><button class="back" data-a="back">← 뒤로</button><div class="tip">드래그해서 돌려 보기</div></div>
       <div class="side">
-        <div class="head"><h2>🛠 정비소</h2></div>
-        <h3 style="margin-top:0">기체 등급 (성능)</h3>
-        <div class="grid">${Object.entries(DRONE_CLASSES).map(([k, c]) =>
-          `<button class="card ${d.cls === k ? "sel" : ""}" data-a="set" data-k="drone.cls" data-v="${k}"><div class="nm">${c.name}</div><div class="ds">${c.desc}</div></button>`).join("")}</div>
-        <div class="spec">
-          <span>추력</span>${bar(cls.twr / 8)}<span>최고 속도</span>${bar(cls.pitchSpeed / 62)}
-          <span>민첩성</span>${bar(0.028 / cls.rateTau)}<span>안정감</span>${bar(cls.cdaT / 0.045 * 0.6 + cls.rateTau / 0.05 * 0.4)}
-        </div>
-        <h3>프레임</h3>${chips("frame", FRAMES, d.frame)}
-        <h3>캐노피</h3>${chips("canopy", CANOPIES, d.canopy)}
-        <h3>프로펠러</h3>${chips("props", { 2: "2엽", 3: "3엽" }, d.props)}
-        <h3>스킨</h3>${chips("skin", SKINS, d.skin)}
-        <h3>색상</h3>
-        <div class="swatches">${COLOR_PRESETS.map((p, i) => `<button class="swatch" data-a="preset" data-v="${i}"><i style="background:${p.accentColor}"></i><i style="background:${p.propColor}"></i>${p.name}</button>`).join("")}</div>
-        ${color("frameColor", "프레임")}${color("accentColor", "포인트")}${color("propColor", "프로펠러")}${color("ledColor", "LED")}
-        <h3>LED</h3>${chips("ledMode", LED_MODES, d.ledMode)}
-        <h3>연기 꼬리</h3><div class="chips">${TRAILS.map(([v, l]) => `<button class="chip ${d.trail === v ? "on" : ""}" data-a="set" data-k="drone.trail" data-v="${v}">${l}</button>`).join("")}</div>
+        <div class="head"><h2>🛠 격납고</h2><span class="pts">◆ ${P(GP.points())}</span></div>
+        ${this._gmsg ? `<div class="gmsg ${this._gmsg.bad ? "bad" : ""}">${esc(this._gmsg.t)}</div>` : ""}
+        <div class="seg gtabs">${tabs.map(([k, l]) => `<button class="${tab === k ? "on" : ""}" data-a="gtab" data-v="${k}">${l}</button>`).join("")}</div>
+        ${body}
       </div></div>`;
   }
-  a_preset(v) {
-    const { name, ...colors } = COLOR_PRESETS[+v];
-    Object.assign(settings.drone, colors);
-    save();
-    this.game.menu.setLook(settings.drone);
-    this.redraw();
+  _gnote(t, bad = false) { this._gmsg = { t, bad }; clearTimeout(this._gmt); this._gmt = setTimeout(() => { this._gmsg = null; if (this.screen === "hangar") this.redraw(); }, 2200); }
+  _look() { save(); this.game.menu.setLook(settings.drone); this.redraw(); }
+  a_gq() { this._gtab = "quest"; this.show("hangar"); }
+  a_gtab(v) { this._gtab = v; this.redraw(); }
+  a_gbuy(v, el) {
+    const kind = el.dataset.kind, key = el.dataset.key;
+    if (!GP.owns(kind, v)) {
+      const pr = GP.priceOf(kind, v);
+      if (!GP.buy(kind, v)) return (this._gnote(`포인트가 부족합니다 (${pr.toLocaleString()}P 필요)`, true), this.redraw());
+      this._gnote(`구매 완료 · -${pr.toLocaleString()}P`);
+      this.game.sound.play("pickup");
+    }
+    if (kind === "preset") { const { name, ...colors } = COLOR_PRESETS[+v]; Object.assign(settings.drone, colors); }
+    else if (kind === "paint") { /* 색 고르기 열림 */ }
+    else settings.drone[key] = key === "props" ? +v : v;
+    this._look();
   }
+  a_gfx(v, el) {
+    const slot = el.dataset.slot, it = GP.FX[slot].items[v];
+    if (!GP.fxOwns(slot, v)) {
+      if (!GP.fxBuy(slot, v)) return (this._gnote(`포인트가 부족합니다 (${it.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this._gnote(`구매 완료 · -${it.price.toLocaleString()}P`); this.game.sound.play("pickup");
+    }
+    GP.fxEquip(slot, v); this.redraw();
+  }
+  a_gtheme(v) {
+    const t = GP.THEMES[v];
+    if (!GP.themeOwns(v)) {
+      if (!GP.themeBuy(v)) return (this._gnote(`포인트가 부족합니다 (${t.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this.game.sound.play("pickup");
+    }
+    GP.themeEquip(v); this._gnote(`테마 「${t.name}」 장착`); this._look();
+  }
+  a_gpart(v, el) {
+    const slot = el.dataset.slot, V = GP.PARTS[slot].variants[v];
+    if (!GP.variantOwns(slot, v)) {
+      if (!GP.variantBuy(slot, v)) return (this._gnote(`포인트가 부족합니다 (${V.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this._gnote(`${V.name} 구매 · -${V.price.toLocaleString()}P`); this.game.sound.play("pickup");
+    }
+    GP.variantEquip(slot, v); this.redraw();
+  }
+  a_gup(v) {
+    const lv = GP.partOf(v).lv, cost = GP.UP_COST[lv];
+    if (!GP.upgrade(v)) return (this._gnote(`포인트가 부족합니다 (${cost.toLocaleString()}P 필요)`, true), this.redraw());
+    const V = GP.PARTS[v].variants[GP.partOf(v).v], nl = lv + 1;
+    this._gnote(`${GP.PARTS[v].name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${V.b3[0]}` : nl === 5 ? ` · 추가 효과: ${V.b5[0]}` : ""}`);
+    this.game.sound.play("lap"); this.redraw();
+  }
+
 
   // ── 설정 ──
   s_settings() {
@@ -777,6 +859,7 @@ export class UI {
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
       ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
+      ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
