@@ -6,6 +6,7 @@
 export const ART = {
   서하린: { id: "harin", ext: "webp", exprs: ["normal"] },   // 힉스필드 생성 그림
   바우: { id: "bau", ext: "webp", exprs: ["normal"] },
+  유리: { id: "yuri", ext: "webp", exprs: ["normal"] },
   // 노을: { id: "noeul", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 에이아: { id: "eia", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 바르가: { id: "varga", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
