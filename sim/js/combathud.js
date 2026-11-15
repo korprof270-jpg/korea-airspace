@@ -64,6 +64,10 @@ export function drawCombatHud(c, h, o = {}) {
     const col = enemy ? (isLock && locked ? "#ff3030" : isAim ? "#ffd24a" : "rgba(255,96,96,0.95)") : "rgba(96,174,255,0.9)";
     const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock ? a.name : null);
     if (!b) continue;
+    if (enemy && a.rk && (d < 140 || isAim || isLock)) {   // 계급 색 마름모: 병 노랑 · 부사관 초록 · 장교 파랑 · 고위 장교 빨강
+      const r = 7 * u, x = b.x - b.px - 3 * u, y = b.y - b.px - 3 * u;
+      g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); h.fill2(a.rk.css, 2);
+    }
     if (enemy || big) h.bar(b.x - b.px, b.y + b.px + 5 * u, b.px * 2, 4 * u, a.hp / a.maxHp, enemy ? "#ff5a5a" : "#5aa9ff");
     if (isLock && enemy) lockRing(h, b, clamp(c.lockT / LOCK_T, 0, 1), s.time);
   }

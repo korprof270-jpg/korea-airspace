@@ -319,7 +319,7 @@ export class ChallengeMode extends CombatMode {
   setup_boss(c, map, w) {
     const bp = map.boss || { pos: [0, 30, 0] };
     const bname = (this.cfg.boss && this.cfg.boss.name) || "모선";
-    const boss = (this.boss = c.spawnBot({ kind: "boss", team: 1, name: bname, pos: new THREE.Vector3(...bp.pos), hpScale: 0.8 + 0.25 * this.scale }));
+    const boss = (this.boss = c.spawnBot({ kind: "boss", team: 1, name: bname, rank: this.cfg.boss && this.cfg.boss.rank, pos: new THREE.Vector3(...bp.pos), hpScale: 0.8 + 0.25 * this.scale }));
     this.introBoss = boss; this.bossCfg = null;   // 보스전: 출격하자마자 등장 컷신
     boss.armor = 0.12; boss.ai.altOff = 14;
     this.pods = [];

@@ -169,7 +169,10 @@ export function goalText(st) {
 // 단계 → 세션 설정
 export function stageConfig(st, team) {
   const map = MAPS[st.chapter.map], o = st.o;
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id };
+  // 기준 계급: 첫 단계 이병 → 마지막 챕터 대위 안팎. 중간 보스는 영관(소령~대령), 보스는 장성(준장~대장)
+  const total = story().flat.length, ci = st.chapter.no - 1;
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, level: Math.round((st.index / Math.max(1, total - 1)) * 10) };
+  if (st.boss) st.boss.rank = st.kind === "boss" || st.boss.kind === "boss" ? Math.min(17, 14 + Math.floor(ci / 2)) : Math.min(13, 11 + Math.floor(ci / 3));
   if (st.kind === "race") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
     return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: o.rivals ?? 3 });

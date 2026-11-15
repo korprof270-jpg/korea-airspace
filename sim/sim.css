@@ -518,3 +518,5 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 @media (max-width: 900px) { .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .bosstag { font-style: normal; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 999px; border: 1.5px solid var(--ink); background: #ff3d4d; color: #fff; vertical-align: 2px; margin-left: 4px; }
 .bosstag.mid { background: #ffb02e; color: #0b0f24; }
+.ranklegend { margin: 12px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+.ranklegend i { font-style: normal; font-weight: 800; color: #0b0f24; background: var(--k); border: 1.5px solid var(--ink); border-radius: 999px; padding: 1px 8px; margin: 0 3px; }

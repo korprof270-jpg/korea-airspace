@@ -25,9 +25,9 @@ export class CombatMode extends Mode {
   spawnBoss(o) {
     const c = this.combat, mid = o.kind !== "boss";
     let b;
-    if (o.unit) b = c.units.spawn(o.unit, { pos: o.pos, name: o.name, hp: o.hp || 1, scale: o.scale, home: o.pos });   // 전차·대공 로봇·전투함·순양함·거대로봇
-    else { b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6) }); if (mid) b.model.scale.multiplyScalar(1.35); }
-    this.bossIntro(b, o.name, o.sub || (mid ? "중간 보스" : "보스"), mid);
+    if (o.unit) b = c.units.spawn(o.unit, { pos: o.pos, name: o.name, hp: o.hp || 1, scale: o.scale, home: o.pos, rank: o.rank });   // 전차·대공 로봇·전투함·순양함·거대로봇
+    else { b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6), rank: o.rank }); if (mid) b.model.scale.multiplyScalar(1.35); }
+    this.bossIntro(b, b.name, o.sub || (mid ? "중간 보스" : "보스"), mid);
     return b;
   }
   // 등장 컷신: 레터박스 + 보스 둘레를 도는 카메라 + 이름·체력바. 그동안 전투는 멈춘다

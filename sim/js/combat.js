@@ -3,6 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
 import { Units, buildJet } from "./enemies.js";
+import { rollRank, rankStats, baseLevel, clampRank } from "./ranks.js";
 
 export const ITEMS = {
   repair: { name: "수리 키트", color: 0x35ff7a, instant: true, icon: "✚" },
@@ -66,6 +67,7 @@ export class Combat {
     this.beamGeo = new THREE.CylinderGeometry(0.32, 0.32, 44, 8, 1, true);
     this.haloGeo = new THREE.SphereGeometry(2.3, 16, 10);
     this.extra = [];
+    this.level = baseLevel(session.cfg, session.cfg.difficulty || settings.difficulty);   // 이 판 적들의 기준 계급
     this.units = new Units(this);     // 전차·대공 로봇·전투함·거대로봇
     this.botN = 0;
   }
@@ -113,12 +115,16 @@ export class Combat {
   spawnBot(o = {}) {
     const kind = o.kind || "grunt", K = KINDS[kind], team = o.team ?? 1;
     const col = this.ffa ? [0xff2d3d, 0xffc400, 0xb44cff, 0x35ff7a, 0xff7a1a, 0x21d4fd, 0xff5ad6, 0xffffff, 0x9be15d][this.botN % 9] : TEAM_COLOR[team];
-    const model = K.model ? K.model(col) : buildDrone(botLook(kind, this.ffa ? 1 : team), K.scale, { halo: col });
+    // 적은 계급을 갖는다: 포인트 색·불빛·고리가 계급 색, 능력치도 계급만큼 오른다 (아군은 계급 없이 흰 고리)
+    const enemy = this.ffa || team !== 0, rk = enemy ? rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.level, kind)) : null;
+    const look = botLook(kind, this.ffa ? 1 : team);
+    if (rk) { const hex = "#" + rk.color.toString(16).padStart(6, "0"); look.accentColor = hex; look.ledColor = hex; look.propColor = hex; }
+    const model = K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: rk ? rk.color : 0xe8f4ff });
     this.w.scene.add(model);
-    const skill = this.diff.bot * (o.skill || 1);
+    const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
     const a = this._actor({
-      name: o.name || (K.name ? `${K.name} ${CALLSIGNS[this.botN % CALLSIGNS.length]}` : CALLSIGNS[this.botN % CALLSIGNS.length]), kind: "bot", botKind: kind, team, model, color: col,
-      radius: K.radius, hp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), maxHp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), missiles: K.missiles, respawns: !!o.respawns, K,
+      name: (rk ? rk.name + " " : "") + (o.name || K.name || CALLSIGNS[this.botN % CALLSIGNS.length]), rk, kind: "bot", botKind: kind, team, model, color: col,
+      radius: K.radius, hp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP) * hpk, maxHp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP) * hpk, missiles: K.missiles, respawns: !!o.respawns, K,
       ai: {
         think: Math.random() * 0.3, target: null, los: false, goal: null, roam: null, orbit: Math.random() < 0.5 ? 1 : -1, altOff: Math.random() * 6 - 1,
         yaw: 0, burst: 0, cool: Math.random() * 1.5, skill, focus: o.focus || null, leader: o.leader || null, slot: o.slot || 0, home: o.home || null,
@@ -757,12 +763,12 @@ export class Combat {
         if (ai.burst > 0 && ai.cool <= 0) {
           ai.burst--; ai.cool = ai.burst > 0 ? 1 / K.rate : 0.9 + Math.random() * 1.2 - ai.skill * 0.4;
           this._lead(a.pos, t, 150, _aim).sub(a.pos).normalize();
-          const spread = 0.012 + (1 - this.diff.aim) * 0.075;
+          const spread = (0.012 + (1 - this.diff.aim) * 0.075) * (a.rk ? a.rk.aim : 1);
           _aim.x += (Math.random() - 0.5) * spread; _aim.y += (Math.random() - 0.5) * spread; _aim.z += (Math.random() - 0.5) * spread;
           _aim.normalize();
           _b.copy(a.pos).addScaledVector(_aim, a.radius + 0.4);
           const lc = this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040;
-          this.fireLaser(a, _b, _aim, K.dmg * (a.overT > 0 ? 2 : 1), lc, 92);
+          this.fireLaser(a, _b, _aim, K.dmg * (a.rk ? a.rk.dmg : 1) * (a.overT > 0 ? 2 : 1), lc, 92);
           this.fx.muzzle(_b, _aim, lc, K.scale * 0.6);
           this.snd.play("elaser", this.volAt(a.pos) * 0.7, this.panAt(a.pos));
         }

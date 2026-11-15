@@ -2,6 +2,7 @@
 // 유닛 = 본체 액터(root) + 부위 액터(parts). 부위는 따로 조준·파괴되고, 파괴되면 떨어져 나가거나 주저앉는 등 동작이 바뀐다
 import * as THREE from "../vendor/three.module.min.js";
 import { clamp } from "./config.js";
+import { rollRank, rankStats, clampRank } from "./ranks.js";
 
 const V3 = THREE.Vector3;
 const _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(), _q = new THREE.Quaternion();
@@ -24,7 +25,11 @@ export class Units {
 
   // type: tank | aa | frigate | cruiser | mech.  o: { pos, name, hp(배율), scale, home, boss }
   spawn(type, o = {}) {
+    // 계급: 포인트 색(o.tc)과 내구도·화력·조준 배율
+    const rk = rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.c.level, type));
+    o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: `${rk.name} ${o.name || UNIT_NAME[type]}` });
     const u = MAKE[type](this, o);
+    u.rk = rk; u.root.rk = rk; for (const p of u.parts) p.rk = rk;
     u.type = type; u.t = Math.random() * 10; u.cool = {};
     this.list.push(u);
     return u.root;
@@ -63,13 +68,14 @@ export class Units {
   laser(u, from, dir, dmg, color, speed) {
     const c = this.c;
     if (u.cut) return;
-    c.fireLaser(u.root, from, dir, dmg, color, speed);
+    c.fireLaser(u.root, from, dir, dmg * u.rk.dmg, color, speed);
     c.fx.muzzle(from, dir, color, 2.4);
     c.snd.play("elaser", c.volAt(from) * 0.9, c.panAt(from), 0.7);
   }
   // 조준: from → 목표 예상 위치. 흩어짐 포함한 발사 방향을 out 에
-  aim(from, t, speed, spread, out) {
+  aim(from, t, speed, spread, out, u) {
     this.c._lead(from, t, speed, out).sub(from).normalize();
+    spread *= (u ? u.rk.aim : 1) * (1 + (1 - this.c.diff.aim) * 1.5);
     out.x += (Math.random() - 0.5) * spread; out.y += (Math.random() - 0.5) * spread; out.z += (Math.random() - 0.5) * spread;
     return out.normalize();
   }
@@ -140,7 +146,7 @@ export class Units {
 
 // ── 전차 ──────────────────────────────────────────────────
 function makeTank(U, o) {
-  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x4a5a3a), dark = lam(0x23272f), red = glow(0xff3d2d);
+  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x4a5a3a), dark = lam(0x23272f), red = glow(o.tc);
   const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 30, 5 * S);
   g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
   box(g, 3.4, 1.0, 5.6, body, 0, 1.0, 0); box(g, 3.0, 0.5, 4.6, body, 0, 1.7, 0.2);
@@ -162,7 +168,7 @@ function makeTank(U, o) {
       tur.rotation.y = u.ty; gun.rotation.x = u.tp;
       if (!(u.cool.gun > 0) && Math.abs(wrap(Math.atan2(-_a.x, -_a.z) - u.yaw - u.ty)) < 0.1) {
         gun.updateWorldMatrix(true, false); muzzle.set(0, 0, -4.2).applyMatrix4(gun.matrixWorld);
-        if (U.clear(muzzle, t)) { u.cool.gun = 2.6; U.laser(u, muzzle, U.aim(muzzle, t, 75, 0.03, _b), 20, 0xffb84a, 75); U.c.fx.flash(muzzle, 0xffd9a0, 2.2, 0.15); }
+        if (U.clear(muzzle, t)) { u.cool.gun = 2.6; U.laser(u, muzzle, U.aim(muzzle, t, 75, 0.03, _b, u), 20, 0xffb84a, 75); U.c.fx.flash(muzzle, 0xffd9a0, 2.2, 0.15); }
       }
     }
   };
@@ -173,7 +179,7 @@ function makeTank(U, o) {
 
 // ── 대공 로봇 (두 발 보행) ─────────────────────────────────
 function makeAA(U, o) {
-  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x55607a), dark = lam(0x22262e), eye = glow(0xff5a3a);
+  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x55607a), dark = lam(0x22262e), eye = glow(o.tc);
   const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 30, 4 * S);
   g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
   const hip = grp(g, 0, 3.6, 0);
@@ -200,7 +206,7 @@ function makeAA(U, o) {
     if (!(u.cool.gun > 0)) {
       if (u.burst <= 0) u.burst = 6;
       const pd = pods[u.burst % 2]; pd.updateWorldMatrix(true, false); mz.set(0, 0, -3).applyMatrix4(pd.matrixWorld);
-      if (U.clear(mz, t)) { U.laser(u, mz, U.aim(mz, t, 110, 0.05, _b), 5, 0xff5a3a, 110); u.burst--; u.cool.gun = u.burst > 0 ? 0.1 : 2.2; } else { u.burst = 0; u.cool.gun = 0.6; }
+      if (U.clear(mz, t)) { U.laser(u, mz, U.aim(mz, t, 110, 0.05, _b, u), 5, 0xff5a3a, 110); u.burst--; u.cool.gun = u.burst > 0 ? 0.1 : 2.2; } else { u.burst = 0; u.cool.gun = 0.6; }
     }
     if (!(u.cool.msl > 0) && _a.length() > 28) { u.cool.msl = 7.5; rack.updateWorldMatrix(true, false); mz.set(0, 0.8, 0).applyMatrix4(rack.matrixWorld); if (!u.cut) U.c.fireMissile(u.root, mz, _b.set(0, 1, 0).addScaledVector(_a.normalize(), 0.6).normalize(), t, 26); }
   };
@@ -216,7 +222,7 @@ function makeAA(U, o) {
 
 // ── 공중 전투함 · 순양함 ───────────────────────────────────
 function makeShip(U, o, big) {
-  const w = U.w, g = new THREE.Group(), hullM = lam(big ? 0x3a4458 : 0x4a5568), dark = lam(0x1f2430), trim = glow(0xff3d4d, 1.8), eng = glow(0x5ad8ff, 2.6);
+  const w = U.w, g = new THREE.Group(), hullM = lam(big ? 0x3a4458 : 0x4a5568), dark = lam(0x1f2430), trim = glow(o.tc, 1.8), eng = glow(0x5ad8ff, 2.6);
   const Lh = big ? 46 : 28, Wd = big ? 9 : 6.5, Ht = big ? 5 : 4;
   const home = o.home || o.pos || new V3(0, 0, 0), alt = Math.max(w.h(home.x, home.z) + (big ? 46 : 36), (o.pos ? o.pos.y : 0));
   const u = { group: g, parts: [], home: new V3(home.x, Math.min(alt, w.ceiling - 12), home.z), ang: Math.random() * 6.28, R: Math.min(w.size * 0.45, big ? 85 : 65), range: 130, yaw: 0 };
@@ -262,7 +268,7 @@ function makeShip(U, o, big) {
       tr.gun.rotation.x = clamp(Math.atan2(tw.y - 0.9, Math.hypot(tw.x, tw.z)), -0.05, 1.3);
       if (tr.cool <= 0 && Math.abs(wrap(Math.atan2(-tw.x, -tw.z) - tr.yaw)) < 0.12) {
         tr.gun.updateWorldMatrix(true, false); mz.set(0, 0, -3).applyMatrix4(tr.gun.matrixWorld);
-        if (U.clear(mz, t)) { tr.cool = 1.5; U.laser(u, mz, U.aim(mz, t, 100, 0.045, _b), 7, 0xff4a5a, 100); } else tr.cool = 0.5;
+        if (U.clear(mz, t)) { tr.cool = 1.5; U.laser(u, mz, U.aim(mz, t, 100, 0.045, _b, u), 7, 0xff4a5a, 100); } else tr.cool = 0.5;
       }
     }
     if (big && t && !(u.cool.msl > 0)) { u.cool.msl = 6.5; for (const sx of [-1, 1]) { mz.set(sx * Wd * 0.4, Ht * 0.7, -Lh * 0.1).applyMatrix4(g.matrixWorld); if (!u.cut) U.c.fireMissile(u.root, mz, _b.set(sx * 0.4, 1, 0).normalize(), t, 28); } }
@@ -283,7 +289,7 @@ function makeShip(U, o, big) {
 // 머리가 살아 있으면 코어가 단단하다. 팔을 부수면 그 무기가 사라지고, 다리를 부수면 무릎을 꿇어 느려지다 주저앉는다
 function makeMech(U, o) {
   const S = o.scale || 1, w = U.w, c = U.c, g = new THREE.Group();
-  const armor = lam(0x5a6478), plate = lam(0x7a869c), dark = lam(0x20242c), red = glow(0xff2d3d), core = glow(0xffb02e, 2.4), eye = glow(0x5ad8ff, 2.6);
+  const armor = lam(0x5a6478), plate = lam(0x7a869c), dark = lam(0x20242c), red = glow(o.tc), core = glow(0xffb02e, 2.4), eye = glow(o.tc, 2.6);
   const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 45, 9 * S);
   g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
   const HIP = 11;
@@ -369,7 +375,7 @@ function makeMech(U, o) {
     if (P.armL.alive && aligned && !(u.cool.las > 0)) {
       if (u.burst <= 0) u.burst = 8;
       mz.set(0, -0.6, -7.6).applyMatrix4(arms[0].fore.matrixWorld);
-      if (U.clear(mz, t)) { U.laser(u, mz, U.aim(mz, t, 105, spread, _b), 6, 0xff3d6a, 105); u.burst--; u.cool.las = u.burst > 0 ? 0.11 : 3.2; } else { u.burst = 0; u.cool.las = 0.7; }
+      if (U.clear(mz, t)) { U.laser(u, mz, U.aim(mz, t, 105, spread, _b, u), 6, 0xff3d6a, 105); u.burst--; u.cool.las = u.burst > 0 ? 0.11 : 3.2; } else { u.burst = 0; u.cool.las = 0.7; }
     }
     // 오른팔 미사일: 3발
     if (P.armR.alive && aligned && dist > 25 && !(u.cool.msl > 0)) {
@@ -377,7 +383,7 @@ function makeMech(U, o) {
       for (let k = 0; k < 3; k++) { mz.set((k - 1) * 0.7, -0.6, -4.6).applyMatrix4(arms[1].fore.matrixWorld); if (!u.cut) c.fireMissile(u.root, mz, _b.copy(_a).normalize().add(_c.set((k - 1) * 0.25, 0.35, 0)).normalize(), t, 30); }
     }
     // 머리 센서 광선: 강한 한 발
-    if (P.head.alive && aligned && !(u.cool.eye > 0)) { u.cool.eye = 4.2; mz.set(0, 0.2, -1.6).applyMatrix4(head.matrixWorld); if (U.clear(mz, t)) U.laser(u, mz, U.aim(mz, t, 120, 0.03, _b), 16, 0x5ad8ff, 120); }
+    if (P.head.alive && aligned && !(u.cool.eye > 0)) { u.cool.eye = 4.2; mz.set(0, 0.2, -1.6).applyMatrix4(head.matrixWorld); if (U.clear(mz, t)) U.laser(u, mz, U.aim(mz, t, 120, 0.03, _b, u), 16, 0x5ad8ff, 120); }
   };
   u.onDeath = () => { stagger(1); u.fall = 0; u.dir = Math.random() < 0.5 ? 1 : -1; };
   u.dying = (dt) => {   // 연쇄 폭발 → 무릎이 꺾이며 앞으로 쓰러진다

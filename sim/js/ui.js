@@ -203,9 +203,9 @@ export class UI {
   _openDiff(andStart) {
     this._ovStart = !!andStart;
     const cur = settings.difficulty, info = {
-      easy: { icon: "🟢", lines: ["AI 드론이 느리고 조준이 서툽니다", "받는 피해 60%", "처음 하는 분께 추천"] },
-      normal: { icon: "🟡", lines: ["균형 잡힌 기본 난이도", "받는 피해 100%", "AI 가 적당히 따라붙습니다"] },
-      hard: { icon: "🔴", lines: ["AI 가 빠르고 정확합니다", "받는 피해 130%", "숙련자용 · 정예 기체 등장"] },
+      easy: { icon: "🟢", lines: ["적 계급: 병 위주 (이병~병장)", "느리고 조준이 서툽니다", "받는 피해 60%"] },
+      normal: { icon: "🟡", lines: ["적 계급: 부사관 위주 (하사~원사)", "균형 잡힌 기본 난이도", "받는 피해 100%"] },
+      hard: { icon: "🔴", lines: ["적 계급: 장교 위주 (소위~대위 이상)", "빠르고 정확합니다", "받는 피해 130%"] },
     };
     const cards = Object.entries(DIFFICULTY).map(([k, v]) => `<button class="dcard ${k === cur ? "sel" : ""} d-${k}" data-a="diffpick" data-v="${k}">
         <span class="di">${info[k].icon}</span><b>${v.name}</b><ul>${info[k].lines.map((l) => `<li>${l}</li>`).join("")}</ul>
@@ -214,6 +214,7 @@ export class UI {
     this.root.insertAdjacentHTML("beforeend", `<div class="ovl" data-ovl><div class="ovbox">
       <div class="ovh"><span class="en">DIFFICULTY</span><h2>난이도 선택</h2></div>
       <div class="dgrid">${cards}</div>
+      <p class="ranklegend">적은 계급이 높을수록 강하고, 기체의 포인트 색으로 구분됩니다 — <i style="--k:#ffd21f">병</i><i style="--k:#35d06a">부사관</i><i style="--k:#5aa9ff">장교</i><i style="--k:#ff4a5a">영관·장성</i> 큰 적(전차·전투함·거대로봇)일수록 높은 계급이 탑니다.</p>
       <div class="ovact"><button class="ghost" data-a="ovclose">${this._ovStart ? "취소" : "닫기"}</button></div></div></div>`);
     requestAnimationFrame(() => this.root.querySelector("[data-ovl]")?.classList.add("in"));
   }
