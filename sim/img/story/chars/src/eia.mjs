@@ -26,12 +26,12 @@ function bez(p0, p1, p2, p3, t) {
 
 // 표정별 고리 세기·눈 모양
 const EX = {
-  normal: { ring: 1, w: 56, h: 20, ir: 15, eyeOp: 1, spread: 1 },
-  smile: { ring: 1.1, w: 56, h: 18, ir: 13, eyeOp: 1, spread: 1 },
-  angry: { ring: 1.7, w: 62, h: 10, ir: 10, eyeOp: 1, spread: 1.06 },
-  sad: { ring: 0.45, w: 52, h: 15, ir: 13, eyeOp: 0.6, spread: 0.98 },
-  surprise: { ring: 1.35, w: 50, h: 34, ir: 10, eyeOp: 1, spread: 1.08 },
-  serious: { ring: 0.9, w: 60, h: 7, ir: 7, eyeOp: 1, spread: 1 },
+  normal: { ring: 1, w: 58, h: 18, ir: 17, eyeOp: 1, spread: 1 },
+  smile: { ring: 1.1, w: 56, h: 14, ir: 15, eyeOp: 1, spread: 1 },
+  angry: { ring: 1.7, w: 62, h: 12, ir: 13, eyeOp: 1, spread: 1.06 },
+  sad: { ring: 0.45, w: 54, h: 12, ir: 14, eyeOp: 0.6, spread: 0.98 },
+  surprise: { ring: 1.35, w: 50, h: 36, ir: 11, eyeOp: 1, spread: 1.08 },
+  serious: { ring: 0.9, w: 60, h: 6, ir: 12, eyeOp: 1, spread: 1 },
 };
 
 const RC = [600, 300]; // 고리 중심
@@ -46,6 +46,7 @@ function rings(x) {
     o += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ff2d3d" stroke-width="${w * 5}" opacity="${f(0.05 * k)}" ${da}/>`;
     o += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ff2d3d" stroke-width="${w * 2.2}" opacity="${f(Math.min(0.5, 0.14 * k))}" ${da}/>`;
     o += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ff4a58" stroke-width="${w}" opacity="${f(Math.min(1, op * (0.5 + k * 0.5)))}" ${da}/>`;
+    if (w >= 3) o += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ffd6da" stroke-width="${f(w * 0.3)}" opacity="${f(Math.min(1, 0.4 * k))}" ${da}/>`;
   }
   // 눈금
   for (let i = 0; i < 120; i++) {
@@ -101,25 +102,27 @@ function cables(side, layer) {
   let o = "";
   const defs = layer === "back"
     ? [
-      [[690, 230], [820, 300], [760, 900], [930, 1500], [980, 1900], 26],
-      [[700, 280], [880, 420], [800, 1100], [1010, 1600], [1060, 2150], 22],
-      [[680, 330], [800, 500], [720, 1200], [860, 1800], [900, 2330], 24],
-      [[700, 200], [960, 260], [900, 800], [1100, 1300], [1150, 1750], 16],
-      [[670, 380], [760, 600], [700, 1300], [780, 1900], [790, 2380], 18],
-      [[710, 250], [1000, 380], [940, 1000], [1060, 1250], [1120, 1450], 14],
-      [[690, 300], [860, 560], [840, 1300], [960, 2000], [1000, 2390], 20],
+      [[690, 230], [860, 280], [700, 800], [880, 1300], [1000, 2000], 22],
+      [[700, 290], [900, 420], [780, 1000], [960, 1500], [1100, 1820], 18],
+      [[680, 340], [780, 560], [660, 1200], [800, 1800], [840, 2380], 20],
+      [[706, 210], [980, 220], [940, 640], [1080, 1000], [1150, 1320], 14],
+      [[690, 300], [830, 600], [760, 1400], [900, 1900], [960, 2390], 16],
     ]
     : [
-      [[690, 360], [740, 470], [720, 560], [700, 700], [690, 840], 14],
-      [[700, 330], [770, 440], [790, 560], [770, 680], [760, 760], 11],
+      [[690, 360], [750, 470], [730, 560], [712, 690], [700, 860], 13],
     ];
   for (const [p0, p1, p2, p3, end, w] of defs) {
     // 두 구간 곡선: p0 → p3 (제어 p1,p2), p3 → end
-    const q1 = [p3[0] * 2 - p2[0], p3[1] * 2 - p2[1]], q2 = [end[0] - (R() - 0.5) * 80, end[1] - 300];
+    const q1 = [p3[0] * 2 - p2[0], p3[1] * 2 - p2[1]], q2 = [end[0] - (R() - 0.5) * 60, end[1] - (end[1] - p3[1]) * 0.45];
     const d = `M${p0[0]} ${p0[1]} C${p1[0]} ${p1[1]} ${p2[0]} ${p2[1]} ${p3[0]} ${p3[1]} C${f(q1[0])} ${f(q1[1])} ${f(q2[0])} ${f(q2[1])} ${end[0]} ${end[1]}`;
+    // 세 가닥 꼬인 다발
+    for (const dx of [-w * 0.75, w * 0.75]) {
+      o += line(d, INK, w * 0.55 + 6, 1, `transform="translate(${f(dx)} ${f(Math.abs(dx) * 0.4)})"`);
+      o += line(d, `url(#${P}cable)`, w * 0.55, 1, `transform="translate(${f(dx)} ${f(Math.abs(dx) * 0.4)})"`);
+    }
     o += line(d, INK, w + 8, 1);
     o += line(d, `url(#${P}cable)`, w, 1);
-    o += line(d, "#5a5266", w * 0.25, 0.7, `transform="translate(${-w * 0.22} 0)"`);
+    o += line(d, "#6a6278", w * 0.22, 0.75, `transform="translate(${-w * 0.22} 0)"`);
     o += line(d, "#ff2d3d", 1.6, 0.45, `stroke-dasharray="3 22" transform="translate(${w * 0.18} 0)"`);
     // 연결 고리(붉은 링)
     for (const t of [0.35, 0.7]) {
@@ -142,14 +145,14 @@ function cables(side, layer) {
 // ── 몸 ──
 const TORSO = "M528 548 C474 566 432 590 420 636 C424 716 472 764 500 826 C520 884 530 950 540 1012 L660 1012 C670 950 680 884 700 826 C728 764 776 716 780 636 C768 590 726 566 672 548Z";
 const BREAST = "M516 640 C556 616 644 616 684 640 C694 722 662 804 600 866 C538 804 506 722 516 640Z";
-const GOWN = "M540 1000 C520 1300 420 1820 262 2392 L938 2392 C780 1820 680 1300 660 1000Z";
-const PETAL_L = "M548 1004 C500 1300 396 1820 252 2394 L372 2360 L420 2394 C470 1940 520 1440 582 1030Z";
+const GOWN = "M540 1000 C500 1300 390 1800 210 2392 L990 2392 C810 1800 700 1300 660 1000Z";
+const PETAL_L = "M548 1004 C470 1300 480 1600 390 1900 C356 2010 326 2130 290 2280 L376 2200 L418 2300 L454 2186 C484 1980 516 1720 536 1500 C552 1300 568 1150 582 1030Z";
 const PETAL_L2 = "M560 1020 C540 1400 480 1900 440 2394 L520 2370 L548 2394 C560 1960 576 1500 594 1040Z";
 const CENTER = "M584 1030 L616 1030 C622 1500 634 2000 650 2394 L600 2360 L550 2394 C566 2000 578 1500 584 1030Z";
 const COLLAR_L = "M520 556 C480 520 456 470 446 400 C478 430 504 446 530 452 L556 540Z";
-const PAULD_L = "M430 604 C380 584 318 604 296 664 C286 712 304 760 330 790 C344 742 372 712 412 696 C440 686 456 664 466 640Z";
-const PAULD_L2 = "M440 640 C400 640 356 664 338 708 C330 740 338 776 352 800 C364 768 390 748 420 738 C448 728 460 704 466 680Z";
-const ARM_L_UP = "M352 760 C336 840 336 920 342 1000 L396 1004 C404 924 416 840 426 760Z";
+const PAULD_L = "M462 624 C420 596 360 592 316 612 L240 520 L286 636 C282 690 306 746 336 792 C350 744 378 714 416 700 C444 690 458 668 466 650Z";
+const PAULD_L2 = "M444 650 C400 648 356 668 332 708 L280 680 L318 740 C320 770 334 794 352 812 C366 780 392 758 422 746 C450 734 462 708 466 686Z";
+const ARM_L_UP = "M340 760 C330 840 336 920 344 1000 L394 1004 C404 924 420 850 434 770Z";
 const ARM_L_FORE = "M340 996 C330 1090 326 1200 328 1300 L382 1302 C388 1200 394 1090 398 1000Z";
 const GAUNT_L = "M332 1110 C326 1180 324 1250 328 1302 L384 1304 C388 1250 392 1180 396 1110 C376 1098 352 1098 332 1110Z";
 const ARM_R_UP = "M770 760 C800 840 840 920 870 990 L918 970 C890 880 856 800 840 740Z";
@@ -193,56 +196,82 @@ function gownDetails() {
 function maskAndEye(x) {
   let o = "";
   // 머리 뒤 껍질(검은 갑각) + 왕관 첨탑
-  const SHELL = "M600 120 C700 120 752 200 752 300 C752 400 720 470 690 520 L600 548 L510 520 C480 470 448 400 448 300 C448 200 500 120 600 120Z";
+  const SHELL = "M600 124 C684 124 726 196 728 290 C730 372 708 440 676 490 L600 540 L524 490 C492 440 470 372 472 290 C474 196 516 124 600 124Z";
+  // 등 뒤 부채꼴 관(크레스트) 칼날
+  for (const g of ["", MIR]) {
+    o += `<g ${g}>`;
+    const blades = [[-168, 250, 34], [-150, 330, 40], [-132, 300, 36], [-114, 250, 30], [-186, 190, 26], [-200, 140, 20]];
+    for (const [deg, len, wd] of blades) {
+      const a = deg * Math.PI / 180, bx = 600 + Math.cos(a) * 70, by = 290 + Math.sin(a) * 70;
+      const tx = 600 + Math.cos(a) * len, ty = 290 + Math.sin(a) * len;
+      const nx = -Math.sin(a) * wd / 2, ny = Math.cos(a) * wd / 2;
+      const mx = 600 + Math.cos(a) * len * 0.62, my = 290 + Math.sin(a) * len * 0.62;
+      const d = `M${f(bx + nx * 0.4)} ${f(by + ny * 0.4)} L${f(mx + nx)} ${f(my + ny)} L${f(tx)} ${f(ty)} L${f(mx - nx)} ${f(my - ny)} L${f(bx - nx * 0.4)} ${f(by - ny * 0.4)}Z`;
+      o += shape(d, `url(#${P}black)`, 3.5);
+      o += `<path d="M${f(bx)} ${f(by)} L${f(mx + nx)} ${f(my + ny)} L${f(tx)} ${f(ty)}Z" fill="#4a4256" opacity="0.6"/>`;
+      o += redGlow(`M${f(bx + Math.cos(a) * 30)} ${f(by + Math.sin(a) * 30)} L${f(tx - Math.cos(a) * 16)} ${f(ty - Math.sin(a) * 16)}`, 1.3, 0.8);
+    }
+    o += `</g>`;
+  }
   o += shape("M600 30 L626 140 L600 160 L574 140Z", `url(#${P}black)`, 4);
   o += shape("M520 70 L560 150 L534 170 L508 150Z M680 70 L640 150 L666 170 L692 150Z", `url(#${P}black)`, 4);
   o += shape("M452 140 L506 190 L476 220 L440 200Z M748 140 L694 190 L724 220 L760 200Z", `url(#${P}black)`, 4);
   o += line("M600 44 L600 140 M524 84 L540 150 M676 84 L660 150", "#ff4a58", 2.5, 0.9);
   o += shape(SHELL, `url(#${P}black)`, 5);
-  o += line("M470 260 C480 190 530 146 600 140 M730 260 C720 190 670 146 600 140", "#5a5266", 3, 0.7);
+  o += line("M492 270 C500 196 540 150 600 144 M708 270 C700 196 660 150 600 144", "#5a5266", 3, 0.7);
   // 가면
-  const MASK = "M600 150 C664 150 706 202 710 272 C714 354 682 424 640 460 L600 484 L560 460 C518 424 486 354 490 272 C494 202 536 150 600 150Z";
+  const MASK = "M600 150 C658 150 694 200 696 268 C698 330 680 388 650 432 L600 494 L550 432 C520 388 502 330 504 268 C506 200 542 150 600 150Z";
   o += shape(MASK, `url(#${P}mask)`, 5);
   // 면 분할 음영 (왼쪽 위 광원 → 오른쪽 면 그늘)
-  o += `<path d="M600 150 C664 150 706 202 710 272 C714 354 682 424 640 460 L600 484 L612 360 L660 320 L604 270Z" fill="#7d7590" opacity="0.35"/>`;
-  o += `<path d="M540 340 L600 380 L600 484 L560 460 C530 434 510 400 500 360Z" fill="#b9b2c4" opacity="0.45"/>`;
-  o += line("M600 152 L600 270 M600 380 L600 482 M498 328 L548 352 L600 382 L652 352 L702 328 M520 230 L600 252 L680 230", "#7d7590", 2, 0.75);
+  o += `<path d="M600 150 C658 150 694 200 696 268 C698 330 680 388 650 432 L600 494 L606 372 L652 344 L604 250Z" fill="#7d7590" opacity="0.35"/>`;
+  o += `<path d="M534 350 L600 384 L600 494 L550 432 C530 404 516 380 510 352Z" fill="#b9b2c4" opacity="0.45"/>`;
+  o += line("M600 152 L600 250 M600 384 L600 492 M508 344 L556 362 L600 386 L644 362 L692 344 M524 222 L600 240 L676 222", "#7d7590", 2, 0.75);
+  // 뺨 장식판(검은 상감)
+  o += `<path d="M512 360 C520 400 540 430 566 452 L572 420 C552 404 534 384 526 360Z" fill="#1e1a24" stroke="${INK}" stroke-width="2.5"/>`;
+  o += `<path d="M688 360 C680 400 660 430 634 452 L628 420 C648 404 666 384 674 360Z" fill="#1e1a24" stroke="${INK}" stroke-width="2.5"/>`;
+  o += line("M524 368 C532 396 548 418 566 436 M676 368 C668 396 652 418 634 436", "#ff4a58", 1.6, 0.9);
   o += `<path d="M528 196 C548 172 580 160 604 160 C574 172 552 190 540 214Z" fill="#ffffff" opacity="0.85"/>`;
   // 금(균열) 장식 — 붉은 빛이 새는 선
   o += redGlow("M640 340 L656 372 L648 398 L664 430", 1.6, 0.8);
   o += redGlow("M560 190 L548 214 L558 232", 1.3, 0.6);
-  // 눈 소켓
-  o += `<path d="M528 300 Q600 248 672 300 Q600 344 528 300Z" fill="#0b080d" stroke="${INK}" stroke-width="4"/>`;
-  o += line("M524 300 Q600 240 676 300", "#5a5266", 2, 0.8);
-  // 단안
+  // 눈 소켓(각진 렌즈 하우징)
+  o += `<path d="M522 300 L556 262 L644 262 L678 300 L644 338 L556 338Z" fill="#0b080d" stroke="${INK}" stroke-width="4"/>`;
+  o += line("M522 300 L556 262 L644 262 L678 300", "#5a5266", 2, 0.9);
   const { w, h, ir, eyeOp } = x, cx = 600, cy = 300;
+  // 셔터 모양 = 표정
   let eye;
-  if (x === EX.smile) eye = `M${cx - w} ${cy + 4} Q${cx} ${cy - h * 1.6} ${cx + w} ${cy + 4} Q${cx} ${cy - h * 0.4} ${cx - w} ${cy + 4}Z`;
-  else if (x === EX.angry) eye = `M${cx - w} ${cy - 8} Q${cx - w * 0.4} ${cy - h * 0.6} ${cx} ${cy + 2} Q${cx + w * 0.4} ${cy - h * 0.6} ${cx + w} ${cy - 8} Q${cx} ${cy + h * 1.8} ${cx - w} ${cy - 8}Z`;
-  else if (x === EX.sad) eye = `M${cx - w} ${cy + 8} Q${cx} ${cy - h * 2} ${cx + w} ${cy + 8} Q${cx} ${cy + h * 0.9} ${cx - w} ${cy + 8}Z`;
-  else eye = `M${cx - w} ${cy} Q${cx} ${cy - h * 2} ${cx + w} ${cy} Q${cx} ${cy + h * 2} ${cx - w} ${cy}Z`;
+  if (x === EX.smile) eye = `M${cx - w} ${cy + 6} Q${cx} ${cy - h * 2.4} ${cx + w} ${cy + 6} Q${cx} ${cy - h * 0.6} ${cx - w} ${cy + 6}Z`;
+  else if (x === EX.angry) eye = `M${cx - w} ${cy - 12} L${cx - 14} ${cy + 2} L${cx + 14} ${cy + 2} L${cx + w} ${cy - 12} L${cx + w * 0.55} ${cy + h} L${cx - w * 0.55} ${cy + h}Z`;
+  else if (x === EX.sad) eye = `M${cx - w} ${cy + 10} L${cx - w * 0.3} ${cy - h * 1.2} L${cx + w * 0.3} ${cy - h * 1.2} L${cx + w} ${cy + 10} Q${cx} ${cy + h * 1.4} ${cx - w} ${cy + 10}Z`;
+  else if (x === EX.surprise) eye = `M${cx - h} ${cy} A${h} ${h} 0 1 1 ${cx + h} ${cy} A${h} ${h} 0 1 1 ${cx - h} ${cy}Z`;
+  else eye = `M${cx - w} ${cy} Q${cx - w * 0.5} ${cy - h * 1.5} ${cx} ${cy - h * 1.5} Q${cx + w * 0.5} ${cy - h * 1.5} ${cx + w} ${cy} Q${cx + w * 0.5} ${cy + h * 1.5} ${cx} ${cy + h * 1.5} Q${cx - w * 0.5} ${cy + h * 1.5} ${cx - w} ${cy}Z`;
   o += `<g opacity="${eyeOp}">`;
-  o += `<ellipse cx="${cx}" cy="${cy}" rx="${w * 1.9}" ry="${h * 2 + 40}" fill="url(#${P}eyeGlow)"/>`;
-  o += `<path d="${eye}" fill="#ff2d3d" opacity="0.35" stroke="#ff2d3d" stroke-width="16" stroke-opacity="0.18"/>`;
+  o += `<ellipse cx="${cx}" cy="${cy}" rx="${w * 2}" ry="${h * 2 + 46}" fill="url(#${P}eyeGlow)"/>`;
   o += `<clipPath id="${P}eyeClip"><path d="${eye}"/></clipPath>`;
-  o += `<path d="${eye}" fill="url(#${P}eye)"/>`;
+  o += `<path d="${eye}" fill="#ff2d3d" stroke="#ff2d3d" stroke-width="14" stroke-opacity="0.22"/>`;
   o += `<g clip-path="url(#${P}eyeClip)">`;
-  o += `<circle cx="${cx}" cy="${cy}" r="${ir + 8}" fill="none" stroke="#7a0010" stroke-width="3"/>`;
+  // 렌즈: 동심원 + 조리개
+  o += `<circle cx="${cx}" cy="${cy}" r="40" fill="url(#${P}eye)"/>`;
+  o += `<circle cx="${cx}" cy="${cy}" r="${ir + 12}" fill="none" stroke="#ffd0d4" stroke-width="1.5" opacity="0.8"/>`;
+  o += `<circle cx="${cx}" cy="${cy}" r="${ir + 6}" fill="#7a0010"/>`;
   o += `<circle cx="${cx}" cy="${cy}" r="${ir}" fill="url(#${P}iris)"/>`;
-  o += `<circle cx="${cx}" cy="${cy}" r="${ir * 0.7}" fill="none" stroke="#ffe0e2" stroke-width="1.4" stroke-dasharray="3 3"/>`;
-  if (x !== EX.surprise) o += `<path d="M${cx} ${cy - ir} Q${cx + ir * 0.3} ${cy} ${cx} ${cy + ir} Q${cx - ir * 0.3} ${cy} ${cx} ${cy - ir}Z" fill="#3a0006"/>`;
-  else o += `<circle cx="${cx}" cy="${cy}" r="${ir * 0.35}" fill="#3a0006"/>`;
-  o += `<circle cx="${cx - ir * 0.45}" cy="${cy - ir * 0.5}" r="${Math.max(2.5, ir * 0.28)}" fill="#ffffff"/>`;
-  o += line(`M${cx - w} ${cy} L${cx + w} ${cy}`, "#ffd0d4", 1, 0.5);
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; o += `<path d="M${f(cx + Math.cos(a) * ir * 0.35)} ${f(cy + Math.sin(a) * ir * 0.35)} L${f(cx + Math.cos(a + 0.6) * ir)} ${f(cy + Math.sin(a + 0.6) * ir)}" stroke="#7a0010" stroke-width="1.5"/>`; }
+  o += `<circle cx="${cx}" cy="${cy}" r="${f(ir * 0.32)}" fill="#ffe8ea"/>`;
+  o += `<circle cx="${cx - ir * 0.55}" cy="${cy - ir * 0.6}" r="${f(Math.max(2.5, ir * 0.25))}" fill="#ffffff"/>`;
+  o += `<circle cx="${cx + ir * 0.6}" cy="${cy + ir * 0.5}" r="2" fill="#ffffff" opacity="0.8"/>`;
   o += `</g>`;
-  o += `<path d="${eye}" fill="none" stroke="#ffe0e2" stroke-width="2" opacity="0.9"/>`;
+  o += `<path d="${eye}" fill="none" stroke="#ffe0e2" stroke-width="2.4"/>`;
   o += `</g>`;
+  // 셔터 판 가장자리
+  o += line(`M528 300 L${cx - w} ${cy} M672 300 L${cx + w} ${cy}`, "#ff4a58", 2, 0.7);
   if (x === EX.sad) {
     // 붉은 눈물 같은 빛줄기
     o += redGlow("M612 330 C616 370 610 410 618 470", 2, 0.7);
     o += `<circle cx="618" cy="474" r="5" fill="#ff8a92"/>`;
   }
   if (x === EX.angry) {
+    o += `<path d="M524 298 L556 262 L596 262 L586 300 L560 286Z M676 298 L644 262 L604 262 L614 300 L640 286Z" fill="#2a2430" stroke="${INK}" stroke-width="3"/>`;
+    o += line("M530 296 L558 282 L586 298 M670 296 L642 282 L614 298", "#ff6a74", 2.2, 1);
     // 가면의 균열이 더 붉게 타오름
     o += redGlow("M560 250 L576 270 L566 286 M640 250 L624 270 L634 286", 2, 1.4);
     o += line("M520 286 L548 296 M680 286 L652 296", "#ff8a92", 3, 0.9);
@@ -278,10 +307,11 @@ export function svg(expr = "normal") {
 <clipPath id="${P}gownClip"><path d="${GOWN}"/></clipPath>
 </defs>`;
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2400">${defs}`;
-  s += rings(x);
-  s += shards(false);
+  s += `<circle cx="600" cy="300" r="560" fill="url(#${P}aura)"/>`;
   // 뒤 케이블
   s += cables(1, "back") + `<g ${MIR}>${cables(-1, "back")}</g>`;
+  s += rings(x);
+  s += shards(false);
   // 드레스
   s += shape(GOWN, `url(#${P}gown)`, 5);
   s += gownDetails();
@@ -289,8 +319,8 @@ export function svg(expr = "normal") {
   for (const g of ["", MIR]) {
     s += `<g ${g}>`;
     s += shape(PETAL_L, `url(#${P}porcV)`, 4.5);
-    s += `<path d="M548 1004 C500 1300 396 1820 252 2394 L300 2380 C430 1820 520 1320 560 1010Z" fill="#ffffff" opacity="0.45"/>`;
-    s += redGlow("M570 1030 C516 1440 446 1900 400 2370", 1.6, 0.8);
+    s += `<path d="M548 1004 C470 1300 480 1600 390 1900 C356 2010 326 2130 290 2280 L330 2244 C370 2080 400 1980 430 1900 C500 1640 500 1300 560 1010Z" fill="#ffffff" opacity="0.45"/>`;
+    s += redGlow("M568 1040 C540 1300 520 1600 480 1860 C466 1980 450 2080 436 2200", 1.6, 0.8);
     s += shape(PETAL_L2, `url(#${P}black)`, 4);
     s += line("M576 1060 C562 1500 520 1960 500 2360", "#5a5266", 2, 0.8);
     // 판 문양
@@ -299,6 +329,15 @@ export function svg(expr = "normal") {
   }
   s += shape(CENTER, `url(#${P}porcV)`, 4);
   s += redGlow("M600 1050 C602 1500 610 2000 600 2350", 2.4);
+  // 허리 장식판(태싯)
+  for (const g of ["", MIR]) {
+    s += `<g ${g}>`;
+    s += shape("M552 1000 C514 1060 486 1150 474 1270 L516 1238 L548 1286 C556 1180 568 1090 588 1016Z", `url(#${P}porc)`, 4);
+    s += shape("M536 1010 C494 1060 456 1130 440 1210 L480 1196 C496 1120 520 1060 556 1020Z", `url(#${P}black)`, 3.5);
+    s += redGlow("M560 1030 C536 1100 520 1180 514 1236", 1.3, 0.8);
+    s += `<path d="M544 1020 C520 1070 500 1140 492 1220 L500 1214 C510 1140 528 1076 556 1026Z" fill="#ffffff" opacity="0.7"/>`;
+    s += `</g>`;
+  }
   // 뒤쪽 높은 칼라
   s += shape(COLLAR_L, `url(#${P}porc)`, 4) + `<g ${MIR}>${shape(COLLAR_L, `url(#${P}porc)`, 4)}${line("M530 540 C500 510 478 470 466 424", "#ff4a58", 2, 0.8)}</g>`;
   s += line("M530 540 C500 510 478 470 466 424", "#ff4a58", 2, 0.8);
@@ -324,12 +363,22 @@ export function svg(expr = "normal") {
     s += `<g ${g}>`;
     s += shape(PAULD_L, `url(#${P}porc)`, 4.5);
     s += shape(PAULD_L2, `url(#${P}black)`, 4);
-    s += redGlow("M300 668 C322 620 380 600 428 610", 1.6, 0.9);
-    s += `<path d="M330 640 C356 616 396 606 424 612 C396 616 362 630 344 652Z" fill="#ffffff" opacity="0.8"/>`;
+    s += redGlow("M290 640 C320 612 380 600 440 618", 1.6, 0.9);
+    s += `<path d="M250 534 L300 626 C340 606 390 600 430 610 C390 612 340 622 310 644Z" fill="#ffffff" opacity="0.75"/>`;
     s += `</g>`;
   }
+  // 긴 소매(팔 뒤로 늘어진 판갑 천)
+  const SLV_L = "M338 960 C300 1100 262 1300 250 1500 C246 1600 262 1700 300 1780 L330 1700 L352 1760 L372 1660 C380 1500 392 1300 400 1020Z";
+  const SLV_R = "M880 980 C920 1080 990 1220 1050 1380 C1080 1470 1090 1580 1076 1700 L1040 1620 L1018 1690 L998 1600 C980 1480 950 1300 930 1200Z";
+  for (const d of [SLV_L, SLV_R]) s += shape(d, `url(#${P}gown)`, 4);
+  s += line("M352 1000 C320 1200 290 1450 296 1700 M370 1040 C352 1300 350 1500 350 1700", "#4a4256", 2.5, 0.9);
+  s += line("M900 1020 C960 1180 1030 1350 1060 1600 M930 1160 C970 1300 1000 1460 1010 1620", "#4a4256", 2.5, 0.9);
+  s += redGlow("M250 1500 C246 1600 262 1700 300 1780 L330 1700 L352 1760 L372 1660", 1.6, 0.8);
+  s += redGlow("M1050 1380 C1080 1470 1090 1580 1076 1700 L1040 1620 L1018 1690 L998 1600", 1.6, 0.8);
   // 팔
   s += shape(ARM_L_UP, `url(#${P}black)`, 4) + shape(ARM_L_FORE, `url(#${P}black)`, 4) + shape(GAUNT_L, `url(#${P}porc)`, 4);
+  s += shape("M344 790 C340 840 342 890 348 930 L404 930 C410 880 418 830 428 790 C400 774 368 776 344 790Z", `url(#${P}porc)`, 3.5) + line("M356 800 C352 850 354 890 358 920", "#ffffff", 3, 0.7);
+  s += shape("M788 800 C806 840 826 880 846 920 L894 902 C878 860 860 816 840 780 C820 776 800 784 788 800Z", `url(#${P}porc)`, 3.5);
   s += `<circle cx="369" cy="1000" r="20" fill="#2a2430" stroke="${INK}" stroke-width="3"/><circle cx="369" cy="1000" r="7" fill="#ff4a58"/>`;
   s += redGlow("M360 1140 L352 1290", 1.4, 0.8) + line("M340 1130 C346 1200 344 1250 340 1294", "#ffffff", 3, 0.6);
   s += shape(ARM_R_UP, `url(#${P}black)`, 4) + shape(ARM_R_FORE, `url(#${P}black)`, 4) + shape(GAUNT_R, `url(#${P}porc)`, 4);
@@ -343,6 +392,22 @@ export function svg(expr = "normal") {
   // 펼친 손 위 붉은 문장
   s += `<circle cx="1000" cy="1430" r="70" fill="url(#${P}eyeGlow)" opacity="${f(Math.min(1, 0.4 + x.ring * 0.3))}"/>`;
   s += line("M1000 1380 L1043 1405 L1043 1455 L1000 1480 L957 1455 L957 1405Z", "#ff4a58", 2.5, 0.9) + line("M1000 1400 L1026 1445 L974 1445Z", "#ffd0d4", 2, 0.9);
+  // 팔 마디·광택
+  for (const [x0, y0, x1, y1] of [[340, 1030, 398, 1032], [338, 1060, 396, 1062], [878, 1010, 922, 992], [890, 1040, 934, 1022]]) s += line(`M${x0} ${y0} L${x1} ${y1}`, "#4a4256", 3, 1);
+  s += line("M350 770 C342 850 344 930 350 990 M786 770 C810 850 846 930 876 990", "#6a6278", 3, 0.8);
+  s += line("M346 1010 C338 1100 336 1180 336 1240 M884 1000 C910 1070 934 1140 950 1200", "#6a6278", 2.5, 0.7);
+  for (const [x0, y0] of [[369, 860], [818, 860]]) s += `<path d="M${x0} ${y0 - 14} L${x0 + 10} ${y0} L${x0} ${y0 + 14} L${x0 - 10} ${y0}Z" fill="#ff2d3d" stroke="${INK}" stroke-width="2"/>`;
+  // 목걸이 형 노드 + 가슴판 문양
+  for (let i = 0; i <= 8; i++) { const t = i / 8, x0 = 470 + t * 260, y0 = 590 + Math.sin(t * Math.PI) * 40; s += `<circle cx="${f(x0)}" cy="${f(y0)}" r="${i % 2 ? 4 : 6}" fill="#ff4a58" stroke="${INK}" stroke-width="2"/>`; }
+  s += line("M470 590 Q600 670 730 590", "#ff4a58", 1.5, 0.7);
+  s += line("M540 650 C560 680 580 690 600 692 C620 690 640 680 660 650 M556 780 C576 800 590 820 600 840 C610 820 624 800 644 780", "#ff4a58", 1.5, 0.75);
+  s += `<path d="M528 650 C540 700 560 760 590 820 L584 830 C548 772 530 710 522 652Z" fill="#ffffff" opacity="0.9"/>`;
+  // 꽃잎 판 이음새 + 광택
+  for (const g of ["", MIR]) {
+    s += `<g ${g}>`;
+    for (let i = 0; i < 7; i++) { const t = (i + 1) / 8, y0 = 1060 + t * 1140, xo = 548 - t * t * 240 - t * 30, xi = 582 - t * 110; s += line(`M${f(xo)} ${f(y0)} Q${f((xo + xi) / 2)} ${f(y0 + 16)} ${f(xi)} ${f(y0 - 4)}`, "#8c849c", 2, 0.8); }
+    s += `</g>`;
+  }
   // 앞쪽 케이블(어깨 위로)
   s += cables(1, "front") + `<g ${MIR}>${cables(-1, "front")}</g>`;
   s += maskAndEye(x);
