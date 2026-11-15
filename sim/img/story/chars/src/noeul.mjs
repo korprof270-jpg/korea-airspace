@@ -436,6 +436,22 @@ function ribbons(c, back) {
   return o;
 }
 
+// 떠 있는 작은 홀로 UI 패널(상태창)
+function uiPanels(c) {
+  let o = "";
+  const panel = (x, y, w, h, skew, body) => `<g transform="translate(${x} ${y}) skewY(${skew})"><path d="M0 0 L${w - 14} 0 L${w} 14 L${w} ${h} L14 ${h} L0 ${h - 14}Z" fill="${c.M}" opacity="0.12"/>` + line(`M0 0 L${w - 14} 0 L${w} 14 L${w} ${h} L14 ${h} L0 ${h - 14}Z`, c.L, 2, 0.75) + line(`M6 -8 L60 -8`, c.W, 3, 0.8) + body + `</g>`;
+  // 왼쪽 위: 파형 + 막대
+  let b = line("M14 40 L30 40 L38 22 L48 58 L58 30 L66 46 L80 40 L96 40 L104 28 L114 50 L124 40 L146 40", c.W, 2, 0.9);
+  for (let i = 0; i < 5; i++) b += `<rect x="14" y="${70 + i * 14}" width="${[110, 80, 128, 60, 96][i]}" height="6" fill="${c.L}" opacity="0.55"/>`;
+  o += panel(170, 640, 160, 150, 8, b);
+  // 오른쪽 아래: 원형 게이지
+  let g = `<circle cx="60" cy="60" r="38" fill="none" stroke="${c.L}" stroke-width="2" opacity="0.5"/><path d="M60 22 A38 38 0 1 1 26 78" fill="none" stroke="${c.W}" stroke-width="6" opacity="0.9"/>`;
+  g += `<path d="${hexD(60, 60, 14)}" fill="${c.W}" opacity="0.8"/>`;
+  for (let i = 0; i < 3; i++) g += `<rect x="112" y="${30 + i * 20}" width="${[34, 22, 40][i]}" height="6" fill="${c.L}" opacity="0.6"/>`;
+  o += panel(860, 1300, 160, 124, -8, g);
+  return o;
+}
+
 function palmHolo(c) {
   let o = "";
   const cx = 950, cy = 430;
@@ -537,6 +553,7 @@ ${hexPattern(c)}
   }
   s += ribbons(c, false);
   s += palmHolo(c);
+  s += uiPanels(c);
   // 오른쪽 림 라이트(하늘색)
   s += line("M748 506 C760 546 746 590 722 612 M728 1030 C736 1250 718 1420 700 1580", "#8fe8ff", 2.5, 0.6);
   s += line("M710 248 C712 322 686 372 642 402", "#8fe8ff", 2.5, 0.55);

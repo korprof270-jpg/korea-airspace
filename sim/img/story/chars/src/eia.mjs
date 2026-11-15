@@ -28,7 +28,7 @@ function bez(p0, p1, p2, p3, t) {
 const EX = {
   normal: { ring: 1, w: 58, h: 18, ir: 17, eyeOp: 1, spread: 1 },
   smile: { ring: 1.1, w: 56, h: 14, ir: 15, eyeOp: 1, spread: 1 },
-  angry: { ring: 1.7, w: 62, h: 12, ir: 13, eyeOp: 1, spread: 1.06 },
+  angry: { ring: 1.7, w: 62, h: 9, ir: 12, eyeOp: 1, spread: 1.06 },
   sad: { ring: 0.45, w: 54, h: 12, ir: 14, eyeOp: 0.6, spread: 0.98 },
   surprise: { ring: 1.35, w: 50, h: 36, ir: 11, eyeOp: 1, spread: 1.08 },
   serious: { ring: 0.9, w: 60, h: 6, ir: 12, eyeOp: 1, spread: 1 },
@@ -123,6 +123,7 @@ function cables(side, layer) {
     o += line(d, INK, w + 8, 1);
     o += line(d, `url(#${P}cable)`, w, 1);
     o += line(d, "#6a6278", w * 0.22, 0.75, `transform="translate(${-w * 0.22} 0)"`);
+    o += line(d, "#ff4a58", 1.8, 0.75, `transform="translate(${f(w * 0.42)} 0)"`);
     o += line(d, "#ff2d3d", 1.6, 0.45, `stroke-dasharray="3 22" transform="translate(${w * 0.18} 0)"`);
     // 연결 고리(붉은 링)
     for (const t of [0.35, 0.7]) {
@@ -241,7 +242,7 @@ function maskAndEye(x) {
   // 셔터 모양 = 표정
   let eye;
   if (x === EX.smile) eye = `M${cx - w} ${cy + 6} Q${cx} ${cy - h * 2.4} ${cx + w} ${cy + 6} Q${cx} ${cy - h * 0.6} ${cx - w} ${cy + 6}Z`;
-  else if (x === EX.angry) eye = `M${cx - w} ${cy - 12} L${cx - 14} ${cy + 2} L${cx + 14} ${cy + 2} L${cx + w} ${cy - 12} L${cx + w * 0.55} ${cy + h} L${cx - w * 0.55} ${cy + h}Z`;
+  else if (x === EX.angry) eye = `M${cx - w} ${cy - 2} Q${cx - w * 0.4} ${cy - h} ${cx} ${cy - h * 0.6} Q${cx + w * 0.4} ${cy - h} ${cx + w} ${cy - 2} Q${cx} ${cy + h * 1.3} ${cx - w} ${cy - 2}Z`;
   else if (x === EX.sad) eye = `M${cx - w} ${cy + 10} L${cx - w * 0.3} ${cy - h * 1.2} L${cx + w * 0.3} ${cy - h * 1.2} L${cx + w} ${cy + 10} Q${cx} ${cy + h * 1.4} ${cx - w} ${cy + 10}Z`;
   else if (x === EX.surprise) eye = `M${cx - h} ${cy} A${h} ${h} 0 1 1 ${cx + h} ${cy} A${h} ${h} 0 1 1 ${cx - h} ${cy}Z`;
   else eye = `M${cx - w} ${cy} Q${cx - w * 0.5} ${cy - h * 1.5} ${cx} ${cy - h * 1.5} Q${cx + w * 0.5} ${cy - h * 1.5} ${cx + w} ${cy} Q${cx + w * 0.5} ${cy + h * 1.5} ${cx} ${cy + h * 1.5} Q${cx - w * 0.5} ${cy + h * 1.5} ${cx - w} ${cy}Z`;
@@ -270,8 +271,8 @@ function maskAndEye(x) {
     o += `<circle cx="618" cy="474" r="5" fill="#ff8a92"/>`;
   }
   if (x === EX.angry) {
-    o += `<path d="M524 298 L556 262 L596 262 L586 300 L560 286Z M676 298 L644 262 L604 262 L614 300 L640 286Z" fill="#2a2430" stroke="${INK}" stroke-width="3"/>`;
-    o += line("M530 296 L558 282 L586 298 M670 296 L642 282 L614 298", "#ff6a74", 2.2, 1);
+    o += `<path d="M520 236 L592 270 L590 282 L516 252Z M680 236 L608 270 L610 282 L684 252Z" fill="#2a2430" stroke="${INK}" stroke-width="3"/>`;
+    o += red("M524 246 L588 274 M676 246 L612 274", 1.8, 1.4);
     // 가면의 균열이 더 붉게 타오름
     o += redGlow("M560 250 L576 270 L566 286 M640 250 L624 270 L634 286", 2, 1.4);
     o += line("M520 286 L548 296 M680 286 L652 296", "#ff8a92", 3, 0.9);
@@ -304,10 +305,19 @@ export function svg(expr = "normal") {
 <linearGradient id="${P}cable" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4a4256"/><stop offset="0.4" stop-color="#25202c"/><stop offset="1" stop-color="#0e0b12"/></linearGradient>
 <linearGradient id="${P}shard" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a5266"/><stop offset="0.5" stop-color="#2a2430"/><stop offset="1" stop-color="#5a0a14"/></linearGradient>
 <linearGradient id="${P}hem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff2d3d" stop-opacity="0"/><stop offset="1" stop-color="#ff2d3d" stop-opacity="0.45"/></linearGradient>
+<linearGradient id="${P}veil" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff2d3d" stop-opacity="0.35"/><stop offset="0.5" stop-color="#b0101e" stop-opacity="0.2"/><stop offset="1" stop-color="#ff2d3d" stop-opacity="0.38"/></linearGradient>
 <clipPath id="${P}gownClip"><path d="${GOWN}"/></clipPath>
 </defs>`;
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2400">${defs}`;
   s += `<circle cx="600" cy="300" r="560" fill="url(#${P}aura)"/>`;
+  // 빛의 베일(등 뒤에서 바닥까지 흐르는 반투명 붉은 막)
+  for (const g of ["", MIR]) {
+    const VEIL = "M560 420 C420 520 300 760 250 1100 C200 1450 150 1900 60 2380 L360 2390 C330 1900 400 1400 470 1000 C500 820 540 620 580 480Z";
+    s += `<g ${g}><path d="${VEIL}" fill="url(#${P}veil)"/>`;
+    s += line("M560 420 C420 520 300 760 250 1100 C200 1450 150 1900 60 2380", "#ff4a58", 2.5, 0.7) + line("M560 420 C420 520 300 760 250 1100 C200 1450 150 1900 60 2380", "#ff2d3d", 12, 0.12);
+    for (let i = 1; i < 6; i++) s += line(`M${570 - i * 4} ${450 + i * 10} C${440 - i * 2} ${600 + i * 20} ${360 + i * 12} ${1000} ${300 + i * 14} ${1400 + i * 30} C${260 + i * 16} ${1800} ${200 + i * 28} ${2100} ${120 + i * 44} 2385`, "#ff6a74", 1, 0.25);
+    s += `</g>`;
+  }
   // 뒤 케이블
   s += cables(1, "back") + `<g ${MIR}>${cables(-1, "back")}</g>`;
   s += rings(x);
@@ -412,6 +422,7 @@ export function svg(expr = "normal") {
   s += cables(1, "front") + `<g ${MIR}>${cables(-1, "front")}</g>`;
   s += maskAndEye(x);
   s += shards(true);
+  { const R = rng(55); for (let i = 0; i < 60; i++) { const px = 80 + R() * 1040, py = 200 + R() * 2150; if (Math.abs(px - 600) < 240 && py > 500) continue; s += `<circle cx="${f(px)}" cy="${f(py)}" r="${f(1.5 + R() * 3)}" fill="${R() > 0.4 ? "#ff4a58" : "#ffd0d4"}" opacity="${f(0.4 + R() * 0.5)}"/>`; } }
   // 바닥 붉은 반사
   s += `<ellipse cx="600" cy="2392" rx="380" ry="16" fill="#ff2d3d" opacity="0.25"/>`;
   // 림 라이트(오른쪽)
