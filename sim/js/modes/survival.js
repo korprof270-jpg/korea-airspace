@@ -40,11 +40,13 @@ export class SurvivalMode extends CombatMode {
     if (v === "dm") {
       super.start();
       for (let i = 0; i < n; i++) {
-        const kind = hard && i % 3 === 0 ? "ace" : "grunt";
-        const b = c.spawnBot({ kind, team: 1, respawns: true, hpScale: kind === "ace" ? 1 : 100 / 70 });
+        const kind = i % 4 === 3 ? "jet" : hard && i % 3 === 0 ? "ace" : "grunt";   // 넷 중 하나는 전투기
+        const b = c.spawnBot({ kind, team: 1, respawns: true, hpScale: kind === "grunt" ? 100 / 70 : 1 });
         b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
       }
       c.scatterPickups(11);
+      // 지상 위협: 전차와 대공 로봇이 맵 어딘가를 돌아다닌다 (모두의 적)
+      for (const type of n >= 7 ? ["tank", "aa", "tank"] : ["tank", "aa"]) c.units.spawn(type, { pos: c.randomPoint(3, 5, 0.6) });
       return;
     }
 
@@ -98,12 +100,16 @@ export class SurvivalMode extends CombatMode {
         const b = this.buildBase(p.x, p.z, 1, 2, 380);
         b.name = "적 거점 " + "ABCDE"[ops.length]; b.found = false; b.core.name = b.name;
         ops.push(b);
-        for (const a of [b.core, ...b.turrets]) this._hide(a, true);
+        // 거점마다 수비대: 전차·대공 로봇이 번갈아, 세 번째 거점 상공에는 전투함
+        b.guards = [c.units.spawn(ops.length % 2 ? "tank" : "aa", { pos: p.clone() })];
+        if (ops.length === 3) b.guards.push(c.units.spawn("frigate", { pos: new THREE.Vector3(p.x, 0, p.z) }));
+        for (const a of [b.core, ...b.turrets, ...b.guards.flatMap((r) => [r, ...r.unit.parts])]) this._hide(a, true);
       }
     }
   }
   _hide(a, hide) {
     a.targetable = !hide; a.invulnerable = hide; a.model.visible = !hide;
+    if (a.unit && a === a.unit.root) a.unit.group.visible = !hide;
     for (const k of ["collider", "collider2"]) if (a[k]) a[k].off = hide;
   }
 
@@ -116,7 +122,7 @@ export class SurvivalMode extends CombatMode {
         if (!a.alive || a.team !== 0 || (a.kind !== "player" && a.kind !== "bot")) continue;
         if (Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) > REVEAL_R) continue;
         b.found = true;
-        for (const x of [b.core, ...b.turrets]) this._hide(x, false);
+        for (const x of [b.core, ...b.turrets, ...b.guards.flatMap((r) => [r, ...r.unit.parts])]) this._hide(x, false);
         h.toast(`${b.name} 발견!`, "#ffd24a", 1.6, 24); h.feed(`${a.name} ▸ ${b.name} 발견`, "#ffd24a"); this.s.game.sound.play("lock");
         break;
       }

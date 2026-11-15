@@ -2,6 +2,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
+import { Units, buildJet } from "./enemies.js";
 
 export const ITEMS = {
   repair: { name: "수리 키트", color: 0x35ff7a, instant: true, icon: "✚" },
@@ -23,6 +24,7 @@ export const KINDS = {
   ace: { hp: 100, radius: 0.9, scale: 2.6, speed: 25, accel: 21, dmg: 7, rate: 5, range: 30, missiles: 2, score: 150 },
   kamikaze: { hp: 34, radius: 0.8, scale: 2.2, speed: 27, accel: 24, dmg: 0, rate: 0, range: 0, missiles: 0, score: 80, boom: 38 },
   gunship: { hp: 240, radius: 1.7, scale: 5, speed: 12, accel: 8, dmg: 8, rate: 6, range: 38, missiles: 6, score: 300 },
+  jet: { hp: 60, radius: 1.3, scale: 1, speed: 34, accel: 16, dmg: 5, rate: 6, range: 44, missiles: 2, score: 180, model: buildJet, name: "전투기" },   // 빠르게 스쳐 지나가며 쏜다
   boss: { hp: 1500, radius: 5.5, scale: 17, speed: 8, accel: 4, dmg: 9, rate: 7, range: 55, missiles: 99, score: 2000 },
 };
 
@@ -64,6 +66,7 @@ export class Combat {
     this.beamGeo = new THREE.CylinderGeometry(0.32, 0.32, 44, 8, 1, true);
     this.haloGeo = new THREE.SphereGeometry(2.3, 16, 10);
     this.extra = [];
+    this.units = new Units(this);     // 전차·대공 로봇·전투함·거대로봇
     this.botN = 0;
   }
 
@@ -110,11 +113,11 @@ export class Combat {
   spawnBot(o = {}) {
     const kind = o.kind || "grunt", K = KINDS[kind], team = o.team ?? 1;
     const col = this.ffa ? [0xff2d3d, 0xffc400, 0xb44cff, 0x35ff7a, 0xff7a1a, 0x21d4fd, 0xff5ad6, 0xffffff, 0x9be15d][this.botN % 9] : TEAM_COLOR[team];
-    const model = buildDrone(botLook(kind, this.ffa ? 1 : team), K.scale, { halo: col });
+    const model = K.model ? K.model(col) : buildDrone(botLook(kind, this.ffa ? 1 : team), K.scale, { halo: col });
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1);
     const a = this._actor({
-      name: o.name || CALLSIGNS[this.botN % CALLSIGNS.length], kind: "bot", botKind: kind, team, model, color: col,
+      name: o.name || (K.name ? `${K.name} ${CALLSIGNS[this.botN % CALLSIGNS.length]}` : CALLSIGNS[this.botN % CALLSIGNS.length]), kind: "bot", botKind: kind, team, model, color: col,
       radius: K.radius, hp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), maxHp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP), missiles: K.missiles, respawns: !!o.respawns, K,
       ai: {
         think: Math.random() * 0.3, target: null, los: false, goal: null, roam: null, orbit: Math.random() < 0.5 ? 1 : -1, altOff: Math.random() * 6 - 1,
@@ -438,6 +441,7 @@ export class Combat {
   update(dt) {
     const pl = this.s.player, p = this.player;
     this._playerWeapons(dt);
+    this.units.update(dt);
 
     // 플레이어 상태 반영
     if (p) {
@@ -815,6 +819,7 @@ export class Combat {
 
   dispose() {
     const sc = this.w.scene;
+    this.units.dispose();
     for (const a of this.actors) if (a.model && a.kind !== "player") { sc.remove(a.model); if (a.model.userData.dispose) a.model.userData.dispose(); }
     for (const m of this.missiles) { sc.remove(m.mesh); m.mesh.userData.glow.material.dispose(); }
     for (const p of this.pickups) { sc.remove(p.g); p.mat.dispose(); p.beamMat.dispose(); }

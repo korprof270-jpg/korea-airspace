@@ -24,8 +24,9 @@ export class CombatMode extends Mode {
   // o: { name, sub, kind: "gunship"(중간 보스) | "boss"(보스), hp: 체력 배율, pos }
   spawnBoss(o) {
     const c = this.combat, mid = o.kind !== "boss";
-    const b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6) });
-    if (mid) b.model.scale.multiplyScalar(1.35);
+    let b;
+    if (o.unit) b = c.units.spawn(o.unit, { pos: o.pos, name: o.name, hp: o.hp || 1, scale: o.scale, home: o.pos });   // 전차·대공 로봇·전투함·순양함·거대로봇
+    else { b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6) }); if (mid) b.model.scale.multiplyScalar(1.35); }
     this.bossIntro(b, o.name, o.sub || (mid ? "중간 보스" : "보스"), mid);
     return b;
   }
@@ -46,10 +47,11 @@ export class CombatMode extends Mode {
       return;
     }
     if (k.t < 0.15 && Math.floor(k.t * 60) % 20 === 0) s.game.sound.play("warn");
-    const R = a.radius * 2.2 + 5, ang = k.ang + k.t * 0.55, e = Math.min(1, k.t / 0.8);
+    const R = a.cutR || a.radius * 2.2 + 5, ang = k.ang + k.t * 0.55, e = Math.min(1, k.t / 0.8);
     const r = R * (1.6 - 0.6 * e * e * (3 - 2 * e));
+    this._cutUnits(dt);
     s.debugCam = { pos: [a.pos.x + Math.sin(ang) * r, a.pos.y + R * 0.25 + 2, a.pos.z + Math.cos(ang) * r], look: [a.pos.x, a.pos.y, a.pos.z], fov: 55 };
-    a.model.position.copy(a.pos);
+    if (!a.unit) a.model.position.copy(a.pos);
   }
 
   // 벽·지면 충돌은 추락 대신 피해
@@ -73,6 +75,8 @@ export class CombatMode extends Mode {
     super.update(dt);
     if (this.state !== "countdown") this.combat.update(dt);
   }
+  // 컷신 동안에도 유닛은 제자리 동작(걷기·포탑)을 이어 가되 쏘지는 않는다
+  _cutUnits(dt) { this.combat.units.update(dt); this.s.world.update(0); }
 
   finish(result) {
     this.combat.frozen = true;

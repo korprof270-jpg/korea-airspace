@@ -72,7 +72,8 @@ export class ChallengeMode extends CombatMode {
   // 지점 주변 상공에 적 편대 투입
   spawnGroup(cx, cz, rad, list, opts = {}) {
     const c = this.combat, out = [];
-    for (const [kind, n, focus] of list) for (let i = 0; i < n; i++) {
+    for (const [kind0, n, focus] of list) for (let i = 0; i < n; i++) {
+      const kind = kind0 === "grunt" && i % 3 === 2 ? "jet" : kind0;   // 편대 셋 중 하나는 전투기
       const b = c.spawnBot({ kind, team: 1, focus: focus || null, ...opts });
       b.pos.copy(c.randomPoint(opts.lo ?? 14, opts.hi ?? 32, 0, cx, cz, rad)); b.model.position.copy(b.pos);
       out.push(b);
@@ -216,6 +217,9 @@ export class ChallengeMode extends CombatMode {
     this.cmd = c.spawnCore(st.core[0], st.core[1], 1, { hp: 500, name: "지휘소" });
     this.targets.push(this.cmd);
     this.spawnGroup(st.core[0], st.core[1], 45, [["grunt", Math.round(3 * this.scale), null]], { home: this.cmd.pos });
+    // 지휘소 수비대: 전차와 대공 로봇
+    c.units.spawn("tank", { pos: new THREE.Vector3(st.core[0] + 14, 0, st.core[1] + 10) });
+    c.units.spawn("aa", { pos: new THREE.Vector3(st.core[0] - 14, 0, st.core[1] - 10) });
     c.scatterPickups(8);
     this.limit = 300; this.reinf = 35;
     this.total = this.targets.length;
