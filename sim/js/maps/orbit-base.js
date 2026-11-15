@@ -215,7 +215,7 @@ export function hangars(w, K) {
     w.box(cx, 0.03, HZ, 1, 0.05, HD - 4, YEL, { col: false, ao: false });
     w.box(cx, 0.03, HZ, HW - 6, 0.05, 1, YEL, { col: false, ao: false });
     for (const s of [-1, 1]) for (const zz of [-12, 0, 12]) { w.box(cx + s * 14, HH - 0.6, HZ + zz, 6, 0.3, 1.2, 0xeaf6ff, { mat: "glow", col: false }); w.pool(cx + s * 14, 0.05, HZ + zz, 9, 0xd8eeff, 0.22); }
-    if (i !== 1) shuttle(w, cx + (i ? 8 : -8), HZ - 6, i ? 20 : -20);
+    if (i !== 1) shuttle(w, cx + (i ? 4 : -4), HZ - 14, i ? 90 : -90);
     else {
       // 가운데 격납고는 비워 두고 화물 더미만
       const cc = [ORG, NAVY, HULL2, 0x2f6fb0];

@@ -16,8 +16,8 @@ const RP = (deg, r = ROAD_R) => [Math.cos(deg * DEG) * r, Math.sin(deg * DEG) * 
 const RYAW = (deg) => Math.atan2(Math.sin(deg * DEG), -Math.cos(deg * DEG)) / DEG;   // 진행 방향 (-sinφ, cosφ) 의 yaw
 const ARCHES = [90, 180, 270, 0].map((d) => ({ d, p: RP(d), yaw: d % 180 === 0 ? 0 : 90 }));
 const RINGS = [
-  { p: [...RP(207, ROAD_R)], y: 12, R: 9, yaw: RYAW(207) },
-  { p: [...RP(27, ROAD_R)], y: 12, R: 9, yaw: RYAW(27) },
+  { p: [...RP(207, ROAD_R)], y: 14, R: 9, yaw: RYAW(207) },
+  { p: [...RP(27, ROAD_R)], y: 14, R: 9, yaw: RYAW(27) },
 ];
 
 const G = (t, p, o = {}) => ({ t, p, ...o });
@@ -34,7 +34,8 @@ const DECKRUN = [
 const FORT = [
   G("hoop", [-170, 9, 40], { r: 4.5 }), G("hoop", [-170, 9, -60], { r: 4.5 }), G("hoop", [-170, 10, -118], { r: 4.5 }), G("hoop", [-212, 9, -182], { r: 4.5 }),
   G("square", [-182, 5.2, HZ], { w: 9, h: 7.5, yaw: -90 }), G("square", [-112.5, 5.2, HZ], { w: 9, h: 7.5, yaw: -90 }), G("square", [-37.5, 5.2, HZ], { w: 9, h: 7.5, yaw: -90 }), G("square", [31, 5.2, HZ], { w: 9, h: 7.5, yaw: -90 }),
-  G("hoop", [82, 14, -168], { r: 5 }), G("hoop", [168, 22, -78], { r: 5 }), G("square", [240, 7, DOCKS[1]], { w: 10, h: 8, yaw: 180 }), G("hoop", [186, 10, 140], { r: 5 }),
+  G("hoop", [82, 14, -168], { r: 5 }), G("hoop", [168, 22, -78], { r: 5 }), G("hoop", [195, 12, 10], { r: 5 }), G("square", [236, 7, DOCKS[1]], { w: 10, h: 8, yaw: 180 }),
+  G("square", [236, 7, DOCKS[2]], { w: 10, h: 8, yaw: 180 }), G("hoop", [211, 9, 140], { r: 5 }),
   G("square", [0, 6, 178], { w: 10, h: 7 }), G("hoop", [-100, 8, 160], { r: 5 }),
 ];
 // 3. 소행성대 다이브: 반응로 옆을 감아 올라 소행성대를 돌고 남쪽 아치로 내리꽂는다
@@ -62,7 +63,7 @@ const COMBAT = { blue: [-140, 100], red: [150, -150], depots: DEPOTS };
 const OUTER = lane(Array.from({ length: 16 }, (_, i) => RP((i / 16) * 360)), 2.6, 96);
 const near = (deg) => { const [x, z] = RP(deg); return OUTER.reduce((b, q, i) => (Math.hypot(q[0] - x, q[1] - z) < Math.hypot(OUTER[b][0] - x, OUTER[b][1] - z) ? i : b), 0); };
 const CONVOY = (() => { const out = [], N = OUTER.length, i0 = near(100), i1 = near(30); const dir = ((near(110) - i0 + N) % N) < N / 2 ? 1 : -1; for (let i = i0; ; i = (i + dir + N) % N) { out.push([OUTER[i][0], 0, OUTER[i][1]]); if (i === i1 || out.length > N) break; } return out; })();
-const DRONE = [[0, 10, 100], [70, 12, 100], [RINGS[1].p[0], 12, RINGS[1].p[1]], [135, 8, 0], [92, 9, -45], [62, 14, -66], [45, 30, -45], [0, 34, 0], [-45, 30, -45], [-70, 10, -45], [-120, 12, -80], [-170, 10, -60], [-170, 10, 20], [-120, 12, 70], [-60, 10, 110]];
+const DRONE = [[0, 10, 100], [70, 12, 100], [RINGS[1].p[0], 12, RINGS[1].p[1]], [135, 8, 0], [92, 9, -45], [62, 14, -66], [45, 30, -45], [0, 34, 0], [-45, 30, -52], [-75, 12, -64], [-125, 11, -75], [-155, 10, -75], [-185, 10, -75], [-200, 10, -64], [-200, 10, 20], [-120, 12, 70], [-60, 10, 110]];
 
 function build(w) {
   const K = { blink: new Blinkers(w) };
@@ -71,7 +72,7 @@ function build(w) {
   deck(w); hull(w, K); markings(w, K);
   reactor(w, K); hangars(w, K); docks(w, K); radiators(w, K); guns(w, K); masts(w, K); bridges(w, K); conduits(w, K);
   for (const a of ARCHES) arch(w, K, a.p[0], a.p[1], 30, 22, a.yaw, { name: "도로 아치 아래" });
-  for (const g of RINGS) ringGate(w, K, g.p[0], g.y, g.p[1], g.R, g.yaw);
+  for (const g of RINGS) ringGate(w, K, g.p[0], g.y, g.p[1], g.R, g.yaw, { legs: true });
   ringGate(w, K, FLOATRING.p[0], FLOATRING.p[1], FLOATRING.p[2], 9.5, FLOATRING.yaw, { stand: false, light: VIO2, accent: NAVY, name: "소행성대 고리문" });
   shuttle(w, PAD[0], PAD[1], 35);
 

@@ -142,8 +142,15 @@ export function ringGate(w, K, x, y, z, R, yaw = 0, o = {}) {
     w.box(x + px * c, y + py - 0.9, z - px * s, 1.9, 1.8, 2.2, i % 2 ? DARK : (o.accent ?? ORG), { mat: "paint", ry: yaw, col: false });
     if (i % 2 === 0) K.blink.add(x + px * c * 1.08, y + py * 1.08, z - px * s * 1.08, o.light ?? CYA, 0.3, i / 2);
   }
+  // 다리: 고리 양옆에서 바닥까지 (아래로 차량이 지난다)
+  if (o.legs) for (const sd of [-1, 1]) {
+    const lx = x + sd * (R + 0.4) * c, lz = z - sd * (R + 0.4) * s;
+    w.box(lx, 0, lz, 1.4, y, 1.8, DARK, { mat: "paint", ry: yaw });
+    w.box(lx, 0, lz, 3.4, 1, 4, STEEL, { mat: "paint", ry: yaw });
+    w.box(lx, y - 1, lz, 1.6, 0.4, 2, o.accent ?? ORG, { ry: yaw, col: false });
+  }
   // 받침 기둥
-  if (o.stand !== false && y - R > 0.5) {
+  else if (o.stand !== false && y - R > 0.5) {
     w.box(x, 0, z, 3.4, y - R + 0.4, 3.4, DARK, { mat: "paint", ry: yaw });
     w.box(x, 0, z, 7, 0.8, 5, STEEL, { mat: "paint", ry: yaw });
   }
