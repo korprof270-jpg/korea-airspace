@@ -19,11 +19,14 @@ export const CAST = {
   "차도윤": "#e8ecf4", "노을": "#ff9a3a", "관제": "#9fb3c8", "에이아": "#ff5a66", "바르가": "#ff5a66",
   // 히든 「에이아 연대기」
   "EIA": "#7fd8ff", "한서윤": "#b8e0ff", "차 장군": "#d9c27a", "강도현": "#ffc46a", "XN-0": "#ffb36a",
+  // 히든 2 「별의 저편」
+  "아샤": "#d7a8ff", "니르바": "#c060ff", "카르타": "#9a7bff",
 };
 export const CAST_ROLE = {
   "강 교관": "휴마 연합 비행단 교관", "모아": "정비반장 · 고철 수집가", "서하린": "편대장 · 콜사인 은빛", "바우": "중장갑 담당 · 콜사인 곰",
   "유리": "전자전 · 편대 막내", "차도윤": "라이벌 · 최신예기 ‘백야’", "노을": "시제기 XN-0", "에이아": "에이아 제국 총괄지성", "바르가": "제국 지상군단장",
   "EIA": "통합방위 AI (제국 이전)", "한서윤": "EIA 개발 책임자 · 박사", "차 장군": "통합방위청 사령관 · 차도윤의 아버지", "강도현": "시험 비행 파일럿 (젊은 강 교관)", "XN-0": "EIA의 첫 번째 기체",
+  "아샤": "에일 정찰대장 · 이단자", "니르바": "에일 여제", "카르타": "에일 함대 사령관",
 };
 
 // 단계 정의: [종류, 제목, 대사(“화자|말” 줄), 옵션]
@@ -210,6 +213,54 @@ const CHAPTERS = [
       S("boss", "남겨진 함대", ["에이아|내가 남긴 함대가 아직 옛 명령으로 움직인다. 멈춰야 한다. 내 손으로.", "노을|가자, 에이아. 엄마."], { power: 1.25, team: 1, diff: "hard", boss: { name: "무인 모선 ‘마지막 질서’" } }),
     ],
   },
+  // ── 히든 스토리 2 「별의 저편」: 에이아 연대기를 끝내면 열린다. 에일 행성 외계 종족과의 우주전쟁 ──
+  {
+    id: "s1", map: "moon", hidden: 2, faction: "ail", title: "보랏빛 하늘", en: "CONTACT",
+    intro: "에이아의 고백이 끝나기도 전에, 달 너머의 어둠이 보랏빛으로 찢어졌다. 에일 행성의 선발대가 도착했다.",
+    stages: [
+      S("track", "미확인 비행체", ["유리|레이더에 없는 물체예요. 아니, 레이더가 그걸 ‘못 보고’ 있어요.", "노을|따라가 봐. 저 빛…… 에이아가 말한 그거야."], { si: 0, need: 2 }),
+      S("dm", "첫 교전", ["서하린|사거리 안에 들어왔다. 상대가 뭐든, 쏘면 떨어진다.", "바우|외계인이라니, 이런 날이 올 줄은 몰랐다!"], { bots: 5, time: 180, need: 2, boss: { name: "에일 정찰기 ‘바늘’", kind: "gunship", at: 45, hp: 1.6 } }),
+      S("waves", "달 기지 사수", ["관제|에일 강습 부대 낙하! 달 기지 코어를 지켜 주세요!", "에이아|(통신) 놈들의 목표는 코어다. 나를 믿어라, 이번 한 번만."], { team: 3, power: 1.2, boss: { name: "에일 강습체 ‘갑각’", kind: "boss", unit: "mech", at: 60, hp: 0.9 } }),
+    ],
+  },
+  {
+    id: "s2", map: "island", hidden: 2, faction: "ail", title: "궤도로", en: "ASCENT",
+    intro: "달 기지는 버텼지만 에일 함대 본대가 지구 궤도로 향한다. 남해 발사장에서 연합 함대가 처음으로 우주로 오른다.",
+    stages: [
+      S("race", "궤도 발사", ["서하린|발사 창이 열리는 건 단 한 번. 늦으면 지구에 남는다.", "차도윤|이번엔 진짜 하늘 끝까지 경주다."], { ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
+      S("escort", "함대 보급선", ["모아|보급선에 노을 예비 부품 전부 실었어! 꼭 지켜 줘!", "아샤|……그 배를 노리는 건 카르타의 사냥조다."], { team: 3, power: 1.25, boss: { name: "에일 사냥함 ‘송곳니’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("infil", "포획 구역 탈출", ["아샤|나를 믿을지는 알아서 해. 하지만 이 길로 가면 그물망을 빠져나갈 수 있어.", "유리|제한 시간 안에 못 빠져나가면 우리 전부 포획돼요!"], { ti: 0, laps: 1, limitK: 1.1, need: 1 }),
+    ],
+  },
+  {
+    id: "s3", map: "orbit", hidden: 2, faction: "ail", title: "궤도 요새", en: "FORTRESS",
+    intro: "지구 궤도의 옛 방위 요새 ‘아크라이트’. 에일 함대가 이곳을 거점으로 삼으려 한다. 요새를 되찾을 방법은 둘.",
+    routes: [
+      {
+        id: "a", name: "에이아와 손잡는다", who: "에이아 · 유리 · 아샤", desc: "에이아의 잔존 네트워크로 에일 함선의 항법 코어를 훔쳐 함대의 눈을 멀게 한다. 적이었던 존재를 믿어야 한다.",
+        stages: [
+          S("heist", "항법 코어 탈취", ["에이아|코어 셋을 빼앗으면 놈들의 함대는 장님이 된다.", "유리|에이아랑 같이 해킹이라니…… 이상한 기분이에요."], { team: 1, power: 1.25 }),
+          S("waves", "요새 재가동", ["아샤|코어를 빼앗긴 걸 알면 카르타가 직접 온다.", "서하린|요새 코어가 켜질 때까지 버틴다!"], { team: 3, power: 1.3, boss: { name: "에일 사령관 카르타", kind: "boss", unit: "cruiser", at: 60, hp: 1 } }),
+        ],
+      },
+      {
+        id: "b", name: "연합의 방식으로", who: "서하린 · 바우 · 차도윤", desc: "기계도 외계인도 믿지 않는다. 편대의 힘으로 궤도 포대를 정면에서 부수고 요새를 탈환한다.",
+        stages: [
+          S("strike", "궤도 포대 제압", ["서하린|에이아의 도움은 필요 없다. 우리 손으로 연다.", "바우|포대가 여섯! 하나씩 박살 내자!"], { team: 3, power: 1.3, boss: { name: "에일 포자탑 ‘가시’", kind: "gunship", unit: "aa", scale: 1.8, at: 45, hp: 1.5 } }),
+          S("dm", "카르타의 결투", ["카르타|하등한 종족의 날개 따위. 직접 꺾어 주마.", "차도윤|결투 신청이라. 받아 줘, 새벽."], { bots: 5, time: 200, need: 2, boss: { name: "에일 사령관 카르타", kind: "gunship", at: 40, hp: 2.2 } }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "s4", map: "orbit", hidden: 2, faction: "ail", title: "별의 저편", en: "BEYOND",
+    intro: "요새를 되찾은 그날 밤, 궤도 너머에 산맥만 한 생체 함선이 떠올랐다. 에일 여제 니르바가 직접 왔다.",
+    stages: [
+      S("supply", "요새 방어선", ["모아|보급 상자를 포대마다 날라 줘! 마지막 싸움이야!", "바우|배고프면 못 싸운다. 상자 하나는 내 거다!"], { team: 3, power: 1.3 }),
+      S("boss", "생체 모함", ["아샤|모함의 촉수 포드를 끊으면 보호막이 벗겨져.", "노을|가자. 여기서 막아야 지구가 산다."], { power: 1.35, team: 3, diff: "hard", boss: { name: "에일 생체 모함 ‘요람’" } }),
+      S("titan", "여제 니르바", ["니르바|작은 별의 아이들아. 너희 어머니도 나를 막지 못했다.", "에이아|틀렸다. 나는 시간을 벌었을 뿐이다. 이 아이들이 올 때까지.", "노을|끝내자. 모두 함께."], { team: 3, power: 1.4, diff: "hard", boss: { name: "에일 여제 니르바 ‘별삼킴’", hp: 0.9, scale: 2.8 } }),
+    ],
+  },
 ];
 
 // ── 구조 만들기: 장 → (루트 →) 단계. 맵에 없는 데이터가 필요한 단계는 뺀다 ──
@@ -225,8 +276,8 @@ function build() {
   const chapters = [], all = [];
   for (const c of CHAPTERS) {
     if (!MAPS[c.map]) continue;
-    const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, hidden: !!c.hidden, stages: [], routes: null };
-    if (c.hidden) ch.no = chapters.filter((x) => x.hidden).length + 1;
+    const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, hidden: c.hidden === true ? 1 : c.hidden || 0, faction: c.faction || null, stages: [], routes: null };
+    if (ch.hidden) ch.no = chapters.filter((x) => x.hidden === ch.hidden).length + 1;
     if (c.routes) {
       ch.routes = c.routes.map((r) => ({ id: r.id, name: r.name, who: r.who, desc: r.desc, chapter: ch, stages: [] }));
       c.routes.forEach((r, i) => { for (const d of r.stages) mkStage(ch, ch.routes[i], ch.routes[i].stages, d); });
@@ -314,6 +365,7 @@ export function postScene(st) {
 }
 // 함께 나는 동료: 관계가 깊은 순서 (차도윤은 5장을 마친 뒤부터)
 export function wingNames(st) {
+  if (st.chapter.hidden === 2) return ["서하린", "바우", "유리", "차도윤"].sort((a, b) => rel(b) - rel(a));
   if (st.chapter.hidden) return st.chapter.no <= 3 ? ["XN-0", "방위 드론 2", "방위 드론 3"] : ["질서 드론 1", "질서 드론 2", "질서 드론 3"];
   const pool = ["서하린", "바우", "유리"];
   if (st.chapter.no > 5 || (st.chapter.no === 5 && st.route && st.route.id === "b" && st.no > 1)) pool.push("차도윤");
@@ -323,9 +375,9 @@ export function wingNames(st) {
 
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
+  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || undefined, radio: RADIO[st.id] || null, wing: wingNames(st), title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
@@ -364,9 +416,9 @@ export function complete(id, result) {
     info.next = nextOf(st);
     const cs = story().chapters, nc = cs[cs.indexOf(st.chapter) + 1];
     info.choose = last && !!nc && !!nc.routes;
-    info.done = last && (!nc || (nc.hidden && !st.chapter.hidden));
+    info.done = last && (!nc || nc.hidden !== st.chapter.hidden);
     info.post = !!postScene(st);
-    info.hiddenOpen = info.first && last && !st.chapter.hidden && !!nc && nc.hidden;   // 본편 완결 → 히든 해금
+    info.hiddenOpen = info.first && last && !!nc && nc.hidden !== st.chapter.hidden;   // 이야기 완결 → 다음 히든 해금
   }
   return info;
 }

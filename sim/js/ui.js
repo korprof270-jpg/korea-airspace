@@ -329,12 +329,16 @@ export class UI {
       const all = c.routes ? c.routes.flatMap((r) => r.stages) : c.stages, done = all.filter(SY.cleared).length, open = SY.chapterOpen(c);
       return `<button class="card mapcard ${c.id === ch.id ? "sel" : ""} ${open ? "" : "locked"}" data-a="sel" data-k="chapter" data-v="${c.id}">
         ${this._thumb("map", c.map)}<div class="tag">${open ? (SY.chapterDone(c) ? "✔" : `${done}/${all.length}`) : "🔒"}</div>${c.routes ? `<div class="tag rt">⑂ 갈림길</div>` : ""}
-        <div class="nm"><small>${c.hidden ? "HIDDEN" : "CHAPTER"} ${c.no} · ${c.en}</small>${c.title}</div><div class="ds">${MAPS[c.map].name}</div></button>`;
+        <div class="nm"><small>${c.hidden === 2 ? "HIDDEN 2" : c.hidden ? "HIDDEN" : "CHAPTER"} ${c.no} · ${c.en}</small>${c.title}</div><div class="ds">${MAPS[c.map].name}</div></button>`;
     };
-    const hidOpen = chapters.some((c) => c.hidden && SY.chapterOpen(c));
-    const chCards = chapters.filter((c) => !c.hidden).map(card1).join("")
-      + (chapters.some((c) => c.hidden) ? `<div class="hidhead ${hidOpen ? "open" : ""}"><b>${hidOpen ? "HIDDEN STORY · 에이아 연대기" : "HIDDEN STORY · ???"}</b><span>${hidOpen ? "기계제국은 왜 태어났는가. 15년 전, 모든 것이 시작된 곳으로." : "휴마 연합의 이야기를 끝까지 마치면 열립니다."}</span></div>`
-        + (hidOpen ? chapters.filter((c) => c.hidden).map(card1).join("") : "") : "");
+    const HID = { 1: ["HIDDEN STORY · 에이아 연대기", "기계제국은 왜 태어났는가. 15년 전, 모든 것이 시작된 곳으로.", "휴마 연합의 이야기를 끝까지 마치면 열립니다."],
+      2: ["HIDDEN STORY 2 · 별의 저편", "에일 행성의 함대가 온다. 에이아가 끝내 막으려 했던 전쟁.", "「에이아 연대기」를 끝까지 마치면 열립니다."] };
+    const chCards = chapters.filter((c) => !c.hidden).map(card1).join("") + [1, 2].map((h) => {
+      const cs = chapters.filter((c) => c.hidden === h);
+      if (!cs.length) return "";
+      const op = cs.some((c) => SY.chapterOpen(c));
+      return `<div class="hidhead h${h} ${op ? "open" : ""}"><b>${op ? HID[h][0] : `HIDDEN STORY${h > 1 ? " " + h : ""} · ???`}</b><span>${op ? HID[h][1] : HID[h][2]}</span></div>` + (op ? cs.map(card1).join("") : "");
+    }).join("");
     const rtCards = ch.routes ? `<div class="routes">${ch.routes.map((r) => {
       const done = r.stages.filter(SY.cleared).length, chosen = SY.routeOf(ch) === r.id;
       return `<button class="card route ${r === rt ? "sel" : ""} ${SY.chapterOpen(ch) ? "" : "locked"}" data-a="sel" data-k="route" data-v="${r.id}">
@@ -360,9 +364,9 @@ export class UI {
       + this._step(2, ch.routes ? "작전 선택 · 단계" : "단계 선택", `${rt ? rt.name + " · " : ""}${st.no}. ${st.title}`, rtCards + `<div class="stages">${stCards}</div>`)
       + this._step(3, "브리핑", "", brief)
       + this._step(4, "동료와의 관계", "", this._bonds());
-    return `<div class="screen split story${ch.hidden ? " hid" : ""}" style="--c:${ch.hidden ? "#ff4a5a" : m.c}">
+    return `<div class="screen split story${ch.hidden ? " hid" : ""}" style="--c:${ch.hidden === 2 ? "#c060ff" : ch.hidden ? "#ff4a5a" : m.c}">
       <div class="pane" data-scroll>
-        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${ch.hidden ? "HIDDEN" : m.en}</span>${ch.hidden ? "에이아 연대기" : "노을의 날개"}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${ch.hidden ? "HIDDEN" : m.en}</span>${ch.hidden === 2 ? "별의 저편" : ch.hidden ? "에이아 연대기" : "노을의 날개"}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
         ${body}
         <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} ${esc(st.title)}</span>
           <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "출격" : "잠김"} <span aria-hidden="true">→</span></button></div>
@@ -810,14 +814,14 @@ export class UI {
     if (pre && (force || !SY.sceneSeen(st))) {
       if (this.game.session) { this.game.session.dispose(); this.game.session = null; this.game.state = "menu"; }
       this.hide();
-      this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.chapter.title}`, me: st.chapter.hidden ? "EIA" : "나", onDone: () => { SY.markSeen(st); go(); } });
+      this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.chapter.title}`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); go(); } });
     } else go();
   }
   // 출격 전 장면 다시 보기 (출격하지 않음)
   a_scene() {
     const st = story().flat.find((x) => x.id === this.sel.stage), pre = st && SY.preScene(st);
     if (!pre) return;
-    this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 다시 보기`, me: st.chapter.hidden ? "EIA" : "나", onDone: () => { SY.markSeen(st); this.redraw(); } });
+    this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 다시 보기`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); this.redraw(); } });
   }
   // 통과 후 장면 → (다음 단계가 이어지면) 그 단계의 출격 전 장면 → 출격
   a_storypost(v) {
@@ -825,11 +829,14 @@ export class UI {
     if (!post) return;
     this.game.quit();
     this.hide();
-    this.vn.play(post, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden ? "EIA" : "나", onDone: () => {
+    this.vn.play(post, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => {
       const nx = SY.nextOf(st) || SY.current();
-      if (nx && nx.chapter.hidden && !st.chapter.hidden) {   // 본편 완결 → 히든 스토리 해금 안내
+      if (nx && nx.chapter.hidden && nx.chapter.hidden !== st.chapter.hidden) {   // 이야기 완결 → 다음 히든 스토리 해금 안내
         this.sel.mode = "challenge"; this.sel.chapter = nx.chapter.id; this.sel.route = null; this.sel.stage = nx.id; this._persist();
-        return this.vn.play(["@bg black", "@sfx bigkill", "|휴마 연합의 이야기는 여기서 끝났다.", "|그러나 모든 것이 시작된 이야기는, 아직 아무도 모른다.", "@flash", "|— 히든 스토리 「에이아 연대기」가 열렸습니다 —"], { title: "HIDDEN STORY", sub: "UNLOCKED", onDone: () => this.show("setup") });
+        const msg = nx.chapter.hidden === 2
+          ? ["@bg black", "@sfx warn", "|에이아는 끝까지 혼자 알고 있었다.", "|별의 저편에서, 무엇이 오고 있는지.", "@shake", "@flash", "|— 히든 스토리 2 「별의 저편」이 열렸습니다 —"]
+          : ["@bg black", "@sfx bigkill", "|휴마 연합의 이야기는 여기서 끝났다.", "|그러나 모든 것이 시작된 이야기는, 아직 아무도 모른다.", "@flash", "|— 히든 스토리 「에이아 연대기」가 열렸습니다 —"];
+        return this.vn.play(msg, { title: nx.chapter.hidden === 2 ? "HIDDEN STORY 2" : "HIDDEN STORY", sub: "UNLOCKED", onDone: () => this.show("setup") });
       }
       if (nx && unlocked(nx) && !SY.cleared(nx)) return this._storyGo(nx);
       if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }

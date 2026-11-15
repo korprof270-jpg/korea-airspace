@@ -16,6 +16,22 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const turn = (cur, want, max) => cur + clamp(wrap(want - cur), -max, max);
 
 export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇" };
+// 에일(외계) 진영 유닛 이름과 외피: 금속 회색을 짙은 보라 생체 외피로 물들인다 (밝은 발광부는 그대로)
+export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체" };
+const _purple = new THREE.Color(0x4a1f8c);
+function tintAlien(g) {
+  const seen = new Map();
+  g.traverse((m) => {
+    if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
+    let mat = seen.get(m.material);
+    if (!mat) {
+      mat = m.material.clone();
+      if (mat.color) { const hsl = {}; mat.color.getHSL(hsl); if (hsl.l < 0.75) mat.color.lerp(_purple, hsl.s < 0.35 ? 0.6 : 0.3); }
+      seen.set(m.material, mat);
+    }
+    m.material = mat;
+  });
+}
 
 export class Units {
   constructor(combat) {
@@ -27,8 +43,10 @@ export class Units {
   spawn(type, o = {}) {
     // 계급: 포인트 색(o.tc)과 내구도·화력·조준 배율
     const rk = rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.c.level, type));
-    o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: `${rk.name} ${o.name || UNIT_NAME[type]}` });
+    const ail = this.c.s.cfg.faction === "ail";
+    o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: `${rk.name} ${o.name || (ail ? AIL_NAME[type] : UNIT_NAME[type])}` });
     const u = MAKE[type](this, o);
+    if (ail) tintAlien(u.group);
     u.rk = rk; u.root.rk = rk; for (const p of u.parts) p.rk = rk;
     u.type = type; u.t = Math.random() * 10; u.cool = {};
     this.list.push(u);

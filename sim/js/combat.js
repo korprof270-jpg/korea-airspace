@@ -119,11 +119,13 @@ export class Combat {
     const enemy = this.ffa || team !== 0, rk = enemy ? rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.level, kind)) : null;
     const look = botLook(kind, this.ffa ? 1 : team);
     if (rk) { const hex = "#" + rk.color.toString(16).padStart(6, "0"); look.accentColor = hex; look.ledColor = hex; look.propColor = hex; }
+    // 에일(외계) 진영: 짙은 보라 생체 외피, 촉수형 프레임, 보랏빛 날개 (포인트 색은 계급 색 유지)
+    if (enemy && this.s.cfg.faction === "ail") Object.assign(look, { frame: kind === "gunship" || kind === "boss" ? "hexa" : "tri", canopy: "pod", skin: "solid", frameColor: "#1c0d33", propColor: "#c060ff", ledColor: "#e0b0ff", ledMode: "blink" });
     const model = K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff });   // 4팀전: 고리는 팀 색, 포인트는 계급 색
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
     const a = this._actor({
-      name: (rk ? rk.name + " " : "") + (o.name || K.name || CALLSIGNS[this.botN % CALLSIGNS.length]), rk, kind: "bot", botKind: kind, team, model, color: col,
+      name: (rk ? rk.name + " " : "") + (o.name || (enemy && this.s.cfg.faction === "ail" ? `에일 ${K.name || "추적체"}` : K.name || CALLSIGNS[this.botN % CALLSIGNS.length])), rk, kind: "bot", botKind: kind, team, model, color: col,
       radius: K.radius, hp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP) * hpk, maxHp: K.hp * (o.hpScale || 1) * (kind === "boss" ? 1 : BOT_HP) * hpk, missiles: K.missiles, respawns: !!o.respawns, K,
       ai: {
         think: Math.random() * 0.3, target: null, los: false, goal: null, roam: null, orbit: Math.random() < 0.5 ? 1 : -1, altOff: Math.random() * 6 - 1,

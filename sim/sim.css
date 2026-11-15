@@ -655,3 +655,6 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .vn-room.lab::before { content: ""; position: absolute; left: 30%; right: 30%; top: 18%; height: 46%; border-radius: 50%; border: 3px solid rgba(127, 216, 255, 0.8); box-shadow: 0 0 80px rgba(127, 216, 255, 0.6), inset 0 0 60px rgba(127, 216, 255, 0.4); }
 .vn-room.control { background: radial-gradient(ellipse at 50% 40%, rgba(255, 45, 61, 0.4), transparent 55%), repeating-linear-gradient(0deg, rgba(255, 60, 70, 0.08) 0 1px, transparent 1px 6px), linear-gradient(180deg, #1a0408, #2a0810 50%, #08020a); }
 .vn-room.control::before { content: ""; position: absolute; left: 50%; top: 40%; width: 28vmin; height: 28vmin; transform: translate(-50%, -50%); border-radius: 50%; border: 4px solid #ff2d3d; box-shadow: 0 0 60px #ff2d3d, inset 0 0 40px rgba(255, 45, 61, 0.6); }
+.hidhead.h2 { border-color: rgba(192, 96, 255, 0.4); background: linear-gradient(90deg, rgba(40, 10, 70, 0.6), rgba(14, 20, 36, 0.4)); }
+.hidhead.h2 b { color: #d7a8ff; }
+.hidhead.h2.open { border-color: rgba(192, 96, 255, 0.8); box-shadow: 0 0 24px rgba(192, 96, 255, 0.3); }
