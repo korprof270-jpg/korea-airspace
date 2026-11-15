@@ -186,7 +186,8 @@ const EIA_BUILD = {
       put(b, "accG", cyl(0.09, 0.09, 0.03, 6), [sx * 0.66, -0.14, 0.36], XR);
       plume(b, "pl" + (sx > 0 ? 1 : 0), sx * 0.66, -0.14, 0.37, 0.09, 0.6);
     }
-    const ra = node(R, "ringA"), rb = node(R, "ringB");
+    const tilt = node(R, "tilt", 0, -0.08, 0); tilt.rotation.x = -0.42;
+    const ra = node(tilt, "ringA"), rb = node(R, "ringB");
     for (let k = 0; k < 2; k++) {
       put(ra, "plate", tor(0.86, 0.05, 3, 9, 2.2), [0, 0, 0], [PI / 2, 0, k * PI]);
       put(ra, "accG", box(0.12, 0.08, 0.12), [Math.cos(k * PI + 1.1) * 0.86, 0, -Math.sin(k * PI + 1.1) * 0.86]);
@@ -213,9 +214,9 @@ const EIA_BUILD = {
       put(arm, "plate", ico(0.09, 0), [sx * 0.42, 0.06, -0.2]);
       // 낫 칼날: 바깥에서 앞쪽 안으로 휜다
       const bl = node(arm, sx < 0 ? "bladeL" : "bladeR", sx * 0.42, 0.06, -0.2);
-      const pts = [[0.02 * sx, 0.1], [0.16 * sx, -0.05], [0.12 * sx, -0.55], [-0.22 * sx, -1.2], [-0.12 * sx, -0.6], [-0.08 * sx, 0.04]];
+      const pts = [[0.02 * sx, 0.1], [0.16 * sx, -0.05], [0.12 * sx, -0.5], [-0.2 * sx, -1.0], [-0.12 * sx, -0.52], [-0.08 * sx, 0.04]];
       put(bl, "acc", slab(pts, 0.04));
-      put(bl, "accG", slab([[-0.09 * sx, -0.02], [-0.13 * sx, -0.58], [-0.21 * sx, -1.12], [-0.15 * sx, -0.6]], 0.05));
+      put(bl, "accG", slab([[-0.09 * sx, -0.02], [-0.13 * sx, -0.5], [-0.19 * sx, -0.93], [-0.15 * sx, -0.52]], 0.05));
       // 등 지느러미 + 추진기
       put(b, "hull", box(0.85, 0.035, 0.36), [sx * 0.48, 0.13, 0.55], [0, sx * 0.45, sx * 0.32]);
       put(b, "accG", box(0.12, 0.05, 0.06), [sx * 0.84, 0.27, 0.78], [0, sx * 0.45, sx * 0.32]);
@@ -295,7 +296,7 @@ const EIA_BUILD = {
     put(b, "dark", slab([[0, -2.2], [0.24, -1.2], [0, -0.7], [-0.24, -1.2]], 0.05), [0, 0.4, 0]);
     put(b, "red", slab([[0, -2.05], [0.17, -1.25], [0.1, -1.15], [0, -1.65], [-0.1, -1.15], [-0.17, -1.25]], 0.05), [0, 0.43, 0]);
     for (const sx of [-1, 1]) {
-      const ed = (a, c, mk = "accG", y = 0.03, w = 0.06) => rod(b, mk, box(1, 1, 1), [a[0] * sx, y, a[1]], [c[0] * sx, y, c[1]], w, 0.04);
+      const ed = (a, c, mk = "accG", y = 0.05, w = 0.09) => rod(b, mk, box(1, 1, 1), [a[0] * sx, y, a[1]], [c[0] * sx, y, c[1]], w, 0.06);
       ed([0.62, -0.3], [2.25, 1.28]);                 // 앞전 이음선
       ed([0.42, -1.05], [0.5, 0.65], "accG", 0.27, 0.04);
       ed([2.33, 1.25], [2.33, 1.62], "red", 0.03, 0.08);  // 날개 끝 센서
@@ -355,8 +356,8 @@ function eiaTick(kind, N, ph) {
   switch (kind) {
     case "grunt": return (dt, thr, t) => {
       N.body.position.y = Math.sin(t * 2.1 + ph) * 0.05;
-      N.ringA.rotation.y = t * 1.3 + ph; N.ringA.rotation.z = Math.sin(t * 0.7 + ph) * 0.25;
-      N.ringB.rotation.z = -t * 0.9 - ph; N.ringA.position.y = N.body.position.y; N.ringB.position.y = N.body.position.y;
+      N.ringA.rotation.y = t * 1.3 + ph; N.tilt.rotation.z = Math.sin(t * 0.7 + ph) * 0.15;
+      N.ringB.rotation.z = -t * 0.9 - ph; N.tilt.position.y = N.body.position.y - 0.08; N.ringB.position.y = N.body.position.y;
       N.eye.rotation.y = Math.sin(t * 0.8 + ph) * 0.3; N.eye.rotation.x = Math.sin(t * 1.3 + ph * 2) * 0.12;
       fl(thr, t);
     };
@@ -466,7 +467,7 @@ const AIL_BUILD = {
       const w = node(b, "w" + i, sx * 0.1, 0.2, z);
       const L = i < 2 ? 1.05 : 0.95;
       put(w, "membrane", sph(0.5, 10, 4), [sx * L * 0.5, 0, 0], [0, sx * (i < 2 ? 0.12 : -0.18), 0], [L, 0.03, 0.34]);
-      rod(w, "pale", box(1, 1, 1), [0, 0.02, -0.06], [sx * L * 0.95, 0.02, -0.04], 0.022, 0.02);
+      rod(w, "vein", box(1, 1, 1), [0, 0.02, -0.08], [sx * L * 0.95, 0.02, -0.05], 0.012, 0.012);
       put(w, "accG", sph(0.03, 5, 3), [sx * L * 0.96, 0.02, sx * (i < 2 ? -0.05 : 0.07)]);
     });
   },
@@ -476,7 +477,7 @@ const AIL_BUILD = {
     const bell = node(b, "bell");
     put(bell, "jelly", sph(0.62, 14, 7, 0, TAU, 0, PI * 0.56));
         put(bell, "pale", tor(0.6, 0.04, 3, 16), [0, -0.11, 0], [PI / 2, 0, 0]);
-    for (let i = 0; i < 8; i++) put(bell, "vein", tor(0.63, 0.016, 3, 8, PI * 0.42), [0, 0, 0], [0, (i / 8) * TAU, 0.06]);
+    for (let i = 0; i < 8; i++) put(bell, "vein", tor(0.625, 0.01, 3, 8, PI * 0.42), [0, 0, 0], [0, (i / 8) * TAU, 0.06]);
     put(bell, "skin", tor(0.3, 0.07, 4, 12), [0, -0.02, 0], [PI / 2, 0, 0]);
     const core = node(b, "core", 0, 0.12, 0);
     put(core, "accG", ico(0.25, 1));
@@ -556,7 +557,7 @@ const AIL_BUILD = {
     }
     put(b, "vein", box(0.25, 0.1, 9.5), [0, 2.65, 0]);
     // 앞쪽 발광 눈 줄
-    for (let i = -2; i <= 2; i++) put(b, "accG", sph(0.32, 8, 6), [i * 0.9, 0.6 - Math.abs(i) * 0.15, -5.45 + Math.abs(i) * 0.25], 0, [1, 0.7, 0.6]);
+    for (let i = -2; i <= 2; i++) put(b, "accG", sph(i ? 0.38 : 0.55, 10, 8), [i * 1.0, 0.45 - Math.abs(i) * 0.12, -5.62 + Math.abs(i) * 0.3], 0, [1, 0.75, 0.6]);
     put(b, "shell", tor(5.0, 0.3, 4, 24), [0, 0.15, 0], [PI / 2, 0, 0], [1.1, 1.3, 1]);
     // 수정 왕관
     const crown = node(b, "crown", 0, 2.4, 0);
