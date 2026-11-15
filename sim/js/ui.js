@@ -187,6 +187,7 @@ export class UI {
     const slides = TITLE_SLIDES.map(([f, cap], i) => `<figure class="slide ${i ? "" : "on"}"><img src="img/title/${f}.jpg" alt="" ${i ? 'loading="lazy"' : ""}><figcaption>${cap}</figcaption></figure>`).join("");
     return `<div class="screen titlescreen" data-a="enter">
       <div class="slides">${slides}</div>
+      <div class="tcast" aria-hidden="true"><img src="img/title/keyart.webp" alt=""></div>
       <div class="tbox"><div class="tlogo"><b>FPV</b> PROJECT</div></div>
       <div class="press">START</div>
     </div>`;

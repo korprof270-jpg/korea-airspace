@@ -719,3 +719,12 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 .vn-ch.art.l { left: max(-4vw, calc(50% - 640px)); }
 .vn-ch.art.r { right: max(-4vw, calc(50% - 640px)); }
 @media (max-aspect-ratio: 1/1) { .vn-ch.art { height: 150vh; bottom: -62vh; } .vn-ch.art.l, .vn-ch.art.r { left: 50%; right: auto; } }
+
+/* 타이틀 키 아트: 인물 단체 입간판 (로고 아래, 화면 아래쪽에 붙여서) */
+.titlescreen .tcast { position: absolute; left: 0; right: 0; bottom: 0; height: 74vh; z-index: 1; pointer-events: none; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }
+.titlescreen .tcast img { height: 100%; width: auto; max-width: none; object-fit: contain; object-position: bottom; animation: tcastIn 1.4s cubic-bezier(.2, .8, .2, 1) both; filter: drop-shadow(0 0 24px rgba(0, 0, 0, 0.55)); }
+.titlescreen .tcast::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 32%; background: linear-gradient(180deg, transparent, rgba(5, 8, 18, 0.85)); }
+@keyframes tcastIn { from { opacity: 0; transform: translateY(40px) scale(1.03); } to { opacity: 1; transform: none; } }
+.titlescreen .press { z-index: 3; }
+@media (max-aspect-ratio: 1/1) { .titlescreen .tcast { height: 62vh; } .titlescreen .tcast img { height: 100%; } }
+@media (prefers-reduced-motion: reduce) { .titlescreen .tcast img { animation: none; } }
