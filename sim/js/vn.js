@@ -5,7 +5,7 @@
 //   { choice: [{ t: "선택지", rel: { 서하린: 1 }, route: "c4:a", flag: "이름", then: [...] }], q: "질문(선택)" }
 //   { if: "rel 서하린>=2" | "flag 이름" | "route c4=a" | "top 서하린", then: [...], else: [...] }
 import { records, save } from "./config.js";
-import { portrait, HAS_PORTRAIT } from "./portraits.js";
+import { portrait, HAS_PORTRAIT, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 
 const IMG = "img/story/";
@@ -46,8 +46,9 @@ export class VN {
     el.innerHTML = `<div class="vn-bg"><div class="vn-img a"></div><div class="vn-img b"></div></div><div class="vn-cg"></div>
       <div class="vn-chars"><img class="vn-ch l" alt=""><img class="vn-ch r" alt=""></div>
       <div class="vn-top">${opts.title ? `<div class="vn-title"><small>${esc(opts.sub || "")}</small>${esc(opts.title)}</div>` : "<div></div>"}
-        <div class="vn-btns"><button data-v="auto">자동</button><button data-v="skip">건너뛰기 ▸▸</button></div></div>
-      <div class="vn-box"><div class="vn-name"></div><div class="vn-text"></div><div class="vn-next">▼</div></div>
+        <div class="vn-btns"><button data-v="auto"><span class="ic">⟳</span>AUTO</button><button data-v="log"><span class="ic">☰</span>LOG</button><button data-v="skip"><span class="ic">▶▶</span>SKIP</button></div></div>
+      <div class="vn-box"><i class="cn tl"></i><i class="cn tr"></i><i class="cn bl"></i><i class="cn br"></i><div class="vn-name"></div><div class="vn-text"></div><div class="vn-next">▼</div></div>
+      <div class="vn-log"><div class="vn-logh"><b>대화 기록</b><button data-v="logx">닫기 ✕</button></div><div class="vn-logl"></div></div>
       <div class="vn-choices"></div><div class="vn-toast"></div><div class="vn-flash"></div>`;
     document.body.appendChild(el);
     this.$ = (q) => el.querySelector(q);
@@ -56,6 +57,9 @@ export class VN {
       const b = e.target.closest("button");
       if (b && b.dataset.v === "auto") { this.auto = !this.auto; b.classList.toggle("on", this.auto); if (this.auto && !this.typing) this._autoNext(); return; }
       if (b && b.dataset.v === "skip") { this.ff = true; this._advance(); return; }
+      if (b && b.dataset.v === "log") { this._showLog(true); return; }
+      if (b && b.dataset.v === "logx") { this._showLog(false); return; }
+      if (e.target.closest(".vn-log")) return;
       if (b && b.dataset.c !== undefined) return this._pick(+b.dataset.c);
       if (e.target.closest(".vn-choices") || b) return;
       this._advance();
@@ -64,6 +68,8 @@ export class VN {
       if (!this.el) return;
       e.stopPropagation();
       if (e.repeat) return;
+      if (this.logOpen) { if (e.code === "Escape" || e.code === "KeyL") this._showLog(false); return; }
+      if (e.code === "KeyL") { this._showLog(true); return; }
       if (this.choosing) { const n = +e.key; if (n >= 1 && n <= this.choosing.length) { e.preventDefault(); this._pick(n - 1); } return; }
       if (e.code === "Space" || e.code === "Enter" || e.code === "ArrowRight") { e.preventDefault(); this._advance(); }
       else if (e.code === "Escape") { e.preventDefault(); this.ff = true; this._advance(); }
@@ -148,7 +154,8 @@ export class VN {
       if (sl.fresh) { sl.fresh = false; img.classList.remove("on", "pop"); void img.offsetWidth; }
       img.classList.add("on");
       img.classList.toggle("dim", active !== i);
-      img.classList.toggle("holo", sl.who === "노을" || sl.who === "에이아");
+      img.classList.toggle("holo", !hasArt(sl.who) && (sl.who === "노을" || sl.who === "에이아"));
+      img.classList.toggle("art", hasArt(sl.who));
       if (active === i) { img.classList.remove("pop"); void img.offsetWidth; img.classList.add("pop"); }
     });
   }
@@ -169,7 +176,7 @@ export class VN {
       box.classList.toggle("radio", who === "관제" || (!HAS_PORTRAIT.has(who) && who !== "나"));
     } else { name.classList.remove("on"); box.classList.add("narr"); box.classList.remove("radio"); }
     this._chars(active);
-    this.log.push((who ? who + ": " : "") + text);
+    this.log.push([who === "나" ? "나 (새벽)" : who || "", text, CAST[who] || (who === "나" ? "#ffd24a" : "")]);
     this._type(text);
   }
   _type(text) {
@@ -194,9 +201,9 @@ export class VN {
     if (this.ff) { this.fft = setTimeout(() => this._step(), 40); return; }
     if (this.auto) this._autoNext();
   }
-  _autoNext() { clearTimeout(this.at); this.at = setTimeout(() => { if (this.el && !this.typing && !this.choosing) this._step(); }, 1100 + this.full.length * 45); }
+  _autoNext() { clearTimeout(this.at); this.at = setTimeout(() => { if (this.el && !this.typing && !this.choosing && !this.logOpen) this._step(); }, 1100 + this.full.length * 45); }
   _advance() {
-    if (!this.el || this.choosing) return;
+    if (!this.el || this.choosing || this.logOpen) return;
     if (this.typing) { clearTimeout(this.tt); this.$(".vn-text").textContent = this.full; this._typed(); return; }
     clearTimeout(this.at);
     this._step();
@@ -226,10 +233,20 @@ export class VN {
     save();
     if (msg.length) this._toast(msg.join("   "));
     this.game.sound && this.game.sound.play(c.rel ? "pickup" : "gate", 0.6);
-    this.log.push("▶ " + c.t);
+    this.log.push(["선택", c.t, "#3dd68c"]);
     this._push(c.then);
     this._push(["나|" + c.t]);
     this._step();
+  }
+  _showLog(on) {
+    this.logOpen = on; clearTimeout(this.at);
+    const el = this.$(".vn-log");
+    if (on) {
+      const l = this.$(".vn-logl");
+      l.innerHTML = this.log.map(([w, t, c]) => `<div class="li${w ? "" : " narr"}">${w ? `<b style="color:${c || "#9fb3c8"}">${esc(w)}</b>` : ""}<span>${esc(t)}</span></div>`).join("");
+      requestAnimationFrame(() => (l.scrollTop = l.scrollHeight));
+    } else if (this.auto && !this.typing && !this.choosing) this._autoNext();
+    el.classList.toggle("on", on);
   }
   _toast(s) {
     const t = this.$(".vn-toast");

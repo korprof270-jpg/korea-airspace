@@ -1,5 +1,6 @@
 // 스토리 인물 초상화: 외곽선 있는 셀 스타일 SVG. portrait(이름, 표정) → data URL
 // 표정: normal smile angry sad surprise serious
+import { ART } from "../img/story/chars/art.js";
 const INK = "#1b1d2b";
 const cache = new Map();
 
@@ -219,8 +220,12 @@ const P = {
   },
 };
 
-export const HAS_PORTRAIT = new Set(Object.keys(P));
+export const HAS_PORTRAIT = new Set([...Object.keys(P), ...Object.keys(ART)]);
+// 등록된 일러스트(전신 입간판)가 있는 인물
+export const hasArt = (who) => !!ART[who];
 export function portrait(who, expr = "normal") {
+  const A = ART[who];
+  if (A) return `img/story/chars/${A.id}_${(A.exprs || ["normal"]).includes(expr) ? expr : "normal"}.${A.ext || "png"}`;
   if (!P[who]) return null;
   const k = `${who}:${expr}`;
   if (!cache.has(k)) cache.set(k, "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg(P[who](expr))));

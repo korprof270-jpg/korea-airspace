@@ -608,3 +608,40 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .bond .hearts { font-size: 13px; color: #ff8fb0; letter-spacing: 1px; }
 .bond.unk .face { filter: brightness(0) opacity(0.5); }
 .bond.unk b { color: var(--muted); }
+
+/* 참고 레이아웃: 전신 입간판 + 얇은 대사창 + 우상단 AUTO·LOG·SKIP */
+.vn-btns { gap: 18px; }
+.vn-btns button { background: none; border: 0; padding: 4px 2px; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); display: inline-flex; align-items: center; gap: 6px; }
+.vn-btns button .ic { font-size: 12px; opacity: 0.9; }
+.vn-btns button.on { background: none; color: #5ff0ff; }
+.vn-box { width: min(880px, calc(100% - 28px)); min-height: 96px; padding: 22px 30px 20px; border-radius: 4px; background: linear-gradient(180deg, rgba(10, 16, 26, 0.86), rgba(6, 10, 18, 0.9)); border: 1px solid rgba(120, 200, 255, 0.28); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55); bottom: max(9vh, 22px); }
+.vn-box .cn { position: absolute; width: 12px; height: 12px; border: 2px solid #5ff0ff; pointer-events: none; }
+.vn-box .cn.tl { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }
+.vn-box .cn.tr { right: -2px; top: -2px; border-left: 0; border-bottom: 0; }
+.vn-box .cn.bl { left: -2px; bottom: -2px; border-right: 0; border-top: 0; }
+.vn-box .cn.br { right: -2px; bottom: -2px; border-left: 0; border-top: 0; }
+.vn-box.narr .vn-text { text-align: center; }
+.vn-text { text-align: center; min-height: 2.6em; display: flex; align-items: center; justify-content: center; }
+.vn-name { top: -15px; left: 50%; transform: translateX(-50%) translateY(4px); padding: 3px 18px 4px; border-radius: 3px; font-size: 14px; box-shadow: none; }
+.vn-name.on { transform: translateX(-50%); }
+.vn-next { color: #5ff0ff; }
+.vn-ch.art { height: 100vh; max-width: none; bottom: -2vh; filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.45)); }
+.vn-ch.art.dim { filter: brightness(0.55) saturate(0.75); }
+@media (max-aspect-ratio: 1/1) {
+  .vn-ch { max-width: 100vw; height: 78vh; }
+  .vn-ch.art { height: 96vh; }
+  .vn-ch.l, .vn-ch.r { left: 50%; right: auto; transform: translateX(-50%); }
+  .vn-ch.dim { opacity: 0 !important; }
+  .vn-ch.on { transform: translateX(-50%); }
+  .vn-box { bottom: max(12vh, 22px); }
+}
+.vn-log { position: absolute; inset: 0; z-index: 5; background: rgba(4, 7, 13, 0.92); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.2s; cursor: default; }
+.vn-log.on { opacity: 1; pointer-events: auto; }
+.vn-logh { display: flex; justify-content: space-between; align-items: center; padding: max(16px, env(safe-area-inset-top)) 20px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.vn-logh b { font-size: 17px; }
+.vn-logh button { background: none; border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+.vn-logl { flex: 1; overflow-y: auto; padding: 12px 20px 30px; width: min(880px, 100%); margin: 0 auto; box-sizing: border-box; }
+.vn-logl .li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 15px; line-height: 1.6; }
+.vn-logl .li b { text-align: right; font-size: 13px; padding-top: 2px; }
+.vn-logl .li.narr span { grid-column: 1 / -1; color: #aab6c8; font-style: italic; text-align: center; }
+@media (max-width: 560px) { .vn-logl .li { grid-template-columns: 1fr; gap: 2px; } .vn-logl .li b { text-align: left; } }
