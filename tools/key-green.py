@@ -2,6 +2,7 @@
 import sys, numpy as np
 from PIL import Image, ImageFilter
 src, dst = sys.argv[1], sys.argv[2]
+HARD = "--hard" in sys.argv   # 녹색으로 물든 빛 번짐·증기·그림자까지 지운다 (녹색 소품이 없는 인물만)
 im = np.asarray(Image.open(src).convert("RGB")).astype(np.float32)
 h, w, _ = im.shape
 edge = np.concatenate([im[:6].reshape(-1,3), im[-6:].reshape(-1,3), im[:, :6].reshape(-1,3), im[:, -6:].reshape(-1,3)])
@@ -28,6 +29,10 @@ a = np.where(~ext & (d >= 16), 1.0, a)
 # 가장자리 녹색 번짐 제거
 spill = np.clip(g - np.maximum(r, b), 0, None) * (1 - a) + np.clip(g - (r + b) / 2 - 8, 0, None) * (a < 0.98)
 out = im.copy(); out[...,1] = np.clip(g - spill * 0.9, 0, 255)
+if HARD:
+    gd = g - np.maximum(r, b)
+    a = a * np.clip(1 - (gd - 18) / 55, 0, 1)
+    out[...,1] = np.minimum(out[...,1], np.maximum(r, b) + 6)
 A = Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(3))
 img = Image.fromarray(out.astype(np.uint8)).convert("RGBA"); img.putalpha(A)
 bbox = A.point(lambda v: 255 if v > 40 else 0).getbbox()
