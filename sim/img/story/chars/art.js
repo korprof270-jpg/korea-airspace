@@ -5,6 +5,7 @@
 // 주석 처리된 svg 목록은 품질 문제로 사용 중지한 시안
 export const ART = {
   서하린: { id: "harin", ext: "webp", exprs: ["normal"] },   // 힉스필드 생성 그림
+  노을: { id: "noeul", ext: "webp", exprs: ["normal"] },
   바우: { id: "bau", ext: "webp", exprs: ["normal"] },
   유리: { id: "yuri", ext: "webp", exprs: ["normal"] },
   차도윤: { id: "doyun", ext: "webp", exprs: ["normal"] },
