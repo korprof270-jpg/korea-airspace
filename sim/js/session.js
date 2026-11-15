@@ -32,6 +32,7 @@ export class Session {
     this.result = null;
     this.resultTimer = 0;
     this.mode = new MODES[cfg.mode](this, cfg);
+    if (cfg.title) this.mode.title = cfg.title;   // 스토리 단계 이름
     this.mode.start();
     this.player.updateCamera(0, this.camera);
     game.input.flush();

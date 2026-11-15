@@ -10,6 +10,8 @@ export const MISSIONS = [
   { id: "strike", name: "포탑 소탕", icon: "🎯", map: "factory", level: 2, desc: "공장 지대의 적 방공 포탑과 지휘소를 제한 시간 안에 모두 파괴하세요" },
   { id: "escort", name: "호송 작전", icon: "🚚", map: "city", level: 2, desc: "도심을 지나는 수송 트럭을 매복한 적 드론으로부터 보호하세요" },
   { id: "supply", name: "긴급 보급", icon: "📦", map: "canyon", level: 2, desc: "협곡 곳곳의 캠프 네 곳에 보급 상자를 제한 시간 안에 전달하세요" },
+  { id: "heist", name: "탈취 작전", icon: "🗝", map: "palace", level: 3, desc: "적 진지 세 곳에 보관된 에너지 코어를 훔쳐 아군 착륙장으로 가져오세요", hidden: true },
+  { id: "titan", name: "초거대로봇 격파", icon: "🗿", map: "moon", level: 4, desc: "초거대로봇의 팔·포·다리를 부수고 동체를 파괴하세요", hidden: true },
   { id: "boss", name: "모선 격추", icon: "👾", map: "arena", level: 3, desc: "거대 모선의 엔진 포드 네 개를 부숴 보호막을 벗기고 코어를 파괴하세요" },
 ];
 
@@ -155,6 +157,13 @@ export class ChallengeMode extends CombatMode {
         const cr = this.cargo.nearestIdle(me.pos);
         return cr ? setOb(o, cr.pos, "보급 상자", "#ffd24a") : null;
       }
+      case "heist": {
+        if (!this.cargo) return null;
+        if (this.cargo.carried(me)) return setOb(o, this.pad.pos, "아군 착륙장", "#35ff7a");
+        const cr = this.cargo.nearestIdle(me.pos);
+        return cr ? setOb(o, cr.pos, "에너지 코어", "#ffd24a") : null;
+      }
+      case "titan": return this.titan && this.titan.alive ? setOb(o, this.titan.pos, "거신", "#ff5a66") : null;
       case "boss": {
         if (!this.boss || !this.boss.alive) return null;
         if (!this.open) {
@@ -314,6 +323,76 @@ export class ChallengeMode extends CombatMode {
     if (this.cargo.carried(me)) { for (const p of this.pads) if (!p.done) h.marker(_v.copy(p.pos).setY(p.pos.y + 3), cam, "#35ff7a", "캠프", p.pos.distanceTo(me.pos)); }
     else { const cr = this.cargo.nearestIdle(me.pos); if (cr) h.marker(cr.pos, cam, "#ffd24a", "보급 상자", cr.pos.distanceTo(me.pos)); }
   }
+
+  // ── 6. 탈취 작전: 적 진지 세 곳의 에너지 코어를 훔쳐 아군 착륙장으로. 코어를 집으면 경보가 울려 추격대가 붙는다 ──
+  setup_heist(c, map, w) {
+    const home = this.home, sites = [];
+    this.cargo = new CargoSys(this);
+    this.cargo.mat.color.setHex(0x38e8ff); this.cargo.mat.emissive.setHex(0x0a6a88);
+    for (let k = 0; sites.length < 3 && k < 80; k++) {
+      const p = c.randomPoint(3, 5, 0.85);
+      if (p.distanceTo(home) < w.size * 0.55 || sites.some((q) => q.distanceTo(p) < w.size * 0.4)) continue;
+      sites.push(c.units.groundSpot(p.x, p.z, 30, 5));
+    }
+    while (sites.length < 3) sites.push(c.randomPoint(3, 5, 0.8));
+    this.sites = sites;
+    sites.forEach((p, i) => {
+      this.cargo.addCrate(p.x, p.z, 1.4);
+      for (let j = 0; j < 2; j++) { const a = (j / 2) * Math.PI * 2 + i; c.spawnTurret(p.x + Math.cos(a) * 12, p.z + Math.sin(a) * 12, 1, { name: "경비 포탑", hp: 120, range: 60 }); }
+      if (i === 1) c.units.spawn("tank", { pos: new THREE.Vector3(p.x + 16, 0, p.z - 8) });
+      if (i === 2) c.units.spawn("aa", { pos: new THREE.Vector3(p.x - 16, 0, p.z + 8) });
+      this.spawnGroup(p.x, p.z, 30, [["grunt", Math.round(1 * this.scale), null]], { home: p, lo: 12, hi: 24 });
+    });
+    this.pad = this.buildPad(home.x, home.z, 0, 9);
+    c.scatterPickups(8);
+    this.limit = 360; this.done = 0; this.alarm = 0;
+  }
+  tick_heist(dt, c) {
+    const carrying = this.cargo.carried(this.me);
+    if (carrying && !carrying.alarmed) {
+      carrying.alarmed = true; this.alarm++;
+      const p = this.me.pos;
+      this.spawnGroup(p.x, p.z, 50, [["grunt", Math.round((1 + (this.alarm > 1 ? 1 : 0)) * this.scale), "player"], ["kamikaze", Math.round(this.alarm * 0.7 * this.scale), "player"]], { lo: 20, hi: 40 });
+      this.s.hud.toast("경보 발령! 추격대가 붙었습니다", "#ff6b5a", 1.8, 26); this.s.game.sound.play("warn");
+    }
+    this.cargo.update(dt, [this.pad], (a) => a.isPlayer, (a, pad, cr) => {
+      cr.t = 1e9; this.done++; this.me.score += 500;
+      this.s.hud.toast(`에너지 코어 확보 ${this.done}/3`, "#35ff7a", 1.6, 26); this.s.game.sound.play("lap");
+    });
+    for (const cr of this.cargo.crates) if (cr.state === "respawn" && cr.t < 1e8 && cr.t > 0) cr.alarmed = false;   // 떨어뜨린 코어는 제자리로
+    if (this.done >= 3) { const rem = this.limit - this.time; this.winT = 1.2; this.winFn = () => this.win(rem > 150 ? 3 : rem > 70 ? 2 : 1, [{ label: "남은 시간", value: fmtTime(rem) }]); return; }
+    this.objective = `에너지 코어 ${this.done}/3 — ${carrying ? "착륙장으로 운반하세요" : "적 진지에서 코어를 훔치세요"}`;
+  }
+  hud_heist(h) {
+    const me = this.me, cam = this.s.camera;
+    if (!me.alive) return;
+    if (this.cargo.carried(me)) h.marker(_v.copy(this.pad.pos).setY(this.pad.pos.y + 3), cam, "#35ff7a", "착륙장", this.pad.pos.distanceTo(me.pos));
+    else for (const cr of this.cargo.crates) if (cr.state === "idle") h.marker(cr.pos, cam, "#38e8ff", "코어", cr.pos.distanceTo(me.pos));
+  }
+
+  // ── 7. 초거대로봇: 부위(팔·어깨포·다리)를 부수며 동체를 노린다. 주기적으로 호위기를 쏟아낸다 ──
+  setup_titan(c, map, w) {
+    const bp = map.boss ? map.boss.pos : [0, 0, 0];
+    const at = c.units.groundSpot(bp[0] * 0.6, bp[2] * 0.6, 60, 14);
+    const b = this.cfg.boss || {};
+    this.titan = c.units.spawn("mech", { pos: at, name: b.name || "초거대로봇", hp: (b.hp || 0.8) * (0.85 + 0.05 * this.teamN), scale: b.scale || 2.4, home: at, rank: b.rank ?? 17 });
+    this.titan.bossBar = { name: this.titan.name, mid: false };
+    this.introBoss = this.titan; this.bossCfg = null;
+    this.spawnGroup(at.x, at.z, 50, [["grunt", Math.round(2 * this.scale), null]], { lo: 18, hi: 34 });
+    c.scatterPickups(12);
+    this.limit = 480; this.minion = 14;
+  }
+  tick_titan(dt, c) {
+    const t = this.titan;
+    if (!t.alive) { this.winT = 2.5; this.winFn = () => this.win(this.me.deaths === 0 ? 3 : this.me.deaths <= 1 ? 2 : 1); return; }
+    if ((this.minion -= dt) <= 0) {
+      this.minion = 16;
+      if (this.enemies().length < Math.round(5 * this.scale)) { this.spawnGroup(t.pos.x, t.pos.z, 30, [["grunt", 1, null], ["kamikaze", Math.round(this.scale), "player"]], { lo: 20, hi: 36 }); this.s.hud.feed("거신이 호위기를 내보냈다", "#ff8a8a"); }
+    }
+    const parts = t.unit ? t.unit.parts.filter((p) => p !== t) : [];
+    this.objective = parts.length ? `부위 파괴 ${parts.filter((p) => !p.alive).length}/${parts.length} · 동체를 노려라` : "동체를 파괴하세요";
+  }
+  hud_titan() {}
 
   // ── 5. 모선 격추 ──────────────────────────────────────────
   setup_boss(c, map, w) {

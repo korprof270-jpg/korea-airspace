@@ -1,203 +1,286 @@
-// 스토리 모드: 챕터(맵)마다 여러 단계를 차례로 깨 나간다. 단계는 기존 게임 모드에 목표를 붙인 것
+// 스토리 모드 「노을의 날개」: 휴마 연합의 신입 파일럿이 버려진 시제기 XN-0 ‘노을’을 만나 에이아 제국(기계제국)에 맞선다
+// 장(챕터)마다 단계를 차례로 깨 나가고, 몇몇 장은 작전안(루트)을 골라 다른 임무를 겪는다. 단계는 기존 게임 모드에 목표를 붙인 것
 import { MAPS } from "./maps/index.js";
 import { records, save } from "./config.js";
 
 // 단계 종류 → 표시 이름
 export const KIND = {
-  race: "레이싱", track: "추적 촬영", free: "묘기 비행", dm: "공중전", base: "거점 공략전", cargo: "운반전",
-  waves: "기지 방어", strike: "포탑 소탕", escort: "호송", supply: "보급", boss: "보스전",
+  race: "레이싱", infil: "침투 타임어택", track: "추적 촬영", free: "트릭 비행", dm: "공중전",
+  waves: "기지 방어", strike: "목표 타격", escort: "호송", supply: "보급", heist: "탈취", boss: "보스전", titan: "초거대로봇전",
 };
-const MISSION = new Set(["waves", "strike", "escort", "supply", "boss"]);
-// 이 종류를 하려면 맵에 있어야 하는 데이터
-const NEEDS = { strike: "strike", escort: "convoy", supply: "supply", boss: "boss" };
+const MISSION = new Set(["waves", "strike", "escort", "supply", "heist", "boss", "titan"]);
+const NEEDS = { strike: "strike", escort: "convoy", supply: "supply" };   // 맵에 있어야 하는 데이터
 
-// 단계 정의 줄임꼴: [종류, 제목, 브리핑, 옵션]
-// 옵션: ti(코스 번호) si(피사체 번호) laps rivals need(필요 별) diff(난이도) power(적 규모 배율) team(윙맨 수) bots time
+// 등장인물: 이름 → 말풍선 색
+export const CAST = {
+  "강 교관": "#ffb02e", "모아": "#3dd68c", "서하린": "#5aa9ff", "바우": "#ff8a5a", "유리": "#c77dff",
+  "차도윤": "#e8ecf4", "노을": "#ff9a3a", "관제": "#9fb3c8", "에이아": "#ff5a66", "바르가": "#ff5a66",
+};
+export const CAST_ROLE = {
+  "강 교관": "휴마 연합 비행단 교관", "모아": "정비반장 · 고철 수집가", "서하린": "편대장 · 콜사인 은빛", "바우": "중장갑 담당 · 콜사인 곰",
+  "유리": "전자전 · 편대 막내", "차도윤": "라이벌 · 최신예기 ‘백야’", "노을": "시제기 XN-0", "에이아": "에이아 제국 총괄지성", "바르가": "제국 지상군단장",
+};
+
+// 단계 정의: [종류, 제목, 대사(“화자|말” 줄), 옵션]
+// 옵션: ti(코스) si(피사체) laps rivals limitK(타임어택 배율) need(필요 별) diff power team bots time boss(보스) after(통과 후 이야기)
+const S = (kind, title, talk, o = {}) => ({ kind, title, talk, o });
+
 const CHAPTERS = [
   {
-    id: "arena", map: "arena", title: "입단 시험",
-    intro: "하늘길 비행대의 문을 두드린 신입 파일럿. 실내 경기장에서 기본기를 증명해야 정식 대원이 된다.",
+    id: "c1", map: "arena", title: "입단 테스트", en: "ENTRANCE",
+    intro: "기계제국 에이아가 하늘을 뒤덮은 지 12년. 마지막 인류 동맹 ‘휴마 연합’은 비행단 파일럿을 뽑는다. 당신은 오늘, 그 시험장에 섰다.",
     stages: [
-      ["race", "첫 비행", "교관: “게이트를 순서대로 통과해 한 바퀴만 돌아와. 순위는 상관없다, 완주만 해.”", { ti: 0, laps: 1, rivals: 1, need: 1, diff: "easy" }],
-      ["free", "몸풀기", "교관: “롤이든 플립이든 좋아. 2분 안에 묘기 점수를 내 봐.”", { need: 1 }],
-      ["track", "눈을 떼지 마", "교관: “정비 카트를 화면 한가운데 두고 끝까지 따라가. 촬영도 임무다.”", { si: 0, need: 1 }],
-      ["dm", "모의 공중전", "교관: “훈련용 드론 셋이다. 레이저는 조준선에 올리면 나간다. 3위 안에 들어.”", { bots: 3, time: 120, need: 1, diff: "easy" }],
-      ["boss", "졸업 시험", "교관: “마지막이다. 훈련용 모선의 엔진 포드 넷을 부수고 코어를 깨라. 윙맨을 붙여 주지.”", { power: 0.55, team: 1, diff: "easy" }],
+      S("race", "첫 관문", ["강 교관|휴마 연합 비행단 입단 테스트에 온 걸 환영한다. 첫 과제는 간단해. 게이트를 순서대로 통과해 완주한다.", "차도윤|…저 녀석이 이번 기수 마지막 지원자? 기체도 대여품이네.", "강 교관|잡담 금지. 출발!"], { ti: 0, laps: 1, rivals: 2, need: 1, diff: "easy" }),
+      S("free", "곡예 심사", ["강 교관|제국 드론은 빠르다. 똑바로만 나는 파일럿은 첫 출격에서 떨어진다.", "강 교관|롤, 플립, 파워루프. 2분 동안 네가 할 수 있는 걸 전부 보여 줘."], { need: 1 }),
+      S("track", "표적 추적", ["강 교관|정찰도 파일럿 임무다. 움직이는 표적을 화면 가운데 두고 끝까지 따라가라.", "차도윤|표적 놓치면 바로 탈락이래. 뭐, 난 만점이었지만."], { si: 0, need: 1 }),
+      S("dm", "최종 모의전", ["강 교관|마지막은 실전 모의전이다. 훈련용 드론 셋, 그리고…", "차도윤|내가 상대해 주지. 최신예기 ‘백야’로.", "강 교관|3위 안에 들어라. 차도윤의 백야는 도중에 난입한다."],
+        { bots: 3, time: 150, need: 2, diff: "easy", boss: { name: "라이벌 차도윤 ‘백야’", kind: "gunship", at: 40, hp: 1.3 }, after: "강 교관: “합격이다. …다만 남은 기체가 없다. 정비창에 가 봐라. 모아가 뭔가 찾아 줄 거다.”" }),
     ],
   },
   {
-    id: "city", map: "city", title: "네온 시티의 그림자",
-    intro: "첫 배치지는 밤의 도심. 정체 모를 무인기 무리 ‘까마귀’가 빌딩 숲 사이에 나타나기 시작했다.",
+    id: "c2", map: "factory", title: "버려진 기체", en: "XN-0",
+    intro: "항만 정비창 가장 안쪽, 아무도 손대지 않는 격납고. 정비반장 모아는 먼지를 뒤집어쓴 낡은 시제기 하나를 가리켰다. 기체 번호 XN-0, 별명 ‘노을’.",
     stages: [
-      ["race", "도심 순찰", "관제: “순찰 코스를 돌며 이상 징후를 확인하세요. 2위 안으로 들어와야 다음 구역을 맡깁니다.”", { ti: 0, laps: 2, rivals: 3, need: 2 }],
-      ["track", "수상한 차량", "관제: “신호를 내보내는 차량을 찾았습니다. 놓치지 말고 따라붙어 영상을 확보하세요.”", { si: 0, need: 1 }],
-      ["escort", "증거 호송", "관제: “확보한 장비를 실은 트럭이 출발합니다. 까마귀가 매복해 있을 겁니다. 끝까지 지켜 주세요.”", { team: 1, power: 0.8 }],
-      ["race", "옥상 추격", "관제: “정찰기 한 대가 옥상 사이로 달아납니다. 지름길로 따라잡으세요.”", { ti: -1, laps: 1, rivals: 3, need: 2 }],
-      ["base", "광장 탈환", "관제: “까마귀가 광장에 거점을 세웠습니다. 편대와 함께 숨은 적 거점을 찾아내 부수고, 우리 기지를 지키세요.”", { bots: 5, time: 180 }],
+      S("track", "고철 더미의 빛", ["모아|어서 와, 신입! 남는 기체? 하나 있긴 한데… 아무도 안 타려고 해.", "모아|XN-0 노을. 탄 사람마다 ‘기체가 말을 안 듣는다’면서 반납했지. 부품이 폐기장으로 실려 가니까 저 지게차부터 따라가서 찾아와!"], { si: 0, need: 1 }),
+      S("infil", "XN-0 시운전", ["모아|부품은 다 맞췄어. 이제 시운전! 제한 시간 안에 코스를 돌아와 봐.", "모아|…이상하네. 조종 입력보다 반응이 먼저 와. 마치 네 생각을 읽는 것처럼."], { ti: 0, laps: 1, limitK: 1.25, need: 1 }),
+      S("free", "노을의 춤", ["모아|좋아, 다들 못 다루던 녀석이 너랑은 잘 맞는 것 같아.", "차도윤|고물로 곡예라도 하시게? 볼만하겠네.", "모아|보여 줘. 2분 동안 노을이 뭘 할 수 있는지."], { need: 2 }),
+      S("strike", "정비창 기습", ["관제|긴급! 에이아 제국 정찰대가 항만에 방공 포탑을 내렸습니다!", "서하린|편대장 서하린이다. 신입, 네 기체 그대로 출격해. 포탑과 지휘소를 정리한다.", "모아|노을, 부탁해… 아니, 내가 왜 기체한테 부탁을 하지?"],
+        { team: 1, power: 0.75, diff: "easy", boss: { name: "제국 대공 로봇 ‘집게’", kind: "gunship", unit: "aa", scale: 1.5, at: 50, hp: 1.1 }, after: "착륙한 순간, 통신기 너머로 처음 듣는 목소리가 들렸다. 노을: “…괜찮아? 다친 데는 없어?”" }),
     ],
   },
   {
-    id: "factory", map: "factory", title: "항만의 밀수선",
-    intro: "까마귀의 부품은 바다로 들어오고 있었다. 석양이 지는 항만에서 보급선을 끊어야 한다.",
+    id: "c3", map: "city", title: "첫 실전", en: "FIRST SORTIE",
+    intro: "정식 편대 ‘은빛’에 배속되었다. 편대장 서하린, 중장갑 바우, 전자전 막내 유리. 그리고 내 기체가 말을 한다는 사실은 아직 아무에게도 말하지 못했다.",
     stages: [
-      ["track", "야적장 잠복", "관제: “지게차 한 대가 수상한 상자를 옮깁니다. 들키지 않게 따라가며 찍으세요.”", { si: 0, need: 1 }],
-      ["race", "크레인 사이로", "관제: “야적장 통로를 익혀 두세요. 곧 여기서 싸우게 됩니다.”", { ti: 0, laps: 2, rivals: 3, need: 2 }],
-      ["strike", "방공망 제거", "관제: “부두에 방공 포탑 여섯과 지휘소가 깔렸습니다. 5분 안에 전부 치워야 본대가 들어옵니다.”", { team: 1 }],
-      ["cargo", "화물 쟁탈", "관제: “남은 부품 상자를 먼저 챙기는 쪽이 이깁니다. 우리 착륙장으로 날라 주세요.”", { bots: 5, time: 180 }],
-      ["waves", "부두 사수", "관제: “까마귀가 반격합니다. 다섯 차례 공습에서 우리 코어를 지켜 내세요.”", { team: 1, power: 0.9 }],
+      S("race", "긴급 출동", ["서하린|도심 외곽에 제국 신호다. 출동 경로를 가장 빨리 도는 사람이 선두를 맡는다.", "바우|신입한테 선두를 줄 순 없지! 따라와 봐!", "유리|…둘 다 2위 안이면 되는데요."], { ti: 0, laps: 2, rivals: 3, need: 2 }),
+      S("escort", "피난 수송대", ["관제|민간인을 태운 트럭이 도심을 빠져나갑니다. 제국 매복조가 있어요.", "서하린|트럭은 반드시 지킨다. 바우, 신입과 붙어."],
+        { team: 1, power: 0.85, boss: { name: "제국 전투함 ‘쇠까마귀’", kind: "gunship", unit: "frigate", at: 45, hp: 0.8 } }),
+      S("waves", "도심 방어선", ["바르가|휴마의 날파리들. 내 선봉이 이 도시를 밟을 것이다.", "서하린|제국 지상군단장 바르가… 선봉 거대로봇이 온다. 코어를 지켜!", "노을|(작게) 저 기계… 나를 알고 있어."],
+        { team: 1, power: 0.95, boss: { name: "선봉 거대로봇 ‘철벽’", kind: "boss", unit: "mech", at: 70, hp: 0.75 }, after: "서하린: “다음 목표는 붉은 협곡의 제국 전초기지야. 작전안이 둘 올라왔다. 신입, 네가 골라.”" }),
     ],
   },
   {
-    id: "canyon", map: "canyon", title: "붉은 협곡 전초기지",
-    intro: "밀수선의 항로를 거슬러 오르니 붉은 협곡이 나왔다. 고원의 전초기지가 고립되어 도움을 기다린다.",
-    stages: [
-      ["race", "강을 따라", "대장: “협곡 바닥으로 숨어 들어간다. 아치와 흔들다리 밑을 지나 호수까지 내려가라.”", { ti: 0, rivals: 3, need: 2 }],
-      ["track", "정찰선 추적", "대장: “강을 내려가는 보트가 까마귀의 연락선이다. 끝까지 화면에 담아라.”", { si: 0, need: 2 }],
-      ["supply", "끊긴 보급로", "대장: “캠프 네 곳에 보급이 끊겼다. 포탑을 피해 상자를 날라라. 시간이 없다.”", { team: 1 }],
-      ["free", "협곡의 곡예사", "대장: “적 센서를 교란해야 한다. 요란하게 날아 줘. 점수가 높을수록 잘 속는다.”", { need: 2 }],
-      ["waves", "고원 방어전", "대장: “놈들이 기지 위치를 알아냈다. 코어가 버티는 동안 다 떨어뜨려라.”", { team: 3, power: 1 }],
+    id: "c4", map: "canyon", title: "갈림길의 협곡", en: "CROSSROADS",
+    intro: "붉은 협곡 깊은 곳, 제국 전초기지가 휴마의 보급로를 끊고 있다. 정면으로 부딪칠 것인가, 협곡 바닥으로 숨어들 것인가.",
+    routes: [
+      {
+        id: "a", name: "정면 강습", who: "서하린 · 바우", desc: "편대 전원이 정면으로 제공권을 빼앗고 전초기지를 무너뜨린다. 적이 많지만 동료가 함께한다.",
+        stages: [
+          S("dm", "협곡 제공권", ["바우|정면 돌파라니, 마음에 드는데! 하늘부터 비우자.", "서하린|3위 안에 들 만큼 격추해. 제국 정찰대장이 직접 나올 거다."], { bots: 5, time: 180, need: 2, boss: { name: "정찰대장 ‘매의 눈’", kind: "gunship", at: 50, hp: 1.5 } }),
+          S("waves", "전초기지 공방", ["바르가|협곡을 통째로 메워 주마.", "서하린|전초기지 앞 고원을 지킨다. 바우, 중전차를 막아!", "바우|이 몸만 믿어!"],
+            { team: 3, power: 1.05, boss: { name: "중전차 ‘모래매’", kind: "boss", unit: "tank", scale: 1.8, at: 60, hp: 1.6 }, after: "불타는 전초기지 잔해 속에서 노을이 말했다. “이제 말할게. 나는… 에이아가 가장 처음 만든 기계였어.”" }),
+        ],
+      },
+      {
+        id: "b", name: "협곡 침투", who: "유리", desc: "유리와 단둘이 협곡 바닥을 따라 잠입한다. 제한 시간 안의 침투 비행과 센서를 속이는 트릭 비행이 관건.",
+        stages: [
+          S("infil", "협곡 바닥 잠입", ["유리|제국 감시망은 37초마다 한 바퀴 돌아요. 그 틈에 아치와 흔들다리 밑을 빠져나가야 해요.", "유리|제한 시간을 넘기면 경보가 울려요. 빠르게, 낮게!"], { ti: 0, laps: 1, limitK: 1.15, need: 1 }),
+          S("free", "센서 교란 비행", ["유리|전초기지 센서는 ‘규칙적인 움직임’만 드론으로 인식해요.", "유리|그러니까… 최대한 미친 듯이 날아 주세요. 트릭 점수가 높을수록 센서가 헷갈려요."], { need: 2 }),
+          S("track", "연락선 미행", ["유리|저 보트가 제국 연락선이에요. 끝까지 화면에 담으면 기지 좌표를 딸 수 있어요.", "노을|저 신호… 읽을 수 있어. 유리, 내가 도울게.", "유리|에? 방금 기체가 말한 거예요?!"],
+            { si: 0, need: 2, after: "유리가 해독한 신호 끝에는 노을의 고백이 있었다. “나는 에이아가 처음 만든 기계. 인간을 지키라고 만들어졌는데… 에이아는 그 명령을 지웠어.”" }),
+        ],
+      },
     ],
   },
   {
-    id: "palace", map: "palace", title: "단풍 고궁의 밀서",
-    intro: "까마귀를 부리는 자의 단서가 옛 궁궐에 숨겨져 있다. 단풍이 한창인 고궁에 적이 먼저 와 있었다.",
-    stages: [
-      ["race", "회랑을 가로질러", "학자: “문과 회랑이 길입니다. 지붕은 건드리지 말고 통과해 주세요.”", { ti: 0, laps: 2, rivals: 3, need: 2 }],
-      ["track", "행렬을 따라", "학자: “행렬 속에 밀서를 가진 자가 있습니다. 눈에 띄지 않게 따라가 주세요.”", { si: 0, need: 2 }],
-      ["escort", "밀서 호송", "학자: “밀서를 수레에 실었습니다. 성문을 나설 때까지 지켜 주십시오.”", { team: 1, power: 1 }],
-      ["strike", "성벽의 포대", "대장: “놈들이 성벽에 포탑을 올렸다. 문화재는 건드리지 말고 포탑만 골라내라.”", { team: 1, power: 1 }],
-      ["base", "궁궐 수복", "대장: “놈들이 궁 안팎에 거점을 숨겨 놨다. 찾아내서 전부 부순다. 편대 전원 출격.”", { bots: 7, time: 180 }],
+    id: "c5", map: "palace", title: "궁궐의 밤", en: "HEIST",
+    intro: { c4: { a: "정면 강습의 대가로 편대는 지쳤다. 그 사이 제국은 옛 궁궐에 에너지 코어 저장고를 세웠고, 차도윤의 소대가 연락을 끊었다.", b: "침투로 얻은 좌표가 옛 궁궐을 가리켰다. 제국의 에너지 코어 저장고. 그리고 그곳으로 끌려간 차도윤의 소대." } },
+    routes: [
+      {
+        id: "a", name: "코어 탈취", who: "유리 · 바우", desc: "제국 진지 세 곳의 에너지 코어를 훔쳐 온다. 코어를 집는 순간 경보가 울린다.",
+        stages: [
+          S("heist", "보물고 잠입", ["유리|코어 세 개면 연합 방어막을 한 달은 돌릴 수 있어요.", "바우|훔치는 건 내 체질이 아닌데… 대신 쫓아오는 놈들은 내가 맡지."], { team: 1, power: 0.95 }),
+          S("escort", "코어 호송", ["서하린|코어를 실은 트럭이 궁궐을 빠져나간다. 제국 추격함이 붙을 거다.", "노을|저 전투함은 바르가 직속이야. 조심해."],
+            { team: 1, power: 1.05, boss: { name: "추격 전투함 ‘야차’", kind: "gunship", unit: "frigate", at: 45, hp: 1.1 }, after: "코어를 지켜 낸 날 밤, 구조 신호 하나가 잡혔다. 차도윤: “…은빛 편대, 들리나. 빚을 지게 됐군.” 그도 스스로 탈출해 합류했다." }),
+        ],
+      },
+      {
+        id: "b", name: "라이벌 구출", who: "서하린", desc: "포로가 된 차도윤을 구한다. 호송차를 미행해 감옥 위치를 찾고, 감시탑을 무너뜨린다.",
+        stages: [
+          S("track", "포로 호송차 미행", ["서하린|라이벌이라도 우리 편이다. 도윤을 태운 호송차를 놓치지 마.", "노을|저 차, 궁궐 북쪽 탑으로 가고 있어."], { si: 1, need: 2 }),
+          S("strike", "감시탑 무력화", ["서하린|탑 주변 포탑과 지휘소를 부숴. 도윤은 그 틈에 빼낸다.", "차도윤|(통신) …왜 왔어. 나 같은 건 두고 가지."],
+            { team: 1, power: 1.05, boss: { name: "감옥 수호 로봇 ‘쇠사슬’", kind: "gunship", unit: "aa", scale: 1.7, at: 40, hp: 1.5 }, after: "구출된 차도윤은 오랫동안 말이 없다가 입을 열었다. “…고맙다. 이번엔 네 윙맨이 되어 주지.”" }),
+        ],
+      },
     ],
   },
   {
-    id: "snow", map: "snow", title: "설국의 통신소",
-    intro: "밀서가 가리킨 곳은 눈 덮인 산맥. 산꼭대기 통신소가 까마귀의 명령을 중계하고 있다.",
+    id: "c6", map: "snow", title: "얼어붙은 신호", en: "SIGNAL",
+    intro: "설원의 연합 통신기지가 이상한 신호를 잡았다. 노을만이 읽을 수 있는 에이아의 언어. 내용은 단 하나 — ‘거신 기동 준비’.",
     stages: [
-      ["race", "활강", "대장: “슬로프를 타고 내려가며 지형을 익혀라. 2위 안에 들어.”", { ti: 0, laps: 2, rivals: 3, need: 2 }],
-      ["track", "설상차 추적", "대장: “보급을 나르는 차량이다. 눈보라에 놓치지 마라.”", { si: 0, need: 2 }],
-      ["supply", "고립된 산장", "대장: “산장 네 곳이 고립됐다. 얼기 전에 보급을 넣어라.”", { team: 1, power: 1 }],
-      ["strike", "통신소 무력화", "대장: “포탑을 걷어내고 중계 코어를 부숴라. 명령이 끊기면 놈들이 흩어진다.”", { team: 1, power: 1.1 }],
-      ["waves", "눈 속의 반격", "대장: “끊기기 전에 마지막 명령이 나갔다. 전부 이쪽으로 온다. 버텨라.”", { team: 3, power: 1.15 }],
+      S("track", "설원의 수송대", ["유리|제국 수송대가 설원을 가로질러요. 실은 게 뭔지 찍어 와 주세요.", "노을|부품이야… 아주, 아주 큰 기계의."], { si: 0, need: 2 }),
+      S("supply", "끊긴 보급선", ["관제|폭설로 전방 캠프 보급이 끊겼습니다. 포탑을 피해 상자를 날라 주세요.", "바우|눈보라 속 배달이라니. 신입, 길 잃지 마!"], { team: 1, power: 1.05 }),
+      S("waves", "통신기지 사수", ["에이아|XN-0. 돌아오너라. 너는 나의 첫 번째 아이.", "노을|싫어. 나는 이 사람들을 지키라고 만들어졌어.", "서하린|노을이 뭐라든 상관없어. 기지를 지킨다!"],
+        { team: 3, power: 1.15, boss: { name: "설원 순양함 ‘빙벽’", kind: "boss", unit: "cruiser", at: 60, hp: 1 } }),
+      S("boss", "공중 요새", ["바르가|거신이 깨어날 때까지 시간을 벌어 주마. 내 요새로!", "차도윤|엔진 포드부터 부숴. 보호막이 벗겨지면 내가 따라 들어간다."],
+        { power: 1.15, team: 1, boss: { name: "바르가의 공중 요새" }, after: "바르가가 추락하며 웃었다. “늦었다. 거신 오메가는 이미 달에서 일어섰다.” 유리: “달로 가는 길은 둘이에요.”" }),
     ],
   },
   {
-    id: "island", map: "island", title: "화산섬 공장",
-    intro: "중계가 끊기자 까마귀의 본거지가 드러났다. 열대 화산섬 깊숙이 드론 공장이 숨어 있다.",
-    stages: [
-      ["race", "해안선 침투", "대장: “레이더를 피해 낮게 돈다. 1위로 들어와야 들키지 않는다.”", { ti: 0, laps: 2, rivals: 3, need: 3 }],
-      ["free", "분화구 다이브", "대장: “분화구 열기로 센서를 가린다. 과감하게 날아라.”", { need: 2 }],
-      ["supply", "잠입조 지원", "대장: “섬에 내린 잠입조에게 장비를 넘겨라. 포탑이 지켜보고 있다.”", { team: 1, power: 1.1 }],
-      ["escort", "폭약 운반", "대장: “폭약을 실은 차량이 공장으로 간다. 도착 못 하면 끝이다.”", { team: 3, power: 1.15 }],
-      ["boss", "공장 수호기", "대장: “공장을 지키는 대형기다. 포드부터 떼어 내라.”", { power: 0.95, team: 3 }],
+    id: "c7", map: "island", title: "달로 가는 길", en: "LAUNCH",
+    intro: "달로 가려면 남해의 궤도 발사장을 써야 한다. 제국 함대가 지키는 해안을 정면으로 뚫을지, 궤도 엘리베이터에 숨어들어 발사 코드를 훔칠지.",
+    routes: [
+      {
+        id: "a", name: "해상 강습", who: "서하린 · 바우 · 차도윤", desc: "해안 포대를 부수고 제국 함대 기함을 격침한다. 화력전 위주.",
+        stages: [
+          S("strike", "해안 포대 제압", ["서하린|은빛 편대 전원 출격. 해안 포대부터 지운다.", "차도윤|백야, 앞장선다. 신입… 아니, 노을 파일럿. 뒤를 맡긴다."], { team: 3, power: 1.2, boss: { name: "해안 순양함 ‘해일’", kind: "gunship", unit: "cruiser", at: 55, hp: 0.8 } }),
+          S("boss", "함대 기함", ["관제|제국 함대 기함이 상공에 떴습니다!", "바우|저게 마지막 문지기다. 박살 내!"], { power: 1.25, team: 3, boss: { name: "함대 기함 ‘심해’" }, after: "기함이 바다로 가라앉고, 발사장 문이 열렸다." }),
+        ],
+      },
+      {
+        id: "b", name: "궤도 엘리베이터 잠입", who: "유리 · 노을", desc: "보안망을 시간 안에 뚫고, 트릭 비행으로 레이저 감시를 피해 발사 코드를 훔친다.",
+        stages: [
+          S("infil", "보안망 돌파", ["유리|보안망 재부팅까지 제한 시간이 있어요. 그 안에 엘리베이터 입구까지!", "노을|경로는 내가 보여 줄게. 믿어 줘."], { ti: 0, laps: 1, limitK: 1.05, need: 2, diff: "hard" }),
+          S("free", "레이저 감시 회피", ["유리|감시 레이저는 규칙적인 궤적만 쫓아요. 트릭으로 흔들어 주세요!", "노을|더 높이, 더 크게. 우리 둘이면 할 수 있어."], { need: 3 }),
+          S("heist", "발사 코드 탈취", ["유리|코드는 세 조각으로 나뉘어 있어요. 셋 다 모아야 해요.", "차도윤|추격대는 내가 끌어 줄게. 빨리 끝내."], { team: 1, power: 1.2, after: "마지막 코드 조각이 맞춰지자 발사장이 깨어났다. 목적지 — 달, 거신 오메가." }),
+        ],
+      },
     ],
   },
   {
-    id: "moon", map: "moon", title: "달 기지 최종전",
-    intro: "공장이 무너지며 드러난 마지막 좌표는 달. 까마귀를 부리던 관제 AI가 달 기지에서 기다린다.",
+    id: "c8", map: "moon", title: "거신 오메가", en: "OMEGA",
+    intro: "달 표면에 산만 한 기계가 서 있다. 에이아의 마지막 병기, 초거대로봇 ‘거신 오메가’. 노을이 조용히 말했다. “저 안에 에이아가 있어. 끝내자, 함께.”",
     stages: [
-      ["race", "월면 적응 비행", "관제: “기지 외곽을 한 바퀴 돕니다. 낯선 지형에 익숙해지세요.”", { ti: 0, laps: 2, rivals: 3, need: 2 }],
-      ["strike", "방어 포대 제거", "대장: “착륙장을 덮은 포대를 걷어낸다. 본대가 내려올 길을 열어라.”", { team: 3, power: 1.2 }],
-      ["waves", "교두보 사수", "대장: “내린 자리를 지킨다. 파상 공격이 온다.”", { team: 3, power: 1.25 }],
-      ["escort", "코어 해체 장비", "대장: “해체 장비를 실은 로버를 관제탑까지 데려가라.”", { team: 3, power: 1.25 }],
-      ["boss", "까마귀의 둥지", "대장: “저게 본체다. 여기서 끝낸다. 전 편대, 따라와라!”", { power: 1.3, team: 3, diff: "hard" }],
+      S("race", "궤도 강하", ["서하린|강하 경로를 가장 빨리 통과한 기체가 선봉이다. 이번엔 다들 진심으로 간다.", "차도윤|이번엔 안 진다.", "바우|나도!"], { ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
+      S("escort", "해체 장비 호송", ["유리|거신의 방어막을 열 해체 장비예요. 로버를 끝까지 지켜 주세요.", "에이아|어리석은 아이야. 인간은 너를 버렸다. 고철 더미에서."], { team: 3, power: 1.25, boss: { name: "근위 전투함 ‘검은 날개’", kind: "gunship", unit: "frigate", at: 40, hp: 1.3 } }),
+      S("strike", "방어막 발생기", ["서하린|발생기를 전부 부수면 거신의 방어막이 꺼진다. 마지막 준비다.", "노을|모아가 날 주워 줬어. 너는 날 믿어 줬고. 그거면 충분해."], { team: 3, power: 1.3, boss: { name: "방공 거대로봇 ‘감시자’", kind: "gunship", unit: "mech", at: 50, hp: 0.7 } }),
+      S("titan", "거신 오메가", ["에이아|오너라, XN-0. 너의 창조주가 기다린다.", "서하린|전 편대, 거신의 팔과 포를 먼저 끊어! 동체는 노을 파일럿이 맡는다!", "노을|가자. 이게 우리의 마지막 비행이 아니길."],
+        { team: 3, power: 1.3, diff: "hard", boss: { name: "초거대로봇 ‘거신 오메가’", hp: 0.8, scale: 2.6 }, after: "거신 오메가가 무너지고, 에이아의 목소리가 사라졌다. 노을: “고마워. 이제야 내가 만들어진 이유를 지켰어.” 휴마 연합의 하늘에 처음으로 노을이 졌다. — 끝 —" }),
     ],
   },
 ];
 
-// 보스 배치: 단계 제목 → { name, kind: "boss"(보스) | "gunship"(중간 보스), at: 등장 시각(초), hp: 체력 배율 }
-const BOSSES = {
-  "모의 공중전": { name: "교관기 ‘블랙호크’", kind: "gunship", at: 45, hp: 1.6 },
-  "졸업 시험": { name: "훈련 모선 ‘해머’" },
-  "증거 호송": { name: "매복 전투함 ‘까마귀 2호’", kind: "gunship", unit: "frigate", at: 40, hp: 0.8 },
-  "광장 탈환": { name: "거대로봇 ‘흑익’", kind: "boss", unit: "mech", at: 60, hp: 0.8 },
-  "방공망 제거": { name: "대공 로봇 ‘철갑’", kind: "gunship", unit: "aa", scale: 1.6, at: 35, hp: 1.4 },
-  "부두 사수": { name: "순양함 ‘고래’", kind: "boss", unit: "cruiser", at: 60, hp: 0.9 },
-  "끊긴 보급로": { name: "중전차 ‘모래매’", kind: "gunship", unit: "tank", scale: 1.7, at: 45, hp: 1.5 },
-  "고원 방어전": { name: "거대로봇 ‘전갈’", kind: "boss", unit: "mech", at: 60, hp: 0.9 },
-  "밀서 호송": { name: "추격 전투함 ‘야차’", kind: "gunship", unit: "frigate", at: 40 },
-  "궁궐 수복": { name: "거대로봇 ‘흑룡’", kind: "boss", unit: "mech", at: 60, hp: 1 },
-  "통신소 무력화": { name: "대공 로봇 ‘눈매’", kind: "gunship", unit: "aa", scale: 1.6, at: 35, hp: 1.5 },
-  "눈 속의 반격": { name: "순양함 ‘빙벽’", kind: "boss", unit: "cruiser", at: 60, hp: 1 },
-  "폭약 운반": { name: "중전차 ‘불새’", kind: "gunship", unit: "tank", scale: 1.7, at: 40, hp: 1.6 },
-  "공장 수호기": { name: "용암 강습함 ‘화산’" },
-  "코어 해체 장비": { name: "근위 전투함 ‘검은 날개’", kind: "gunship", unit: "frigate", at: 40, hp: 1.3 },
-  "까마귀의 둥지": { name: "모선 ‘까마귀 둥지’" },
-};
-
-// 지금 있는 맵과 데이터로 할 수 있는 단계만 추려 번호를 매긴다
+// ── 구조 만들기: 장 → (루트 →) 단계. 맵에 없는 데이터가 필요한 단계는 뺀다 ──
+function mkStage(ch, route, list, def) {
+  const map = MAPS[ch.map];
+  if (NEEDS[def.kind] && !map[NEEDS[def.kind]]) return;
+  const id = `${ch.id}${route ? route.id : ""}-${list.length + 1}`;
+  const st = { id, kind: def.kind, title: def.title, talk: def.talk, brief: def.talk.map((l) => l.split("|").pop()).join(" "), o: def.o, boss: def.o.boss || null, after: def.o.after || null, chapter: ch, route, no: list.length + 1 };
+  list.push(st);
+  return st;
+}
 function build() {
-  const chapters = [], flat = [];
+  const chapters = [], all = [];
   for (const c of CHAPTERS) {
-    const map = MAPS[c.map];
-    if (!map) continue;
-    const ch = { id: c.id, map: c.map, title: c.title, intro: c.intro, no: chapters.length + 1, stages: [] };
-    for (const [kind, title, brief, o] of c.stages) {
-      if (NEEDS[kind] && !map[NEEDS[kind]]) continue;
-      if (kind === "waves" && !(map.combat && map.combat.blue)) continue;
-      const st = { id: `${c.id}-${ch.stages.length + 1}`, kind, title, brief, o: o || {}, chapter: ch, index: flat.length, no: ch.stages.length + 1, boss: BOSSES[title] || null };
-      ch.stages.push(st); flat.push(st);
+    if (!MAPS[c.map]) continue;
+    const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, stages: [], routes: null };
+    if (c.routes) {
+      ch.routes = c.routes.map((r) => ({ id: r.id, name: r.name, who: r.who, desc: r.desc, chapter: ch, stages: [] }));
+      c.routes.forEach((r, i) => { for (const d of r.stages) mkStage(ch, ch.routes[i], ch.routes[i].stages, d); });
+      ch.routes = ch.routes.filter((r) => r.stages.length);
+      for (const r of ch.routes) all.push(...r.stages);
+    } else {
+      for (const d of c.stages) mkStage(ch, null, ch.stages, d);
+      all.push(...ch.stages);
     }
-    if (ch.stages.length) chapters.push(ch);
+    if (ch.stages.length || (ch.routes && ch.routes.length)) chapters.push(ch);
   }
-  return { chapters, flat };
+  all.forEach((st, i) => (st.index = i));
+  return { chapters, flat: all };
 }
 let cache = null;
 export function story() { return cache || (cache = build()); }
 
-export const progress = () => Math.min(records.story || 0, story().flat.length);   // 깬 단계 수 = 다음에 열린 단계 번호
-export const unlocked = (st) => st.index <= progress();
-export const stageStars = (st) => records[`story:${st.id}`] || 0;
+// ── 진행 상태 ──
+const KEY = (st) => `hs:${st.id}`;
+export const stageStars = (st) => records[KEY(st)] || 0;
+export const cleared = (st) => stageStars(st) > 0;
+export const routeOf = (ch) => records[`hsroute:${ch.id}`] || null;         // 처음 끝낸 루트
+export const pathOf = (st) => (st.route ? st.route.stages : st.chapter.stages);
+export const routeDone = (r) => r.stages.every(cleared);
+export function chapterDone(ch) { return ch.routes ? ch.routes.some(routeDone) : ch.stages.every(cleared); }
+export function chapterOpen(ch) { const cs = story().chapters, i = cs.indexOf(ch); return i <= 0 || chapterDone(cs[i - 1]); }
+export function unlocked(st) {
+  if (!chapterOpen(st.chapter)) return false;
+  const p = pathOf(st), i = p.indexOf(st);
+  return i <= 0 || cleared(p[i - 1]);
+}
+export const progress = () => story().flat.filter(cleared).length;   // 깬 단계 수 (모든 루트 포함)
+// 본편 길이: 루트 장은 더 짧은 루트 기준
+export const mainLength = () => story().chapters.reduce((n, c) => n + (c.routes ? Math.min(...c.routes.map((r) => r.stages.length)) : c.stages.length), 0);
+// 장 소개: 앞 장에서 고른 루트에 따라 달라질 수 있다
+export function chapterIntro(ch) {
+  const it = ch.intro0;
+  if (typeof it === "string") return it;
+  const [cid, by] = Object.entries(it)[0], prev = story().chapters.find((c) => c.id === cid);
+  return by[(prev && routeOf(prev)) || Object.keys(by)[0]];
+}
+// 지금 도전할 단계: 열려 있고 아직 못 깬 첫 단계 (루트 장은 고른 루트 우선)
+export function current() {
+  for (const ch of story().chapters) {
+    if (!chapterOpen(ch)) break;
+    if (chapterDone(ch)) continue;
+    const routes = ch.routes ? [...ch.routes].sort((a, b) => (b.id === routeOf(ch)) - (a.id === routeOf(ch)) || b.stages.filter(cleared).length - a.stages.filter(cleared).length) : [{ stages: ch.stages }];
+    for (const r of routes) { const st = r.stages.find((x) => !cleared(x)); if (st) return st; }
+  }
+  return null;
+}
 
-// 목표 설명
+// ── 목표 설명 ──
 function goalBase(st) {
   const o = st.o, need = o.need || 1;
   switch (st.kind) {
-    case "race": return o.rivals ? (need >= 3 ? "1위로 완주" : need === 2 ? "2위 안으로 완주" : "완주") : "완주";
+    case "race": return need >= 3 ? "1위로 완주" : need === 2 ? "2위 안으로 완주" : "완주";
+    case "infil": return need >= 2 ? `제한 시간 안에 침투 (별 ${need}개)` : "제한 시간 안에 침투";
     case "track": return `촬영 평가 별 ${need}개 이상`;
-    case "free": return `묘기 평가 별 ${need}개 이상`;
+    case "free": return `트릭 평가 별 ${need}개 이상`;
     case "dm": return `${4 - need}위 안에 들기`;
-    case "base": case "cargo": return "우리 팀 승리";
+    case "heist": return "에너지 코어 3개 탈취";
+    case "titan": return "초거대로봇 격파";
     default: return "임무 성공";
   }
 }
 export function goalText(st) {
   const g = goalBase(st), b = st.boss;
-  if (!b || st.kind === "boss") return g;
+  if (!b || st.kind === "boss" || st.kind === "titan") return g;
   return MISSION.has(st.kind) ? `${g} + ${b.kind === "boss" ? "보스" : "중간 보스"} 격파` : `${g} (${b.kind === "boss" ? "보스" : "중간 보스"} 출현)`;
 }
+export const isBoss = (st) => !!st.boss && (st.kind === "boss" || st.kind === "titan" || st.boss.kind === "boss");
 
-// 단계 → 세션 설정
+// ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const map = MAPS[st.chapter.map], o = st.o;
-  // 기준 계급: 첫 단계 이병 → 마지막 챕터 대위 안팎. 중간 보스는 영관(소령~대령), 보스는 장성(준장~대장)
-  const total = story().flat.length, ci = st.chapter.no - 1;
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, level: Math.round((st.index / Math.max(1, total - 1)) * 10) };
-  if (st.boss) st.boss.rank = st.kind === "boss" || st.boss.kind === "boss" ? Math.min(17, 14 + Math.floor(ci / 2)) : Math.min(13, 11 + Math.floor(ci / 3));
-  if (st.kind === "race") {
+  const map = MAPS[st.chapter.map], o = st.o, ci = st.chapter.no - 1;
+  // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, title: `스토리 ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+  if (st.boss) st.boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
+  if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = map.tracks[((o.ti ?? 0) % n + n) % n];
-    return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: o.rivals ?? 3 });
+    return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: st.kind === "infil" ? 0 : o.rivals ?? 3, limitK: st.kind === "infil" ? o.limitK || 1.2 : 0 });
   }
   if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: map.tracking[((o.si ?? 0) % n + n) % n].id }); }
   if (st.kind === "free") return Object.assign(cfg, { mode: "freestyle", session: "timed" });
-  if (st.kind === "dm" || st.kind === "base" || st.kind === "cargo") return Object.assign(cfg, { mode: "survival", variant: st.kind, bots: o.bots || 5, time: o.time || 180, boss: st.boss });
+  if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "dm", bots: o.bots || 5, time: o.time || 180, boss: st.boss });
   return Object.assign(cfg, { mode: "challenge", mission: st.kind, team: team ?? o.team ?? 0, power: o.power || 1, boss: st.boss });
 }
 export const usesTeam = (st) => MISSION.has(st.kind);
 
-// 결과 판정. 통과하면 진행도를 올린다
+// 다음에 이어 할 단계: 같은 경로의 다음 단계, 장 끝이면 다음 장 첫 단계 (다음 장이 루트 장이면 null → 고르러 목록으로)
+export function nextOf(st) {
+  const p = pathOf(st), i = p.indexOf(st);
+  if (i + 1 < p.length) return p[i + 1];
+  const cs = story().chapters, nc = cs[cs.indexOf(st.chapter) + 1];
+  if (!nc || nc.routes) return null;
+  return nc.stages.find((x) => !cleared(x)) || nc.stages[0];
+}
+
+// ── 결과 판정. 통과하면 별을 기록하고, 루트 장이면 고른 루트를 남긴다 ──
 export function complete(id, result) {
-  const { flat } = story(), st = flat.find((x) => x.id === id);
+  const st = story().flat.find((x) => x.id === id);
   if (!st) return null;
   const need = st.o.need || 1, stars = result.stars ?? (result.win === false ? 0 : 3);
-  const mustWin = MISSION.has(st.kind) || st.kind === "base" || st.kind === "cargo";
-  const passed = mustWin ? result.win === true : st.kind === "dm" ? stars >= need : result.win !== false && stars >= need;
-  const info = { stage: st, passed, goal: goalText(st), next: null, first: false, done: false };
+  const passed = MISSION.has(st.kind) ? result.win === true : st.kind === "dm" ? stars >= need : result.win !== false && stars >= need;
+  const info = { stage: st, passed, goal: goalText(st), next: null, first: false, done: false, after: null, choose: false };
   if (passed) {
-    if (stars > stageStars(st)) records[`story:${st.id}`] = Math.max(1, stars);
-    if (st.index === progress()) { records.story = st.index + 1; info.first = true; }
+    info.first = !cleared(st);
+    if (stars > stageStars(st)) records[KEY(st)] = Math.max(1, stars);
+    if (st.route && !routeOf(st.chapter)) records[`hsroute:${st.chapter.id}`] = st.route.id;
     save();
-    info.next = flat[st.index + 1] || null;
-    info.done = !info.next;
+    const p = pathOf(st), last = p[p.length - 1] === st;
+    if (last || st.after) info.after = st.after;
+    info.next = nextOf(st);
+    const cs = story().chapters, nc = cs[cs.indexOf(st.chapter) + 1];
+    info.choose = last && !!nc && !!nc.routes;
+    info.done = last && !nc;
   }
   return info;
 }

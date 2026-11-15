@@ -342,6 +342,20 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .brief .bk { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--c); }
 .brief p { margin: 8px 0 10px; font-size: 14.5px; line-height: 1.6; }
 .brief .goal { font-size: 13px; color: var(--muted); }
+.brief .talk { display: flex; flex-direction: column; gap: 7px; margin: 10px 0 12px; }
+.brief .talk .ln { display: grid; grid-template-columns: 64px 1fr; gap: 10px; font-size: 14px; line-height: 1.55; }
+.brief .talk .ln b { font-size: 12.5px; font-weight: 800; text-align: right; padding-top: 1px; white-space: nowrap; }
+.brief .talk .ln span { color: #e8eef6; }
+.routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.card.route { height: auto; min-height: 0; aspect-ratio: auto; text-align: left; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(160deg, rgba(30, 44, 74, 0.9), rgba(12, 18, 32, 0.92)); }
+.card.route .rk { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--c); }
+.card.route .rk i { font-style: normal; color: var(--gold); margin-left: 6px; letter-spacing: 0; }
+.card.route .nm { font-size: 18px; font-weight: 900; }
+.card.route .ds { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.card.route .who { display: flex; justify-content: space-between; font-size: 12px; color: #cfe0f4; margin-top: 2px; }
+.card.mapcard .tag.rt { top: 14px; right: auto; left: 14px; color: var(--gold); }
+.safter { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--c, #3dd68c); background: rgba(14, 20, 36, 0.7); font-size: 13.5px; line-height: 1.6; color: #e8eef6; border-radius: 0 10px 10px 0; }
+@media (max-width: 560px) { .brief .talk .ln { grid-template-columns: 1fr; gap: 2px; } .brief .talk .ln b { text-align: left; } }
 .brief .goal b { color: var(--gold); margin-left: 6px; }
 .primary[disabled] { filter: grayscale(1) brightness(0.6); cursor: not-allowed; }
 .sres { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0 2px; padding: 9px 12px; border-radius: 12px; border: 2px solid var(--ink); font-size: 13px; }

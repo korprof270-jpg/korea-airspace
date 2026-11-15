@@ -9,6 +9,7 @@ import { VARIANTS } from "./modes/survival.js";
 import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
 import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
+import * as SY from "./story.js";
 import { CAMERA_NAMES } from "./player.js";
 
 const MODE_META = {
@@ -33,7 +34,7 @@ const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", 
 // 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
-  story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "신입 파일럿이 되어 8개 맵을 잇는 챕터를 한 단계씩 깨 나갑니다." },
+  story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
   game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·촬영·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
 };
 const SUB = {
@@ -309,43 +310,53 @@ export class UI {
     return `<section class="step" data-step="${n}"><div class="sh"><span class="no">${n}</span><h3>${title}</h3>${pick ? `<span class="pick">${esc(pick)}</span>` : ""}</div>${html}</section>`;
   }
 
-  // 스토리: ① 챕터 ② 단계 ③ 브리핑·편대
+  // 스토리: ① 장 ② (작전 선택) 단계 ③ 브리핑(대사)·편대
   s_story() {
-    const s = this.sel, m = MODE_META.challenge, { chapters, flat } = story(), prog = progress();
+    const s = this.sel, m = MODE_META.challenge, { chapters, flat } = story(), prog = progress(), cur = SY.current();
     let ch = chapters.find((c) => c.id === s.chapter);
-    if (!ch) ch = (flat[Math.min(prog, flat.length - 1)] || flat[0]).chapter;
+    if (!ch) ch = cur ? cur.chapter : chapters[chapters.length - 1];
     s.chapter = ch.id;
-    let st = ch.stages.find((x) => x.id === s.stage);
-    if (!st) st = ch.stages.find((x) => x.index === prog) || [...ch.stages].reverse().find((x) => unlocked(x)) || ch.stages[0];
+    let rt = ch.routes ? ch.routes.find((r) => r.id === s.route) || ch.routes.find((r) => r.id === SY.routeOf(ch)) || (cur && cur.chapter === ch && cur.route) || ch.routes[0] : null;
+    s.route = rt ? rt.id : null;
+    const list = rt ? rt.stages : ch.stages;
+    let st = list.find((x) => x.id === s.stage);
+    if (!st) st = list.find((x) => unlocked(x) && !SY.cleared(x)) || [...list].reverse().find((x) => unlocked(x)) || list[0];
     s.stage = st.id;
     const chCards = chapters.map((c) => {
-      const done = c.stages.filter((x) => x.index < prog).length, open = unlocked(c.stages[0]);
+      const all = c.routes ? c.routes.flatMap((r) => r.stages) : c.stages, done = all.filter(SY.cleared).length, open = SY.chapterOpen(c);
       return `<button class="card mapcard ${c.id === ch.id ? "sel" : ""} ${open ? "" : "locked"}" data-a="sel" data-k="chapter" data-v="${c.id}">
-        ${this._thumb("map", c.map)}<div class="tag">${open ? `${done}/${c.stages.length}` : "🔒"}</div>
-        <div class="nm"><small>CHAPTER ${c.no}</small>${c.title}</div><div class="ds">${MAPS[c.map].name}</div></button>`;
+        ${this._thumb("map", c.map)}<div class="tag">${open ? (SY.chapterDone(c) ? "✔" : `${done}/${all.length}`) : "🔒"}</div>${c.routes ? `<div class="tag rt">⑂ 갈림길</div>` : ""}
+        <div class="nm"><small>CHAPTER ${c.no} · ${c.en}</small>${c.title}</div><div class="ds">${MAPS[c.map].name}</div></button>`;
     }).join("");
-    const stCards = ch.stages.map((x) => {
-      const open = unlocked(x), cleared = x.index < prog;
-      return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cleared ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
-        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (x.kind === "boss" || x.boss.kind === "boss" ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
-        <span class="stars">${cleared ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
+    const rtCards = ch.routes ? `<div class="routes">${ch.routes.map((r) => {
+      const done = r.stages.filter(SY.cleared).length, chosen = SY.routeOf(ch) === r.id;
+      return `<button class="card route ${r === rt ? "sel" : ""} ${SY.chapterOpen(ch) ? "" : "locked"}" data-a="sel" data-k="route" data-v="${r.id}">
+        <div class="rk">작전안 ${r.id.toUpperCase()}${chosen ? ` <i>처음 고른 길</i>` : ""}</div><div class="nm">${r.name}</div><div class="ds">${esc(r.desc)}</div>
+        <div class="who">동행 · ${esc(r.who)} <span>${done}/${r.stages.length}</span></div></button>`;
+    }).join("")}</div>` : "";
+    const stCards = list.map((x) => {
+      const open = unlocked(x), cl = SY.cleared(x);
+      return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cl ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
+        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (SY.isBoss(x) ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · ${goalText(x)}</small></span>
+        <span class="stars">${cl ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
     }).join("");
     const open = unlocked(st);
     if (!usesTeam(st)) s.team = s.team || 0;
-    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}-${st.no}</div><p>${esc(st.brief)}</p><div class="goal">목표 <b>${goalText(st)}</b></div></div>`;
-    if (!open) brief += `<p class="hint2">앞 단계를 먼저 깨야 열립니다.</p>`;
+    const talk = st.talk.map((l) => { const [who, line] = l.includes("|") ? l.split("|") : ["", l]; return `<div class="ln"><b style="color:${SY.CAST[who] || "#dfe7f1"}">${esc(who)}</b><span>${esc(line)}</span></div>`; }).join("");
+    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div><div class="goal">목표 <b>${goalText(st)}</b></div></div>`;
+    if (!open) brief += `<p class="hint2">${SY.chapterOpen(ch) ? "앞 단계를 먼저 깨야 열립니다." : "앞 장을 먼저 끝내야 열립니다."}</p>`;
     if (usesTeam(st)) brief += `<div class="opt"><label>편대</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team ?? st.o.team ?? 0)}<div class="hint">윙맨이 늘면 적도 늘어납니다. 권장: ${[0, 1, 3].includes(st.o.team) ? ["혼자", "2기 편대", "", "4기 편대"][st.o.team] : "혼자"}</div></div>`;
     brief += `<div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((k) => [k, FLIGHT_MODE_INFO[k].label]), settings.flightMode, "set")}</div>`;
     brief += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
-    const body = `<p class="hint2 intro">${esc(ch.intro)}</p>`
-      + this._step(1, "챕터 선택", `${ch.no}. ${ch.title}`, `<div class="grid maps">${chCards}</div>`)
-      + this._step(2, "단계 선택", `${ch.no}-${st.no} ${st.title}`, `<div class="stages">${stCards}</div>`)
+    const body = `<p class="hint2 intro">${esc(SY.chapterIntro(ch))}</p>`
+      + this._step(1, "장 선택", `${ch.no}. ${ch.title}`, `<div class="grid maps">${chCards}</div>`)
+      + this._step(2, ch.routes ? "작전 선택 · 단계" : "단계 선택", `${rt ? rt.name + " · " : ""}${st.no}. ${st.title}`, rtCards + `<div class="stages">${stCards}</div>`)
       + this._step(3, "브리핑", "", brief);
-    return `<div class="screen split" style="--c:${m.c}">
+    return `<div class="screen split story" style="--c:${m.c}">
       <div class="pane" data-scroll>
-        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>${m.name}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${m.en}</span>노을의 날개</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
         ${body}
-        <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}-${st.no} ${esc(st.title)}</span>
+        <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} ${esc(st.title)}</span>
           <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "출격" : "잠김"} <span aria-hidden="true">→</span></button></div>
       </div>
       <div class="rcol"><div class="stage" data-stage></div></div>
@@ -478,7 +489,8 @@ export class UI {
   a_sel(v, el) {
     const k = el.dataset.k;
     this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
-    if (k === "chapter") this.sel.stage = null;
+    if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
+    if (k === "route") this.sel.stage = null;
     if (k === "course") this.sel.lesson = null;
     this._persist();
     this.redraw();
@@ -744,13 +756,13 @@ export class UI {
       ${r.sub ? `<div class="sub">${esc(r.sub)}</div>` : ""}
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
-      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>` : ""}
+      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>목표: ${esc(r.story.goal)}</span></div>${r.story.after ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
         ${r.story && r.story.next ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
         <button class="${(r.story && r.story.next) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
-        ${r.story ? `<button data-a="tostory">단계 목록으로</button>` : ""}
+        ${r.story ? `<button class="${r.story.choose ? "primary" : ""}" data-a="tostory">${r.story.choose ? "다음 장: 작전 선택 →" : "단계 목록으로"}</button>` : ""}
         ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div></div></div>`;
@@ -771,13 +783,12 @@ export class UI {
   a_nextstage(v) {
     const st = story().flat.find((x) => x.id === v);
     if (!st) return;
-    this.sel.chapter = st.chapter.id; this.sel.stage = st.id; this._persist();
+    this.sel.chapter = st.chapter.id; this.sel.route = st.route ? st.route.id : null; this.sel.stage = st.id; this._persist();
     this.game.startSession(stageConfig(st, usesTeam(st) ? this.sel.team ?? st.o.team ?? 0 : 0));
   }
   a_tostory() {
-    const cur = story().flat.find((x) => x.id === (this.game.lastCfg || {}).story), nx = cur && story().flat[cur.index + 1];
-    const to = nx && unlocked(nx) ? nx : cur;
-    if (to) { this.sel.chapter = to.chapter.id; this.sel.stage = to.id; }
+    const cur = story().flat.find((x) => x.id === (this.game.lastCfg || {}).story), nx = (cur && SY.cleared(cur) && SY.current()) || cur;
+    if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }
     this.sel.mode = "challenge"; this._persist();
     this.game.quit(); this.show("setup");
   }

@@ -63,6 +63,8 @@ export class RaceMode extends Mode {
     const lens = this.curve.getLengths(segs * DIV);
     this.L = lens[lens.length - 1];
     this.sGate = this.gates.map((_, i) => lens[(this.loop ? i : i + 1) * DIV]);
+    // 타임어택 제한 시간: 직접 주거나(limit), 코스 길이에 대한 배율(limitK, 1 = 평균 10m/s)로
+    this.tlim = this.cfg.limit || (this.cfg.limitK ? Math.round((this.L * this.laps) / 10 * this.cfg.limitK + 5) : 0);
 
     // 라이벌
     const count = clamp(this.cfg.rivals ?? 3, 0, 5);
@@ -148,6 +150,8 @@ export class RaceMode extends Mode {
     ];
     if (this.lapTimes.length) lines.push({ label: "베스트 랩", value: fmtTime(Math.min(...this.lapTimes)) });
     lines.push({ label: "최고 기록", value: fmtTime(records[this.recKey]) });
+    const lim = this.tlim;
+    if (lim) { lines.unshift({ label: "제한 시간", value: fmtTime(lim) }); return this.finish({ title: "침투 성공!", lines, record: rec, win: true, stars: total <= lim * 0.72 ? 3 : total <= lim * 0.86 ? 2 : 1 }); }
     this.finish({ title: rank === 1 ? "우승!" : "완주!", lines, record: rec, win: true, stars: rank === 1 ? 3 : rank === 2 ? 2 : 1 });
   }
 
@@ -227,6 +231,12 @@ export class RaceMode extends Mode {
   update(dt) {
     super.update(dt);
     this._moveBots(this.state === "run" || this.state === "done" ? dt : 0);
+    // 타임어택(스토리 침투 임무): 제한 시간을 넘기면 실패
+    if (this.tlim && this.state === "run" && this.time > this.tlim) {
+      if (this.guide) this.guide.setTarget(null);
+      this.s.game.sound.play("fail");
+      return this.finish({ title: "시간 초과", sub: "침투 실패 — 경보가 울렸습니다", win: false, stars: 0, lines: [{ label: "통과 게이트", value: `${this.passed} / ${this.gates.length * (this.loop ? this.laps : 1)}` }] });
+    }
     // 다음 게이트 깜빡임
     const g = this.gates[this.next];
     if (g && g.state === "next") g.mat.emissiveIntensity = 3.0 + Math.sin(this.s.time * 9) * 0.9;
@@ -250,7 +260,8 @@ export class RaceMode extends Mode {
     this.hudCountdown(h);
     if (h.lvl === "off") return;
     const full = h.lvl === "full", run = this.state === "run";
-    h.timer(fmtTime(this.time), "#fff", "#ff5a1f");
+    if (this.tlim) { const left = Math.max(0, this.tlim - this.time); h.timer(fmtTime(left), left < 10 ? "#ff6b5a" : "#fff", "#ff5a1f"); }
+    else h.timer(fmtTime(this.time), "#fff", "#ff5a1f");
 
     // 왼쪽 위: 랩 · 게이트 진행 · 최고 기록
     const gi = this.loop ? (this.passed ? ((this.passed - 1) % n) + 1 : 0) : this.passed;
