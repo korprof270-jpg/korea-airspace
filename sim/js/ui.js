@@ -379,7 +379,7 @@ export class UI {
   }
 
   _bonds() {
-    const met = { 서하린: SY.cleared({ id: "c2-4" }) || progress() >= 7, 바우: progress() >= 8, 유리: progress() >= 8, 차도윤: true, 모아: progress() >= 4, 노을: progress() >= 7 };
+    const met = { 서하린: SY.cleared({ id: "c2-4" }) || progress() >= 7, 바우: progress() >= 8, 유리: progress() >= 8, 차도윤: true, 모아: progress() >= 4, 노을: progress() >= 7, 윤채아: progress() >= 7, 진세라: progress() >= 9, 한별: progress() >= 9, 루카: progress() >= 12 };
     return `<div class="bonds">${BONDS.map((n) => {
       const v = Math.max(0, rel(n)), lv = Math.min(5, Math.floor(v / 2)), known = met[n] || v > 0;
       return `<div class="bond ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}">${portrait(n) ? `<i class="face${hasArt(n) ? " art" : ""}" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i>` : `<i class="face ini">${known ? n.replace(/^강 /, "").slice(0, 1) : "?"}</i>`}<div><b>${known ? n : "???"}</b><small>${known ? esc(SY.CAST_ROLE[n] || "") : "아직 만나지 않았다"}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></div>`;

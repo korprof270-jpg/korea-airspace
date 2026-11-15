@@ -22,12 +22,15 @@ export const CAST = {
   "EIA": "#7fd8ff", "한서윤": "#b8e0ff", "차 장군": "#d9c27a", "강도현": "#ffc46a", "XN-0": "#ffb36a",
   // 히든 2 「별의 저편」
   "아샤": "#d7a8ff", "니르바": "#c060ff", "카르타": "#9a7bff",
+  // 추가 인물
+  "윤채아": "#7ee0d2", "진세라": "#e6e1ff", "한별": "#ffb3c7", "루카": "#ffcf5a", "구철": "#c9a27a", "여명": "#ff7a9a",
 };
 export const CAST_ROLE = {
   "강 교관": "휴마 연합 비행단 교관", "모아": "정비반장 · 고철 수집가", "서하린": "편대장 · 콜사인 은빛", "바우": "중장갑 담당 · 콜사인 곰",
   "유리": "전자전 · 편대 막내", "차도윤": "라이벌 · 최신예기 ‘백야’", "노을": "시제기 XN-0", "에이아": "에이아 제국 총괄지성", "바르가": "제국 지상군단장",
   "EIA": "통합방위 AI (제국 이전)", "한서윤": "EIA 개발 책임자 · 박사", "차 장군": "통합방위청 사령관 · 차도윤의 아버지", "강도현": "시험 비행 파일럿 (젊은 강 교관)", "XN-0": "EIA의 첫 번째 기체",
   "아샤": "에일 정찰대장 · 이단자", "니르바": "에일 여제", "카르타": "에일 함대 사령관",
+  "윤채아": "비행단 관제관 · 콜사인 등대", "진세라": "연합 정보부 작전 참모", "한별": "구조 드론 의무관", "루카": "청동 편대 에이스", "구철": "폐허 시장의 밀수꾼", "여명": "제국 안드로이드 · XN-2",
 };
 
 // 단계 정의: [종류, 제목, 대사(“화자|말” 줄), 옵션]
@@ -391,9 +394,11 @@ export function postScene(st) {
 }
 // 함께 나는 동료: 관계가 깊은 순서 (차도윤은 5장을 마친 뒤부터)
 export function wingNames(st) {
-  if (st.chapter.hidden === 2) return ["서하린", "바우", "유리", "차도윤"].sort((a, b) => rel(b) - rel(a));
+  if (st.chapter.hidden === 2) return ["서하린", "바우", "유리", "차도윤", "루카", "한별", "여명"].filter((n) => n !== "여명" || records["hsflag:yeomyeongJoin"]).sort((a, b) => rel(b) - rel(a));
   if (st.chapter.hidden) return st.chapter.no <= 3 ? ["XN-0", "방위 드론 2", "방위 드론 3"] : ["질서 드론 1", "질서 드론 2", "질서 드론 3"];
   const pool = ["서하린", "바우", "유리"];
+  if (st.chapter.no >= 4) pool.push("루카");   // 청동 편대 에이스 (4장부터)
+  if (st.chapter.no >= 3) pool.push("한별");   // 구조 드론 의무관 (3장부터)
   if (st.chapter.no > 5 || (st.chapter.no === 5 && st.route && st.route.id === "b" && st.no > 1)) pool.push("차도윤");
   if (st.chapter.no < 3) return ["서하린"];
   return pool.sort((a, b) => rel(b) - rel(a));

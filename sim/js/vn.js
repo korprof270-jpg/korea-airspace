@@ -9,7 +9,7 @@ import { portrait, HAS_PORTRAIT, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 
 const IMG = "img/story/";
-export const BONDS = ["서하린", "바우", "유리", "차도윤", "모아", "노을"];
+export const BONDS = ["서하린", "바우", "유리", "차도윤", "모아", "노을", "윤채아", "진세라", "한별", "루카"];
 export const rel = (n) => records[`hsrel:${n}`] || 0;
 export const flag = (k) => !!records[`hsflag:${k}`];
 export function topBond(exclude = []) {

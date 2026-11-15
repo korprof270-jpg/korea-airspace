@@ -106,3 +106,69 @@ huge heavy humanoid war robot commander, horned helmet head with a glowing red v
 ```
 1man, tall muscular alien fleet commander warrior, heavy chitin-like armor in deep indigo with glowing violet (#9a7bff) seams, horned crest helmet partially open showing a sharp proud face with violet markings, long war cape, massive glaive, arrogant powerful stance, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights, crisp clean lineart, rim light, plain solid bright green background (#00FF00), no text, no logo, no watermark, single character only
 ```
+
+---
+
+## 추가 인물 6명 (기본 전신 + 인물별 표정 프롬프트)
+배경: 녹색 소품이 없는 인물은 `plain solid bright green background (#00FF00)`, 윤채아(청록 포인트)·여명(홀로그램 기운)은 `plain solid white background` 권장.
+표정 프롬프트는 기본 그림을 참조 이미지로 넣고 사용: `same character, same outfit, same pose, same framing, only change facial expression:` + 아래 줄.
+
+### 윤채아 (chaea) — 비행단 관제관, 콜사인 "등대"
+```
+1girl, 24 years old, air traffic controller of a drone squadron, neat black bob haircut with a small side braid, calm teal eyes, thin over-ear headset with a long mic boom, fitted dark navy controller uniform with teal (#7ee0d2) piping and a lighthouse insignia patch, rolled sleeves, clipboard tablet hugged to chest, ID lanyard, slim trousers and short boots, calm professional expression, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights on hair and eyes, crisp clean lineart, rim light, plain solid white background, no text, no logo, no watermark, single character only
+```
+- smile: `relieved warm smile with slightly teary eyes, shoulders relaxed`
+- angry: `stern furrowed brows, pressing the mic boom, shouting an order`
+- sad: `lowered eyes, biting lip, hand over the headset`
+- surprise: `wide eyes, mouth open, leaning toward an invisible screen`
+- serious: `narrowed focused eyes, closed mouth, finger on headset`
+
+### 진세라 (sera) — 연합 정보부 작전 참모
+```
+1woman, 26 years old, cold brilliant military intelligence officer, long straight platinum-lavender hair in a low ponytail, sharp violet-grey eyes behind thin frameless glasses, elegant white and pale lavender (#e6e1ff) officer uniform with a short cape over one shoulder, silver aiguillette, black gloves, holding a floating holographic map, knee-high boots, composed calculating expression, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights on hair and eyes, crisp clean lineart, rim light, plain solid bright green background (#00FF00), no shadow on background, no text, no logo, no watermark, single character only
+```
+- smile: `faint confident smirk, one eyebrow slightly raised`
+- angry: `icy glare, lips pressed thin, adjusting glasses`
+- sad: `eyes looking away, slight frown, glasses reflecting light`
+- surprise: `eyes widened behind glasses, lips parted, map flickering`
+- serious: `expressionless analytical stare, chin slightly down`
+
+### 한별 (hanbyeol) — 구조 드론 의무관
+```
+1girl, 19 years old, cheerful but timid rescue drone medic, fluffy short pink-brown hair with a star hairpin, big warm amber eyes, white and soft pink (#ffb3c7) medic flight jacket with a red cross armband, medical pouch belt, fingerless gloves, small hovering rescue drone with a cross light beside her shoulder, cargo shorts over black leggings, sturdy boots, gentle shy smile, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights on hair and eyes, crisp clean lineart, rim light, plain solid bright green background (#00FF00), no shadow on background, no text, no logo, no watermark, single character only
+```
+- smile: `bright open smile with eyes closed happily, blush`
+- angry: `puffed cheeks, determined frown, hands on medical pouch`
+- sad: `teary eyes, trembling lips, hands clasped`
+- surprise: `startled wide eyes, small open mouth, shoulders raised`
+- serious: `firm determined eyes, mouth set, like a professional medic`
+
+### 루카 (luka) — 청동 편대 에이스
+```
+1boy, 24 years old, flashy charismatic ace pilot, tousled golden-blond hair with an undercut, playful amber eyes, cocky grin with a small scar on chin, bronze and black (#ffcf5a accents) flight suit unzipped to the chest over a black tank top, bronze wing medal, aviator sunglasses pushed on his head, flight jacket slung over one shoulder, fingerless gloves, flight boots, finger guns pose, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights on hair and eyes, crisp clean lineart, rim light, plain solid bright green background (#00FF00), no shadow on background, no text, no logo, no watermark, single character only
+```
+- smile: `wide confident grin, winking`
+- angry: `bared teeth, glaring, fist clenched`
+- sad: `forced small smile with sad eyes, looking down`
+- surprise: `eyebrows shot up, mouth open, sunglasses slipping`
+- serious: `no smile, intense focused eyes, jaw set`
+
+### 구철 (gucheol) — 폐허 시장의 밀수꾼
+```
+1man, mid 50s weathered smuggler from the ruined outer towns, messy salt-and-pepper hair under a worn bandana, stubble beard, crow's feet, one mechanical prosthetic left arm with patched metal plates, sly squinting eyes, long patched brown duster coat with many pockets, scarf, scavenged goggles around neck, leather satchel full of parts, cigarette-free toothpick in mouth, worn boots, laid-back crafty grin, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading with soft painterly gradients, sharp specular highlights, crisp clean lineart, rim light, plain solid bright green background (#00FF00), no shadow on background, no text, no logo, no watermark, single character only
+```
+- smile: `crafty toothy grin, eyes squinting with amusement`
+- angry: `scowling, toothpick clenched, mechanical fist raised`
+- sad: `tired wistful eyes, faint nostalgic smile`
+- surprise: `eyebrows raised, toothpick dropping, mouth open`
+- serious: `cold calculating stare, no smile, arms crossed`
+
+### 여명 (yeomyeong) — 제국 안드로이드 · XN-2 (노을의 자매)
+```
+1girl, android girl appearing 18 years old, sister design of a holographic AI girl, short silver-white bob haircut with pale pink (#ff7a9a) glowing tips, blank crimson mechanical eyes with ring irises, porcelain-white synthetic skin with faint seam lines on cheeks and joints, sleek black and white armored bodysuit with glowing pink-red hex circuit lines, mechanical joints at elbows and knees, a broken halo frame floating behind her head, small floating combat drones at her sides, expressionless doll-like face, full body standing character art for a mobile gacha game visual novel, head to toe fully visible, centered, dynamic contrapposto pose, high-detail anime illustration, glossy cel shading, sharp specular highlights, crisp clean lineart, rim light, plain solid white background, no text, no logo, no watermark, single character only
+```
+- smile: `awkward first smile, eyes softening to warm pink, halo glowing`
+- angry: `eyes glowing bright red, slight frown, circuit lines flaring`
+- sad: `a single tear of light, eyes dimmed, head tilted`
+- surprise: `eyes widened with flickering irises, lips parted, halo flickering`
+- serious: `blank mechanical stare, red ring irises, perfectly still`  ← 등장 초반 기본 표정으로도 사용

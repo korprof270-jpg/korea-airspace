@@ -1,7 +1,7 @@
 import fs from "fs";
 const { SCENES, RADIO } = await import("/home/user/korea-airspace/sim/js/scenes.js");
 const imgs = new Set(fs.readdirSync("/home/user/korea-airspace/sim/img/story").map((f) => f.replace(".jpg", "")));
-const rooms = new Set(["briefing", "hangarin", "black", "night", "lab", "control"]), who = new Set(["강 교관", "모아", "서하린", "바우", "유리", "차도윤", "노을", "관제", "에이아", "바르가", "나", "EIA", "한서윤", "차 장군", "강도현", "XN-0", "아샤", "니르바", "카르타"]);
+const rooms = new Set(["briefing", "hangarin", "black", "night", "lab", "control"]), who = new Set(["강 교관", "모아", "서하린", "바우", "유리", "차도윤", "노을", "관제", "에이아", "바르가", "나", "EIA", "한서윤", "차 장군", "강도현", "XN-0", "아샤", "니르바", "카르타", "윤채아", "진세라", "한별", "루카", "구철", "여명"]);
 const ex = new Set(["normal", "smile", "angry", "sad", "surprise", "serious", undefined]);
 let n = 0, ch = 0; const bad = [];
 const walk = (L, k) => { for (const it of L || []) {
@@ -15,7 +15,7 @@ const walk = (L, k) => { for (const it of L || []) {
       for (const key of Object.keys(m)) if (!["team", "wing", "power", "diff", "bots", "time", "boss", "objAdd", "objDel", "objNeed", "note", "laps", "rivals", "limitK"].includes(key)) bad.push(k + " mod key " + key);
       for (const o of m.objAdd || []) if (!["win", "rank", "crash", "kills", "boss", "truck", "core", "time", "stars", "keep", "hp"].includes(o.t)) bad.push(k + " objAdd " + o.t);
       if (m.wing && m.team !== undefined && m.wing.length < m.team) bad.push(k + " wing shorter than team");
-    } for (const r of Object.keys(c.rel || {})) if (!["서하린","바우","유리","차도윤","모아","노을"].includes(r)) bad.push(k + " rel " + r); } }
+    } for (const r of Object.keys(c.rel || {})) if (!["서하린","바우","유리","차도윤","모아","노을","윤채아","진세라","한별","루카"].includes(r)) bad.push(k + " rel " + r); } }
   else if (it.if) { walk(it.then, k); walk(it.else, k); }
 } };
 for (const [k, v] of Object.entries(SCENES)) { walk(v.pre, k); walk(v.post, k); }
