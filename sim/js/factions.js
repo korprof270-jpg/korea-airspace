@@ -364,7 +364,7 @@ function eiaTick(kind, N, ph) {
     case "ace": return (dt, thr, t) => {
       const s = Math.sin(t * 2.4 + ph);
       N.armL.rotation.y = -0.15 + s * 0.12; N.armR.rotation.y = 0.15 - s * 0.12;
-      N.bladeL.rotation.x = 0.1 + Math.max(0, Math.sin(t * 1.1 + ph)) ** 6 * 0.8; N.bladeR.rotation.x = 0.1 + Math.max(0, Math.sin(t * 1.1 + ph + 1.5)) ** 6 * 0.8;
+      N.bladeL.rotation.x = 0.1 + Math.max(0, Math.sin(t * 1.1 + ph)) ** 6 * 0.5; N.bladeR.rotation.x = 0.1 + Math.max(0, Math.sin(t * 1.1 + ph + 1.5)) ** 6 * 0.5;
       N.head.rotation.y = Math.sin(t * 0.9 + ph) * 0.25;
       N.body.position.y = Math.sin(t * 3 + ph) * 0.03;
       fl(thr, t);
