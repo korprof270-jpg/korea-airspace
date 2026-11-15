@@ -12,5 +12,9 @@ export const ART = {
   "강 교관": { id: "kang", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   서하린: { id: "harin", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   유리: { id: "yuri", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  한서윤: { id: "seoyun", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  "차 장군": { id: "general", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  강도현: { id: "dohyun", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
+  EIA: { id: "eia0", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 서하린: { id: "harin", ext: "png", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
 };

@@ -442,7 +442,7 @@ const AIL_BUILD = {
     const b = node(R, "body");
     put(b, "skin", sph(0.21, 10, 8), [0, 0.02, -0.78], 0, [1, 0.85, 0.9]);
     for (const sx of [-1, 1]) {
-      put(b, "accG", sph(0.13, 10, 8), [sx * 0.13, 0.08, -0.84]);             // 겹눈 (계급 색)
+      put(b, "accG", sph(0.11, 10, 8), [sx * 0.12, 0.07, -0.84]);             // 겹눈 (계급 색)
       put(b, "shell", cone(0.04, 0.22, 5), [sx * 0.07, -0.08, -0.98], [-PI / 2 - 0.5, 0, sx * 0.4]);   // 턱
       for (let k = 0; k < 3; k++) rod(b, "shell", cyl(0.018, 0.012, 1, 4), [sx * 0.1, -0.15, -0.5 + k * 0.15], [sx * 0.35, -0.42, -0.62 + k * 0.2]);
     }
@@ -465,7 +465,7 @@ const AIL_BUILD = {
     [[-1, -0.48], [1, -0.48], [-1, -0.25], [1, -0.25]].forEach(([sx, z], i) => {
       const w = node(b, "w" + i, sx * 0.1, 0.2, z);
       const L = i < 2 ? 1.05 : 0.95;
-      put(w, "membrane", sph(0.5, 10, 4), [sx * L * 0.5, 0, 0], [0, sx * (i < 2 ? 0.12 : -0.18), 0], [L, 0.03, 0.2]);
+      put(w, "membrane", sph(0.5, 10, 4), [sx * L * 0.5, 0, 0], [0, sx * (i < 2 ? 0.12 : -0.18), 0], [L, 0.03, 0.34]);
       rod(w, "pale", box(1, 1, 1), [0, 0.02, -0.06], [sx * L * 0.95, 0.02, -0.04], 0.022, 0.02);
       put(w, "accG", sph(0.03, 5, 3), [sx * L * 0.96, 0.02, sx * (i < 2 ? -0.05 : 0.07)]);
     });
@@ -475,11 +475,11 @@ const AIL_BUILD = {
     const b = node(R, "body"); b.rotation.x = -1.05;   // 종 꼭대기가 앞(-z)을 향해 기운다
     const bell = node(b, "bell");
     put(bell, "jelly", sph(0.62, 14, 7, 0, TAU, 0, PI * 0.56));
-    put(bell, "skin", sph(0.36, 10, 6, 0, TAU, 0, PI * 0.5), [0, 0.12, 0]);
-    put(bell, "pale", tor(0.6, 0.04, 3, 16), [0, -0.11, 0], [PI / 2, 0, 0]);
-    for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; put(bell, "vein", box(0.03, 0.5, 0.02), [Math.cos(a) * 0.45, 0.3, Math.sin(a) * 0.45], qDir([Math.cos(a), 0.9, Math.sin(a)])); }
-    const core = node(b, "core", 0, 0.1, 0);
-    put(core, "accG", ico(0.22, 1));
+        put(bell, "pale", tor(0.6, 0.04, 3, 16), [0, -0.11, 0], [PI / 2, 0, 0]);
+    for (let i = 0; i < 8; i++) put(bell, "vein", tor(0.63, 0.016, 3, 8, PI * 0.42), [0, 0, 0], [0, (i / 8) * TAU, 0.06]);
+    put(bell, "skin", tor(0.3, 0.07, 4, 12), [0, -0.02, 0], [PI / 2, 0, 0]);
+    const core = node(b, "core", 0, 0.12, 0);
+    put(core, "accG", ico(0.25, 1));
     const tn = [];
     for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + 0.3; tn.push(tentacle(b, "t" + i + "_", Math.cos(a) * 0.46, -0.1, Math.sin(a) * 0.46, 2, 0.5, 0.06)); }
     for (let i = 0; i < 2; i++) tentacle(b, "o" + i + "_", (i ? 1 : -1) * 0.12, -0.05, 0, 2, 0.4, 0.09, "membrane", "vein");

@@ -7,8 +7,9 @@ import palace from "./palace.js";
 import snow from "./snow.js";
 import island from "./island.js";
 import moon from "./moon.js";
+import orbit from "./orbit.js";
 
-export const MAP_LIST = [city, canyon, factory, arena, palace, snow, island, moon];
+export const MAP_LIST = [city, canyon, factory, arena, palace, snow, island, moon, orbit];
 import { addSubjects } from "./extra-subjects.js";
 addSubjects(MAP_LIST);
 export const MAPS = Object.fromEntries(MAP_LIST.map((m) => [m.id, m]));
