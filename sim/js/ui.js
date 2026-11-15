@@ -899,14 +899,14 @@ export class UI {
     if (pre && (force || !SY.sceneSeen(st))) {
       if (this.game.session) { this.game.session.dispose(); this.game.session = null; this.game.state = "menu"; }
       this.hide();
-      this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.chapter.title}`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); go(); } });
+      this.vn.play(pre, { key: `${st.id}:pre`, title: st.title, sub: `CHAPTER ${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.chapter.title}`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); go(); } });
     } else go();
   }
   // 출격 전 장면 다시 보기 (출격하지 않음)
   a_scene() {
     const st = story().flat.find((x) => x.id === this.sel.stage), pre = st && SY.preScene(st);
     if (!pre) return;
-    this.vn.play(pre, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 다시 보기`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); this.redraw(); } });
+    this.vn.play(pre, { key: `${st.id}:pre`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 다시 보기`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => { SY.markSeen(st); this.redraw(); } });
   }
   // 통과 후 장면 → (다음 단계가 이어지면) 그 단계의 출격 전 장면 → 출격
   a_storypost(v) {
@@ -914,7 +914,7 @@ export class UI {
     if (!post) return;
     this.game.quit();
     this.hide();
-    this.vn.play(post, { title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => {
+    this.vn.play(post, { key: `${st.id}:post`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => {
       const nx = SY.nextOf(st) || SY.current();
       if (nx && nx.chapter.hidden && nx.chapter.hidden !== st.chapter.hidden) {   // 이야기 완결 → 다음 히든 스토리 해금 안내
         this.sel.mode = "challenge"; this.sel.chapter = nx.chapter.id; this.sel.route = null; this.sel.stage = nx.id; this._persist();

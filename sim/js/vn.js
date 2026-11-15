@@ -9,6 +9,16 @@ import { portrait, HAS_PORTRAIT, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 
 const IMG = "img/story/";
+// 단계 작전 변경 = 장면별 조각을 순서대로 합친 것
+function remod(sid) {
+  const parts = records[`hsmodp:${sid}`] || {}, vals = Object.values(parts);
+  if (!vals.length) delete records[`hsmod:${sid}`];
+  else records[`hsmod:${sid}`] = vals.reduce((a, m) => Object.assign(a, m, m.boss && a.boss ? { boss: Object.assign({}, a.boss, m.boss) } : {}), {});
+}
+export function clearSceneMods(key) {
+  if (!key) return;
+  for (const k of Object.keys(records)) if (k.startsWith("hsmodp:") && records[k][key]) { delete records[k][key]; remod(k.slice(7)); }
+}
 export const BONDS = ["서하린", "바우", "유리", "차도윤", "모아", "노을", "윤채아", "진세라", "한별", "루카"];
 export const rel = (n) => records[`hsrel:${n}`] || 0;
 export const flag = (k) => !!records[`hsflag:${k}`];
@@ -39,6 +49,7 @@ export class VN {
   play(lines, opts = {}) {
     if (this.el) this.close(false);
     this.opts = opts;
+    clearSceneMods(opts.key);   // 다시 보는 장면이면 그 장면이 남긴 작전 변경부터 지운다
     this.stack = [{ list: lines, i: 0 }];
     this.slots = [null, null]; this.last = null; this.auto = false; this.ff = false; this.log = [];
     const el = (this.el = document.createElement("div"));
@@ -230,7 +241,12 @@ export class VN {
     if (c.rel) for (const [n, v] of Object.entries(c.rel)) { records[`hsrel:${n}`] = rel(n) + v; msg.push(`${n} ${v > 0 ? "♥ +" + v : v}`); }
     if (c.flag) records[`hsflag:${c.flag}`] = 1;
     // 작전 변경: { 단계id: { team, wing, power, diff, bots, time, boss, objAdd, objDel, note } }
-    if (c.mod) for (const [sid, m] of Object.entries(c.mod)) { const k = `hsmod:${sid}`; records[k] = Object.assign({}, records[k] || {}, m); if (m.note) msg.push("작전 변경"); }
+    // 장면별로 따로 보관해 합친다: 같은 장면을 다시 보며 다르게 고르면 그 장면의 이전 선택은 지워진다
+    if (c.mod) for (const [sid, m] of Object.entries(c.mod)) {
+      const pk = `hsmodp:${sid}`, src = this.opts.key || "?", parts = records[pk] || {};
+      parts[src] = Object.assign({}, parts[src] || {}, m); records[pk] = parts; remod(sid);
+      if (m.note) msg.push("작전 변경");
+    }
     if (c.route) { const [ch, id] = c.route.split(":"); records[`hspick:${ch}`] = id; msg.push("작전 결정"); }
     save();
     if (msg.length) this._toast(msg.join("   "));
