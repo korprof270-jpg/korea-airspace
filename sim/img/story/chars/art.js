@@ -8,6 +8,7 @@ export const ART = {
   바우: { id: "bau", ext: "webp", exprs: ["normal"] },
   유리: { id: "yuri", ext: "webp", exprs: ["normal"] },
   차도윤: { id: "doyun", ext: "webp", exprs: ["normal"] },
+  모아: { id: "moa", ext: "webp", exprs: ["normal"] },
   // 노을: { id: "noeul", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 에이아: { id: "eia", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 바르가: { id: "varga", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
