@@ -614,6 +614,7 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .vn-btns button { background: none; border: 0; padding: 4px 2px; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); display: inline-flex; align-items: center; gap: 6px; }
 .vn-btns button .ic { font-size: 12px; opacity: 0.9; }
 .vn-btns button.on { background: none; color: #5ff0ff; }
+.vn-btns button.vn-mute .ic { font-size: 15px; opacity: 1; }
 .vn-box { width: min(880px, calc(100% - 28px)); min-height: 96px; padding: 22px 30px 20px; border-radius: 4px; background: linear-gradient(180deg, rgba(10, 16, 26, 0.86), rgba(6, 10, 18, 0.9)); border: 1px solid rgba(120, 200, 255, 0.28); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55); bottom: max(9vh, 22px); }
 .vn-box .cn { position: absolute; width: 12px; height: 12px; border: 2px solid #5ff0ff; pointer-events: none; }
 .vn-box .cn.tl { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }

@@ -107,8 +107,10 @@ export const DEFAULTS = {
   touchSticks: "auto",      // auto | on | off
   quality: "med",           // low | med | high
   qualityAuto: true,        // 느리면 알아서 한 단계 낮춘다 (설정에서 직접 고르면 꺼진다)
-  volume: 0.6,
-  musicVolume: 0.5,
+  volume: 0.6,              // 효과음
+  musicVolume: 0.5,         // 음악
+  voiceVolume: 0.7,         // 대사(대화 넘김·화자 소리)
+  mute: false,
   difficulty: "normal",
   // HUD 표시 항목 (설정에서 켜고 끔). density: full | minimal | off, opacity 0.3~1, scale 0.8~1.3
   hud: {

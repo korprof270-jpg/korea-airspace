@@ -1,10 +1,13 @@
 // 스토리 대화 장면: 배경·CG 일러스트 위에 인물 초상화와 대사, 선택지. 관계도·분기 기록
 //  장면 대본 = 배열. 항목:
 //   "@bg 키" 배경 · "@cg 키" 일러스트(인물 숨김) · "@cg -" 일러스트 끝 · "@sfx 소리" · "@shake" · "@flash" · "@clear" 인물 퇴장
+//   "@bgm 분위기" 음악 (cues.js MOODS: calm daily tense sad resolve mystery eia space) · "@bgm -" 음악 끄기 · "@bgm auto" 배경 기본값으로
+//     정하지 않으면 @bg 마다 BG_MOOD 기본 분위기. 바로 뒤(대사 전)에 @bgm 이 오면 그쪽이 이긴다
 //   "화자:표정|대사"  "|지문"   (표정: normal smile angry sad surprise serious)
 //   { choice: [{ t: "선택지", rel: { 서하린: 1 }, route: "c4:a", flag: "이름", then: [...] }], q: "질문(선택)" }
 //   { if: "rel 서하린>=2" | "flag 이름" | "route c4=a" | "top 서하린", then: [...], else: [...] }
-import { records, save } from "./config.js";
+import { records, save, settings } from "./config.js";
+import { MOODS, BG_MOOD } from "./cues.js";
 import { portrait, HAS_PORTRAIT, hasArt, artScale } from "./portraits.js";
 import { CAST } from "./story.js";
 
@@ -39,6 +42,17 @@ function test(cond) {
 // 실내 배경은 그림 파일 없이 CSS로
 const ROOMS = { briefing: "vn-room briefing", hangarin: "vn-room hangarin", black: "vn-room black", night: "vn-room night", lab: "vn-room lab", control: "vn-room control" };
 
+// 화자가 바뀔 때 나는 짧은 소리: 인물마다 음높이를 조금씩 다르게 (없는 인물은 이름으로 정한다)
+const VOICE_PITCH = { "나": 1, "강 교관": 0.74, "모아": 1.32, "서하린": 1.16, "바우": 0.8, "유리": 1.24, "차도윤": 0.92, "노을": 1.2,
+  "한서윤": 1.1, "차 장군": 0.7, "강도현": 0.9, "아샤": 1.18, "니르바": 1.05, "카르타": 0.82, "윤채아": 1.14, "진세라": 1.02, "한별": 1.28, "루카": 0.96, "구철": 0.76 };
+const MACHINE = new Set(["에이아", "EIA", "XN-0", "바르가", "여명"]), RADIO_V = new Set(["관제"]);
+function voiceOf(who) {
+  if (RADIO_V.has(who)) return ["vblipr", 1];
+  let p = VOICE_PITCH[who];
+  if (p === undefined) { let h = 0; for (const c of who) h = (h * 31 + c.charCodeAt(0)) >>> 0; p = 0.82 + (h % 40) / 100; }
+  return [MACHINE.has(who) ? "vblipm" : "vblip", p];
+}
+
 export class VN {
   constructor(game) {
     this.game = game;
@@ -52,20 +66,28 @@ export class VN {
     clearSceneMods(opts.key);   // 다시 보는 장면이면 그 장면이 남긴 작전 변경부터 지운다
     this.stack = [{ list: lines, i: 0 }];
     this.slots = [null, null]; this.last = null; this.auto = false; this.ff = false; this.log = [];
+    this.voiced = null; this.hover = -1;
+    this.bgm = "calm"; this.bgmSet = undefined; this.bgmNow = undefined;   // 대본이 배경을 정하지 않아도 평온한 곡으로 시작
     const el = (this.el = document.createElement("div"));
     el.className = "vn";
     el.innerHTML = `<div class="vn-bg"><div class="vn-img a"></div><div class="vn-img b"></div></div><div class="vn-cg"></div>
       <div class="vn-chars"><img class="vn-ch l" alt=""><img class="vn-ch r" alt=""></div>
       <div class="vn-top">${opts.title ? `<div class="vn-title"><small>${esc(opts.sub || "")}</small>${esc(opts.title)}</div>` : "<div></div>"}
-        <div class="vn-btns"><button data-v="auto"><span class="ic">⟳</span>AUTO</button><button data-v="log"><span class="ic">☰</span>LOG</button><button data-v="skip"><span class="ic">▶▶</span>SKIP</button></div></div>
+        <div class="vn-btns"><button data-v="auto"><span class="ic">⟳</span>AUTO</button><button data-v="log"><span class="ic">☰</span>LOG</button><button data-v="skip"><span class="ic">▶▶</span>SKIP</button><button data-v="mute" class="vn-mute" aria-label="소리 끄기/켜기"><span class="ic"></span></button></div></div>
       <div class="vn-box"><i class="cn tl"></i><i class="cn tr"></i><i class="cn bl"></i><i class="cn br"></i><div class="vn-name"></div><div class="vn-text"></div><div class="vn-next">▼</div></div>
       <div class="vn-log"><div class="vn-logh"><b>대화 기록</b><button data-v="logx">닫기 ✕</button></div><div class="vn-logl"></div></div>
       <div class="vn-choices"></div><div class="vn-toast"></div><div class="vn-flash"></div>`;
     document.body.appendChild(el);
     this.$ = (q) => el.querySelector(q);
     this.bgFlip = 0;
+    this._muteIcon();
+    // 선택지 위에 올리거나(마우스) 키보드로 옮기면 작게 딸깍
+    const hov = (e) => { const b = e.target.closest && e.target.closest(".vn-choices button"); const i = b ? +b.dataset.c : -1; if (i !== this.hover) { this.hover = i; if (i >= 0 && this.choosing) this._cue("chover", 0.8, 0.9 + i * 0.06); } };
+    el.addEventListener("pointerover", hov); el.addEventListener("focusin", hov);
     el.addEventListener("pointerdown", (e) => {
       const b = e.target.closest("button");
+      if (b && b.dataset.v === "mute") { settings.mute = !settings.mute; save(); try { this.game.sound.applyVolumes(); } catch (_) { /* 소리 없음 */ } this._muteIcon(); if (!settings.mute) this._cue("click"); return; }
+      if (b && b.dataset.v) this._cue("click", 0.7);
       if (b && b.dataset.v === "auto") { this.auto = !this.auto; b.classList.toggle("on", this.auto); if (this.auto && !this.typing) this._autoNext(); return; }
       if (b && b.dataset.v === "skip") { this.ff = true; this._advance(); return; }
       if (b && b.dataset.v === "log") { this._showLog(true); return; }
@@ -73,7 +95,7 @@ export class VN {
       if (e.target.closest(".vn-log")) return;
       if (b && b.dataset.c !== undefined) return this._pick(+b.dataset.c);
       if (e.target.closest(".vn-choices") || b) return;
-      this._advance();
+      this._advance(true);
     });
     this._key = (e) => {
       if (!this.el) return;
@@ -82,7 +104,7 @@ export class VN {
       if (this.logOpen) { if (e.code === "Escape" || e.code === "KeyL") this._showLog(false); return; }
       if (e.code === "KeyL") { this._showLog(true); return; }
       if (this.choosing) { const n = +e.key; if (n >= 1 && n <= this.choosing.length) { e.preventDefault(); this._pick(n - 1); } return; }
-      if (e.code === "Space" || e.code === "Enter" || e.code === "ArrowRight") { e.preventDefault(); this._advance(); }
+      if (e.code === "Space" || e.code === "Enter" || e.code === "ArrowRight") { e.preventDefault(); this._advance(true); }
       else if (e.code === "Escape") { e.preventDefault(); this.ff = true; this._advance(); }
     };
     window.addEventListener("keydown", this._key, true);
@@ -94,6 +116,7 @@ export class VN {
     if (!this.el) return;
     clearTimeout(this.tt); clearTimeout(this.at); clearTimeout(this.fft);
     window.removeEventListener("keydown", this._key, true);
+    try { this.game.music && this.game.music.setMood(null); } catch (_) { /* 음악 없음 */ }   // 맵·메뉴 곡으로 돌아간다 (onDone 이 곧 새 곡을 정할 수 있다)
     const el = this.el; this.el = null;
     el.classList.remove("in"); setTimeout(() => el.remove(), 350);
     if (done && this.opts.onDone) this.opts.onDone();
@@ -132,7 +155,8 @@ export class VN {
       if (a === "-") { cg.classList.remove("on"); this.el.classList.remove("cgmode"); }
       else { cg.style.backgroundImage = `url(${IMG}${a}.jpg)`; cg.classList.remove("on"); void cg.offsetWidth; cg.classList.add("on"); this.el.classList.add("cgmode"); }
     }
-    else if (c === "sfx") { try { this.game.sound.play(a); } catch (e) { /* 소리 없음 */ } }
+    else if (c === "sfx") { if (!this.ff) try { this.game.sound.play(a); } catch (e) { /* 소리 없음 */ } }
+    else if (c === "bgm") { this.bgmSet = a === "auto" ? this.bgm : a === "-" || MOODS[a] ? a : undefined; }
     else if (c === "shake") { this.el.classList.remove("shake"); void this.el.offsetWidth; this.el.classList.add("shake"); }
     else if (c === "flash") { const f = this.$(".vn-flash"); f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); }
     else if (c === "clear") { this.slots = [null, null]; this._chars(null); }
@@ -143,7 +167,17 @@ export class VN {
     a.className = `vn-img ${this.bgFlip ? "b" : "a"} ${ROOMS[k] || ""}`;
     a.style.backgroundImage = ROOMS[k] ? "" : `url(${IMG}${k}.jpg)`;
     a.classList.add("on"); b.classList.remove("on");
+    if (BG_MOOD[k]) { this.bgm = BG_MOOD[k]; this.bgmSet = undefined; }   // 배경이 바뀌면 그 배경의 기본 분위기 (바로 뒤 @bgm 이 덮어쓴다)
   }
+  // 쌓인 음악 지시를 대사가 나올 때 한 번에 반영 (배경과 @bgm 이 연달아 와도 곡이 한 번만 바뀐다)
+  _music() {
+    const m = this.bgmSet !== undefined ? this.bgmSet : this.bgm;
+    if (m === this.bgmNow) return;
+    this.bgmNow = m;
+    try { this.game.music && this.game.music.setMood(m); } catch (_) { /* 음악 없음 */ }
+  }
+  _cue(name, vol = 1, pitch = 1) { try { this.game.sound && this.game.sound.cue(name, vol, 0, pitch); } catch (_) { /* 소리 없음 */ } }
+  _muteIcon() { const b = this.el && this.$(".vn-mute"); if (b) { b.querySelector(".ic").textContent = settings.mute ? "🔇" : "🔊"; b.classList.toggle("on", !!settings.mute); } }
 
   // 화자를 왼쪽/오른쪽 자리에 세운다. 새 인물은 직전 화자가 아닌 쪽 자리로
   _place(who) {
@@ -177,6 +211,10 @@ export class VN {
     const [who, expr] = head.split(":");
     const name = this.$(".vn-name"), box = this.$(".vn-box");
     let active = null;
+    if (!this.ff) this._music();   // 빨리 넘기는 동안에는 곡을 바꾸지 않고, 멈춘 곳(선택지)에서 맞춘다
+    // 화자가 바뀌면 인물마다 음높이가 다른 짧은 소리 (빨리 넘기기 중에는 생략)
+    if (who && who !== this.voiced && !this.ff) { const [snd, p] = voiceOf(who); this._cue(snd, 0.9, p); }
+    this.voiced = who || null;
     if (who) {
       const i = this._place(who);
       if (i >= 0) { this.slots[i].expr = expr || "normal"; active = i; }
@@ -214,8 +252,9 @@ export class VN {
     if (this.auto) this._autoNext();
   }
   _autoNext() { clearTimeout(this.at); this.at = setTimeout(() => { if (this.el && !this.typing && !this.choosing && !this.logOpen) this._step(); }, 1100 + this.full.length * 45); }
-  _advance() {
+  _advance(user = false) {
     if (!this.el || this.choosing || this.logOpen) return;
+    if (user && !this.ff) this._cue("vtick", this.typing ? 0.6 : 1);
     if (this.typing) { clearTimeout(this.tt); this.$(".vn-text").textContent = this.full; this._typed(); return; }
     clearTimeout(this.at);
     this._step();
@@ -223,7 +262,8 @@ export class VN {
 
   _choice(it) {
     this.ff = false; clearTimeout(this.fft);
-    this.choosing = it.choice;
+    this._music();
+    this.choosing = it.choice; this.hover = -1;
     const box = this.$(".vn-choices");
     if (it.q) { this.$(".vn-name").classList.remove("on"); this.$(".vn-box").classList.add("narr"); this.$(".vn-text").textContent = it.q; this.$(".vn-next").classList.remove("on"); }
     box.innerHTML = it.choice.map((c, i) => {
@@ -231,7 +271,7 @@ export class VN {
       return `<button data-c="${i}"><span class="k">${i + 1}</span><span class="t">${esc(c.t)}</span>${hint}</button>`;
     }).join("");
     box.classList.add("on");
-    this.game.sound && this.game.sound.play("beep", 0.5);
+    this._cue("chopen", 0.8);
   }
   _pick(i) {
     const c = this.choosing && this.choosing[i];
@@ -251,7 +291,9 @@ export class VN {
     if (c.route) { const [ch, id] = c.route.split(":"); records[`hspick:${ch}`] = id; msg.push("작전 결정"); }
     save();
     if (msg.length) this._toast(msg.join("   "));
-    this.game.sound && this.game.sound.play(c.rel ? "pickup" : "gate", 0.6);
+    this._cue("chpick", 0.9);
+    if (c.rel && Object.values(c.rel).some((v) => v > 0)) this._cue("bond", 0.8);
+    else if (c.route || c.mod) this._cue("lock", 0.45);
     this.log.push(["선택", c.t, "#3dd68c"]);
     this._push(c.then);
     this._push([(this.opts.me || "나") + "|" + c.t]);   // 선택한 말은 주인공(히든 스토리는 EIA)이 한다

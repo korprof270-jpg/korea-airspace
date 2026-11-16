@@ -1,6 +1,7 @@
 // 배경 음악: 외부 파일 없이 WebAudio 로 맵 테마별 곡을 즉석에서 연주한다
 // 기본은 118 BPM 안팎의 브라스 펑크(정박 킥·슬랩 베이스·클라비/EP 엇박·관악 섹션 스탭과 리프). 힙합 틀(808·트랩 햇)도 남겨 둔다
 // 둘 다 밝은 장조·믹솔리디안 계열. 맵마다 리드 악기(브라스·일렉 피아노·가야금·종·마림바)와 환경음만 바꿔 테마를 입힌다
+// 대화 장면은 따로 "분위기 곡"(MOODS)을 쓴다: 느린 패드·아르페지오·베이스 위주로 노드를 적게 쓰고, 바꿀 때 몇 초에 걸쳐 교차한다
 import { settings } from "./config.js";
 
 const MAJ = [0, 2, 4, 5, 7, 9, 11], MIX = [0, 2, 4, 5, 7, 9, 10], DOR = [0, 2, 3, 5, 7, 9, 10], PENT = [0, 2, 4, 7, 9];
@@ -24,6 +25,38 @@ const THEMES = {
   orbit: { style: "funk", bpm: 120, root: 49, scale: DOR, chords: [I7, bVII, IV7, I7], lead: "brass", brass: true, keys: "ep", amb: "drone" },
 };
 
+// ── 대화 분위기 곡 ──
+const AEOL = [0, 2, 3, 5, 7, 8, 10], PHR = [0, 1, 3, 5, 7, 8, 10], PHRD = [0, 1, 4, 5, 7, 8, 10], LYD = [0, 2, 4, 6, 7, 9, 11];
+const i_ = [0, 2, 4], VI = [5, 7, 9], III = [2, 4, 6], VII = [6, 8, 10], bII = [1, 3, 5], I9 = [0, 2, 4, 8], IVM7 = [3, 5, 7, 9], vi7 = [5, 7, 9, 11];
+// bars: 화음 하나의 길이(마디) · pad: 패드 음색 · arp: 아르페지오(16칸, 숫자 = 화음 음 순서, +숫자 = 한 옥타브 위, rand = 드문드문) · inst: 아르페지오 악기
+// bass: 베이스 패턴과 음색 · perc: 타악 패턴 · lead: 선율 악기와 밀도 · build: 이 마디부터 타악·선율이 들어온다 · fb: 지연 되먹임
+const MOODS = {
+  calm: { bpm: 76, root: 53, scale: MAJ, chords: [IVM7, I9, vi7, V], bars: 2, pad: "warm", padVol: 0.09,
+    arp: "0...1...2...+0...", inst: "ep", arpVol: 0.13, bass: "x.......x.......", bassKind: "sine", lead: "ep", leadP: 0.22, build: 4, fb: 0.3 },
+  daily: { bpm: 98, root: 55, scale: MAJ, chords: [IV7, I, ii, V], bars: 1, pad: "soft", padVol: 0.05,
+    arp: "0.1.2.1.+0.2.1.2.", inst: "marimba", arpVol: 0.11, bass: "x..x..x.x.......", bassKind: "round",
+    perc: { kick: "x.......x.......", rim: "....x.......x...", hat: "..x...x...x...x." }, lead: "marimba", leadP: 0.3, build: 2, fb: 0.18 },
+  tense: { bpm: 104, root: 50, scale: PHR, chords: [i_, i_, bII, i_], bars: 2, pad: "dark", padVol: 0.07,
+    arp: "", bass: "x.x.x.x.x.x.x.x.", bassKind: "pulse", perc: { kick: "x.....x.........", tick: "xxxxxxxxxxxxxxxx" }, lead: "bell", leadP: 0.08, build: 2, fb: 0.35 },
+  sad: { bpm: 64, root: 57, scale: AEOL, chords: [i_, VI, III, VII], bars: 2, pad: "strings", padVol: 0.075,
+    arp: "0...2...+0...2...", inst: "piano", arpVol: 0.12, bass: "x...............", bassKind: "sine", lead: "piano", leadP: 0.3, build: 2, fb: 0.32 },
+  resolve: { bpm: 100, root: 50, scale: AEOL, chords: [i_, VI, III, VII], bars: 1, pad: "brass", padVol: 0.07,
+    arp: "012+0012+0012+0012+0", inst: "pluck", arpVol: 0.07, bass: "x.x.x.x.x.x.x.x.", bassKind: "pulse",
+    perc: { kick: "x...x...x...x...", snare: "....x.......x...", hat: "..x...x...x...x." }, lead: "horn", leadP: 0.28, build: 4, fb: 0.25 },
+  mystery: { bpm: 70, root: 52, scale: LYD, chords: [i_, bII, i_, VII], bars: 2, pad: "glass", padVol: 0.07,
+    arp: "rand", inst: "bell", arpVol: 0.09, bass: "x...............", bassKind: "sine", lead: null, build: 2, fb: 0.45, amb: "drone" },
+  eia: { bpm: 92, root: 49, scale: PHRD, chords: [i_, bII, i_, VII], bars: 1, pad: "metal", padVol: 0.05,
+    arp: "0.0+0.0.1.0.0+0.2.", inst: "square", arpVol: 0.06, bass: "x.xx.x.xx.x.x.xx", bassKind: "pulse",
+    perc: { kick: "x.....x...x.....", metal: "....x.......x...", tick: "x.x.x.x.x.x.x.x." }, lead: null, build: 2, fb: 0.3 },
+  space: { bpm: 58, root: 50, scale: LYD, chords: [I9, bII, vi7, I9], bars: 4, pad: "air", padVol: 0.08,
+    arp: "rand", inst: "bell", arpVol: 0.07, bass: "x...............", bassKind: "sub", lead: null, build: 1, fb: 0.5, amb: "drone" },
+};
+// 아르페지오 문자열을 16칸 배열로: 숫자 = 화음 음 순서, "+숫자" = 한 옥타브 위 (+ 는 칸을 차지하지 않는다)
+for (const m of Object.values(MOODS)) {
+  m.style = "mood";
+  if (m.arp && m.arp !== "rand") { const cells = []; for (let i = 0; i < m.arp.length; i++) { const c = m.arp[i]; if (c === "+") { cells.push({ k: +m.arp[++i], up: 1 }); } else cells.push(c === "." ? null : { k: +c, up: 0 }); } m.arpCells = cells.slice(0, 16); }
+}
+
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -37,11 +70,15 @@ export class Music {
   }
 
   setTheme(id) { this.want = THEMES[id] ? id : "menu"; }
-  setVolume() { if (this.out) this.out.gain.setTargetAtTime(settings.musicVolume * 1.1, this.sound.ctx.currentTime, 0.05); }
+  // 대화 장면 분위기: null = 맵·메뉴 곡으로 복귀, "-" = 무음, 그 밖에는 MOODS 키
+  setMood(k) { this.mood = k == null ? null : k === "-" || MOODS[k] ? k : null; }
+  get moodPlaying() { return this.theme && this.theme.startsWith("m:") ? this.theme.slice(2) : null; }
+  _target() { return this.mood == null ? this.want : this.mood === "-" ? "" : "m:" + this.mood; }
+  setVolume() { if (this.out) this.out.gain.setTargetAtTime(settings.musicVolume * 0.66, this.sound.ctx.currentTime, 0.05); }
 
   _init() {
     const ctx = this.sound.ctx;
-    this.out = ctx.createGain(); this.out.gain.value = settings.musicVolume * 1.1;
+    this.out = ctx.createGain(); this.out.gain.value = settings.musicVolume * 0.66;   // 효과음 음량과 따로 (예전 master 0.6 배와 같은 크기)
     this.out.connect(this.sound.master);
     this.comp = ctx.createDynamicsCompressor();
     this.comp.threshold.value = -18; this.comp.ratio.value = 3; this.comp.attack.value = 0.006; this.comp.release.value = 0.15;
@@ -58,22 +95,49 @@ export class Music {
   _curve(k) { const n = 512, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * k) / Math.tanh(k); } return c; }
 
   _start(id) {
-    const ctx = this.sound.ctx, T = (this.T = THEMES[id]), now = ctx.currentTime;
-    this.theme = id; this.R = T.style === "funk" ? FUNK : HIPHOP;
-    const old = this.bus; old.gain.setTargetAtTime(0, now, 0.3); setTimeout(() => old.disconnect(), 2500);
-    for (const a of this.amb) { a.g.gain.setTargetAtTime(0, now, 0.5); const n = a; setTimeout(() => { try { n.src.stop(); } catch (_) {} n.g.disconnect(); }, 3000); }
-    this.amb = [];
-    this.bus = ctx.createGain(); this.bus.gain.value = 0; this.bus.gain.setTargetAtTime(1, now + 0.2, 0.4);
+    const ctx = this.sound.ctx, mood = id.startsWith("m:"), T = (this.T = mood ? MOODS[id.slice(2)] : THEMES[id]), now = ctx.currentTime;
+    // 분위기 곡이 끼면 천천히 교차한다 (나가는 곡 ~3초, 들어오는 곡 ~2초)
+    const xf = mood || this._wasMood, outT = xf ? 0.9 : 0.3;
+    this.theme = id; this._wasMood = mood; this.R = T.style === "funk" ? FUNK : HIPHOP;
+    this._fadeOut(outT);
+    this.bus = ctx.createGain(); this.bus.gain.value = 0; this.bus.gain.setTargetAtTime(1, now + (xf ? 0.3 : 0.2), xf ? 0.7 : 0.4);
     this.bus.connect(this.drive);
     // 킥에 맞춰 살짝 눌리는 버스(과하지 않게)
     this.duck = ctx.createGain(); this.duck.connect(this.bus);
     this.bassDrive = ctx.createWaveShaper(); this.bassDrive.curve = this._curve(T.style === "hiphop" ? 2.2 : 3.5); this.bassDrive.connect(this.bus);
     this.spb = 60 / T.bpm / 4;
-    this.delay.delayTime.value = this.spb * (T.style === "funk" ? 1.5 : 3);
+    this.delay.delayTime.setTargetAtTime(this.spb * (T.style === "funk" ? 1.5 : 3), now, 0.2);
+    this.fb.gain.setTargetAtTime(T.fb ?? 0.22, now, 0.3);
     this.step = 0; this.next = now + 0.4;
     this.r = rng(id.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7));
-    this.hook = this._compose(T);
+    this.hook = mood ? this._melody(T) : this._compose(T);
     if (T.amb) this._ambience(T.amb);
+  }
+  // 지금 곡(버스·환경음)을 tc 시간상수로 줄이고, 다 줄면 떼어 낸다
+  _fadeOut(tc) {
+    const now = this.sound.ctx.currentTime;
+    if (this.bus) { const old = this.bus; old.gain.cancelScheduledValues(now); old.gain.setValueAtTime(old.gain.value, now); old.gain.setTargetAtTime(0, now, tc); setTimeout(() => old.disconnect(), tc * 6000 + 300); }
+    for (const a of this.amb) {
+      const tt = Math.max(0.5, tc);
+      a.g.gain.cancelScheduledValues(now); a.g.gain.setValueAtTime(a.g.gain.value, now); a.g.gain.setTargetAtTime(0, now, tt);
+      setTimeout(() => { for (const n of [a.src, a.lfo]) try { n.stop(); } catch (_) { /* 이미 멈춤 */ } a.g.disconnect(); }, tt * 6000 + 300);
+    }
+    this.amb = [];
+  }
+
+  // 분위기 곡 선율: 4마디(64칸) 8분음 격자 위에 성기게. 음계 안에서 한두 칸씩 걷는다
+  _melody(T) {
+    const r = this.r, n = T.scale.length, out = new Array(64).fill(null);
+    if (!T.lead) return out;
+    let deg = n + 2;
+    for (let s = 0; s < 64; s += 2) {
+      const strong = s % 8 === 0, p = T.leadP * (strong ? 1.8 : s % 4 === 0 ? 1 : 0.45) * (s % 32 >= 28 ? 0.2 : 1);
+      if (r() > p) continue;
+      const j = r(); deg += j < 0.35 ? 1 : j < 0.7 ? -1 : j < 0.85 ? 2 : -2;
+      deg = Math.max(n - 1, Math.min(2 * n + 1, deg));
+      out[s] = { deg, len: strong ? 4 + Math.floor(r() * 4) : 2 + Math.floor(r() * 2) };
+    }
+    return out;
   }
 
   // 리프: 2마디 동기를 A A' A B 로. 펑크는 짧게 끊는 당김음, 힙합은 여유 있게 긴 음
@@ -102,14 +166,17 @@ export class Music {
     const s = this.sound;
     if (!s.ok || s.ctx.state !== "running") return;
     if (!this.out) this._init();
-    if (settings.musicVolume <= 0.01) { if (this.theme) { this.bus.gain.setTargetAtTime(0, s.ctx.currentTime, 0.2); for (const a of this.amb) a.g.gain.setTargetAtTime(0, s.ctx.currentTime, 0.2); this.theme = null; } return; }
-    if (this.want !== this.theme) this._start(this.want);
+    const tgt = this._target();
+    // 음량 0·음소거·"@bgm -" 이면 곡을 줄이고 아예 연주(노드 생성)를 멈춘다
+    if (settings.musicVolume <= 0.01 || settings.mute || !tgt) { if (this.theme) { this._fadeOut(tgt ? 0.2 : 0.8); this.theme = null; } return; }
+    if (tgt !== this.theme) this._start(tgt);
     const now = s.ctx.currentTime;
     if (this.next < now - 0.5) this.next = now + 0.05;
     while (this.next < now + 0.25) { this._play(this.step, this.next); this.step++; this.next += this.spb; }
   }
 
   _play(step, t0) {
+    if (this.T.style === "mood") return this._playMood(step, t0);
     const T = this.T, R = this.R, s16 = step % 16, bar = step >> 4, sec = bar % 16, ch = T.chords[bar % T.chords.length], n = T.scale.length, spb = this.spb;
     const funk = T.style === "funk", on = (p) => p && p[s16] === "x";
     const t = t0 + (s16 % 2 ? spb * R.swing : 0);            // 스윙: 엇박 16분을 늦춘다
@@ -155,6 +222,68 @@ export class Music {
     if (bar >= 4 || (bar >= 2 && funk)) {
       const nt = this.hook[step % this.hook.length];
       if (nt) this._lead(T.lead, this.note(T, nt.deg, 1), t, spb * nt.len, 0.3);
+    }
+  }
+
+  // ── 분위기 곡 연주 ──
+  _playMood(step, t) {
+    const T = this.T, s16 = step % 16, bar = step >> 4, spb = this.spb, n = T.scale.length;
+    const ch = T.chords[Math.floor(bar / T.bars) % T.chords.length], chordStart = bar % T.bars === 0 && s16 === 0;
+    const full = bar >= T.build, P = T.perc, on = (p) => p && p[s16] === "x";
+    // 패드: 화음이 바뀔 때마다 길게 누르고 다음 화음과 겹쳐 넘어간다
+    if (chordStart) this._pad(T.pad, ch.map((d) => this.note(T, d, 0)), t, spb * 16 * T.bars, T.padVol);
+    // 베이스 (8분 박동형은 둘째 마디부터)
+    if (T.bass[s16] === "x" && (T.bassKind !== "pulse" || bar >= 1)) this._moodBass(T.bassKind, this.note(T, ch[0], -1), t, spb, T);
+    // 아르페지오
+    if (T.arp === "rand") {
+      if (s16 % 2 === 0 && this.r() < 0.22) this._pluck(T.inst, this.note(T, ch[Math.floor(this.r() * ch.length)] + (this.r() < 0.5 ? n : 0), 1), t, spb * 6, T.arpVol);
+    } else if (T.arpCells) {
+      const c = T.arpCells[s16];
+      if (c) this._pluck(T.inst, this.note(T, ch[c.k % ch.length] + (c.k >= ch.length ? n : 0), c.up), t, spb * 2.5, T.arpVol);
+    }
+    // 타악 (build 마디 이후)
+    if (P && full) {
+      if (on(P.kick)) this._kick(t, 120, 48, 0.28, 0.5);
+      if (on(P.snare)) { this._noise(t, 0.18, 0.2, 1800, "bandpass", 0.9); this._tone("triangle", 180, t, 0.1, 0.12, 1400, 0.001, 0, this.bus); }
+      if (on(P.rim)) this._tone("square", 1700, t, 0.025, 0.05, 3000, 0.001, 0, this.bus);
+      if (on(P.hat)) this._noise(t, 0.05, 0.12, 8000, "highpass", 0.8);
+      if (on(P.tick)) this._noise(t, 0.02, s16 % 4 === 0 ? 0.05 : 0.025, 9000, "highpass", 0.7);
+      if (on(P.metal)) { this._noise(t, 0.22, 0.12, 3400, "bandpass", 9); this._tone("square", 1840, t, 0.05, 0.03, 4000, 0.001, 0.4, this.bus); }
+      if (s16 === 0 && bar % 8 === 0 && P.snare) this._crash(t, 0.14);
+    }
+    // 선율
+    if (full && T.lead) { const nt = this.hook[step % 64]; if (nt) this._pluck(T.lead, this.note(T, nt.deg, 1), t, spb * nt.len, 0.16); }
+  }
+  // 패드: 음마다 살짝 어긋난 오실레이터 2개 → 공용 필터 하나 → 느린 엔벨로프 (다음 화음과 겹쳐 사라진다)
+  _pad(kind, freqs, t, dur, vol) {
+    const ctx = this.sound.ctx, lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    const K = { warm: ["triangle", 1600, 1.2], soft: ["triangle", 1300, 0.5], dark: ["sawtooth", 520, 1.5], strings: ["sawtooth", 1500, 1.4],
+      brass: ["sawtooth", 1900, 0.5], glass: ["sine", 3000, 1.6], metal: ["square", 800, 0.3], air: ["triangle", 1100, 2.5] }[kind] || ["triangle", 1400, 1];
+    const [type, cut, atk] = K, rel = Math.min(2.5, dur * 0.35), end = t + dur + rel;
+    lp.type = "lowpass"; lp.frequency.value = cut; lp.Q.value = kind === "dark" ? 4 : 0.6;
+    if (kind === "dark" || kind === "air") { lp.frequency.setValueAtTime(cut * 0.6, t); lp.frequency.linearRampToValueAtTime(cut * 1.4, t + dur * 0.6); lp.frequency.linearRampToValueAtTime(cut * 0.8, end); }
+    const v = vol / Math.sqrt(freqs.length);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + atk); g.gain.setValueAtTime(v, t + dur); g.gain.linearRampToValueAtTime(0.0001, end);
+    for (const f of freqs) for (const d of [-7, 7]) {
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = d; o.connect(lp); o.start(t); o.stop(end + 0.05);
+    }
+    if (kind === "glass" || kind === "air") { const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = freqs[0] * 2; o.connect(lp); o.start(t); o.stop(end + 0.05); }
+    lp.connect(g); g.connect(this.bus);
+    const sg = ctx.createGain(); sg.gain.value = kind === "air" || kind === "glass" ? 0.5 : 0.2; g.connect(sg); sg.connect(this.send);
+  }
+  _moodBass(kind, f, t, spb, T) {
+    if (kind === "sine") this._tone("sine", f, t, spb * 14, 0.2, 400, 0.05, 0, this.bus);
+    else if (kind === "sub") this._tone("sine", f / 2, t, spb * 30, 0.22, 300, 0.4, 0, this.bus);
+    else if (kind === "round") { this._tone("sine", f, t, spb * 2.2, 0.2, 500, 0.004, 0, this.bus); this._tone("triangle", f * 2, t, spb * 0.8, 0.05, 900, 0.003, 0, this.bus); }
+    else this._tone("sawtooth", f, t, spb * 0.85, T === MOODS.eia ? 0.11 : 0.09, T === MOODS.eia ? 700 : 420, 0.004, 0, this.bus);   // pulse: 8분 박동
+  }
+  _pluck(kind, f, t, dur, vol) {
+    switch (kind) {
+      case "piano": this._tone("sine", f, t, Math.max(dur, 1.6), vol * 1.2, 2400, 0.003, 0.3, this.bus); this._tone("triangle", f * 2, t, 0.5, vol * 0.35, 3200, 0.002, 0, this.bus); break;
+      case "pluck": this._tone("sawtooth", f, t, 0.22, vol, 2200, 0.002, 0.3, this.bus); break;
+      case "square": this._tone("square", f, t, 0.12, vol, 1800, 0.002, 0.35, this.bus); break;
+      case "horn": this._tone("sawtooth", f, t, dur, vol * 0.6, 1500, 0.06, 0.3, this.bus, -6); this._tone("sawtooth", f, t, dur, vol * 0.5, 1500, 0.06, 0, this.bus, 6); break;
+      default: this._lead(kind, f, t, dur, vol);   // ep · marimba · bell
     }
   }
 
@@ -265,7 +394,7 @@ export class Music {
       const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = lfoHz; lg.gain.value = vol * depth; lfo.connect(lg); lg.connect(g.gain); lfo.start();
       if (fDepth) { const lf = ctx.createGain(); lf.gain.value = fDepth; lfo.connect(lf); lf.connect(f.frequency); }
       src.connect(f); f.connect(g); g.connect(this.out); src.start();
-      this.amb.push({ src, g });
+      this.amb.push({ src, g, lfo });
     };
     if (kind === "waves") { layer("lowpass", 520, 0.5, 0.05, 0.11, 0.85, 260); layer("bandpass", 1900, 0.7, 0.015, 0.17, 0.9); }
     else if (kind === "wind") { layer("bandpass", 420, 1.1, 0.04, 0.07, 0.7, 180); layer("bandpass", 950, 2.2, 0.015, 0.13, 0.9, 300); }

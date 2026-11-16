@@ -53,6 +53,10 @@ const starStr = (n, max = 3) => "★".repeat(n) + `<i>${"★".repeat(max - n)}</
 const getPath = (o, p) => p.split(".").reduce((a, k) => a[k], o);
 function setPath(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
 
+// 메뉴 버튼 소리: 뒤로 가기·닫기 / 출격·확정 / 그 밖은 딸깍
+const UI_SND = { back: "back", ovclose: "back", quit: "back", start: "confirm", enter: "confirm", diffpick: "confirm", resume: "confirm", restart: "confirm",
+  replay: "confirm", nextstage: "confirm", nextlesson: "confirm", storypost: "confirm", scene: "confirm", tostory: "confirm", totraining: "confirm" };
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -68,7 +72,7 @@ export class UI {
       const el = e.target.closest("[data-a]");
       if (!el || !this.root.contains(el)) return;
       const fn = this[`a_${el.dataset.a}`];
-      if (fn) { this.game.sound.play("click"); fn.call(this, el.dataset.v, el); }
+      if (fn) { this.game.sound.play(UI_SND[el.dataset.a] || "click"); fn.call(this, el.dataset.v, el); }
     });
     this.root.addEventListener("input", (e) => this._input(e.target));
     this.root.addEventListener("change", (e) => this._input(e.target, true));
@@ -573,8 +577,11 @@ export class UI {
   _applied(path) {
     const g = this.game;
     if (path.startsWith("drone.")) g.menu.setLook(settings.drone);
-    if (path === "volume") g.sound.setVolume(settings.volume);
-    if (path === "musicVolume") g.music.setVolume();
+    if (path === "volume" || path === "voiceVolume" || path === "mute") g.sound.applyVolumes();
+    if (path === "musicVolume" || path === "mute") g.music.setVolume();
+    // 슬라이더를 움직이면 그 음량으로 짧게 들려준다
+    if (path === "volume") g.sound.cue("click", 1);
+    if (path === "voiceVolume") g.sound.cue("vblip", 1, 0, 0.9 + Math.random() * 0.3);
     if (path === "quality") { settings.qualityAuto = false; save(); g.applyQuality(); }
   }
 
@@ -764,8 +771,11 @@ export class UI {
       body = `
         <div class="opt"><label>그래픽 품질</label>${this.seg("quality", [["low", "낮음"], ["med", "보통"], ["high", "높음"]], settings.quality, "set")}
           <div class="hint">그림자·외곽선·해상도가 바뀝니다. 다음 비행부터 완전히 적용됩니다. 직접 고르기 전에는 기기 성능에 맞춰 자동으로 낮아집니다.</div></div>
-        ${this.range("volume", "효과음 음량", 0, 1, 0.05)}
-        ${this.range("musicVolume", "배경 음악 음량", 0, 1, 0.05)}
+        <h3>소리</h3>
+        ${this.toggle("mute", "음소거", "모든 소리를 끕니다. 대화 장면 오른쪽 위 🔊 단추로도 바꿀 수 있습니다")}
+        ${this.pct("musicVolume", "음악", 0, 1, 0.05, "메뉴·비행 곡과 대화 장면 분위기 곡")}
+        ${this.pct("volume", "효과음", 0, 1, 0.05, "비행·전투·메뉴·장면 효과음")}
+        ${this.pct("voiceVolume", "대사", 0, 1, 0.05, "대화를 넘기는 소리와 화자가 바뀔 때 나는 소리")}
         ${this._diff()}
         <div class="opt"><label>초기화</label><button class="ghost" data-a="reset">설정을 기본값으로</button></div>`;
     }
@@ -789,7 +799,7 @@ export class UI {
     settings.rates = structuredClone(RATE_PRESETS[v]);
     save(); this.redraw();
   }
-  a_reset() { resetSettings(); this.game.sound.setVolume(settings.volume); this.game.music.setVolume(); this.game.applyQuality(); this.redraw(); }
+  a_reset() { resetSettings(); this.game.sound.applyVolumes(); this.game.music.setVolume(); this.game.applyQuality(); this.redraw(); }
 
   // ── 조작법 ──
   s_help() {
