@@ -26,9 +26,10 @@ export class Session {
     this.cfg = cfg;
     this.hud = game.hud;
     this.map = MAPS[cfg.map];
-    this.world = new World(this.map, settings.quality, game.renderer);
+    this.world = new World(this.map, game.q || "med", game.renderer);
     this.camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.05, 4000);
     this.fx = new FX(this.world.scene);
+    this.applyQuality(game.q || "med");
     this.feel = new Feel(this);
     game.sound.onPlay = (name, vol) => this.feel.onSound(name, vol);
     this.player = new Player(this);
@@ -155,6 +156,34 @@ export class Session {
     h.text(who, tx, y + 17 * u, { size: 12, base: "middle", bold: true, color: CAST[who] || "#9fb3c8", shadow: false });
     h.text(line, tx, y + 38 * u, { size: 14, base: "middle", color: "#fff", shadow: false });
     g.restore();
+  }
+
+  // 그래픽 단계에 따른 파티클 수·시야 거리. 안개가 완전히 덮는 거리 너머는 그리지 않는다(낮음은 안개 끝, 보통은 1.6배)
+  applyQuality(q) {
+    this.fx.density = q === "low" ? 0.45 : q === "med" ? 0.75 : 1;
+    const fog = this.world.scene.fog, ff = fog && fog.far ? fog.far : 2000;
+    const want = Math.max(q === "low" ? 600 : 900, ff * (q === "low" ? 1.05 : 1.6), this._skyFar());
+    this.camera.far = q === "high" ? 4000 : Math.min(4000, want);
+    this.camera.updateProjectionMatrix();
+  }
+
+  // 안개를 받지 않는 먼 배경(행성·달·오로라·별 등)까지는 잘리지 않도록: 그 물체들의 가장 먼 거리 + 맵 크기
+  _skyFar() {
+    if (this._sky !== undefined) return this._sky;
+    let far = 0;
+    const sp = new THREE.Sphere();
+    this.world.scene.traverse((o) => {
+      const m = o.material;
+      if (!m || (Array.isArray(m) ? !m.some((x) => x.fog === false) : m.fog !== false)) return;
+      o.updateWorldMatrix(true, false);
+      if (o.isSprite) { const sc = o.getWorldScale(new THREE.Vector3()); far = Math.max(far, o.getWorldPosition(sp.center).length() + Math.max(sc.x, sc.y)); return; }
+      const g = o.geometry;
+      if (!g) return;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      sp.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+      far = Math.max(far, sp.center.length() + sp.radius);
+    });
+    return (this._sky = far > 0 ? far + this.world.size * 1.5 : 0);
   }
 
   resize(w, h) {

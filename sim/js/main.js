@@ -1,7 +1,7 @@
 // 부트스트랩: 렌더러·입력·사운드·UI 를 만들고 메뉴 ↔ 게임 상태를 관리
 import "./rotate.js";
 import * as THREE from "../vendor/three.module.min.js";
-import { settings, save } from "./config.js";
+import { settings, save, QUALITY_NAMES } from "./config.js";
 import { Input } from "./input.js";
 import { Sound } from "./audio.js";
 import { Music } from "./music.js";
@@ -16,6 +16,7 @@ import * as GP from "./garage.js";
 import { metrics, evaluate } from "./objectives.js";
 import { complete as completeLesson } from "./training.js";
 
+const TIERS = ["low", "med", "high"];
 const MENU_BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.92 };
 
 class Game {
@@ -48,21 +49,45 @@ class Game {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  // ── 그래픽 품질 ──
+  // settings.quality: auto | low | med | high. 실제로 쓰는 단계(this.q)는 low | med | high
+  // 자동: 기기에 맞춰 시작 단계를 고르고, 프레임 시간을 계속 재며 해상도(픽셀 비율) → 단계(그림자·후처리·파티클·시야 거리) 순으로 낮춘다
+  _guessTier() {
+    const coarse = matchMedia("(pointer: coarse)").matches, cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 4;
+    if (coarse) return cores <= 4 || mem <= 3 ? "low" : "med";
+    return cores >= 8 && mem >= 8 ? "high" : "med";
+  }
+  get autoQ() { return settings.quality === "auto"; }
+
   applyQuality() {
-    const q = settings.quality, dpr = window.devicePixelRatio || 1;
-    const coarse = matchMedia("(pointer: coarse)").matches;
-    this.renderer.setPixelRatio(q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.25 : 1.5) : Math.min(dpr, 2));
+    if (this.autoQ) { this.q = this._autoTier || (this._autoTier = this._guessTier()); this.dprScale = this.dprScale || 1; }
+    else { this.q = TIERS.includes(settings.quality) ? settings.quality : "med"; this.dprScale = 1; }
+    const q = this.q;
     this.renderer.shadowMap.enabled = q !== "low";
-    // 후처리(외곽선 + 블룸 + 톤매핑 + FXAA): 낮음 품질에서는 끄고 툰 음영만 남긴다
+    // 후처리(외곽선 + 블룸 + 톤매핑 + FXAA): 낮음 품질에서는 끄고 툰 음영만 남긴다. 휴대폰의 보통 품질은 화면 공간 음영(AO)을 뺀 가벼운 후처리
     if (this.composer) { this.composer.dispose(); this.composer = null; }
     if (q !== "low") {
       try {
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
         this.composer = new PostFX(this.renderer, Math.max(2, size.x), Math.max(2, size.y));
+        this.composer.setLite(q === "med" && matchMedia("(pointer: coarse)").matches);
       } catch (e) { console.warn("후처리를 사용할 수 없어 기본 렌더링으로 전환합니다", e); this.composer = null; }
     }
-    this.resize();
+    if (this.session) this.session.applyQuality(q);
+    this._pixelRatio();
+    this._aq = null;                                   // 자동 조절 측정을 처음부터 (셰이더 컴파일 끊김은 재지 않는다)
   }
+
+  // 픽셀 비율 = 단계별 상한 × 자동 해상도 배율
+  _pixelRatio() {
+    const q = this.q, dpr = window.devicePixelRatio || 1, coarse = matchMedia("(pointer: coarse)").matches;
+    const cap = q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.25 : 1.5) : Math.min(dpr, 2);
+    const pr = Math.max(0.5, cap * (this.dprScale || 1));
+    if (Math.abs(this.renderer.getPixelRatio() - pr) > 0.01) { this.renderer.setPixelRatio(pr); this.resize(); }
+  }
+
+  // 설정 화면에 보여 줄 현재 상태
+  qinfo() { return { setting: settings.quality, tier: this.q, scale: Math.round((this.dprScale || 1) * 100), pr: +this.renderer.getPixelRatio().toFixed(2), ft: this._aq ? +this._aq.ema.toFixed(1) : null }; }
 
   resize() {
     const w = innerWidth, h = innerHeight;
@@ -101,6 +126,7 @@ class Game {
     setTimeout(() => {
       try {
         if (this.session) { this.session.dispose(); this.session = null; }
+        this._autoTierUp();
         this.lastCfg = cfg;
         this.session = new Session(this, cfg);
         this.music.setTheme(cfg.map);
@@ -108,6 +134,7 @@ class Game {
         this.state = "play";
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
         this.input.flush();
+        this._aq = null;                               // 맵 생성 직후의 끊김은 재지 않는다
       } catch (e) {
         console.error(e);
         this.state = "menu";
@@ -158,26 +185,46 @@ class Game {
     this._touchLayer();
   }
 
-  // 자동 품질: 비행 중 평균 프레임이 낮으면 한 단계 낮춘다 (시작 직후 3초는 재지 않는다)
-  _autoQuality(t) {
-    if (!settings.qualityAuto || settings.quality === "low") return;
-    const q = this._q || (this._q = { t0: 0, n: 0, s: null });
-    if (q.s !== this.session) { q.s = this.session; q.t0 = t + 3000; q.n = 0; return; }
-    if (t < q.t0) return;
-    q.n++;
-    if (t - q.t0 < 5000) return;
-    const fps = q.n / ((t - q.t0) / 1000);
-    q.t0 = t; q.n = 0;
-    if (fps >= 26) return;
-    settings.quality = settings.quality === "high" ? "med" : "low"; save();
-    this.applyQuality();
-    this.hud.toast(`성능에 맞춰 그래픽 품질을 '${settings.quality === "med" ? "보통" : "낮음"}'으로 낮췄습니다`, "#ffd24a", 2.6, 18);
-    q.t0 = t + 3000;
+  // 자동 품질: 1.5초 묶음마다 평균 프레임 시간을 보고 조절. 시작·단계 변경 직후 2초는 재지 않는다
+  // 느림(> 22ms ≈ 45fps 미만): 해상도 15% 낮춤 → 해상도가 바닥(60%)이면 단계 하나 내림
+  // 빠름(< 17.5ms, 세 번 연속): 해상도를 10%씩 되돌림. 단계를 올리는 것은 다음 비행부터(맵 세부 묘사가 단계에 따라 만들어지므로)
+  _autoQuality(dtMs) {
+    if (!this.autoQ || document.hidden) return;
+    const a = this._aq || (this._aq = { skip: 2000, sum: 0, n: 0, ema: 16.7, good: 0 });
+    if (!(dtMs > 0) || dtMs > 250) return;             // 탭 전환·멈춤 등은 제외
+    if (a.skip > 0) { a.skip -= dtMs; return; }
+    a.sum += dtMs; a.n++;
+    a.ema += (dtMs - a.ema) * 0.05;
+    if (a.sum < 1500) return;
+    const avg = a.sum / a.n;
+    a.sum = 0; a.n = 0;
+    if (avg > 22) {
+      a.good = 0; this._fastRuns = 0;
+      if (this.dprScale > 0.62) { this.dprScale = Math.max(0.6, this.dprScale * 0.85); this._pixelRatio(); a.skip = 600; return; }
+      const i = TIERS.indexOf(this.q);
+      if (i > 0) {
+        this._autoTier = TIERS[i - 1]; this.dprScale = 0.85;
+        this.applyQuality();
+        if (this.state === "play") this.hud.toast(`성능에 맞춰 그래픽을 '${QUALITY_NAMES[this.q]}'(으)로 낮췄습니다`, "#ffd24a", 2.4, 16);
+      }
+    } else if (avg < 17.5) {
+      if (++a.good >= 3 && this.dprScale < 1) { this.dprScale = Math.min(1, this.dprScale * 1.1); this._pixelRatio(); a.good = 0; a.skip = 600; }
+      else if (a.good >= 3 && this.state === "play") { this._fastRuns = (this._fastRuns || 0) + 1; a.good = 0; }
+    } else a.good = 0;
+  }
+
+  // 새 비행을 시작할 때: 지난 비행 내내 여유가 있었으면(해상도 100% + 빠른 구간이 충분) 단계 하나 올려 본다
+  _autoTierUp() {
+    if (!this.autoQ || !this._fastRuns || this._fastRuns < 8) return;
+    const i = TIERS.indexOf(this._autoTier);
+    if (i >= 0 && i < TIERS.length - 1 && this.dprScale >= 1) { this._autoTier = TIERS[i + 1]; this.applyQuality(); }
+    this._fastRuns = 0;
   }
 
   frame(t) {
     requestAnimationFrame((tt) => this.frame(tt));
     const dt = Math.min(0.05, Math.max(0.001, (t - this.last) / 1000));
+    this._lastT = this.last;
     this.last = t;
     this.dt = dt;
     this.fps += (1 / dt - this.fps) * 0.05;
@@ -186,7 +233,7 @@ class Game {
       if (this.state === "play" && this.input.take("pause")) { this.pause(); return; }
       s.update(dt);
       s.render();
-      if (this.state === "play") this._autoQuality(t);
+      if (this.state === "play") this._autoQuality(t - this._lastT);
     } else if (s && this.state === "pause") {
       this.input.update(dt);                             // 게임패드 메뉴 입력·일시정지 버튼
       if (this.input.take("pause")) this.resume();
@@ -198,6 +245,7 @@ class Game {
       if (!["title", "main", "group"].includes(this.ui.screen)) {   // 사진 배경 화면(타이틀·메인·하위 메뉴)에서는 3D 를 그리지 않는다
         this.menu.update(dt, innerWidth / innerHeight);
         this.draw(this.menu.scene, this.menu.camera);
+        this._autoQuality(t - this._lastT);
       }
     }
     this.ui.update(dt);

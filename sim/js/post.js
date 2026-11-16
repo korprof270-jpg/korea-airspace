@@ -118,6 +118,14 @@ export class PostFX {
     this.outline = true;
   }
 
+  // 가벼운 후처리: 화면 공간 음영·대기 산란·색 보정(LOOKFX)을 뺀다 (외곽선·블룸·톤매핑·FXAA 는 유지)
+  setLite(on) {
+    const f = this.final, has = "LOOKFX" in f.defines;
+    if (on === !has) return;
+    if (on) delete f.defines.LOOKFX; else f.defines.LOOKFX = "";
+    f.needsUpdate = true;
+  }
+
   setSize(w, h) {
     this.sceneRT.setSize(w, h); this.ldrRT.setSize(w, h); this.bloom.setSize(w, h);
     this.final.uniforms.texel.value.set(1 / w, 1 / h);

@@ -1,7 +1,7 @@
 // 메뉴 UI: 메인 · 모드 설정 · 정비소(외형) · 설정 · 조작법 · 일시정지 · 결과
 import {
   settings, save, records, resetSettings, fmtTime, DRONE_CLASSES, RATE_PRESETS, FLIGHT_MODES, FLIGHT_MODE_INFO, STICK_MODES, DIFFICULTY,
-  HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset,
+  HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset, QUALITY_NAMES,
 } from "./config.js";
 import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
@@ -190,10 +190,11 @@ export class UI {
 
   // ── 타이틀 화면: 3D 장면을 배경으로 로고만. 누르면 메뉴로 ──
   s_title() {
-    const slides = TITLE_SLIDES.map(([f, cap], i) => `<figure class="slide ${i ? "" : "on"}"><img src="img/title/${f}.jpg" alt="" ${i ? 'loading="lazy"' : ""}><figcaption>${cap}</figcaption></figure>`).join("");
+    // 첫 장면만 바로 받고, 나머지는 차례가 오기 직전에 받는다 (겹쳐 놓은 그림은 loading="lazy" 로는 미뤄지지 않는다)
+    const slides = TITLE_SLIDES.map(([f, cap], i) => `<figure class="slide ${i ? "" : "on"}"><img ${i ? `data-src="img/title/${f}.jpg"` : `src="img/title/${f}.jpg" fetchpriority="high"`} alt="" decoding="async"><figcaption>${cap}</figcaption></figure>`).join("");
     return `<div class="screen titlescreen" data-a="enter">
       <div class="slides">${slides}</div>
-      <div class="tcast" aria-hidden="true"><img src="img/title/keyart.webp" alt=""></div>
+      <div class="tcast" aria-hidden="true"><img src="img/title/keyart.webp" srcset="img/title/keyart-1280.webp 1280w, img/title/keyart.webp 2400w" sizes="(max-aspect-ratio: 1/1) 114vh, 137vh" alt="" decoding="async" fetchpriority="high"></div>
       <div class="tbox"><div class="tlogo"><b>FPV</b> PROJECT</div></div>
       <div class="press">START</div>
     </div>`;
@@ -202,11 +203,17 @@ export class UI {
   _titleShow() {
     clearInterval(this._slideT);
     let i = 0;
+    const load = (k) => { const img = this.root.querySelectorAll(".titlescreen .slide img")[k]; if (img && img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; } };
+    setTimeout(() => load(1), 2500);                       // 다음 장면은 첫 장면이 뜬 뒤 미리
     this._slideT = setInterval(() => {
       const els = this.root.querySelectorAll(".titlescreen .slide");
       if (!els.length) { clearInterval(this._slideT); return; }
-      els[i].classList.remove("on"); i = (i + 1) % els.length;
+      const n = (i + 1) % els.length, img = els[n].querySelector("img");
+      load(n);
+      if (!img.complete) return;                           // 아직 못 받았으면 다음 차례에 (빈 장면으로 넘어가지 않게)
+      els[i].classList.remove("on"); i = n;
       els[i].classList.add("on");
+      load((i + 1) % els.length);
     }, 4800);
   }
   a_enter() { if (this.screen === "title") this.show("main"); }
@@ -584,7 +591,7 @@ export class UI {
     // 슬라이더를 움직이면 그 음량으로 짧게 들려준다
     if (path === "volume") g.sound.cue("click", 1);
     if (path === "voiceVolume") g.sound.cue("vblip", 1, 0, 0.9 + Math.random() * 0.3);
-    if (path === "quality") { settings.qualityAuto = false; save(); g.applyQuality(); }
+    if (path === "quality") { g._autoTier = null; g.dprScale = 1; g.applyQuality(); }
     if (path === "gamepad.layout" && settings.gamepad.layout === "custom" && g.input.padInfo) settings.gamepad.axes = structuredClone(g.input.padInfo.axes);   // 자동 배치에서 출발
   }
 
@@ -783,8 +790,9 @@ export class UI {
         <div class="opt"><label>화면 가상 스틱</label>${this.seg("touchSticks", [["auto", "자동"], ["on", "항상"], ["off", "끄기"]], settings.touchSticks, "set")}</div>`;
     } else {
       body = `
-        <div class="opt"><label>그래픽 품질</label>${this.seg("quality", [["low", "낮음"], ["med", "보통"], ["high", "높음"]], settings.quality, "set")}
-          <div class="hint">그림자·외곽선·해상도가 바뀝니다. 다음 비행부터 완전히 적용됩니다. 직접 고르기 전에는 기기 성능에 맞춰 자동으로 낮아집니다.</div></div>
+        <div class="opt"><label>그래픽</label>${this.seg("quality", ["auto", "low", "med", "high"].map((k) => [k, QUALITY_NAMES[k]]), settings.quality, "set")}
+          <div class="hint">해상도·그림자·후처리(외곽선·빛 번짐)·파티클 양·시야 거리가 바뀝니다. 맵 세부 묘사는 다음 비행부터 적용됩니다.
+          <b>자동</b>은 화면이 끊기지 않도록 프레임 시간을 계속 재며 해상도부터 낮추고, 그래도 느리면 단계를 내립니다.${this._qnow()}</div></div>
         <h3>소리</h3>
         ${this.toggle("mute", "음소거", "모든 소리를 끕니다. 대화 장면 오른쪽 위 🔊 단추로도 바꿀 수 있습니다")}
         ${this.pct("musicVolume", "음악", 0, 1, 0.05, "메뉴·비행 곡과 대화 장면 분위기 곡")}
@@ -798,6 +806,11 @@ export class UI {
       <div class="tabs">${tabs.map(([k, l]) => `<button class="${t === k ? "on" : ""}" data-a="tab" data-v="${k}">${l}</button>`).join("")}</div>
       <div class="panel">${body}</div>
     </div></div>`;
+  }
+  _qnow() {
+    const q = this.game.qinfo ? this.game.qinfo() : null;
+    if (!q || settings.quality !== "auto") return "";
+    return ` <span class="qnow">지금: ${QUALITY_NAMES[q.tier]} · 해상도 ${q.scale}%</span>`;
   }
   a_tab(v) { this.tab = v; this.show("settings"); }
   a_flip(v, el) {

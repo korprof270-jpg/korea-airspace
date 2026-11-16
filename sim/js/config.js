@@ -106,8 +106,7 @@ export const DEFAULTS = {
     axes: { lx: { i: 0, inv: false }, ly: { i: 1, inv: true }, rx: { i: 2, inv: false }, ry: { i: 3, inv: true } },
   },
   touchSticks: "auto",      // auto | on | off
-  quality: "med",           // low | med | high
-  qualityAuto: true,        // 느리면 알아서 한 단계 낮춘다 (설정에서 직접 고르면 꺼진다)
+  quality: "auto",          // auto | low | med | high — 자동은 프레임 시간을 재며 해상도·그림자·후처리·파티클·시야 거리를 조절
   volume: 0.6,              // 효과음
   musicVolume: 0.5,         // 음악
   voiceVolume: 0.7,         // 대사(대화 넘김·화자 소리)
@@ -146,8 +145,10 @@ function read() {
 
 const stored = read();
 export const settings = deepMerge(structuredClone(DEFAULTS), stored.settings || {});
-// 예전 기본값(터치 기기 = 낮음)으로 저장된 설정은 한 번 보통으로 올려 자동 조절에 맡긴다
-if (stored.settings && stored.settings.qualityAuto === undefined && settings.quality === "low") settings.quality = "med";
+// 예전 설정 옮기기: '알아서 낮추기'(qualityAuto)가 켜져 있었거나 그 값이 없던 설정은 '자동'으로, 직접 고른 품질은 그대로
+if (stored.settings && stored.settings.quality && stored.settings.quality !== "auto" && stored.settings.qualityAuto !== false) settings.quality = "auto";
+delete settings.qualityAuto;
+export const QUALITY_NAMES = { auto: "자동", low: "낮음", med: "보통", high: "높음" };
 // 예전에 축을 직접 바꿔 둔 사용자는 '직접 지정'으로 유지
 if (stored.settings && stored.settings.gamepad && stored.settings.gamepad.layout === undefined && stored.settings.gamepad.axes
   && JSON.stringify(stored.settings.gamepad.axes) !== JSON.stringify(DEFAULTS.gamepad.axes)) settings.gamepad.layout = "custom";
