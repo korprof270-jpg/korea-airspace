@@ -14,6 +14,7 @@ import { VN, BONDS, rel } from "./vn.js";
 import * as GP from "./garage.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
+import { glyphsFor } from "./gamepad.js";
 
 const MODE_META = {
   training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 수동 비행을 이륙부터 곡예까지 단계별 과제로 배웁니다.",
@@ -48,6 +49,7 @@ const SUB = {
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
+const kb = (g) => `<kbd class="pad">${String(g).replace(/[&<>"]/g, "")}</kbd>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const starStr = (n, max = 3) => "★".repeat(n) + `<i>${"★".repeat(max - n)}</i>`;
 const getPath = (o, p) => p.split(".").reduce((a, k) => a[k], o);
@@ -145,8 +147,8 @@ export class UI {
     if (box.dataset.name !== name || box.dataset.n !== String(inp.padAxes.length)) {
       box.dataset.name = name; box.dataset.n = String(inp.padAxes.length);
       box.innerHTML = name
-        ? `<div class="muted" style="font-size:12px">연결됨: ${esc(name)}</div><div class="axes">${inp.padAxes.map((_, i) => `<div class="axis">축 ${i}<div class="b"><i data-ax="${i}"></i></div></div>`).join("")}</div>`
-        : `<div class="muted">연결된 게임패드/조종기가 없습니다. USB 로 연결한 뒤 스틱을 움직여 보세요.</div>`;
+        ? `<div style="font-size:13px;font-weight:700">🎮 ${esc(inp.padInfo ? inp.padInfo.name : "게임패드")} 연결됨</div><div class="muted" style="font-size:12px">${esc(name)}</div><div class="axes">${inp.padAxes.map((_, i) => `<div class="axis">축 ${i}<div class="b"><i data-ax="${i}"></i></div></div>`).join("")}</div>`
+        : `<div class="muted">연결된 게임패드/조종기가 없습니다. USB·블루투스로 연결한 뒤 아무 버튼이나 눌러 보세요.</div>`;
     }
     box.querySelectorAll("[data-ax]").forEach((el) => { el.style.left = `${(inp.padAxes[+el.dataset.ax] * 0.5 + 0.5) * 100}%`; });
   }
@@ -583,6 +585,7 @@ export class UI {
     if (path === "volume") g.sound.cue("click", 1);
     if (path === "voiceVolume") g.sound.cue("vblip", 1, 0, 0.9 + Math.random() * 0.3);
     if (path === "quality") { settings.qualityAuto = false; save(); g.applyQuality(); }
+    if (path === "gamepad.layout" && settings.gamepad.layout === "custom" && g.input.padInfo) settings.gamepad.axes = structuredClone(g.input.padInfo.axes);   // 자동 배치에서 출발
   }
 
   // ── 격납고: 외형 · 테마 · 효과 · 파츠 · 퀘스트 (포인트로 구매·업그레이드) ──
@@ -754,17 +757,27 @@ export class UI {
         ${this.pct("fx.flash", "색 번쩍임", 0, 1, 0.05, "피격·명중·부스트 때 화면 색 효과의 세기. 번쩍임에 민감하면 낮추세요")}
         ${this.toggle("fx.rumble", "진동", "게임패드·모바일 기기의 진동 (지원 기기만)")}`;
     } else if (t === "input") {
-      const ax = settings.gamepad.axes;
-      const n = Math.max(4, this.game.input.padAxes.length);
+      const inp = this.game.input, info = inp.padInfo, custom = settings.gamepad.layout === "custom";
+      const ax = custom || !info ? settings.gamepad.axes : info.axes;
+      const n = Math.max(4, inp.padAxes.length);
       const row = (k, label) => `<div class="opt"><label>${label}</label>
-        <select data-set="gamepad.axes.${k}.i">${Array.from({ length: n }, (_, i) => `<option value="${i}" ${ax[k].i === i ? "selected" : ""}>축 ${i}</option>`).join("")}</select>
-        <label style="min-width:0;font-weight:500"><input type="checkbox" data-set="gamepad.axes.${k}.inv" ${ax[k].inv ? "checked" : ""}> 반전</label></div>`;
+        <select data-set="gamepad.axes.${k}.i" ${custom ? "" : "disabled"}>${Array.from({ length: n }, (_, i) => `<option value="${i}" ${ax[k].i === i ? "selected" : ""}>축 ${i}</option>`).join("")}</select>
+        <label style="min-width:0;font-weight:500"><input type="checkbox" data-set="gamepad.axes.${k}.inv" ${ax[k].inv ? "checked" : ""} ${custom ? "" : "disabled"}> 반전</label></div>`;
+      const G = info ? info.glyphs : null;
       body = `
-        <h3 style="margin-top:0">게임패드 / RC 조종기 (USB)</h3>
+        <h3 style="margin-top:0">게임패드 / RC 조종기 (USB·블루투스)</h3>
         <div id="padlive" class="panel" style="padding:12px 14px"></div>
-        <p class="muted" style="font-size:13px">스틱을 움직였을 때 반응하는 축 번호를 아래에 지정하세요. 위·오른쪽으로 밀었을 때 값이 +가 되도록 반전을 맞춥니다.</p>
+        <div class="opt"><label>축 배치</label>${this.seg("gamepad.layout", [["auto", "자동 (종류별)"], ["custom", "직접 지정"]], settings.gamepad.layout, "set")}
+          <div class="hint">자동은 Xbox·PlayStation·Switch Pro·일반 게임패드·RC 조종기를 알아보고 맞는 배치를 씁니다. 축이 엉뚱하게 움직이면 ‘직접 지정’으로 바꿔 맞추세요.</div></div>
+        <p class="muted" style="font-size:13px">${custom ? "스틱을 움직였을 때 반응하는 축 번호를 아래에 지정하세요. 위·오른쪽으로 밀었을 때 값이 +가 되도록 반전을 맞춥니다." : "지금 쓰는 배치입니다 (자동). 바꾸려면 위에서 ‘직접 지정’을 고르세요."}</p>
         ${row("lx", "왼쪽 스틱 가로")}${row("ly", "왼쪽 스틱 세로")}${row("rx", "오른쪽 스틱 가로")}${row("ry", "오른쪽 스틱 세로")}
         ${this.range("gamepad.deadzone", "데드존", 0, 0.3, 0.01)}
+        ${G ? `<h3>버튼 (${esc(info.name)})</h3><table class="keys">
+          <tr><td>${kb(G.fire)} ${kb(G.missile)}</td><td>레이저 · 미사일</td></tr>
+          <tr><td>${kb(G.item)} ${kb(G.itemNext)}</td><td>아이템 사용 · 교체</td></tr>
+          <tr><td>${kb(G.camera)} ${kb(G.modeNext)} ${kb(G.reset)}</td><td>시점 · 비행 모드 · 리셋</td></tr>
+          <tr><td>${kb(G.pause)} ${kb(G.hud)}</td><td>일시정지 · HUD 표시 전환</td></tr>
+          <tr><td>${info.type === "rc" ? "오른쪽 스틱" : "십자키 / 왼쪽 스틱"} · ${kb(G.ok)} ${kb(G.back)}</td><td>메뉴 이동 · 확인 · 뒤로</td></tr></table>` : ""}
         <h3>터치</h3>
         <div class="opt"><label>화면 가상 스틱</label>${this.seg("touchSticks", [["auto", "자동"], ["on", "항상"], ["off", "끄기"]], settings.touchSticks, "set")}</div>`;
     } else {
@@ -825,12 +838,21 @@ export class UI {
         <tr><td><kbd>Esc</kbd> / <kbd>P</kbd></td><td>일시정지</td></tr>
       </table>
       <p class="muted" style="font-size:13px;line-height:1.6">
-        <b>게임패드</b>: 스틱 2개 = 좌/우 스틱, RB/RT 레이저, LB/LT 미사일, A 아이템 사용, 십자키 좌·우 아이템 교체, B 리셋, X 시점, Y 비행 모드, Start 일시정지.<br>
+        ${this._padHelp()}<br>
         <b>RC 조종기</b>: USB 조이스틱 모드로 연결 → 설정 &gt; 입력장치에서 축을 지정하고, 스로틀이 고정식이면 “스로틀 중앙 = 호버”를 끄세요.<br>
         <b>모바일</b>: 화면 왼쪽/오른쪽을 누르면 가상 스틱이 나타납니다. 위쪽 HUD 버튼으로 계기 표시 수준을 바꿉니다.<br>
         <b>게이트 안내</b>: 레이싱에서는 다음 게이트까지 초록 화살표가 흐르고 게이트 위에 빛기둥이 섭니다. 게이트가 화면 밖이면 중앙의 큰 화살표가 방향과 거리를 알려 줍니다.<br>
         <b>처음이라면</b>: ANGLE 또는 LOITER 모드 + 3인칭 시점으로 시작해 보세요. 익숙해지면 ACRO + 1인칭이 가장 자유롭습니다.</p></div>
     </div></div>`;
+  }
+
+  // 조작법의 게임패드 줄: 연결된 패드 종류의 버튼 글자로 (없으면 Xbox 기준 + 다른 패드 안내)
+  _padHelp() {
+    const info = this.game.input.padInfo;
+    const G = info ? info.glyphs : glyphsFor("xbox");
+    const name = info ? info.name : "게임패드";
+    if (info && info.type === "rc") return `<b>${name}</b>: 스틱은 실제 조종처럼 쓰고, 스위치 ${kb(G.fire)} 레이저 · ${kb(G.missile)} 미사일 · ${kb(G.reset)} 리셋 · ${kb(G.camera)} 시점. 메뉴는 오른쪽 스틱으로 이동, ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.`;
+    return `<b>${name}</b>: 스틱 2개 = 좌/우 스틱, ${kb(G.fire)} 레이저, ${kb(G.missile)} 미사일, ${kb(G.item)} 아이템 사용, 십자키 좌·우 아이템 교체, ${kb(G.reset)} 리셋, ${kb(G.camera)} 시점, ${kb(G.modeNext)} 비행 모드, ${kb(G.pause)} 일시정지. 메뉴는 십자키·스틱으로 이동하고 ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.${info ? "" : " PlayStation·Switch Pro 컨트롤러를 연결하면 그 버튼 글자로 바뀝니다."}`;
   }
 
   // ── 일시정지 ──

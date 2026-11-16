@@ -101,6 +101,7 @@ export const DEFAULTS = {
   fov: 92,
   camera: "fpv",            // fpv | chase | los
   gamepad: {
+    layout: "auto",         // auto: 연결된 패드 종류(Xbox·PS·Switch·RC)에 맞춘 축 배치 | custom: 아래 axes 를 직접 지정
     deadzone: 0.04,
     axes: { lx: { i: 0, inv: false }, ly: { i: 1, inv: true }, rx: { i: 2, inv: false }, ry: { i: 3, inv: true } },
   },
@@ -146,6 +147,9 @@ const stored = read();
 export const settings = deepMerge(structuredClone(DEFAULTS), stored.settings || {});
 // 예전 기본값(터치 기기 = 낮음)으로 저장된 설정은 한 번 보통으로 올려 자동 조절에 맡긴다
 if (stored.settings && stored.settings.qualityAuto === undefined && settings.quality === "low") settings.quality = "med";
+// 예전에 축을 직접 바꿔 둔 사용자는 '직접 지정'으로 유지
+if (stored.settings && stored.settings.gamepad && stored.settings.gamepad.layout === undefined && stored.settings.gamepad.axes
+  && JSON.stringify(stored.settings.gamepad.axes) !== JSON.stringify(DEFAULTS.gamepad.axes)) settings.gamepad.layout = "custom";
 export const records = stored.records || {}; // { "race:meadow:oval": {best: 12.3}, ... }
 
 export function save() {

@@ -24,6 +24,8 @@ const COMPASS = { 0: "북", 90: "동", 180: "남", 270: "서" };
 // 최소 표시 수준에서도 남기는 항목
 const MINIMAL = new Set(["distance", "gateArrow", "reticle", "panels", "markers"]);
 const TRAIL = 6;
+const PAD_SHORT = { xbox: "Xbox", ps: "PS", switch: "Switch", generic: "패드", rc: "RC" };
+const PAD_COLOR = { xbox: "#2fbf4a", ps: "#2f6bff", switch: "#e60012", generic: "#9fb3c8", rc: "#ffb02e" };
 
 export class Hud {
   constructor(canvas) {
@@ -98,6 +100,29 @@ export class Hud {
     this.lvl = settings.hud.density = HUD_DENSITY[(i + 1) % HUD_DENSITY.length];
     save();
     this.toast(`HUD 표시: ${HUD_DENSITY_NAMES[this.lvl]}`, "#9fd8ff", 1.1, 20);
+  }
+
+  // 동작의 버튼 이름: 키보드 "R 키" · 게임패드 "B 버튼"(종류별 글자) · 터치 "리셋 버튼"
+  // withRo: 뒤에 '(으)로'를 붙여 돌려준다 ("R 키로" · "B 버튼으로")
+  keyName(action, touchName = "", withRo = false) {
+    const inp = this.inp;
+    let s = touchName;
+    if (inp && inp.device !== "touch") s = inp.device === "gamepad" ? `${inp.glyph(action)} 버튼` : `${inp.glyph(action)} 키`;
+    return withRo ? s + (s.endsWith("키") ? "로" : "으로") : s;
+  }
+
+  // 게임패드 연결 표시 (비행 중 왼쪽 위 계기 줄 끝)
+  _padChip() {
+    const inp = this.inp, info = inp && inp.padInfo;
+    if (!info) return;
+    const u = this.u, L = this.L, txt = `🎮 ${PAD_SHORT[info.type] || "패드"}`;
+    const x = L.l + (this.vis("battery") ? 108 * u : 0) + (this.vis("mode") ? (this.lvl === "full" ? 186 : 80) * u : 0), y = L.t - L.batH, h = 16 * u;
+    this.g.font = `800 ${Math.max(10 * u, 8.5)}px ${FONT}`;
+    const w = this.g.measureText(txt).width + 16 * u;
+    this.fade(inp.device === "gamepad" ? 0.95 : 0.55);
+    this.plate(x, y, w, h, { fill: PLATE_HI, skew: 0.3, lw: 2, accent: PAD_COLOR[info.type] });
+    this.text(txt, x + w / 2 + 2 * u, y + h / 2 + 0.5 * u, { size: 10, align: "center", base: "middle", shadow: false });
+    this.fade(1);
   }
 
   // ── 그리기 도구 ──
@@ -367,6 +392,7 @@ export class Hud {
   // ── 공통 비행 계기 ──
   drawFlight(session, dt) {
     const pl = session.player, b = pl.body, cam = session.camera, inp = session.game.input;
+    this.inp = inp;
     this.t += dt;
     // HUD 표시 수준 전환 요청 (H 키·터치 버튼)
     let cyc = false;
@@ -395,6 +421,7 @@ export class Hud {
     if (this.vis("compass")) this._compass(b);
     if (this.vis("battery")) this._battery(pl);
     if (this.vis("mode")) this._modeBadge(pl);
+    if (this.vis("battery") || this.vis("mode")) this._padChip();
     this._console(session, dt);
     if (this.obj && this.obj.pill !== false && this.vis("distance")) this._distance(this.obj, this.objDist);
     this._warnings(session);
@@ -635,7 +662,7 @@ export class Hud {
     const R = session.world.size;
     const out = Math.max(Math.abs(b.pos.x), Math.abs(b.pos.z)) - R;
     if (pl.crashed) this.banner("추락! 재배치 중…", H * 0.36, HC.warn, 24);
-    else if (b.flipped && b.onGround) this.banner("뒤집혔습니다 — R 키로 다시 세우기", H * 0.36, HC.gold, 18);
+    else if (b.flipped && b.onGround) this.banner(`뒤집혔습니다 — ${this.keyName("reset", "리셋 버튼", true)} 다시 세우기`, H * 0.36, HC.gold, 18);
     else if (out > 0 || b.pos.y > session.world.ceiling) {
       if (Math.floor(session.time * 4) % 2) this.banner("⚠ 비행 구역 이탈 — 돌아가세요", H * 0.3, HC.warn, 20);
     }

@@ -8,6 +8,7 @@ import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
 import { UI } from "./ui.js";
+import { PadUI } from "./padui.js";
 import { PostFX } from "./post.js";
 import { MenuScene, Thumbs } from "./menu3d.js";
 import { complete as completeStage } from "./story.js";
@@ -37,6 +38,8 @@ class Game {
     this.last = performance.now();
     this.fps = 60;
     this.ui = new UI(this);
+    this.padui = new PadUI(this);
+    this.input.onPad = (kind, info, was) => this.padui.onPad(kind, info, was);
     this.applyQuality();
     addEventListener("resize", () => this.resize());
     document.addEventListener("visibilitychange", () => { if (document.hidden && this.state === "play") this.pause(); });
@@ -185,6 +188,7 @@ class Game {
       s.render();
       if (this.state === "play") this._autoQuality(t);
     } else if (s && this.state === "pause") {
+      this.input.update(dt);                             // 게임패드 메뉴 입력·일시정지 버튼
       if (this.input.take("pause")) this.resume();
       this.input.flush();
       this.draw(s.world.scene, s.camera, s.world.bloom, s.world.exposure);
@@ -197,6 +201,7 @@ class Game {
       }
     }
     this.ui.update(dt);
+    this.padui.update();
   }
 }
 

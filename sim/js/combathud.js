@@ -23,7 +23,7 @@ export function drawBossCut(h, k) {
   const bw = Math.min(520 * u, W * 0.6), fill = Math.min(1, Math.max(0, (k.t - 0.9) / 1.2));
   h.bar(W / 2 - bw / 2, H * 0.62 + 64 * u, bw, 12 * u, (a.hp / a.maxHp) * fill, col);
   h.fade(1);
-  if (k.t > 0.6) h.text("레이저 버튼 · 건너뛰기", W - 18 * u, H - bar + 22 * u > H - 8 ? H - 12 * u : H - bar - 10 * u, { size: 12, align: "right", color: "#9aa8bc" });
+  if (k.t > 0.6) h.text(`${h.keyName("fire", "레이저 버튼", true)} 건너뛰기`, W - 18 * u, H - bar + 22 * u > H - 8 ? H - 12 * u : H - bar - 10 * u, { size: 12, align: "right", color: "#9aa8bc" });
 }
 
 // 보스 체력바: 위 가운데 넓게 (살아 있는 보스 모두, 위에서 아래로 쌓는다)
@@ -242,7 +242,7 @@ function status(c, h) {
     if (it) {
       h.text(it.icon, sx + 20 * u, sy - lift + sh / 2 + 1 * u, { size: on ? 21 : 17, align: "center", base: "middle", color: col, shadow: false });
       h.text(it.name, sx + 36 * u, sy - lift + (L.touch ? sh / 2 + 1 * u : 14 * u), { size: on ? 14 : 12, base: "middle", color: on ? "#fff" : col, shadow: false });
-      if (!L.touch) h.text(on ? "E 사용" : "Q 교체", sx + 36 * u, sy - lift + 29 * u, { size: 10, base: "middle", color: on ? HC.gold : HC.dim, shadow: false });
+      if (!L.touch) h.text(on ? `${h.inp.glyph("item")} 사용` : `${h.inp.glyph("itemNext")} 교체`, sx + 36 * u, sy - lift + 29 * u, { size: 10, base: "middle", color: on ? HC.gold : HC.dim, shadow: false });
     } else h.text("빈 칸", sx + sw / 2, sy + sh / 2 + 1 * u, { size: 11, align: "center", base: "middle", color: "#5b6880", shadow: false });
     h.fade(1);
   }
