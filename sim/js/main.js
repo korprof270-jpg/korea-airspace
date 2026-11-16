@@ -106,6 +106,7 @@ class Game {
         this.state = "play";
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
         this.input.flush();
+        this.ui.tut.onFlight(this.session);   // 첫 비행이면 할 일을 하나씩 띄운다
       } catch (e) {
         console.error(e);
         this.state = "menu";

@@ -13,6 +13,7 @@ import * as SY from "./story.js";
 import { VN, BONDS, rel } from "./vn.js";
 import * as GP from "./garage.js";
 import * as BD from "./bonds.js";
+import { Tutorial } from "./tutorial.js";
 import { SCENES } from "./scenes.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
@@ -63,6 +64,7 @@ export class UI {
   constructor(game) {
     this.game = game;
     this.vn = new VN(game);
+    this.tut = new Tutorial(this);   // 처음 하는 사람용 안내
     this.root = document.getElementById("ui");
     this.screen = null;
     this.tab = "control";
@@ -113,6 +115,7 @@ export class UI {
     this._syncStage();
     if (name === "title") this._titleShow(); else clearInterval(this._slideT);
     if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
+    if (this.tut) this.tut.onShow(name);
   }
 
   // 3D 무대: 화면별 장면을 고르고, [data-stage] 영역 가운데에 오도록 맞춘다
@@ -846,6 +849,8 @@ export class UI {
     if (t === "control") {
       const sm = STICK_MODES[settings.stickMode];
       body = `
+        <div class="opt"><label>처음 안내</label><button class="ghost" data-a="tutreplay">📘 안내 다시 보기</button>
+          <div class="hint">메뉴·조작법·스토리 목표·격납고·퀘스트 안내와 첫 비행 코치를 처음부터 다시 봅니다.</div></div>
         <div class="opt"><label>스틱 모드</label>${this.seg("stickMode", [[1, "MODE 1"], [2, "MODE 2"], [3, "MODE 3"], [4, "MODE 4"]], settings.stickMode, "set")}
           <div class="hint">${sm.desc}. 키보드는 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> = 왼쪽 스틱, 방향키 = 오른쪽 스틱입니다.</div></div>
         <div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((m) => [m, FLIGHT_MODE_INFO[m].label]), settings.flightMode, "set")}
@@ -921,6 +926,7 @@ export class UI {
     </div></div>`;
   }
   a_tab(v) { this.tab = v; this.show("settings"); }
+  a_tutreplay() { this.tut.replay(); }
   a_flip(v, el) {
     const path = el.dataset.k;
     setPath(settings, path, !getPath(settings, path));
@@ -941,7 +947,7 @@ export class UI {
     const m = STICK_MODES[settings.stickMode];
     const ch = { throttle: "스로틀(상승/하강)", yaw: "요(좌우 회전)", pitch: "피치(전진/후진)", roll: "롤(좌우 이동)" };
     return `<div class="screen dim"><div class="wrap">
-      <div class="head"><button class="back" data-a="back">← 뒤로</button><h2>🎮 조작법</h2></div>
+      <div class="head"><button class="back" data-a="back">← 뒤로</button><h2>🎮 조작법</h2><button class="ghost" data-a="tutreplay" style="margin-left:auto">📘 안내 다시 보기</button></div>
       <div class="panel"><table class="keys">
         <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>왼쪽 스틱 세로 — <b>${ch[m.ly]}</b> <span class="muted">(MODE ${settings.stickMode})</span></td></tr>
         <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>왼쪽 스틱 가로 — <b>${ch[m.lx]}</b></td></tr>
