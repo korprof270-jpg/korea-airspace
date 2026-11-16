@@ -2,6 +2,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
 import { toonMat } from "./toon.js";
+import { factionModel } from "./factions.js";
 
 const _t = new THREE.Vector3();
 const _m = new THREE.Matrix4();
@@ -254,6 +255,14 @@ export function makeSubjectModel(type, color) {
       const tick = d.userData.tick; let t = 0;
       d.userData.tick = (dt) => { t += dt; tick(dt, 0.9, t); };
       return d;
+    }
+    case "ray": {   // 에일 가오리: 날개가 너울거리는 외계 날짐승 (에일 진영 모델을 크게)
+      const g = new THREE.Group(), m = factionModel("ail", "grunt", color ?? 0xc060ff);
+      m.scale.setScalar(2.6); g.add(m);
+      g.userData.radius = 1.6;
+      let t = 0;
+      g.userData.tick = (dt) => { t += dt; m.userData.tick(dt, 0.5, t); };
+      return g;
     }
     case "drone": {
       const d = buildDrone({ ...botLook("racer", 1), accentColor: "#ffd400", ledColor: "#ffd400", propColor: "#ffffff" }, 2.2, { halo: 0xffd400 });

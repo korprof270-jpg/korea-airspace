@@ -26,6 +26,7 @@ const THEMES = {
   // 기계제국 수도: 묵직한 힙합 틀, 프리지안(반음 내린 2도)으로 어둡게. 관악 스탭과 낮은 기계 웅웅거림
   empire: { style: "hiphop", bpm: 96, root: 45, scale: [0, 1, 3, 5, 7, 8, 10], chords: [I, [1, 3, 5], I, bVII], lead: "brass", brass: true, keys: "ep", amb: "drone" },
   airbase: { style: "funk", bpm: 122, root: 52, scale: MAJ, chords: [I, V, vi, IV], lead: "brass", brass: true, keys: "clav", amb: "wind" },
+  ail: { style: "funk", bpm: 112, root: 52, scale: DOR, chords: [I7, IV7, bVII, IV7], lead: "bell", brass: true, keys: "ep", amb: "drone" },
 };
 
 // ── 대화 분위기 곡 ──
