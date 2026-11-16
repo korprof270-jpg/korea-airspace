@@ -46,6 +46,7 @@ export class Units {
     for (let i = 0; i < 60; i++) {
       const a = Math.random() * 6.283, r = i ? Math.random() * rad * (1 + i / 30) : 0;
       p.set(clamp(x + Math.cos(a) * r, -w.size + 20, w.size - 20), 0, clamp(z + Math.sin(a) * r, -w.size + 20, w.size - 20));
+      if (w.def.land && i < 56 && !w.def.land(p.x, p.z)) continue;   // 섬 맵: 틈 위는 건너뛴다
       p.y = w.h(p.x, p.z);
       let flat = true;
       for (let k = 0; k < 6 && flat; k++) if (Math.abs(w.h(p.x + Math.cos(k * 1.047) * need, p.z + Math.sin(k * 1.047) * need) - p.y) > 2.2) flat = false;

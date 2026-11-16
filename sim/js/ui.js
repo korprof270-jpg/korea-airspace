@@ -33,7 +33,8 @@ const MODE_META = {
 const TR_MAPS = ["factory", "arena", "moon", "snow", "palace"].filter((id) => MAPS[id]);
 // 타이틀 배경 장면 (sim/img/title): 파일 이름, 아래 작은 표시
 const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", "서바이벌 · 네온 아레나"], ["3-freestyle", "프리스타일 · 붉은 협곡"], ["4-story", "스토리 · 달 기지 최종전"],
-  ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"]];
+  ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"],
+  ["9-ail", "레이싱 · 에일 행성"]];
 // 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },

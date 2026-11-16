@@ -23,6 +23,7 @@ const THEMES = {
   island: { style: "funk", bpm: 116, root: 53, scale: MAJ, chords: [I, IV, V, IV], lead: "marimba", brass: true, keys: "clav", amb: "waves" },
   moon: { style: "funk", bpm: 114, root: 50, scale: DOR, chords: [I7, IV7, I7, bVII], lead: "ep", brass: true, keys: "ep", amb: "drone" },
   orbit: { style: "funk", bpm: 120, root: 49, scale: DOR, chords: [I7, bVII, IV7, I7], lead: "brass", brass: true, keys: "ep", amb: "drone" },
+  ail: { style: "funk", bpm: 112, root: 52, scale: DOR, chords: [I7, IV7, bVII, IV7], lead: "bell", brass: true, keys: "ep", amb: "drone" },
 };
 
 // ── 대화 분위기 곡 ──

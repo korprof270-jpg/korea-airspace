@@ -18,6 +18,7 @@ const SUBJ = {
   supercar: { h: 0.6, dmin: 5, dmax: 22, ground: true },
   heli: { h: 1.6, dmin: 8, dmax: 30, ground: false, bank: 0.8 },
   fpv: { h: 0, dmin: 3, dmax: 16, ground: false, bank: 2.2 },
+  ray: { h: 0, dmin: 5, dmax: 22, ground: false, bank: 1.2 },
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 

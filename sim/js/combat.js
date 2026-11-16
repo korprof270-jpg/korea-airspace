@@ -233,6 +233,7 @@ export class Combat {
     for (let i = 0; i < 40; i++) {
       p.set(cx + (Math.random() * 2 - 1) * R, 0, cz + (Math.random() * 2 - 1) * R);
       p.x = clamp(p.x, -this.w.size + 10, this.w.size - 10); p.z = clamp(p.z, -this.w.size + 10, this.w.size - 10);
+      if (this.w.def.land && i < 36 && !this.w.def.land(p.x, p.z)) continue;   // 섬 맵: 틈(허공) 위는 고르지 않는다
       p.y = this.w.h(p.x, p.z) + lo + Math.random() * (hi - lo);
       if (p.y > this.w.ceiling - 8) p.y = this.w.ceiling - 8;
       if (!this.w.col.blocked(p, 3)) return p;
