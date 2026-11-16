@@ -156,3 +156,34 @@ export function completeBond(id, result) {
 }
 export { objectivesOf };
 
+// ── 엔딩 ──
+export const FINALE = "c8-4";   // 이 단계의 임무 뒤 장면이 엔딩으로 갈린다
+// 진 엔딩: 노을과의 관계 10 이상 + 노을과 나눈 결정적 순간 3개 중 2개 + 인연 이야기 3명 이상 완결
+// 씁쓸한 엔딩: 노을과의 관계 5 미만, 또는 편대 전체와의 관계 합 15 미만
+export const ENDINGS = [
+  { id: "true", no: 1, kind: "TRUE END", title: "새벽의 날개", desc: "모두의 목소리가 닿은 하늘. 노을도, 에이아가 잊었던 첫 명령도 함께 돌아온다.",
+    hint: "노을과 깊은 관계를 쌓고, 노을과의 결정적인 순간을 지나며, 동료들의 인연 이야기를 끝까지 함께하면……" },
+  { id: "normal", no: 2, kind: "NORMAL END", title: "노을이 지는 하늘", desc: "거신은 무너지고 돔은 지켜졌다. 노을은 기억을 되찾고 돌아왔다.", hint: "본편을 끝까지 마치면 도달합니다." },
+  { id: "bitter", no: 3, kind: "BITTER END", title: "남겨진 불빛", desc: "하늘은 지켰지만, 노을은 모든 기억을 연료로 태웠다. 말없는 표시등만 남았다.",
+    hint: "노을과 거리를 둔 채 마지막 비행에 오르면……" },
+];
+export const KEY_FLAGS = ["toldPast", "noeulChose", "yeomyeongJoin"];
+export const finCount = () => BONDS.filter((n) => records[`hsbondfin:${n}`]).length;
+export const teamBond = () => BONDS.filter((n) => n !== "노을").reduce((s, n) => s + Math.max(0, rel(n)), 0);
+export function endingStatus() {
+  const keys = KEY_FLAGS.filter(flag).length;
+  return { noeul: rel("노을"), keys, fin: finCount(), team: teamBond(),
+    trueOk: rel("노을") >= 10 && keys >= 2 && finCount() >= 3,
+    bitter: rel("노을") < 5 || teamBond() < 15 };
+}
+export function endingOf() {
+  const s = endingStatus();
+  return s.trueOk ? "true" : s.bitter ? "bitter" : "normal";
+}
+export const endingGot = (id) => !!records[`hsending:${id}`];
+export const endingsGot = () => ENDINGS.filter((e) => endingGot(e.id));
+export function recordEnding(id) {
+  const first = !endingGot(id);
+  records[`hsending:${id}`] = 1; records.hsendlast = id; save();
+  return first;
+}

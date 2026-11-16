@@ -49,7 +49,9 @@ for (const ep of B.episodes()) {
 }
 for (const n of Object.keys(B.BOND_DEFS)) { const l = B.epsOf(n); if (l.length < 2 || l.length > 3 || !l[l.length - 1].mission) bad.push(n + " episodes " + l.length); }
 for (const k of Object.keys(SCENES)) if (k.startsWith("b-") && !B.epById(k)) bad.push(k + " scene without episode");
-console.log("bond episodes", bn, "missions", bm);
+for (const e of B.ENDINGS) if (!SCENES[`end:${e.id}`]) bad.push("ending scene missing " + e.id);
+if (!JSON.stringify(SCENES[B.FINALE].post).includes("ending true")) bad.push("finale does not branch into endings");
+console.log("bond episodes", bn, "missions", bm, "endings", B.ENDINGS.length);
 for (const k of [...imgs, ...rooms]) if (!BG_MOOD[k]) bad.push("bg without default mood " + k);
 for (const m of Object.values(BG_MOOD)) if (!MOODS[m]) bad.push("BG_MOOD unknown mood " + m);
 console.log("lines", n, "choices", ch, "bgm", bgm, "scenes", Object.keys(SCENES).length, "radio", Object.keys(RADIO).length); console.log(bad.join("\n") || "all ok");

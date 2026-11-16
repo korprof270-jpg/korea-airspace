@@ -13,6 +13,7 @@ import * as SY from "./story.js";
 import { VN, BONDS, rel } from "./vn.js";
 import * as GP from "./garage.js";
 import * as BD from "./bonds.js";
+import { SCENES } from "./scenes.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 
@@ -323,6 +324,7 @@ export class UI {
   // 스토리: ① 장 ② (작전 선택) 단계 ③ 브리핑(대사)·편대
   s_story() {
     if (this.sel.stab === "bond") return this.s_storyBond();
+    if (this.sel.stab === "end") return this.s_storyEnd();
     const s = this.sel, m = MODE_META.challenge, { chapters, flat } = story(), prog = progress(), cur = SY.current();
     let ch = chapters.find((c) => c.id === s.chapter);
     if (!ch) ch = cur ? cur.chapter : chapters[chapters.length - 1];
@@ -401,7 +403,7 @@ export class UI {
   // 스토리 화면 위쪽 탭: 본편 · 인연 · 엔딩
   _stabs() {
     const t = this.sel.stab || "main", n = BD.newCount();
-    const tabs = [["main", "본편 이야기"], ["bond", `♥ 인연${n ? ` <i class="nb">${n}</i>` : ""}`]];
+    const tabs = [["main", "본편 이야기"], ["bond", `♥ 인연${n ? ` <i class="nb">${n}</i>` : ""}`], ["end", `엔딩 ${BD.endingsGot().length}/${BD.ENDINGS.length}`]];
     return `<div class="seg stabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${t === k}" class="${t === k ? "on" : ""}" data-a="stab" data-v="${k}">${l}</button>`).join("")}</div>`;
   }
   a_stab(v) { this.sel.stab = v; this._persist(); this._scroll = null; this.show("setup"); }
@@ -478,6 +480,41 @@ export class UI {
     if (BD.epSeen(ep)) return go();
     this.hide();
     this.vn.play(BD.bondScene(ep), Object.assign(this._epMeta(ep, "pre"), { onDone: () => { BD.markEpisode(ep); go(); } }));
+  }
+  // ── 엔딩 목록 ──
+  s_storyEnd() {
+    const got = BD.endingsGot().length, st = BD.endingStatus(), c8 = story().chapters.find((c) => c.id === "c8"), fin = !!c8 && SY.chapterDone(c8);
+    const cards = BD.ENDINGS.map((e) => {
+      const has = BD.endingGot(e.id);
+      return `<div class="ecard ${has ? "got" : ""} e-${e.id}"><div class="ek">ENDING ${e.no} · ${e.kind}${records.hsendlast === e.id ? ` <i>최근</i>` : ""}</div>
+        <div class="et">${has ? esc(e.title) : "？？？"}</div><p>${esc(has ? e.desc : e.hint)}</p>
+        ${has ? `<button class="ghost small" data-a="endplay" data-v="${e.id}">▶ 엔딩 다시 보기</button>` : ""}</div>`;
+    }).join("");
+    const ck = (ok, t) => `<li class="${ok ? "ok" : ""}">${ok ? "✔" : "✖"} ${t}</li>`;
+    const now = BD.ENDINGS.find((e) => e.id === BD.endingOf());
+    const status = `<div class="brief"><div class="bk">지금의 하늘</div><ul class="bhint">
+      ${ck(st.noeul >= 10, `노을과의 관계 ${st.noeul} <small>(10 이상)</small>`)}
+      ${ck(st.keys >= 2, `노을과 나눈 결정적인 순간 ${st.keys}/3 <small>(2개 이상)</small>`)}
+      ${ck(st.fin >= 3, `인연 이야기를 끝까지 함께한 동료 ${st.fin}명 <small>(3명 이상)</small>`)}
+      ${ck(st.team >= 15, `노을 밖의 편대 동료들과의 관계 합 ${st.team} <small>(15 이상)</small>`)}</ul>
+      <p class="hint2">${fin ? `지금 관계로 마지막 장면을 보면 <b>「${esc(now.title)}」</b>에 닿습니다. 8장 「거신 오메가」의 마지막 단계를 다시 깨면 엔딩을 다시 맞이할 수 있습니다.` : "본편 8장을 끝내면 그때까지의 관계와 선택에 따라 세 엔딩 중 하나에 닿습니다. 노을과 멀어진 채 마지막 비행에 오르면, 노을은 돌아오지 못할지도 모릅니다."}</p></div>`;
+    const body = `<p class="hint2 intro">「노을의 날개」의 결말은 하나가 아닙니다. 장면 속 선택과 동료들과 쌓은 인연이 마지막 하늘을 바꿉니다. 어느 엔딩으로 끝내도 숨겨진 이야기는 열립니다.</p>`
+      + this._step(1, "엔딩 목록", `${got}/${BD.ENDINGS.length} 수집`, `<div class="ecards">${cards}</div>`)
+      + this._step(2, "엔딩 조건", "", status);
+    return this._storyShell("ENDINGS", "엔딩 목록", body, `<div class="startbar"><span class="sum">엔딩 ${got}/${BD.ENDINGS.length} 수집</span><button class="primary" data-a="stab" data-v="main">본편으로 <span aria-hidden="true">→</span></button></div>`);
+  }
+  a_endplay(v) {
+    const sc = SCENES[`end:${v}`], e = BD.ENDINGS.find((x) => x.id === v);
+    if (!sc || !e || !BD.endingGot(v)) return;
+    records.hsendnow = v;
+    this.vn.play(sc.post, { key: `end:${v}`, title: e.title, sub: `ENDING ${e.no} · ${e.kind} · 다시 보기`, onDone: () => this.redraw() });
+  }
+  // 엔딩 도달 카드: 이번에 닿은 엔딩과 수집 수
+  _endCard(id, then) {
+    const e = BD.ENDINGS.find((x) => x.id === id), first = BD.recordEnding(id);
+    if (!e) return then();
+    this.vn.play(["@bg black", "@flash", `|ENDING ${e.no} · ${e.kind}`, `|「${e.title}」`, `|엔딩 ${BD.endingsGot().length}/${BD.ENDINGS.length} 수집${first ? " — 새로운 엔딩!" : ""}`, "|스토리 화면의 ‘엔딩’ 탭에서 다시 볼 수 있습니다."],
+      { title: e.title, sub: `ENDING ${e.no} · ${e.kind}`, onDone: then });
   }
   _bondPost(v) {
     const ep = BD.epById(v), post = ep && BD.bondScene(ep, "post");
@@ -1023,7 +1060,10 @@ export class UI {
     if (!post) return;
     this.game.quit();
     this.hide();
-    this.vn.play(post, { key: `${st.id}:post`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => {
+    const finale = st.id === BD.FINALE;
+    if (finale) { records.hsendnow = BD.endingOf(); save(); }   // 결말은 마지막 장면을 틀기 직전의 관계·선택으로 정한다
+    this.vn.play(post, { key: `${st.id}:post`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => finale ? this._endCard(records.hsendnow, after) : after() });
+    const after = () => {
       const nx = SY.nextOf(st) || SY.current();
       if (nx && nx.chapter.hidden && nx.chapter.hidden !== st.chapter.hidden) {   // 이야기 완결 → 다음 히든 스토리 해금 안내
         this.sel.mode = "challenge"; this.sel.chapter = nx.chapter.id; this.sel.route = null; this.sel.stage = nx.id; this._persist();
@@ -1035,7 +1075,7 @@ export class UI {
       if (nx && unlocked(nx) && !SY.cleared(nx)) return this._storyGo(nx);
       if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }
       this.sel.mode = "challenge"; this._persist(); this.show("setup");
-    } });
+    };
   }
   a_tostory() {
     const bep = BD.epById((this.game.lastCfg || {}).bond || "");
