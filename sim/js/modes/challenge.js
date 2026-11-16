@@ -396,7 +396,7 @@ export class ChallengeMode extends CombatMode {
 
   // ── 5. 모선 격추 ──────────────────────────────────────────
   setup_boss(c, map, w) {
-    const bp = map.boss || { pos: [0, 30, 0] };
+    const bp = this.cfg.bossPos ? { pos: this.cfg.bossPos } : map.boss || { pos: [0, 30, 0] };   // 스토리 단계가 보스 자리를 정할 수 있다
     const bname = (this.cfg.boss && this.cfg.boss.name) || "모선";
     const boss = (this.boss = c.spawnBot({ kind: "boss", team: 1, name: bname, rank: this.cfg.boss && this.cfg.boss.rank, pos: new THREE.Vector3(...bp.pos), hpScale: 0.8 + 0.25 * this.scale }));
     this.introBoss = boss; this.bossCfg = null;   // 보스전: 출격하자마자 등장 컷신

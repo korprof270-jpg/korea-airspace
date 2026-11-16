@@ -272,7 +272,7 @@ const CHAPTERS = [
     stages: [
       S("track", "에일 가오리", ["아샤|가오리는 흩어진 노래 조각이 있는 곳을 아오. 놀라지 않게, 멀지 않게 따라가 주시오.", "노을|……저 노래, 들은 적 있어."], { si: 2, need: 2 }),
       S("escort", "노래 운반", ["모아|탐사 트럭에 공명통이랑 송신기 실었어! 노래 바위까지 지켜 줘!", "아샤|저들도 우리 종족이오. 노래를 잃어 무서운 것뿐이오."], { team: 3, power: 1.25, boss: { name: "무리 우두머리 ‘창끝’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
-      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
+      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { bossPos: [140, 82, -140], power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
     ],
   },
 ];
@@ -418,7 +418,7 @@ export function wingNames(st) {
 export function stageConfig(st, team) {
   const o = stageOpts(st), map = MAPS[o.map || st.chapter.map], boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
-  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
+  const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, bossPos: o.bossPos, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
     radio: RADIO[st.id] || null, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (boss) boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
