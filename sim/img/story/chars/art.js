@@ -25,6 +25,7 @@ export const ART = {
   한별: { id: "hanbyeol", ext: "webp", exprs: ["normal"] },
   루카: { id: "luka", ext: "webp", exprs: ["normal"] },
   여명: { id: "yeomyeong", ext: "webp", exprs: ["normal"] },
+  구철: { id: "gucheol", ext: "webp", exprs: ["normal"] },
   // 노을: { id: "noeul", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 에이아: { id: "eia", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
   // 바르가: { id: "varga", ext: "svg", exprs: ["normal", "smile", "angry", "sad", "surprise", "serious"] },
