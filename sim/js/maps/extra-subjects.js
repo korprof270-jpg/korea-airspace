@@ -21,6 +21,8 @@ const ADD = {
   moon: (m) => [{ id: "fpv", name: "가속 고리 레이서", type: "fpv", level: 3, desc: "매스 드라이버 고리를 타고 오르는 레이싱 드론", duration: 70, path: gatePath(m, "driver", 22) }],
   empire: (m) => [{ id: "heli", name: "제국 수송기", type: "heli", level: 2, desc: "탑 숲 위를 크게 도는 제국 수송기", duration: 75, path: ring(0, 0, 175, 150, 16, 22) },
     { id: "racer", name: "심장 레이서", type: "fpv", level: 3, desc: "첨탑의 심장실을 꿰뚫는 다른 레이싱 드론", duration: 70, path: gatePath(m, "heart", 21) }],
+  airbase: (m) => [{ id: "fpv", name: "관제탑 레이서", type: "fpv", level: 3, desc: "관제실을 감아 돌고 기름 탱크 틈을 빠져나가는 다른 레이싱 드론", duration: 75, path: gatePath(m, "tower", 20) },
+    { id: "bike", name: "헌병 오토바이", type: "bike", level: 2, desc: "담장 안 순환 도로를 순찰하는 헌병 오토바이", duration: 70, path: faster(m, "fuel", 2, 24) }],
   arena: (m) => [{ id: "fpv", name: "아레나 레이서", type: "fpv", level: 2, desc: "타워 코스를 도는 다른 레이싱 드론", duration: 70, path: gatePath(m, "towers", 17) }],
 };
 
