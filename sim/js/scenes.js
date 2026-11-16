@@ -6,5 +6,6 @@ import { SCENES3, RADIO3 } from "./scenes3.js";   // 히든 「에이아 연대�
 import { SCENES4, RADIO4 } from "./scenes4.js";   // 히든 2 「별의 저편」
 import { SCENES5, RADIO5 } from "./scenes5.js";   // 인연 이야기
 import { SCENES6 } from "./scenes6.js";   // 엔딩 다시 보기
-export const SCENES = { ...SCENES1, ...SCENES2, ...SCENES3, ...SCENES4, ...SCENES5, ...SCENES6 };
-export const RADIO = { ...RADIO2, ...RADIO3, ...RADIO4, ...RADIO5 };
+import { SCENES7, RADIO7 } from "./scenes7.js";   // 히든 2 에필로그 「어미별」
+export const SCENES = { ...SCENES1, ...SCENES2, ...SCENES3, ...SCENES4, ...SCENES5, ...SCENES6, ...SCENES7 };
+export const RADIO = { ...RADIO2, ...RADIO3, ...RADIO4, ...RADIO5, ...RADIO7 };
