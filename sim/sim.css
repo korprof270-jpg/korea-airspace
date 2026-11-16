@@ -715,10 +715,13 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 .bond .face.ini { display: grid; place-items: center; font-style: normal; font-weight: 900; font-size: 22px; color: var(--nc); background: rgba(255, 255, 255, 0.05); border: 2px solid var(--nc); }
 
 /* 일러스트 입간판: 상반신 위주로 크게 (머리~허리) */
-.vn-ch.art { height: 178vh; bottom: -88vh; max-width: none; }
-.vn-ch.art.l { left: max(-4vw, calc(50% - 640px)); }
-.vn-ch.art.r { right: max(-4vw, calc(50% - 640px)); }
-@media (max-aspect-ratio: 1/1) { .vn-ch.art { height: 150vh; bottom: -62vh; } .vn-ch.art.l, .vn-ch.art.r { left: 50%; right: auto; } }
+.vn-ch.art { --sc: 1; height: calc(178vh * var(--sc)); bottom: calc(90vh - 178vh * var(--sc)); max-width: none; }
+/* 두 인물의 얼굴이 화면 양쪽 1/4 지점에 오도록 중심 기준 배치 (가로가 좁은 화면에서도 겹치지 않게) */
+.vn-ch.art.l { left: 26%; right: auto; translate: -50% 0; }
+.vn-ch.art.r { left: 74%; right: auto; translate: -50% 0; }
+.vn-chars { z-index: 0; }
+.vn-ch.art.on:not(.dim) { z-index: 2; }
+@media (max-aspect-ratio: 1/1) { .vn-ch.art { height: calc(150vh * var(--sc)); bottom: calc(88vh - 150vh * var(--sc)); } .vn-ch.art.l, .vn-ch.art.r { left: 50%; right: auto; translate: none; } }
 
 /* 타이틀 키 아트: 인물 단체 입간판 (로고 아래, 화면 아래쪽에 붙여서) */
 .titlescreen .tcast { position: absolute; left: 0; right: 0; bottom: 0; height: 74vh; z-index: 1; pointer-events: none; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }

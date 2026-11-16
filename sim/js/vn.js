@@ -5,7 +5,7 @@
 //   { choice: [{ t: "선택지", rel: { 서하린: 1 }, route: "c4:a", flag: "이름", then: [...] }], q: "질문(선택)" }
 //   { if: "rel 서하린>=2" | "flag 이름" | "route c4=a" | "top 서하린", then: [...], else: [...] }
 import { records, save } from "./config.js";
-import { portrait, HAS_PORTRAIT, hasArt } from "./portraits.js";
+import { portrait, HAS_PORTRAIT, hasArt, artScale } from "./portraits.js";
 import { CAST } from "./story.js";
 
 const IMG = "img/story/";
@@ -167,6 +167,7 @@ export class VN {
       img.classList.toggle("dim", active !== i);
       img.classList.toggle("holo", !hasArt(sl.who) && (sl.who === "노을" || sl.who === "에이아"));
       img.classList.toggle("art", hasArt(sl.who));
+      img.style.setProperty("--sc", artScale(sl.who));
       if (active === i) { img.classList.remove("pop"); void img.offsetWidth; img.classList.add("pop"); }
     });
   }

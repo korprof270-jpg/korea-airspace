@@ -225,6 +225,8 @@ const USE_SVG = false;
 export const HAS_PORTRAIT = new Set([...(USE_SVG ? Object.keys(P) : []), ...Object.keys(ART)]);
 // 등록된 일러스트(전신 입간판)가 있는 인물
 export const hasArt = (who) => !!ART[who];
+// 인물별 크기 보정 (머리가 큰 그림체는 조금 작게)
+export const artScale = (who) => (ART[who] && ART[who].sc) || 1;
 export function portrait(who, expr = "normal") {
   const A = ART[who];
   if (A) return `img/story/chars/${A.id}_${(A.exprs || ["normal"]).includes(expr) ? expr : "normal"}.${A.ext || "png"}`;

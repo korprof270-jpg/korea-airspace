@@ -7,9 +7,9 @@ export const ART = {
   서하린: { id: "harin", ext: "webp", exprs: ["normal"] },   // 힉스필드 생성 그림
   노을: { id: "noeul", ext: "webp", exprs: ["normal"] },
   바우: { id: "bau", ext: "webp", exprs: ["normal"] },
-  유리: { id: "yuri", ext: "webp", exprs: ["normal"] },
+  유리: { id: "yuri", ext: "webp", exprs: ["normal"], sc: 0.88 },
   차도윤: { id: "doyun", ext: "webp", exprs: ["normal"] },
-  모아: { id: "moa", ext: "webp", exprs: ["normal"] },
+  모아: { id: "moa", ext: "webp", exprs: ["normal"], sc: 0.8 },
   "강 교관": { id: "kang", ext: "webp", exprs: ["normal"] },
   에이아: { id: "eia", ext: "webp", exprs: ["normal"] },
   바르가: { id: "varga", ext: "webp", exprs: ["normal"] },
