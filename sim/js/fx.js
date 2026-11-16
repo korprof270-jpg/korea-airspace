@@ -6,6 +6,7 @@ const MAXS = 420;    // 연기(일반 혼합) 파티클
 const MAXB = 640;
 const WHITE = new THREE.Color(0xffffff);
 const NFLASH = 14;
+const MAXD = 120;    // 격파 잔해 조각 (인스턴스 상자)
 const NRING = 10;
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -121,11 +122,41 @@ export class FX {
     };
     mk(this.flashGeo, this.flashes, NFLASH, THREE.FrontSide);
     mk(this.ringGeo, this.rings, NRING, THREE.DoubleSide);
+
+    // 격파 잔해: 회전하며 떨어지는 작은 조각 (인스턴스 하나 = 드로우 콜 한 번)
+    this.debGeo = new THREE.BoxGeometry(1, 0.45, 0.8);
+    this.debMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    this.deb = new THREE.InstancedMesh(this.debGeo, this.debMat, MAXD);
+    this.deb.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.deb.frustumCulled = false;
+    this.deb.count = 0;
+    this.deb.setColorAt(0, _c.set(0x222222));
+    scene.add(this.deb);
+    this.debris = [];
+    for (let i = 0; i < MAXD; i++) this.debris.push({ on: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), ax: new THREE.Vector3(1, 0, 0), spin: 0, life: 0, max: 1, size: 0.3, hot: false, col: new THREE.Color() });
+    this._dc = 0;
+    this.density = 1;   // 파티클 개수 배율 (그래픽 품질·자동 조절이 정한다)
+  }
+
+  // 잔해 조각: color = 기체 색(0xRRGGBB), n 조각, speed m/s, size m
+  debrisBurst(pos, color, n = 10, speed = 12, size = 0.35) {
+    n = Math.max(2, Math.round(n * this.density));
+    for (let i = 0; i < n; i++) {
+      const d = this.debris[this._dc]; this._dc = (this._dc + 1) % MAXD;
+      const a = Math.random() * Math.PI * 2, u = Math.random() * 1.6 - 0.6, sv = speed * (0.4 + Math.random() * 0.8);
+      d.on = true; d.p.copy(pos);
+      d.v.set(Math.cos(a) * Math.sqrt(1 - Math.min(1, u * u)) * sv, u * sv + speed * 0.35, Math.sin(a) * Math.sqrt(1 - Math.min(1, u * u)) * sv);
+      d.q.random(); d.ax.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+      d.spin = 6 + Math.random() * 14; d.life = d.max = 1.1 + Math.random() * 0.9; d.size = size * (0.5 + Math.random());
+      d.hot = Math.random() < 0.35;
+      d.col.set(d.hot ? 0xffa040 : color).multiplyScalar(d.hot ? 1.6 : 0.55 + Math.random() * 0.3);
+    }
   }
 
   // 사방으로 퍼지는 파티클
   burst(pos, color, count = 20, speed = 8, life = 0.6, size = 0.3, grav = 6) {
     _c.set(color);
+    if (this.density < 1) count = Math.max(1, Math.round(count * this.density));
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2, u = Math.random() * 2 - 1, s = Math.sqrt(1 - u * u), v = speed * (0.3 + Math.random() * 0.7);
       this.glow.spawn(pos.x, pos.y, pos.z, Math.cos(a) * s * v, u * v, Math.sin(a) * s * v, _c.r, _c.g, _c.b,
@@ -136,6 +167,7 @@ export class FX {
   // dir 방향 원뿔로 튀는 파티클 (명중 불꽃·총구 화염)
   cone(pos, dir, color, count, speed, spread, life, size, grav = 0) {
     _c.set(color);
+    if (this.density < 1 && count > 2) count = Math.max(2, Math.round(count * this.density));
     // dir 에 수직인 두 축
     _u.set(dir.y, dir.z, dir.x).cross(dir).normalize();
     _w.crossVectors(dir, _u);
@@ -170,7 +202,7 @@ export class FX {
     this.burst(pos, 0xff9a3a, Math.round(10 * scale), 11 * scale, 1.5, 0.22 * scale, 13);   // 떨어지는 불씨
     this.flash(pos, 0xffd9a0, 3.2 * scale, 0.28);
     this.ring(pos, 0xffc98a, 6.5 * scale, 0.5);
-    const n = Math.min(14, Math.round(5 + 3 * scale));
+    const n = Math.round(Math.min(14, 5 + 3 * scale) * Math.max(0.4, this.density));
     for (let i = 0; i < n; i++) this.smoke(pos, 1.5 * scale, 1.7, 0.1, 2.4 * scale);
   }
 
@@ -252,6 +284,27 @@ export class FX {
       f.m.material.opacity = 0.7 * (1 - k) * (1 - k);
       f.m.quaternion.copy(camera.quaternion);
     }
+    // 잔해
+    let n = 0;
+    for (const d of this.debris) {
+      if (!d.on) continue;
+      d.life -= dt;
+      if (d.life <= 0) { d.on = false; continue; }
+      d.v.y -= 18 * dt; d.v.multiplyScalar(1 - 0.6 * dt);
+      d.p.addScaledVector(d.v, dt);
+      d.q.multiply(_q.setFromAxisAngle(d.ax, d.spin * dt));
+      const k = Math.min(1, d.life / 0.35);
+      _m.compose(d.p, d.q, _s.setScalar(d.size * k));
+      this.deb.setMatrixAt(n, _m);
+      this.deb.setColorAt(n, d.col);
+      if (d.hot && Math.random() < dt * 22) this.glow.spawn(d.p.x, d.p.y, d.p.z, 0, 0.4, 0, 1, 0.55, 0.2, 0.35, d.size * 1.2, -0.2, 0.8);   // 불붙은 조각의 불씨 꼬리
+      n++;
+    }
+    if (n || this.deb.count) {
+      this.deb.count = n;
+      this.deb.instanceMatrix.needsUpdate = true;
+      if (this.deb.instanceColor) this.deb.instanceColor.needsUpdate = true;
+    }
   }
 
   dispose() {
@@ -261,5 +314,6 @@ export class FX {
     for (const f of this.flashes) { this.scene.remove(f.m); f.m.material.dispose(); }
     for (const f of this.rings) { this.scene.remove(f.m); f.m.material.dispose(); }
     this.flashGeo.dispose(); this.ringGeo.dispose();
+    this.scene.remove(this.deb); this.debGeo.dispose(); this.debMat.dispose(); this.deb.dispose();
   }
 }

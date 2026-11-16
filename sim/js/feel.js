@@ -159,9 +159,11 @@ export class Feel {
       }
 
       // ── 피해 ──
-      case "hurt": {                     // k: 피해량, data: 공격이 온 위치(Vector3)
-        const a = clamp(k / 30, 0.15, 1);
-        this.addTrauma(0.14 + a * 0.5);
+      case "hurt": {                     // k: 피해량, data: 공격이 온 위치(Vector3). 세기는 내 최대 체력 대비 피해 비율로
+        const c = this.s.mode && this.s.mode.combat, mh = (c && c.player && c.player.maxHp) || 120;
+        const a = clamp(k / (mh * 0.22), 0.1, 1);
+        this.addTrauma(0.08 + a * 0.62);
+        if (a > 0.7) this.fullFlash("255,60,50", 0.12 + (a - 0.7) * 0.3, 5);   // 아주 큰 한 방은 화면 전체가 붉게 번쩍
         this._dirFrom(data);
         this.hurtA = Math.min(1, Math.max(this.hurtA, 0.25 + a * 0.75));
         this.hurtAng = Math.atan2(this._dy, this._dx); this.hurtBias = this._bias;
@@ -406,7 +408,8 @@ export class Feel {
     const c = this.clean;
     c.pos.copy(cam.position); c.quat.copy(cam.quaternion); c.fov = cam.fov; c.dirty = false;
     this.shakeDeg = 0; this.offDeg = 0; this.offPos = 0; this.offFov = 0;
-    const SH = shown ? 0 : clamp(settings.fx ? +settings.fx.shake || 0 : 1, 0, 1.5);
+    // '움직임 줄이기'면 흔들림·킥·FOV 변화를 크게 줄인다
+    const SH = shown ? 0 : clamp(settings.fx ? +settings.fx.shake || 0 : 1, 0, 1.5) * (settings.fx && settings.fx.reduceMotion ? 0.35 : 1);
     if (SH <= 0) return;
     const fpv = s.player.camMode === "fpv", los = s.player.camMode === "los";
     const view = clamp(cam.fov / 90, 0.1, 1.1);                  // 망원(LOS)일수록 같은 각도가 크게 보이므로 줄인다

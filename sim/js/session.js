@@ -33,6 +33,8 @@ export class Session {
     game.sound.onPlay = (name, vol) => this.feel.onSound(name, vol);
     this.player = new Player(this);
     this.time = 0;
+    this.timeK = 1;                    // 시간 배율 (히트스톱·슬로모션). 입력·화면 효과는 실제 시간으로 돈다
+    this._slow = null;
     this.result = null;
     this.resultTimer = 0;
     this.mode = new MODES[cfg.mode](this, cfg);
@@ -44,8 +46,29 @@ export class Session {
     game.input.flush();
   }
 
-  update(dt) {
+  // 히트스톱/슬로모션: dur 초 동안 시간을 min 배로 (hold 비율만큼 머물렀다가 부드럽게 원래대로)
+  // '움직임 줄이기' 설정이면 하지 않는다. 더 강한(느린) 요청이 이미 진행 중이면 무시
+  slowMo(dur, min, hold = 0.35) {
+    if (settings.fx && settings.fx.reduceMotion) return;
+    const s = this._slow;
+    if (s && s.t < s.dur && s.min <= min) return;
+    this._slow = { t: 0, dur, min, hold };
+  }
+  _timeScale(dt) {
+    const s = this._slow;
+    if (!s) return 1;
+    s.t += dt;
+    if (s.t >= s.dur || this.result) { this._slow = null; return 1; }
+    const k = s.t / s.dur;
+    if (k < s.hold) return s.min;
+    const e = (k - s.hold) / (1 - s.hold);
+    return s.min + (1 - s.min) * e * e;
+  }
+
+  update(dt0) {
     const g = this.game, inp = g.input, pl = this.player, mode = this.mode;
+    this.timeK = this._timeScale(dt0);
+    const dt = dt0 * this.timeK;
     this.time += dt;
     if (mode.state === "run" && !pl.crashed && !pl.body.onGround) GP.ev("fly", dt);
     // 지난 프레임의 화면 흔들림을 걷어낸다: 모드·판정 코드는 흔들리지 않은 카메라만 본다
@@ -60,15 +83,15 @@ export class Session {
     if (inp.take("reset") && mode.state === "run") mode.onReset();
 
     inp.enabled = !mode.locked || mode.state === "done";
-    const ctl = inp.update(dt);
+    const ctl = inp.update(dt0);
     if (mode.state === "done") { ctl.throttle = pl.flightMode === "ACRO" ? -0.2 : 0; ctl.pitch = ctl.roll = ctl.yaw = 0; }
 
     pl.update(dt, ctl);
     mode.update(dt);
     this.world.update(dt);
     pl.updateCamera(dt, this.camera);
-    this.feel.update(dt, this.camera);
     if (this.debugCam) { this.camera.position.fromArray(this.debugCam.pos); this.camera.lookAt(...this.debugCam.look); this.camera.fov = this.debugCam.fov || 60; this.camera.updateProjectionMatrix(); }
+    this.feel.update(dt0, this.camera);   // 컷신 카메라에도 흔들림이 얹히도록 그 뒤에
     this.camera.updateMatrixWorld();
     this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
     this.world.follow(this.camera, pl.body.pos);
@@ -76,7 +99,7 @@ export class Session {
     g.sound.motor(pl.body.disabled ? 0 : pl.body.thrust, pl.body.speed, true);
 
     if (this.result) {
-      this.resultTimer += dt;
+      this.resultTimer += dt0;
       if (this.resultTimer > 1.4 && !this.resultShown) { this.resultShown = true; g.showResult(this.result); }
     }
   }

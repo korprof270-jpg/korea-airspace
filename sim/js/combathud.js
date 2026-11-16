@@ -10,18 +10,33 @@ const _s = {};
 const LOCK_T = 0.7;
 const PLATE = "rgba(12,18,32,0.7)";
 
-// 보스 등장 컷신: 위아래 검은 띠, 경고 문구, 보스 이름, 차오르는 체력바
+// 보스 등장 컷신: 위아래 검은 띠, 경고 문구, 비스듬한 이름 카드(옆에서 미끄러져 들어옴), 차오르는 체력바
 export function drawBossCut(h, k) {
   const g = h.g, u = h.u, W = h.W, H = h.H, e = Math.min(1, k.t / 0.35), bar = H * 0.13 * e, a = k.a;
   g.fillStyle = "#000"; g.fillRect(0, 0, W, bar); g.fillRect(0, H - bar, W, bar);
   const col = k.mid ? "#ffb02e" : "#ff3d4d";
   if (Math.floor(k.t * 4) % 2 === 0) h.text("⚠ WARNING ⚠", W / 2, bar + 34 * u, { size: 22, align: "center", color: col });
-  const s = Math.min(1, Math.max(0, (k.t - 0.4) / 0.4));
-  h.fade(s);
-  h.text(k.sub, W / 2, H * 0.62, { size: 15, align: "center", color: col });
-  h.text(k.name, W / 2, H * 0.62 + 44 * u, { size: 40, align: "center", color: "#fff" });
-  const bw = Math.min(520 * u, W * 0.6), fill = Math.min(1, Math.max(0, (k.t - 0.9) / 1.2));
-  h.bar(W / 2 - bw / 2, H * 0.62 + 64 * u, bw, 12 * u, (a.hp / a.maxHp) * fill, col);
+  // 이름 카드: 0.4초부터 왼쪽에서 들어와 멈추고, 끝나기 직전 오른쪽으로 빠진다
+  const inK = clamp((k.t - 0.4) / 0.35, 0, 1), outK = clamp((k.t - (k.dur - 0.35)) / 0.35, 0, 1);
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  const off = (1 - ease(inK)) * -W * 0.7 + ease(outK) * W * 0.7;
+  if (inK > 0) {
+    const cy = H * 0.64, bh = 92 * u, skew = 26 * u;
+    g.save(); g.translate(off, 0);
+    h.fade(0.9);
+    g.beginPath(); g.moveTo(-20, cy - bh / 2); g.lineTo(W + 20, cy - bh / 2 - skew); g.lineTo(W + 20, cy + bh / 2 - skew); g.lineTo(-20, cy + bh / 2); g.closePath();
+    g.fillStyle = "rgba(8,10,20,0.86)"; g.fill();
+    g.fillStyle = col; g.fillRect(-20, cy + bh / 2 - 5 * u, W + 40, 5 * u);   // 아래 색 띠
+    h.fade(1);
+    const spread = (1 - ease(inK)) * 18;                                   // 자간이 좁혀지며 자리 잡는 이름
+    h.text(`${k.mid ? "MID BOSS" : "BOSS"}${k.sub && k.sub !== "보스" && k.sub !== "중간 보스" ? " · " + k.sub : ""}`, W / 2, cy - 22 * u - skew / 2, { size: 14, align: "center", color: col });
+    g.save(); if (g.letterSpacing !== undefined) g.letterSpacing = `${spread * u}px`;
+    h.text(k.name, W / 2, cy + 18 * u - skew / 2, { size: 40, align: "center", color: "#fff" });
+    g.restore();
+    const bw = Math.min(520 * u, W * 0.6), fill = clamp((k.t - 0.9) / 1.2, 0, 1);
+    h.bar(W / 2 - bw / 2, cy + 32 * u - skew / 2, bw, 10 * u, (a.hp / a.maxHp) * fill, col);
+    g.restore();
+  }
   h.fade(1);
   if (k.t > 0.6) h.text(`${h.keyName("fire", "레이저 버튼", true)} 건너뛰기`, W - 18 * u, H - bar + 22 * u > H - 8 ? H - 12 * u : H - bar - 10 * u, { size: 12, align: "right", color: "#9aa8bc" });
 }
@@ -48,7 +63,7 @@ export function drawCombatHud(c, h, o = {}) {
   const full = h.lvl === "full";
   h.fade(1);
 
-  if (c.hurtT > 0) hurtArc(c, h);
+  if (c.hurts.length) hurtArcs(c, h);
   if (p.stunT > 0) h.banner("EMP — 조종 불능", H * 0.45, "#b8c8ff", 22);
 
   // 적·아군 표시
@@ -116,23 +131,26 @@ export function drawCombatHud(c, h, o = {}) {
   g.globalAlpha = h.opacity;
 }
 
-// 피격 방향: 화면 중심 둘레의 붉은 호
-function hurtArc(c, h) {
-  const g = h.g, u = h.u, L = h.L, k = clamp(c.hurtT / 0.5, 0, 1);
-  h.project(c.hurtDir, c.s.camera, _s);
-  const ang = h._dirAngle(_s), R = Math.min(h.H * 0.3, 128 * u) + (1 - k) * 10 * u;
-  h.fade(Math.min(1, k * 1.6));
-  g.beginPath(); g.arc(L.cx, L.cy, R, ang - 0.34, ang + 0.34);
-  g.lineCap = "round"; g.lineWidth = 12 * u; g.strokeStyle = INK; g.stroke();
-  g.lineWidth = 7 * u; g.strokeStyle = "#ff4646"; g.stroke();
-  // 안쪽을 향한 쐐기
-  const ca = Math.cos(ang), sa = Math.sin(ang), r2 = R - 13 * u, w = 9 * u;
-  g.beginPath();
-  g.moveTo(L.cx + ca * (r2 - 9 * u), L.cy + sa * (r2 - 9 * u));
-  g.lineTo(L.cx + ca * r2 - sa * w, L.cy + sa * r2 + ca * w);
-  g.lineTo(L.cx + ca * r2 + sa * w, L.cy + sa * r2 - ca * w);
-  g.closePath();
-  h.fill2("#ff4646", 2.5);
+// 피격 방향: 화면 중심 둘레의 붉은 호. 방향마다 하나씩, 피해가 클수록 넓고 굵게
+function hurtArcs(c, h) {
+  const g = h.g, u = h.u, L = h.L;
+  for (const hu of c.hurts) {
+    const k = clamp(hu.t, 0, 1), big = clamp(hu.amt / 40, 0, 1);
+    h.project(hu.pos, c.s.camera, _s);
+    const ang = h._dirAngle(_s), R = Math.min(h.H * 0.3, 128 * u) + (1 - k) * 12 * u, half = 0.22 + big * 0.3, lw = (6 + big * 6) * u;
+    h.fade(Math.min(1, k * 1.8));
+    g.beginPath(); g.arc(L.cx, L.cy, R, ang - half, ang + half);
+    g.lineCap = "round"; g.lineWidth = lw + 5 * u; g.strokeStyle = INK; g.stroke();
+    g.lineWidth = lw; g.strokeStyle = big > 0.6 ? "#ff2a2a" : "#ff4646"; g.stroke();
+    // 안쪽을 향한 쐐기
+    const ca = Math.cos(ang), sa = Math.sin(ang), r2 = R - lw * 0.5 - 7 * u, w = (7 + big * 5) * u;
+    g.beginPath();
+    g.moveTo(L.cx + ca * (r2 - (8 + big * 6) * u), L.cy + sa * (r2 - (8 + big * 6) * u));
+    g.lineTo(L.cx + ca * r2 - sa * w, L.cy + sa * r2 + ca * w);
+    g.lineTo(L.cx + ca * r2 + sa * w, L.cy + sa * r2 - ca * w);
+    g.closePath();
+    h.fill2("#ff4646", 2.5);
+  }
   h.fade(1);
 }
 
@@ -164,7 +182,7 @@ function reticle(c, h) {
   if (!_s.front) return;
   const x = _s.x, y = _s.y, t = s.time;
   const aim = !!c.aim, hot = !!p.overheated, lockK = c.lock ? clamp(c.lockT / LOCK_T, 0, 1) : 0, hit = clamp((c.hitMark || 0) / 0.18, 0, 1);
-  const col = hot ? (Math.floor(t * 8) % 2 ? "#ff5a3a" : "#ffb347") : aim ? "#ff6a3a" : "#ffffff";
+  const col = hot ? (Math.floor(t * 8) % 2 ? "#ff5a3a" : "#ffb347") : c.killMark > 0.8 ? "#ff3b3b" : hit > 0.5 ? (c.hitKind === "shield" ? "#bff4ff" : "#fff6c8") : aim ? "#ff6a3a" : "#ffffff";
   const gap = (aim ? 4.5 : 8) * u + hit * 3 * u, len = (aim ? 11 : 9) * u;
 
   g.save(); g.translate(x, y);
@@ -191,15 +209,17 @@ function reticle(c, h) {
     h.stroke2(done ? "#ff3030" : HC.gold, 2.4 * u);
     if (done && Math.floor(t * 6) % 2) h.text("미사일 준비", x, y - 38 * u, { size: 11, align: "center", color: "#ff5050" });
   }
-  // 명중 표시(×)
-  if (hit > 0) {
-    const r0 = (8 + (1 - hit) * 5) * u, r1 = r0 + 9 * u;
+  // 명중 표시(×): 피해가 클수록 크게, 실드 명중은 하늘색
+  if (hit > 0 && !(c.killMark > 0.75)) {
+    const big = clamp((c.hitAmt || 0) / 30, 0, 1), r0 = (7 + (1 - hit) * 6 + big * 2) * u, r1 = r0 + (8 + big * 5) * u;
     g.beginPath();
     for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + i * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); g.moveTo(x + ca * r0, y + sa * r0); g.lineTo(x + ca * r1, y + sa * r1); }
     h.fade(Math.min(1, hit * 2));
-    h.stroke2("#ffffff", 3 * u);
+    h.stroke2(c.hitKind === "shield" ? "#7fe6ff" : "#ffffff", (2.6 + big * 1.4) * u);
     h.fade(1);
   }
+  // 격파 표시: 붉은 큰 × 가 조여들고, 고리가 퍼지며, 아래에 이름과 연속 격파
+  if (c.killMark > 0) killMarker(c, h, x, y);
   // 발열 게이지(조준선 아래 호)
   const heat = clamp(p.heat || 0, 0, 1), over = p.overT > 0;
   if (heat > 0.02 || hot || over) {
@@ -214,6 +234,30 @@ function reticle(c, h) {
     if (hot) h.text("과열", x, y + r + 16 * u, { size: 12, align: "center", color: "#ff6b5a" });
     else if (over) h.text("과충전", x, y + r + 16 * u, { size: 11, align: "center", color: HC.pink });
   }
+}
+
+const STREAK = ["", "", "더블 킬", "트리플 킬", "쿼드라 킬", "펜타 킬"];
+function killMarker(c, h, x, y) {
+  const g = h.g, u = h.u, dur = c.killBig >= 4 ? 1.6 : 1.1, e = clamp((dur - c.killMark) / dur, 0, 1);   // 0 → 1 진행
+  const pop = clamp(e / 0.12, 0, 1), out = clamp((1 - e) / 0.3, 0, 1), sc = (c.killBig >= 4 ? 1.5 : c.killBig >= 2 ? 1.25 : 1);
+  // 고리
+  if (e < 0.5) {
+    g.beginPath(); g.arc(x, y, (16 + e * 90) * u * sc, 0, Math.PI * 2);
+    h.fade((1 - e / 0.5) * 0.8); h.stroke2("#ffcf4a", 2.5 * u);
+  }
+  // 굵은 붉은 × (안쪽에서 바깥으로 튀었다가 자리 잡는다)
+  const r0 = (6 + (1 - pop) * 10) * u * sc, r1 = r0 + 15 * u * sc, rot = (1 - pop) * 0.6;
+  g.beginPath();
+  for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + rot + i * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); g.moveTo(x + ca * r0, y + sa * r0); g.lineTo(x + ca * r1, y + sa * r1); }
+  h.fade(out); h.stroke2("#ff3030", 4.4 * u);
+  // 이름 + 연속 격파
+  const ty = y + 52 * u;
+  h.fade(out * pop);
+  h.text(c.killBig >= 4 ? "보스 격파!" : "격추", x, ty, { size: c.killBig >= 4 ? 22 : 17, align: "center", color: "#ff5a4a" });
+  h.text(c.killName, x, ty + 19 * u, { size: 12, align: "center", color: "#ffe0d6" });
+  const st = c.killStreak >= 2 ? (STREAK[c.killStreak] || `${c.killStreak}연속 격추`) : "";
+  if (st) h.text(st, x, ty + 40 * u, { size: 15 + Math.min(4, c.killStreak), align: "center", color: "#ffd24a" });
+  h.fade(1);
 }
 
 // 체력·실드·미사일·아이템 상태판

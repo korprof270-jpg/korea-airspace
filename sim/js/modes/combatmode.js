@@ -2,6 +2,7 @@
 import * as THREE from "../../vendor/three.module.min.js";
 import { Mode } from "./base.js";
 import { Combat, TEAM_COLOR } from "../combat.js";
+import { settings } from "../config.js";
 
 const _v = new THREE.Vector3();
 
@@ -47,10 +48,15 @@ export class CombatMode extends Mode {
       return;
     }
     if (k.t < 0.15 && Math.floor(k.t * 60) % 20 === 0) s.game.sound.play("warn");
-    const R = a.cutR || a.radius * 2.2 + 5, ang = k.ang + k.t * 0.55, e = Math.min(1, k.t / 0.8);
+    // 카메라: 보스 둘레를 돌며 다가가고(밀어 넣기), 이름 카드가 들어오는 순간 화면을 한 번 울린다.
+    // '움직임 줄이기'에서는 한 자리에 고정
+    const still = settings.fx && settings.fx.reduceMotion;
+    const R = a.cutR || a.radius * 2.2 + 5, ang = k.ang + (still ? 0.4 : k.t * 0.55), e = still ? 1 : Math.min(1, k.t / 0.8);
     const r = R * (1.6 - 0.6 * e * e * (3 - 2 * e));
+    if (!k.hit && k.t >= 0.4) { k.hit = true; s.feel.addTrauma(0.35); s.feel.fovPunch -= 4; s.feel.flash(k.mid ? "255,176,46" : "255,61,77", 0.35, 3, "vig"); }
+    const push = still ? 0 : Math.min(1, k.t / k.dur);
     this._cutUnits(dt);
-    s.debugCam = { pos: [a.pos.x + Math.sin(ang) * r, a.pos.y + R * 0.25 + 2, a.pos.z + Math.cos(ang) * r], look: [a.pos.x, a.pos.y, a.pos.z], fov: 55 };
+    s.debugCam = { pos: [a.pos.x + Math.sin(ang) * r, a.pos.y + R * 0.25 + 2, a.pos.z + Math.cos(ang) * r], look: [a.pos.x, a.pos.y + R * 0.08 * push, a.pos.z], fov: 60 - 14 * push * push * (3 - 2 * push) };
     if (!a.unit) a.model.position.copy(a.pos);
   }
 

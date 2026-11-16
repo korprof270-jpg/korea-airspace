@@ -60,6 +60,9 @@ export class Combat {
     this.hurtT = 0; this.hurtDir = new THREE.Vector3(); this.warn = 0; this.hitMark = 0;
     this.lock = null; this.lockT = 0; this.aim = null;
     this.killMark = 0;             // 내가 격파한 직후 잠깐 > 0 (HUD 격파 표시용)
+    this.killName = ""; this.killBig = 1; this.killStreak = 0; this.killAt = -99;   // 격파 표시: 이름·크기·연속 격파 수
+    this.hitKind = "hp"; this.hitAmt = 0;   // 마지막 명중: hp | shield, 피해량 (조준선 명중 표시)
+    this.hurts = [];               // 피격 방향 표시: { pos, t, amt } (여러 방향에서 동시에 맞으면 각각)
     this.hurtAmt = 0;              // 마지막으로 받은 피해량
     this.warnDist = 999;           // 나를 쫓는 미사일까지의 최소 거리(m)
     this.missileGeo = new THREE.CylinderGeometry(0.1, 0.24, 1.9, 8);
@@ -398,7 +401,7 @@ export class Combat {
         this.snd.play("shield", clamp(s / 15, 0.4, 1), src ? this.panAt(src) * 0.7 : 0);
         this.feel.emit("shield", s, src);
         if (a.shield <= 0) { this.feel.emit("shieldBreak"); this.fx.ring(a.pos, 0x7fe6ff, 3, 0.4); }
-      } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 5); }
+      } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.hitKind = "shield"; this.hitAmt = s; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 5); }
     }
     if (amount <= 0) return;
     a.hp -= amount;
@@ -408,11 +411,24 @@ export class Combat {
       this.hurtT = 0.5;
       if (attacker) this.hurtDir.copy(attacker.pos); else if (point) this.hurtDir.copy(point);
       this.hurtAmt = amount;
+      if (src) this._hurtDir(src, amount);
       this.snd.play("hurt", clamp(amount / 20, 0.3, 1), src ? this.panAt(src) * 0.7 : 0);
       this.feel.emit("hurt", amount, src);
-    } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.feel.emit("hit", amount, a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
+    } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.hitKind = "hp"; this.hitAmt = amount; this.feel.emit("hit", amount, a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
     if (this.h.onDamage) this.h.onDamage(a, amount, attacker);
     if (a.hp <= 0) this.kill(a, attacker);
+  }
+
+  // 피격 방향 표시 추가: 같은 쪽(가까운 위치)에서 연달아 맞으면 하나로 합쳐 더 진하게
+  _hurtDir(src, amount) {
+    const p = this.player;
+    for (const h of this.hurts) {
+      if (h.pos.distanceToSquared(src) < 36 || (p && _p1.copy(h.pos).sub(p.pos).normalize().dot(_p2.copy(src).sub(p.pos).normalize()) > 0.94)) {
+        h.pos.copy(src); h.t = 1; h.amt = Math.min(80, h.amt * 0.5 + amount); return;
+      }
+    }
+    if (this.hurts.length >= 4) this.hurts.shift();
+    this.hurts.push({ pos: src.clone(), t: 1, amt: amount });
   }
 
   kill(a, killer) {
@@ -440,9 +456,24 @@ export class Combat {
       if (a.collider2) a.collider2.off = true;
       if (a.respawns) a.respawnT = RESPAWN;
       this._blast(a.pos, big);
-      if (killer && killer.isPlayer) { this.killMark = 0.6; this.feel.emit("kill", big, a); }
+      if (killer && killer.isPlayer) this._myKill(a, a.bossBar ? 4 : big);
     }
     if (this.h.onKill) this.h.onKill(a, killer);
+  }
+
+  // 내가 격파: 큰 폭발·잔해, 짧은 히트스톱(보스는 슬로모션), 조준선 격파 표시와 연속 격파
+  _myKill(a, big) {
+    const t = this.s.time;
+    this.killStreak = t - this.killAt < 4 ? this.killStreak + 1 : 1;
+    this.killAt = t;
+    this.killMark = big >= 4 ? 1.6 : 1.1; this.killName = a.name || "표적"; this.killBig = big;
+    this.fx.explosion(a.pos, big * 0.45 + 0.35);                               // 내 격파는 한 겹 더 크게
+    this.fx.debrisBurst(a.pos, a.color || (a.rk && a.rk.color) || 0x8a93a6, 6 + big * 5, 9 + big * 3, 0.22 + Math.min(1.2, (a.radius || 1) * 0.18));
+    this.fx.ring(a.pos, big >= 4 ? 0xffe0a0 : 0xffd27a, (a.radius || 1) * 3 + 5 * big, 0.55);
+    if (big >= 4) this.s.slowMo(1.1, 0.22, 0.4);
+    else if (big >= 2) this.s.slowMo(0.16, 0.08, 0.6);
+    else this.s.slowMo(0.075, 0.06, 0.7);
+    this.feel.emit("kill", big, a);
   }
 
   _respawn(a) {
@@ -521,6 +552,7 @@ export class Combat {
     this._missiles(dt);
     this._pickups(dt);
     if (this.hurtT > 0) this.hurtT -= dt;
+    for (let i = this.hurts.length - 1; i >= 0; i--) if ((this.hurts[i].t -= dt / 1.4) <= 0) this.hurts.splice(i, 1);
     if (this.hitMark > 0) this.hitMark -= dt;
     if (this.killMark > 0) this.killMark -= dt;
     if (this.warn > 0) {

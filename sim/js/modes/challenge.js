@@ -65,7 +65,7 @@ export class ChallengeMode extends CombatMode {
       else h.toast(`격추됨 — 남은 기체 ${this.lives}`, "#ff6b5a", 1.8, 24);
       return;
     }
-    if (k === me) { me.score += a.K ? a.K.score : 200; h.toast(`${a.name} 격파`, "#ffd24a", 1, 20); }
+    if (k === me) { me.score += a.K ? a.K.score : 200; h.toast(`${a.name} 격파`, "#ffd24a", 1, 20); h.feed(`${me.name} ▸ ${a.name}`, "#ffd24a"); }
     else if (k && (a.kind === "bot" || a.kind === "turret")) h.feed(`${k.name} ▸ ${a.name}`, "#cfd8e3");
   }
 
