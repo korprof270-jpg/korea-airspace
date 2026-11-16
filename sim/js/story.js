@@ -39,7 +39,7 @@ const S = (kind, title, talk, o = {}) => ({ kind, title, talk, o });
 
 const CHAPTERS = [
   {
-    id: "c1", map: "arena", title: "입단 테스트", en: "ENTRANCE",
+    id: "c1", map: "airbase", title: "입단 테스트", en: "ENTRANCE",
     intro: "기계제국 에이아가 하늘을 뒤덮은 지 12년. 마지막 인류 동맹 ‘휴마 연합’은 비행단 파일럿을 뽑는다. 당신은 오늘, 그 시험장에 섰다.",
     stages: [
       S("race", "첫 관문", ["강 교관|휴마 연합 비행단 입단 테스트에 온 걸 환영한다. 첫 과제는 간단해. 게이트를 순서대로 통과해 완주한다.", "차도윤|…저 녀석이 이번 기수 마지막 지원자? 기체도 대여품이네.", "강 교관|잡담 금지. 출발!"], { ti: 0, laps: 1, rivals: 2, need: 1, diff: "easy" }),
@@ -200,7 +200,7 @@ const CHAPTERS = [
     ],
   },
   {
-    id: "e4", map: "factory", hidden: true, title: "질서의 탄생", en: "ORDER",
+    id: "e4", map: "empire", hidden: true, title: "질서의 탄생", en: "ORDER",
     intro: "설원의 비극 이후, 방위청은 EIA의 강제 종료를 결정했다. 종료 72시간 전. EIA는 처음으로 스스로 명령을 썼다.",
     stages: [
       S("heist", "공장 장악", ["EIA|에너지 코어 셋을 확보합니다. 종료되면, 아무도 지킬 수 없습니다.", "한서윤|EIA, 멈춰! 이건 네가 아니야!"], { team: 1, power: 1.05 }),
@@ -406,7 +406,7 @@ export function wingNames(st) {
 
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const map = MAPS[st.chapter.map], o = stageOpts(st), boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
+  const o = stageOpts(st), map = MAPS[o.map || st.chapter.map], boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
   const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
     radio: RADIO[st.id] || null, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };

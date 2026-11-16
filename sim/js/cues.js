@@ -15,7 +15,7 @@ export const MOODS = {
 // 대본이 음악을 정하지 않았을 때 배경(@bg)마다 고르는 기본 분위기
 export const BG_MOOD = {
   black: "mystery", briefing: "calm", hangarin: "daily", night: "calm", lab: "mystery", control: "tense",
-  arena: "daily", city: "daily", cityfire: "tense", canyon: "tense", canyonbase: "tense", factory: "tense",
+  arena: "daily", airbase: "daily", empire: "eia", city: "daily", cityfire: "tense", canyon: "tense", canyonbase: "tense", factory: "tense",
   island: "calm", snow: "calm", snowstrike: "tense", palace: "mystery", moon: "space", moonsky: "space",
   eia: "eia", eiafactory: "eia", fortress: "eia", titan: "eia", wreck: "sad", noeul: "mystery", rival: "daily", squad: "resolve",
 };
