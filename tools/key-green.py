@@ -19,13 +19,19 @@ near = (gdom > bgdom * 0.55) & (d < 60)
 a = np.where(near, np.minimum(a, np.clip((bgdom*0.9 - gdom) / (bgdom*0.5 + 1), 0, 1)), a)
 # 안쪽 보호: 가장자리에서 배경색으로 이어진 영역만 지운다. 인물 안쪽의 배경과 비슷한 색(셔츠 그림자 등)은 남기고,
 # 안쪽에 갇힌 진짜 배경(팔과 몸 사이 틈)은 배경과 거의 같은 색일 때만 지운다
-from PIL import ImageDraw
-bgl = Image.fromarray(((d < 48) * 255).astype(np.uint8))
-for (x, y) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] + [(x, 0) for x in range(0, w, 40)] + [(x, h - 1) for x in range(0, w, 40)] + [(0, y) for y in range(0, h, 40)] + [(w - 1, y) for y in range(0, h, 40)]:
-    if bgl.getpixel((x, y)) == 255: ImageDraw.floodfill(bgl, (x, y), 128)
-ext = np.asarray(bgl) == 128
+# 테두리에서 시작해 배경색으로 이어진 영역 (반복 팽창으로 연결 영역 찾기)
+bgm = d < 48
+ext = np.zeros_like(bgm)
+ext[0, :] = bgm[0, :]; ext[-1, :] = bgm[-1, :]; ext[:, 0] = bgm[:, 0]; ext[:, -1] = bgm[:, -1]
+for _ in range(4000):
+    g2 = ext.copy()
+    g2[1:, :] |= ext[:-1, :]; g2[:-1, :] |= ext[1:, :]; g2[:, 1:] |= ext[:, :-1]; g2[:, :-1] |= ext[:, 1:]
+    g2 &= bgm
+    if (g2 == ext).all(): break
+    ext = g2
 a = np.where(ext | (d < 16), a, np.maximum(a, np.clip((d - 8) / 20, 0, 1) * (d >= 16) + (d < 16) * a))
 a = np.where(~ext & (d >= 16), 1.0, a)
+if bg.mean() > 200 and "--holes" not in sys.argv: a = np.where(~ext, 1.0, a)   # --holes: 흰 옷이 없는 인물은 안쪽 흰 틈(다리 사이 등)도 지운다   # 흰 배경: 바깥과 이어지지 않은 안쪽 흰 부분(흰 옷)은 지우지 않는다
 # 가장자리 녹색 번짐 제거
 spill = np.clip(g - np.maximum(r, b), 0, None) * (1 - a) + np.clip(g - (r + b) / 2 - 8, 0, None) * (a < 0.98)
 out = im.copy(); out[...,1] = np.clip(g - spill * 0.9, 0, 255)
