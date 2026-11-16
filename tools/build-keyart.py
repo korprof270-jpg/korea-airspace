@@ -16,7 +16,6 @@ def put(id, cx, h, top, bright=1.0, alpha=1.0, flip=False, glow=None):
     cv.alpha_composite(im, (int(cx - im.width / 2), top))
 # 맨 뒤: 적 (어둡게, 붉은 빛)
 put("eia", 300, 1500, -80, bright=0.4, alpha=0.9, glow=(255, 45, 61, 255))
-put("yeomyeong", 640, 1260, 20, bright=0.42, alpha=0.88, glow=(255, 70, 110, 255))
 put("varga", 2110, 1440, 20, bright=0.4, alpha=0.9, flip=True, glow=(255, 45, 61, 255))
 # 둘째 줄: 어른들과 조력자
 put("gucheol", 900, 1150, 110, bright=0.66)
