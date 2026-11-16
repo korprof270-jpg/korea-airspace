@@ -12,6 +12,7 @@ import { PadUI } from "./padui.js";
 import { PostFX } from "./post.js";
 import { MenuScene, Thumbs } from "./menu3d.js";
 import { complete as completeStage } from "./story.js";
+import { completeBond } from "./bonds.js";
 import * as GP from "./garage.js";
 import { metrics, evaluate } from "./objectives.js";
 import { complete as completeLesson } from "./training.js";
@@ -135,6 +136,7 @@ class Game {
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
         this.input.flush();
         this._aq = null;                               // 맵 생성 직후의 끊김은 재지 않는다
+        this.ui.tut.onFlight(this.session);   // 첫 비행이면 할 일을 하나씩 띄운다
       } catch (e) {
         console.error(e);
         this.state = "menu";
@@ -168,7 +170,7 @@ class Game {
   showResult(result) {
     const cf = this.lastCfg;
     if (cf && cf.story && cf.objectives && this.session) result.obj = evaluate(cf.objectives, cf.need, metrics(this.session.mode, result));   // 스토리 목표 판정
-    if (this.lastCfg && this.lastCfg.story) result.story = completeStage(this.lastCfg.story, result);   // 스토리 단계 판정·진행도 저장
+    if (this.lastCfg && this.lastCfg.story) result.story = this.lastCfg.bond ? completeBond(this.lastCfg.bond, result) : completeStage(this.lastCfg.story, result);   // 스토리 단계(인연 임무 포함) 판정·진행도 저장
     if (this.lastCfg && this.lastCfg.training) result.training = completeLesson(this.lastCfg.training, result);   // 비행훈련 과목 판정
     if (this.lastCfg) result.reward = GP.onResult(this.lastCfg, result);   // 포인트·퀘스트·업적
     this.state = "result";

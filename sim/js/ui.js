@@ -12,6 +12,9 @@ import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam,
 import * as SY from "./story.js";
 import { VN, BONDS, rel } from "./vn.js";
 import * as GP from "./garage.js";
+import * as BD from "./bonds.js";
+import { Tutorial } from "./tutorial.js";
+import { SCENES } from "./scenes.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 import { glyphsFor } from "./gamepad.js";
@@ -63,6 +66,7 @@ export class UI {
   constructor(game) {
     this.game = game;
     this.vn = new VN(game);
+    this.tut = new Tutorial(this);   // 처음 하는 사람용 안내
     this.root = document.getElementById("ui");
     this.screen = null;
     this.tab = "control";
@@ -113,6 +117,7 @@ export class UI {
     this._syncStage();
     if (name === "title") this._titleShow(); else clearInterval(this._slideT);
     if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
+    if (this.tut) this.tut.onShow(name);
   }
 
   // 3D 무대: 화면별 장면을 고르고, [data-stage] 영역 가운데에 오도록 맞춘다
@@ -330,6 +335,8 @@ export class UI {
 
   // 스토리: ① 장 ② (작전 선택) 단계 ③ 브리핑(대사)·편대
   s_story() {
+    if (this.sel.stab === "bond") return this.s_storyBond();
+    if (this.sel.stab === "end") return this.s_storyEnd();
     const s = this.sel, m = MODE_META.challenge, { chapters, flat } = story(), prog = progress(), cur = SY.current();
     let ch = chapters.find((c) => c.id === s.chapter);
     if (!ch) ch = cur ? cur.chapter : chapters[chapters.length - 1];
@@ -379,11 +386,11 @@ export class UI {
       + this._step(1, "장 선택", `${ch.no}. ${ch.title}`, `<div class="grid maps">${chCards}</div>`)
       + this._step(2, ch.routes ? "작전 선택 · 단계" : "단계 선택", `${rt ? rt.name + " · " : ""}${st.no}. ${st.title}`, rtCards + `<div class="stages">${stCards}</div>`)
       + this._step(3, "브리핑", "", brief)
-      + this._step(4, "동료와의 관계", "", this._bonds());
+      + this._step(4, "동료와의 관계", "", this._bonds() + `<button class="ghost scenebtn" data-a="stab" data-v="bond">♥ 인연 이야기 보러 가기 →</button>`);
     return `<div class="screen split story${ch.hidden ? " hid" : ""}" style="--c:${ch.hidden === 2 ? "#c060ff" : ch.hidden ? "#ff4a5a" : m.c}">
       <div class="pane" data-scroll>
         <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${ch.hidden ? "HIDDEN" : m.en}</span>${ch.hidden === 2 ? "별의 저편" : ch.hidden ? "에이아 연대기" : "노을의 날개"}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
-        ${body}
+        ${this._stabs()}${body}
         <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} ${esc(st.title)}</span>
           <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "출격" : "잠김"} <span aria-hidden="true">→</span></button></div>
       </div>
@@ -391,13 +398,143 @@ export class UI {
     </div>`;
   }
 
-  _bonds() {
+  _met(n) {
     const met = { 서하린: SY.cleared({ id: "c2-4" }) || progress() >= 7, 바우: progress() >= 8, 유리: progress() >= 8, 차도윤: true, 모아: progress() >= 4, 노을: progress() >= 7, 윤채아: progress() >= 7, 진세라: progress() >= 9, 한별: progress() >= 9, 루카: progress() >= 12 };
+    return met[n] || rel(n) > 0;
+  }
+  _face(n, known, v) {
+    return portrait(n) ? `<i class="face${hasArt(n) ? " art" : ""}" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i>` : `<i class="face ini">${known ? n.replace(/^강 /, "").slice(0, 1) : "?"}</i>`;
+  }
+  _bonds() {
     return `<div class="bonds">${BONDS.map((n) => {
-      const v = Math.max(0, rel(n)), lv = Math.min(5, Math.floor(v / 2)), known = met[n] || v > 0;
+      const v = Math.max(0, rel(n)), lv = Math.min(5, Math.floor(v / 2)), known = this._met(n);
       return `<div class="bond ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}">${portrait(n) ? `<i class="face${hasArt(n) ? " art" : ""}" style="background-image:url('${portrait(n, v >= 4 ? "smile" : "normal")}')"></i>` : `<i class="face ini">${known ? n.replace(/^강 /, "").slice(0, 1) : "?"}</i>`}<div><b>${known ? n : "???"}</b><small>${known ? esc(SY.CAST_ROLE[n] || "") : "아직 만나지 않았다"}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></div>`;
     }).join("")}</div><p class="hint2">장면 속 선택에 따라 관계가 깊어집니다. 관계가 깊은 동료가 윙맨으로 함께 날고, 마지막 장면과 엔딩이 달라집니다.</p>`;
   }
+
+  // 스토리 화면 위쪽 탭: 본편 · 인연 · 엔딩
+  _stabs() {
+    const t = this.sel.stab || "main", n = BD.newCount();
+    const tabs = [["main", "본편 이야기"], ["bond", `♥ 인연${n ? ` <i class="nb">${n}</i>` : ""}`], ["end", `엔딩 ${BD.endingsGot().length}/${BD.ENDINGS.length}`]];
+    return `<div class="seg stabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${t === k}" class="${t === k ? "on" : ""}" data-a="stab" data-v="${k}">${l}</button>`).join("")}</div>`;
+  }
+  a_stab(v) { this.sel.stab = v; this._persist(); this._scroll = null; this.show("setup"); }
+  _storyShell(en, title, body, bar) {
+    return `<div class="screen split story" style="--c:${MODE_META.challenge.c}">
+      <div class="pane" data-scroll>
+        <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${en}</span>${title}</h2><span class="prog">${progress()}/${story().flat.length} 단계</span></div>
+        ${this._stabs()}${body}
+        ${bar}
+      </div>
+      <div class="rcol"><div class="stage" data-stage></div></div>
+    </div>`;
+  }
+
+  // ── 인연: 인물 목록 → 편 목록 → 편 정보 ──
+  s_storyBond() {
+    const s = this.sel, eps = BD.episodes();
+    let who = BONDS.includes(s.bwho) ? s.bwho : null;
+    if (!who) { const e = eps.find((x) => BD.epOpen(x) && !BD.epDone(x)); who = e ? e.who : "노을"; }
+    s.bwho = who;
+    const list = BD.epsOf(who);
+    let ep = list.find((x) => x.id === s.bep);
+    if (!ep) ep = list.find((x) => BD.epOpen(x) && !BD.epDone(x)) || [...list].reverse().find((x) => BD.epDone(x)) || list[0];
+    s.bep = ep.id;
+    const cards = BONDS.map((n) => {
+      const v = rel(n), known = this._met(n), l = BD.epsOf(n), done = l.filter(BD.epDone).length, nw = l.some((x) => BD.epOpen(x) && !BD.epDone(x)), lv = Math.min(5, Math.floor(Math.max(0, v) / 2));
+      return `<button class="bond bcard ${n === who ? "sel" : ""} ${known ? "" : "unk"}" style="--nc:${SY.CAST[n]}" data-a="sel" data-k="bwho" data-v="${n}">
+        ${this._face(n, known, v)}<div><b>${known ? n : "???"}${nw ? ` <i class="new">NEW</i>` : ""}</b><small>관계 ${v} · 이야기 ${done}/${l.length}</small><span class="hearts">${"♥".repeat(lv)}${"♡".repeat(5 - lv)}</span></div></button>`;
+    }).join("");
+    const known = this._met(who);
+    const rows = list.map((x) => {
+      const open = BD.epOpen(x), done = BD.epDone(x);
+      return `<button class="card stage ${x.id === ep.id ? "sel" : ""} ${open || done ? "" : "locked"} ${done ? "cleared" : ""}" data-a="sel" data-k="bep" data-v="${x.id}">
+        <span class="sno">${open || done ? x.no : "🔒"}</span><span class="stx"><b>${open || done ? esc(x.title) : "잠긴 이야기"}${x.mission ? ` <i class="bosstag mid">임무</i>` : ""}</b><small>${open || done ? esc(x.desc) : esc(BD.hintOf(x).filter((h) => !h[0]).map((h) => h[1]).join(" · "))}</small></span>
+        <span class="stars">${done ? (x.stage ? starStr(BD.epStars(x)) : "✔") : open ? "새 이야기" : ""}</span></button>`;
+    }).join("");
+    const open = BD.epOpen(ep), done = BD.epDone(ep), seen = BD.epSeen(ep), avail = open || done;
+    let info = `<div class="brief"><div class="bk">인연 · ${esc(known ? who : "???")} ${ep.no}편${ep.stage ? ` · ${KIND[ep.stage.kind]} · ${esc(MAPS[ep.stage.chapter.map].name)}` : " · 이야기"}</div>`;
+    info += `<p>${avail ? esc(ep.desc) : "아직 열리지 않은 이야기입니다. 아래 조건을 채우면 열립니다."}</p>`;
+    info += `<ul class="bhint">${BD.hintOf(ep).map(([ok, t]) => `<li class="${ok ? "ok" : ""}">${ok ? "✔" : "✖"} ${esc(t)}</li>`).join("")}</ul>`;
+    if (ep.stage && avail) {
+      const OB = BD.objectivesOf(ep.stage), md = SY.missionMod(ep.stage);
+      info += `${md && md.note ? `<div class="mnote">⚑ 작전 변경 · ${esc(md.note)}</div>` : ""}<div class="objs"><b>임무 목표 — ${OB.list.length}개 중 ${OB.need}개 이상 달성 · 윙맨 ${esc(who)}</b><ul>${OB.list.map((o) => `<li class="${o.req ? "req" : ""}">${o.req ? "★ " : ""}${esc(o.text)}${o.req ? " <i>핵심</i>" : ""}</li>`).join("")}</ul></div>`;
+    }
+    if (avail && seen && ep.stage) info += `<button class="ghost scenebtn" data-a="bondplay" data-v="${ep.id}">▶ 출격 전 이야기 다시 보기</button>`;
+    if (done && BD.bondScene(ep, "post")) info += `<button class="ghost scenebtn" data-a="bondpostplay" data-v="${ep.id}">▶ 임무 뒤 이야기 다시 보기</button>`;
+    info += `</div>`;
+    const body = `<p class="hint2 intro">편대 동료 한 사람 한 사람의 이야기. 장면 속 선택으로 관계가 깊어지고 본편이 진행되면 열립니다. 마지막 편은 그 동료가 윙맨으로 함께 나는 전용 임무입니다. 인연 이야기를 끝까지 함께한 동료가 많을수록 마지막 하늘이 달라집니다.</p>`
+      + this._step(1, "동료", `${known ? who : "???"} · 관계 ${rel(who)}`, `<div class="bonds bpick">${cards}</div>`)
+      + this._step(2, "이야기", `${ep.no}편 ${avail ? ep.title : "🔒"}`, `<div class="stages">${rows}</div>`)
+      + this._step(3, "정보", "", info);
+    const act = !avail ? "잠김" : ep.stage ? (seen ? "출격" : "이야기 보고 출격") : seen ? "다시 보기" : "이야기 보기";
+    const bar = `<div class="startbar"><span class="sum">인연 · ${esc(known ? who : "???")} ${ep.no}편 ${avail ? esc(ep.title) : ""}</span>
+      <button class="primary" data-a="bondgo" data-v="${ep.id}" ${avail ? "" : "disabled"}>${act} <span aria-hidden="true">→</span></button></div>`;
+    return this._storyShell("BONDS", "인연 이야기", body, bar);
+  }
+  _epMeta(ep, part) { return { key: `${ep.id}:${part}`, title: ep.title, sub: `인연 · ${ep.who} ${ep.no}편${part === "post" ? " · 임무 이후" : ""}` }; }
+  // 이야기만 보기 (출격하지 않음). 이야기 편은 끝까지 보면 완료
+  a_bondplay(v) {
+    const ep = BD.epById(v), pre = ep && BD.bondScene(ep);
+    if (!pre || !(BD.epOpen(ep) || BD.epDone(ep))) return;
+    this.vn.play(pre, Object.assign(this._epMeta(ep, "pre"), { onDone: () => { BD.markEpisode(ep); if (this.screen === "setup") this.redraw(); } }));
+  }
+  a_bondpostplay(v) {
+    const ep = BD.epById(v), post = ep && BD.bondScene(ep, "post");
+    if (post && BD.epDone(ep)) this.vn.play(post, Object.assign(this._epMeta(ep, "post"), { onDone: () => this.redraw() }));
+  }
+  // 편 시작: 이야기 편은 장면, 임무 편은 (처음이면 장면 →) 출격
+  a_bondgo(v) {
+    const ep = BD.epById(v);
+    if (!ep || !(BD.epOpen(ep) || BD.epDone(ep))) return;
+    if (!ep.stage) return this.a_bondplay(v);
+    const go = () => this.game.startSession(BD.bondConfig(ep));
+    if (BD.epSeen(ep)) return go();
+    this.hide();
+    this.vn.play(BD.bondScene(ep), Object.assign(this._epMeta(ep, "pre"), { onDone: () => { BD.markEpisode(ep); go(); } }));
+  }
+  // ── 엔딩 목록 ──
+  s_storyEnd() {
+    const got = BD.endingsGot().length, st = BD.endingStatus(), c8 = story().chapters.find((c) => c.id === "c8"), fin = !!c8 && SY.chapterDone(c8);
+    const cards = BD.ENDINGS.map((e) => {
+      const has = BD.endingGot(e.id);
+      return `<div class="ecard ${has ? "got" : ""} e-${e.id}"><div class="ek">ENDING ${e.no} · ${e.kind}${records.hsendlast === e.id ? ` <i>최근</i>` : ""}</div>
+        <div class="et">${has ? esc(e.title) : "？？？"}</div><p>${esc(has ? e.desc : e.hint)}</p>
+        ${has ? `<button class="ghost small" data-a="endplay" data-v="${e.id}">▶ 엔딩 다시 보기</button>` : ""}</div>`;
+    }).join("");
+    const ck = (ok, t) => `<li class="${ok ? "ok" : ""}">${ok ? "✔" : "✖"} ${t}</li>`;
+    const now = BD.ENDINGS.find((e) => e.id === BD.endingOf());
+    const status = `<div class="brief"><div class="bk">지금의 하늘</div><ul class="bhint">
+      ${ck(st.noeul >= 10, `노을과의 관계 ${st.noeul} <small>(10 이상)</small>`)}
+      ${ck(st.keys >= 2, `노을과 나눈 결정적인 순간 ${st.keys}/3 <small>(2개 이상)</small>`)}
+      ${ck(st.fin >= 3, `인연 이야기를 끝까지 함께한 동료 ${st.fin}명 <small>(3명 이상)</small>`)}
+      ${ck(st.team >= 15, `노을 밖의 편대 동료들과의 관계 합 ${st.team} <small>(15 이상)</small>`)}</ul>
+      <p class="hint2">${fin ? `지금 관계로 마지막 장면을 보면 <b>「${esc(now.title)}」</b>에 닿습니다. 8장 「거신 오메가」의 마지막 단계를 다시 깨면 엔딩을 다시 맞이할 수 있습니다.` : "본편 8장을 끝내면 그때까지의 관계와 선택에 따라 세 엔딩 중 하나에 닿습니다. 노을과 멀어진 채 마지막 비행에 오르면, 노을은 돌아오지 못할지도 모릅니다."}</p></div>`;
+    const body = `<p class="hint2 intro">「노을의 날개」의 결말은 하나가 아닙니다. 장면 속 선택과 동료들과 쌓은 인연이 마지막 하늘을 바꿉니다. 어느 엔딩으로 끝내도 숨겨진 이야기는 열립니다.</p>`
+      + this._step(1, "엔딩 목록", `${got}/${BD.ENDINGS.length} 수집`, `<div class="ecards">${cards}</div>`)
+      + this._step(2, "엔딩 조건", "", status);
+    return this._storyShell("ENDINGS", "엔딩 목록", body, `<div class="startbar"><span class="sum">엔딩 ${got}/${BD.ENDINGS.length} 수집</span><button class="primary" data-a="stab" data-v="main">본편으로 <span aria-hidden="true">→</span></button></div>`);
+  }
+  a_endplay(v) {
+    const sc = SCENES[`end:${v}`], e = BD.ENDINGS.find((x) => x.id === v);
+    if (!sc || !e || !BD.endingGot(v)) return;
+    records.hsendnow = v;
+    this.vn.play(sc.post, { key: `end:${v}`, title: e.title, sub: `ENDING ${e.no} · ${e.kind} · 다시 보기`, onDone: () => this.redraw() });
+  }
+  // 엔딩 도달 카드: 이번에 닿은 엔딩과 수집 수
+  _endCard(id, then) {
+    const e = BD.ENDINGS.find((x) => x.id === id), first = BD.recordEnding(id);
+    if (!e) return then();
+    this.vn.play(["@bg black", "@flash", `|ENDING ${e.no} · ${e.kind}`, `|「${e.title}」`, `|엔딩 ${BD.endingsGot().length}/${BD.ENDINGS.length} 수집${first ? " — 새로운 엔딩!" : ""}`, "|스토리 화면의 ‘엔딩’ 탭에서 다시 볼 수 있습니다."],
+      { title: e.title, sub: `ENDING ${e.no} · ${e.kind}`, onDone: then });
+  }
+  _bondPost(v) {
+    const ep = BD.epById(v), post = ep && BD.bondScene(ep, "post");
+    if (!post) return;
+    this.game.quit(); this.hide();
+    this.vn.play(post, Object.assign(this._epMeta(ep, "post"), { onDone: () => { this.sel.mode = "challenge"; this.sel.stab = "bond"; this.sel.bwho = ep.who; this.sel.bep = ep.id; this._persist(); this.show("setup"); } }));
+  }
+
 
   // 비행훈련: ① 과정 ② 과목 ③ 브리핑·과제
   s_training() {
@@ -527,6 +664,7 @@ export class UI {
     this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
+    if (k === "bwho") this.sel.bep = null;
     if (k === "course") this.sel.lesson = null;
     this._persist();
     this.redraw();
@@ -721,6 +859,8 @@ export class UI {
     if (t === "control") {
       const sm = STICK_MODES[settings.stickMode];
       body = `
+        <div class="opt"><label>처음 안내</label><button class="ghost" data-a="tutreplay">📘 안내 다시 보기</button>
+          <div class="hint">메뉴·조작법·스토리 목표·격납고·퀘스트 안내와 첫 비행 코치를 처음부터 다시 봅니다.</div></div>
         <div class="opt"><label>스틱 모드</label>${this.seg("stickMode", [[1, "MODE 1"], [2, "MODE 2"], [3, "MODE 3"], [4, "MODE 4"]], settings.stickMode, "set")}
           <div class="hint">${sm.desc}. 키보드는 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> = 왼쪽 스틱, 방향키 = 오른쪽 스틱입니다.</div></div>
         <div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((m) => [m, FLIGHT_MODE_INFO[m].label]), settings.flightMode, "set")}
@@ -813,6 +953,7 @@ export class UI {
     return ` <span class="qnow">지금: ${QUALITY_NAMES[q.tier]} · 해상도 ${q.scale}%</span>`;
   }
   a_tab(v) { this.tab = v; this.show("settings"); }
+  a_tutreplay() { this.tut.replay(); }
   a_flip(v, el) {
     const path = el.dataset.k;
     setPath(settings, path, !getPath(settings, path));
@@ -833,7 +974,7 @@ export class UI {
     const m = STICK_MODES[settings.stickMode];
     const ch = { throttle: "스로틀(상승/하강)", yaw: "요(좌우 회전)", pitch: "피치(전진/후진)", roll: "롤(좌우 이동)" };
     return `<div class="screen dim"><div class="wrap">
-      <div class="head"><button class="back" data-a="back">← 뒤로</button><h2>🎮 조작법</h2></div>
+      <div class="head"><button class="back" data-a="back">← 뒤로</button><h2>🎮 조작법</h2><button class="ghost" data-a="tutreplay" style="margin-left:auto">📘 안내 다시 보기</button></div>
       <div class="panel"><table class="keys">
         <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>왼쪽 스틱 세로 — <b>${ch[m.ly]}</b> <span class="muted">(MODE ${settings.stickMode})</span></td></tr>
         <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>왼쪽 스틱 가로 — <b>${ch[m.lx]}</b></td></tr>
@@ -906,7 +1047,7 @@ export class UI {
       ${r.sub ? `<div class="sub">${esc(r.sub)}</div>` : ""}
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
-      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
+      ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : r.story.bond ? `인연 · ${esc(r.story.bond.who)} 임무 성공` : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
       ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       <div class="list">
@@ -914,7 +1055,7 @@ export class UI {
         ${r.story && r.story.post ? `<button class="primary" data-a="storypost" data-v="${r.story.stage.id}">이야기 계속 →</button>` : ""}
         ${r.story && r.story.next && !r.story.post ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
         <button class="${(r.story && (r.story.next || r.story.post)) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
-        ${r.story ? `<button class="${r.story.choose && !r.story.post ? "primary" : ""}" data-a="tostory">${r.story.choose && !r.story.post ? "다음 장: 작전 선택 →" : "단계 목록으로"}</button>` : ""}
+        ${r.story ? `<button class="${r.story.choose && !r.story.post ? "primary" : ""}" data-a="tostory">${r.story.choose && !r.story.post ? "다음 장: 작전 선택 →" : r.story.bond ? "인연 목록으로" : "단계 목록으로"}</button>` : ""}
         ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div></div></div>`;
@@ -956,11 +1097,15 @@ export class UI {
   }
   // 통과 후 장면 → (다음 단계가 이어지면) 그 단계의 출격 전 장면 → 출격
   a_storypost(v) {
+    if (String(v).startsWith("b-")) return this._bondPost(v);   // 인연 임무
     const st = story().flat.find((x) => x.id === v), post = st && SY.postScene(st);
     if (!post) return;
     this.game.quit();
     this.hide();
-    this.vn.play(post, { key: `${st.id}:post`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => {
+    const finale = st.id === BD.FINALE;
+    if (finale) { records.hsendnow = BD.endingOf(); save(); }   // 결말은 마지막 장면을 틀기 직전의 관계·선택으로 정한다
+    this.vn.play(post, { key: `${st.id}:post`, title: st.title, sub: `CHAPTER ${st.chapter.no} · 임무 이후`, me: st.chapter.hidden === 1 ? "EIA" : "나", onDone: () => finale ? this._endCard(records.hsendnow, after) : after() });
+    const after = () => {
       const nx = SY.nextOf(st) || SY.current();
       if (nx && nx.chapter.hidden && nx.chapter.hidden !== st.chapter.hidden) {   // 이야기 완결 → 다음 히든 스토리 해금 안내
         this.sel.mode = "challenge"; this.sel.chapter = nx.chapter.id; this.sel.route = null; this.sel.stage = nx.id; this._persist();
@@ -972,9 +1117,12 @@ export class UI {
       if (nx && unlocked(nx) && !SY.cleared(nx)) return this._storyGo(nx);
       if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }
       this.sel.mode = "challenge"; this._persist(); this.show("setup");
-    } });
+    };
   }
   a_tostory() {
+    const bep = BD.epById((this.game.lastCfg || {}).bond || "");
+    if (bep) { Object.assign(this.sel, { mode: "challenge", stab: "bond", bwho: bep.who, bep: bep.id }); this._persist(); this.game.quit(); return this.show("setup"); }
+    this.sel.stab = "main";
     const cur = story().flat.find((x) => x.id === (this.game.lastCfg || {}).story), nx = (cur && SY.cleared(cur) && SY.current()) || cur;
     if (nx) { this.sel.chapter = nx.chapter.id; this.sel.route = nx.route ? nx.route.id : null; this.sel.stage = nx.id; }
     this.sel.mode = "challenge"; this._persist();

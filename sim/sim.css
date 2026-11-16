@@ -772,3 +772,48 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 .qnow { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: rgba(61, 214, 140, 0.16); color: var(--ok); font-weight: 700; }
 kbd.pad { min-width: 1.6em; text-align: center; border-radius: 999px; background: #22304f; }
 @media (prefers-reduced-motion: reduce) { #padchip { animation: none; } #padtoast .pt { transition: opacity 0.2s; transform: none; } }
+/* ── 스토리 탭 · 인연 이야기 ── */
+.stabs { display: flex; width: 100%; margin: 2px 0 12px; }
+.stabs button { flex: 1; padding: 10px 8px; }
+.stabs button.on { background: var(--c, var(--accent)); color: #0b0f24; }
+.stabs .nb { font-style: normal; display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: #ff3d6e; color: #fff; font-size: 11px; line-height: 18px; }
+.bond.bcard { text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.bond.bcard.sel { background: color-mix(in srgb, var(--nc) 18%, rgba(14, 20, 36, 0.92)); box-shadow: inset 0 0 0 2px var(--nc); }
+.bond .new { font-style: normal; font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 999px; background: #ff3d6e; color: #fff; vertical-align: 2px; }
+.bhint { list-style: none; margin: 8px 0; padding: 0; font-size: 13px; }
+.bhint li { padding: 3px 0; color: #ff9a8a; }
+.bhint li.ok { color: #9fe8b8; }
+.bhint small { color: var(--muted); }
+
+/* ── 엔딩 목록 ── */
+.ecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ecard { padding: 12px 14px; border-radius: 14px; border: 2px solid var(--ink); background: rgba(14, 20, 36, 0.82); box-shadow: 0 4px 0 var(--ink); --ec: #9fb3c8; border-top: 4px solid var(--ec); }
+.ecard.e-true { --ec: #ffd24a; } .ecard.e-normal { --ec: #ff9a3a; } .ecard.e-bitter { --ec: #7f9cc8; }
+.ecard .ek { font-size: 11px; font-weight: 900; letter-spacing: 0.08em; color: var(--ec); }
+.ecard .ek i { font-style: normal; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--ec); color: #0b0f24; }
+.ecard .et { font-size: 18px; font-weight: 900; margin: 4px 0 6px; }
+.ecard p { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0 0 8px; }
+.ecard:not(.got) .et { color: var(--muted); letter-spacing: 0.2em; }
+.ecard.got { background: color-mix(in srgb, var(--ec) 10%, rgba(14, 20, 36, 0.9)); }
+
+/* ── 처음 안내 (코치마크) ── */
+.tut { position: fixed; inset: 0; z-index: 70; opacity: 0; transition: opacity 0.2s; }
+.tut.in { opacity: 1; }
+.tut-hole { position: fixed; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(4, 7, 16, 0.72), 0 0 0 3px var(--gold) inset; transition: all 0.25s ease; pointer-events: none; }
+.tut-bub { position: fixed; width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 16px; border: 2px solid var(--ink); background: rgba(14, 20, 36, 0.98); box-shadow: 0 6px 0 var(--ink), 0 0 0 2px var(--gold); transition: left 0.25s, top 0.25s; }
+.tut-bub.center { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)) !important; }
+.tut-h small { display: block; font-size: 11px; color: var(--gold); font-weight: 800; letter-spacing: 0.08em; }
+.tut-h b { font-size: 17px; }
+.tut-b { font-size: 14px; line-height: 1.6; color: #dfe7f1; }
+.tut-b p { margin: 8px 0; }
+.tut-b .tutsmall { font-size: 12.5px; color: var(--muted); }
+.tut-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 10px; }
+.tut-a button { padding: 8px 14px; font-size: 13px; }
+.tutkeys { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.tutkeys th { text-align: left; font-weight: 700; color: #cfd8e3; padding: 4px 6px 4px 0; }
+.tutkeys td { padding: 4px 6px; color: var(--muted); white-space: nowrap; }
+.tutfly { position: fixed; left: 50%; top: max(64px, 9vh); transform: translateX(-50%); z-index: 40; width: min(520px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 14px; border: 2px solid var(--ink); background: rgba(14, 20, 36, 0.9); box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--gold); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; pointer-events: auto; transition: box-shadow 0.2s, background 0.2s; }
+.tutfly.ok { box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--ok); background: rgba(20, 52, 36, 0.92); }
+.tutfly .tf-t { flex: 1 1 100%; font-size: 15px; line-height: 1.5; }
+.tutfly .tf-p { flex: 1; font-size: 11px; color: var(--muted); }
+.tutfly button { padding: 4px 10px; font-size: 12px; }
