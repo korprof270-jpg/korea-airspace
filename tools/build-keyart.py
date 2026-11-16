@@ -32,6 +32,7 @@ put("moa", 2040, 1180, 360, flip=True)
 put("harin", 1050, 1380, 150)
 put("doyun", 1420, 1380, 160)
 cv.save("/home/user/korea-airspace/sim/img/title/keyart.webp", "WEBP", quality=88, method=6)
+cv.resize((1280, int(H * 1280 / W)), Image.LANCZOS).save("/home/user/korea-airspace/sim/img/title/keyart-1280.webp", "WEBP", quality=86, method=6)   # 작은 화면용
 prev = Image.open("/home/user/korea-airspace/sim/img/title/2-combat.jpg").convert("RGBA").resize((W, int(W * 9 / 16)))
 bg = Image.new("RGBA", (W, H)); bg.paste(prev.crop((0, 0, W, H)), (0, 0)); bg = Image.alpha_composite(bg, Image.new("RGBA", (W, H), (5, 8, 18, 150)))
 bg.alpha_composite(cv); bg.convert("RGB").resize((1200, 650)).save("/tmp/claude-0/-home-user-korea-airspace/1b458f86-960e-5244-bd16-d3566aa39a56/scratchpad/shots/keyart.jpg", quality=85)
