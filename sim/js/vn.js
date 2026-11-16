@@ -5,11 +5,11 @@
 //     정하지 않으면 @bg 마다 BG_MOOD 기본 분위기. 바로 뒤(대사 전)에 @bgm 이 오면 그쪽이 이긴다
 //   "화자:표정|대사"  "|지문"   (표정: normal smile angry sad surprise serious)
 //   { choice: [{ t: "선택지", rel: { 서하린: 1 }, route: "c4:a", flag: "이름", then: [...] }], q: "질문(선택)" }
-//   { if: "rel 서하린>=2" | "flag 이름" | "route c4=a" | "top 서하린", then: [...], else: [...] }
+//   { if: "rel 서하린>=2" | "flag 이름" | "route c4=a" | "top 서하린" | "done c7"(장 완료) | "ending true"(이번 엔딩), then: [...], else: [...] }
 import { records, save, settings } from "./config.js";
 import { MOODS, BG_MOOD } from "./cues.js";
 import { portrait, HAS_PORTRAIT, hasArt, artScale } from "./portraits.js";
-import { CAST } from "./story.js";
+import { CAST, story, chapterDone } from "./story.js";
 
 const IMG = "img/story/";
 // 단계 작전 변경 = 장면별 조각을 순서대로 합친 것
@@ -34,6 +34,8 @@ function test(cond) {
   const [op, arg] = [cond.slice(0, cond.indexOf(" ")), cond.slice(cond.indexOf(" ") + 1).trim()];
   if (op === "flag") return flag(arg);
   if (op === "top") return topBond() === arg;
+  if (op === "done") { const c = story().chapters.find((x) => x.id === arg); return !!c && chapterDone(c); }
+  if (op === "ending") return (records.hsendnow || "normal") === arg;   // 마지막 장면을 틀기 직전에 ui 가 정해 둔다
   if (op === "route") { const [ch, id] = arg.split("="); return records[`hspick:${ch}`] === id || (!records[`hspick:${ch}`] && records[`hsroute:${ch}`] === id); }
   if (op === "rel") { const m = arg.match(/^(.+?)(>=|<=|>|<|=)(-?\d+)$/); if (!m) return false; const v = rel(m[1]), n = +m[3]; return { ">=": v >= n, "<=": v <= n, ">": v > n, "<": v < n, "=": v === n }[m[2]]; }
   return false;

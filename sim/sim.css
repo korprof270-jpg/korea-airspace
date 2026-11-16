@@ -744,3 +744,16 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 .objr { margin: 8px 0 0; text-align: left; }
 .objr li.ok { color: #35ff7a; }
 .objr li.no { color: #ff8a7a; }
+
+/* ── 스토리 탭 · 인연 이야기 ── */
+.stabs { display: flex; width: 100%; margin: 2px 0 12px; }
+.stabs button { flex: 1; padding: 10px 8px; }
+.stabs button.on { background: var(--c, var(--accent)); color: #0b0f24; }
+.stabs .nb { font-style: normal; display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: #ff3d6e; color: #fff; font-size: 11px; line-height: 18px; }
+.bond.bcard { text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.bond.bcard.sel { background: color-mix(in srgb, var(--nc) 18%, rgba(14, 20, 36, 0.92)); box-shadow: inset 0 0 0 2px var(--nc); }
+.bond .new { font-style: normal; font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 999px; background: #ff3d6e; color: #fff; vertical-align: 2px; }
+.bhint { list-style: none; margin: 8px 0; padding: 0; font-size: 13px; }
+.bhint li { padding: 3px 0; color: #ff9a8a; }
+.bhint li.ok { color: #9fe8b8; }
+.bhint small { color: var(--muted); }

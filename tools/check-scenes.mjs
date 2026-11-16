@@ -19,14 +19,37 @@ const walk = (L, k) => { for (const it of L || []) {
     else if (!it.startsWith("@")) { n++; const i = it.indexOf("|"); if (i > 0) { const [w, e] = it.slice(0, i).split(":"); if (!who.has(w)) bad.push(k + " who " + w); if (!ex.has(e)) bad.push(k + " expr " + e); } else if (i < 0) bad.push(k + " no bar: " + it.slice(0, 20)); }
   } else if (it.choice) { ch++; for (const c of it.choice) { walk(c.then, k);
     if (c.mod) for (const [sid, m] of Object.entries(c.mod)) {
-      if (!/^(c|e|s)\d[ab]?-\d$/.test(sid)) bad.push(k + " mod stage " + sid);
+      if (!/^((c|e|s)\d[ab]?|b-[a-z]+)-\d$/.test(sid)) bad.push(k + " mod stage " + sid);
       for (const key of Object.keys(m)) if (!["team", "wing", "power", "diff", "bots", "time", "boss", "objAdd", "objDel", "objNeed", "note", "laps", "rivals", "limitK"].includes(key)) bad.push(k + " mod key " + key);
       for (const o of m.objAdd || []) if (!["win", "rank", "crash", "kills", "boss", "truck", "core", "time", "stars", "keep", "hp"].includes(o.t)) bad.push(k + " objAdd " + o.t);
       if (m.wing && m.team !== undefined && m.wing.length < m.team) bad.push(k + " wing shorter than team");
     } for (const r of Object.keys(c.rel || {})) if (!["서하린","바우","유리","차도윤","모아","노을","윤채아","진세라","한별","루카"].includes(r)) bad.push(k + " rel " + r); } }
-  else if (it.if) { walk(it.then, k); walk(it.else, k); }
+  else if (it.if) {
+    if (!/^(rel [^<>=]+(>=|<=|>|<|=)-?\d+|flag \w+|route [ces]\d=[ab]|top \S+|done [ces]\d|ending (true|normal|bitter))$/.test(it.if)) bad.push(k + " if " + it.if);
+    walk(it.then, k); walk(it.else, k);
+  }
 } };
 for (const [k, v] of Object.entries(SCENES)) { walk(v.pre, k); walk(v.post, k); }
+// 인연 이야기: 편마다 장면, 임무 편은 임무 뒤 장면·무전·목표 3~4개(핵심 1개 이상)
+const B = await import(new URL("js/bonds.js", SIM).href);
+let bn = 0, bm = 0;
+for (const ep of B.episodes()) {
+  bn++;
+  if (!SCENES[ep.id] || !SCENES[ep.id].pre) bad.push(ep.id + " no pre scene");
+  if (!B.BOND_DEFS[ep.who]) bad.push(ep.id + " who " + ep.who);
+  if (ep.mission) {
+    bm++;
+    if (!ep.stage) bad.push(ep.id + " mission map missing " + ep.mission.map);
+    if (!SCENES[ep.id] || !SCENES[ep.id].post) bad.push(ep.id + " no post scene");
+    if (!RADIO[ep.id]) bad.push(ep.id + " no radio");
+    const ob = ep.mission.o.obj || [];
+    if (ob.length < 3 || ob.length > 4 || !ob.some((o) => o.req)) bad.push(ep.id + " objectives " + ob.length);
+    if (!(ep.mission.o.wing || []).includes(ep.who)) bad.push(ep.id + " wingman is not " + ep.who);
+  }
+}
+for (const n of Object.keys(B.BOND_DEFS)) { const l = B.epsOf(n); if (l.length < 2 || l.length > 3 || !l[l.length - 1].mission) bad.push(n + " episodes " + l.length); }
+for (const k of Object.keys(SCENES)) if (k.startsWith("b-") && !B.epById(k)) bad.push(k + " scene without episode");
+console.log("bond episodes", bn, "missions", bm);
 for (const k of [...imgs, ...rooms]) if (!BG_MOOD[k]) bad.push("bg without default mood " + k);
 for (const m of Object.values(BG_MOOD)) if (!MOODS[m]) bad.push("BG_MOOD unknown mood " + m);
 console.log("lines", n, "choices", ch, "bgm", bgm, "scenes", Object.keys(SCENES).length, "radio", Object.keys(RADIO).length); console.log(bad.join("\n") || "all ok");
