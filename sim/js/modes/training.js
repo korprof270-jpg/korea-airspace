@@ -5,7 +5,7 @@ import { settings, save, fmtTime, STICK_MODES, clamp } from "../config.js";
 import { LESSONS, COURSES, TRICK_DEMO } from "../training.js";
 
 const TAU = Math.PI * 2;
-const _up = new THREE.Vector3(), _v = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1);
+const _up = new THREE.Vector3(), _v = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1), _f = new THREE.Vector3();
 const TRICK_NAME = { rollL: "왼쪽 롤", rollR: "오른쪽 롤", flipB: "백플립", flipF: "프론트 플립", loop: "파워 루프", spin: "요 스핀" };
 const C_NOW = 0x35ff7a, C_NEXT = 0xffb02e, C_ZONE = 0x3ad8ff;
 
@@ -274,7 +274,16 @@ export class TrainingMode extends Mode {
     if (!t) return;
     this.taskT += dt;
     if (this.lesson.limit && this.time > this.lesson.limit) return this.fail("제한 시간 초과");
-    if (pl.crashed && !this._wasCrashed) { this.crashes++; s.hud.toast("추락 — 다시 시도", "#ff6b5a", 1.2, 22); }
+    if (pl.crashed && !this._wasCrashed) {
+      this.crashes++; s.hud.toast("추락 — 다시 시도", "#ff6b5a", 1.2, 22);
+      // 추락 원인 짐작 → 코치가 몇 초 동안 알려 준다
+      const lv = this._lastV || 0, lt = this._lastTilt || 0;
+      this._crashWhy = lt > 70 ? "추락 원인: 너무 기울었어요 — 기울인 뒤엔 바로 반대로 쳐서 수평으로" : lv > 12 ? "추락 원인: 너무 빨랐어요 — 장애물·바닥 근처에선 속도를 줄이세요" : "추락 원인: 바닥에 세게 닿았어요 — 내려올 때 스로틀로 받쳐 주세요";
+      this._crashT = 5;
+    }
+    if (this._crashT > 0) this._crashT -= dt;
+    { _up.set(0, 1, 0).applyQuaternion(b.quat); this._lastV = b.speed; this._lastTilt = Math.acos(Math.max(-1, Math.min(1, _up.y))) * 180 / Math.PI; }
+    if (t.type === "rings" && t.w && t.w[t.i]) { const d = b.pos.distanceTo(t.w[t.i]); if (this._ringI !== t.i) { this._ringI = t.i; this._ringT = 0; } this._ringT += dt; this._ringD = this._ringPrev; this._ringPrev = d; }
     this._wasCrashed = pl.crashed;
     if (pl.crashed) return;
 
@@ -348,6 +357,80 @@ export class TrainingMode extends Mode {
         break;
       }
     }
+  }
+
+
+  // 실시간 조종 코치: 지금 기체 상태를 보고 과제를 통과하려면 무엇을 고쳐야 하는지 한 줄로
+  coach(t) {
+    const pl = this.s.player, b = pl.body, agl = this.agl(), air = !b.onGround;
+    _up.set(0, 1, 0).applyQuaternion(b.quat);
+    const tilt = Math.acos(Math.max(-1, Math.min(1, _up.y))) * 180 / Math.PI, vy = b.vel.y, kmh = b.speed * 3.6;
+    // 방향 말하기: 목표가 기체 기준 어느 쪽인지
+    const side = (to) => {
+      _f.set(0, 0, -1).applyQuaternion(b.quat); _f.y = 0; _f.normalize();
+      const dx = to.x - b.pos.x, dz = to.z - b.pos.z, d = Math.hypot(dx, dz) || 1, fw = (dx * _f.x + dz * _f.z) / d, rt = (dx * -_f.z + dz * _f.x) / d;
+      const dy = to.y - b.pos.y;
+      if (Math.abs(dy) > 2.5 && Math.abs(dy) > d * 0.6) return dy > 0 ? "위에 있어요 — 스로틀을 조금 더" : "아래에 있어요 — 스로틀을 살짝 빼서";
+      if (fw > 0.7) return "앞에 있어요 — 피치를 살짝 앞으로";
+      if (fw < -0.7) return "뒤에 있어요 — 요로 돌아서거나 피치를 뒤로";
+      return rt > 0 ? "오른쪽에 있어요 — 요를 오른쪽으로 돌려 기수를 맞추세요" : "왼쪽에 있어요 — 요를 왼쪽으로 돌려 기수를 맞추세요";
+    };
+    if (this._crashT > 0) return this.crashes >= 3 ? "추락이 잦아요 — 스틱을 작게, 짧게. 기울인 뒤엔 바로 되돌려 수평으로" : this._crashWhy || "추락 — 기울기가 커지면 추력이 옆으로 빠져 떨어집니다";
+    if (b.flipped) return `뒤집혔어요 — ${this.s.game.input.glyph("reset")} 로 세우세요`;
+    if (!air && t.type !== "land" && !this.flown) return "먼저 이륙 — 스로틀을 천천히 올리세요";
+    if (air && t.type !== "trick" && t.type !== "inv" && t.type !== "dive" && tilt > 55) return "너무 기울었어요 — 롤·피치를 반대로 짧게 쳐서 수평으로";
+    if (air && agl < 0.8 && vy < -2 && t.type !== "land") return "바닥이 가까워요 — 스로틀을 올리세요!";
+    switch (t.type) {
+      case "alt": {
+        if (agl < t.min) return vy > 3 ? "좋아요, 올라가는 중 — 띠에 닿기 전에 스로틀을 미리 줄이세요" : "너무 낮아요 — 스로틀을 조금 올리세요";
+        if (t.max !== undefined && agl > t.max) return vy < -3 ? "내려가는 중 — 띠에 닿기 전에 스로틀로 받쳐 주세요" : "너무 높아요 — 스로틀을 살짝 내리세요";
+        if (Math.abs(vy) > 2) return "출렁입니다 — 스로틀을 더 작게, 천천히 움직이세요";
+        if (tilt > 20) return "기체가 기울어 밀려가요 — 기운 반대쪽으로 짧게";
+        return t.hold ? "좋아요, 그대로 버티세요" : "";
+      }
+      case "hover":
+        if (!t.inside) return "정점이 " + side(t.w);
+        if (kmh > t.v * 3.6) return "멈추세요 — 움직이는 반대쪽으로 짧게 쳤다가 바로 수평으로";
+        return Math.abs(vy) > 1.5 ? "위아래 움직임도 멈추세요 — 스로틀을 가운데 근처로" : "좋아요, 그대로";
+      case "rings": {
+        const w = t.w[t.i];
+        if (!w) return "";
+        const d = b.pos.distanceTo(w);
+        if (this._ringD !== undefined && d > this._ringD + 0.02 && d < 14 && this._ringT > 1.2) return "링을 지나쳤어요 — 돌아와서 링 한가운데로";
+        if (d > 6) return "다음 링이 " + side(w);
+        if (Math.abs(b.pos.y - w.y) > t.r * 0.7) return b.pos.y < w.y ? "링보다 낮아요 — 스로틀을 조금" : "링보다 높아요 — 스로틀을 살짝 빼서";
+        return kmh > 45 ? "너무 빨라요 — 피치를 덜 숙여서 링 가운데를 노리세요" : "링 가운데를 보고 그대로";
+      }
+      case "yaw":
+        if (tilt > 15 || kmh > 8) return "요 스틱만 쓰세요 — 롤·피치는 놓고, 밀려가면 반대로 살짝";
+        if (Math.abs(b.omega.y) < 0.6) return `요 스틱을 ${t.turns > 0 ? "왼쪽" : "오른쪽"} 끝까지 — 도는 동안 스로틀로 높이 유지`;
+        return Math.abs(vy) > 2 ? "돌면서 높이가 변해요 — 스로틀로 받쳐 주세요" : "좋아요, 계속 돌리세요";
+      case "speed":
+        if (agl < 3) return "고도를 먼저 5m 이상 — 숙이면 고도가 떨어집니다";
+        if (tilt < 20) return "피치를 더 앞으로 숙이세요 — 숙인 만큼 빨라집니다";
+        return vy < -2 ? "숙이면서 떨어져요 — 스로틀을 더 올리세요" : "그대로 밀어붙이세요 — 앞이 트인 쪽으로";
+      case "trick": {
+        if (agl < 6) return "더 높이 — 곡예는 6m 이상에서. 실패해도 떨어질 여유가 필요합니다";
+        const k = (t.any || [t.trick])[0] || "";
+        if (k.startsWith("roll")) return `${k === "rollL" ? "왼쪽" : "오른쪽"} 롤을 끝까지 빠르게 → 한 바퀴 돌면 놓기. 시작 전 스로틀 살짝 올리고, 도는 동안은 빼기`;
+        if (k.startsWith("flip")) return `피치를 ${k === "flipB" ? "뒤로" : "앞으로"} 끝까지 빠르게 → 한 바퀴 돌면 놓기. 도는 동안 스로틀은 빼고, 끝나면 다시 올리기`;
+        if (k === "loop") return "속도를 붙인 뒤 피치를 뒤로 꾸준히 당겨 크게 한 바퀴 — 스로틀은 계속 유지";
+        if (k === "spin") return "요 스틱을 끝까지 — 회전 중에도 스로틀로 높이를 지키세요";
+        return "";
+      }
+      case "inv":
+        if (agl < 10) return "더 높이(10m 이상) 올라가서 — 뒤집히면 스로틀이 기체를 아래로 밉니다";
+        return _up.y < -0.7 ? "뒤집힌 채로 버티기 — 스로틀은 아주 조금, 떨어지면 바로 되돌리세요" : "롤이나 피치를 끝까지 쳐서 반 바퀴만 돌고 멈추세요";
+      case "dive":
+        if (this.diving) return this.dive >= t.m ? "지금 끌어올리세요! — 수평으로 되돌리고 스로틀 끝까지" : "기수를 아래로, 스로틀은 빼고 떨어지세요";
+        return agl < t.m + 8 ? `먼저 ${Math.ceil(t.m + 10)}m 이상 올라가세요 — 떨어질 높이가 필요합니다` : "피치를 앞으로 크게 숙이고 스로틀을 빼서 급강하";
+      case "land":
+        if (t.w && Math.hypot(b.pos.x - t.w.x, b.pos.z - t.w.z) > t.r) return "착륙장이 " + side(t.w);
+        if (vy < -3) return "너무 빨리 떨어져요 — 스로틀로 받쳐 천천히";
+        if (kmh > 5) return "옆으로 밀려가요 — 멈춘 다음 수직으로 내려오세요";
+        return "스로틀을 조금씩 줄여 살짝 닿게";
+    }
+    return "";
   }
 
   // 지금 과제의 진행 상태 한 줄
@@ -446,6 +529,24 @@ export class TrainingMode extends Mode {
       if (line) lines.push(line);
       lines.forEach((ln, i) => h.text(ln, L.cx, cy + (54 + i * 18) * u, { size: 13, align: "center", color: "#ffe9a8" }));
       h.fade(1);
+    }
+    // 실시간 코치: 처음 요령이 사라진 뒤(또는 추락 직후) 지금 고칠 점 한 줄
+    if (this.state === "run" && (this.taskT >= 9 || this._crashT > 0)) {
+      const c = this.coach(t);
+      if (c) {
+        if (c !== this._coachTxt) { this._coachTxt = c; this._coachA = 0; }
+        this._coachA = Math.min(1, (this._coachA || 0) + 0.08);
+        h.fade(this._coachA);
+        const max = Math.max(16, Math.floor((W * 0.62) / (13 * u))), lines = [];
+        let line = "";
+        for (const word of ("💡 " + c).split(" ")) { if ((line + " " + word).length > max && line) { lines.push(line); line = word; } else line = line ? line + " " + word : word; }
+        if (line) lines.push(line);
+        const bad = this._crashT > 0 || /너무|추락|뒤집|지나쳤|바닥/.test(c);
+        lines.forEach((ln, i) => h.text(ln, L.cx, cy + (54 + i * 18) * u, { size: 14, align: "center", color: bad ? "#ffb08a" : "#ffe9a8" }));
+        h.fade(1);
+      }
+      // 오래 막히면: 원래 요령과 시범 안내를 다시
+      if (this.taskT > 30 && t.tip && full) h.text(`요령: ${t.tip}${this.demoKey ? "  ·  E 로 시범 보기" : ""}`.slice(0, 90), L.cx, cy + 96 * u, { size: 12, align: "center", color: "#c9d6ea" });
     }
     if (this.state !== "run") return;
     const tg = this.target();
