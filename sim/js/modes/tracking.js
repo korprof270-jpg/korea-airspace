@@ -6,22 +6,22 @@ import { submitRecord, records, clamp, fmtTime } from "../config.js";
 
 // 피사체별: 조준 높이, 적정 거리 범위, 지면 추종 여부
 const SUBJ = {
-  runner: { h: 1.0, dmin: 2.5, dmax: 10, ground: true },
-  car: { h: 0.8, dmin: 4, dmax: 16, ground: true },
-  sportscar: { h: 0.7, dmin: 4, dmax: 18, ground: true },
-  truck: { h: 1.8, dmin: 6, dmax: 22, ground: true },
-  forklift: { h: 1.2, dmin: 3, dmax: 12, ground: true },
-  boat: { h: 0.8, dmin: 5, dmax: 18, ground: false },
-  drone: { h: 0, dmin: 3, dmax: 14, ground: false, bank: 1.5 },
-  skier: { h: 0.9, dmin: 3, dmax: 14, ground: true },
-  bike: { h: 0.9, dmin: 4, dmax: 18, ground: true },
-  supercar: { h: 0.6, dmin: 5, dmax: 22, ground: true },
-  heli: { h: 1.6, dmin: 8, dmax: 30, ground: false, bank: 0.8 },
-  fpv: { h: 0, dmin: 3, dmax: 16, ground: false, bank: 2.2 },
-  ray: { h: 0, dmin: 5, dmax: 22, ground: false, bank: 1.2 },
-  shuttle: { h: 0, dmin: 8, dmax: 30, ground: false, bank: 0.6 },   // 제국 수송정
-  scout: { h: 0, dmin: 4, dmax: 18, ground: false, bank: 1.5 },     // 제국 정찰 드론
-  skiff: { h: 0, dmin: 6, dmax: 26, ground: false, bank: 1.0 },     // 에일 비행정
+  runner: { h: 1.0, dmin: 25, dmax: 40, ground: true },
+  car: { h: 0.8, dmin: 25, dmax: 40, ground: true },
+  sportscar: { h: 0.7, dmin: 25, dmax: 40, ground: true },
+  truck: { h: 1.8, dmin: 25, dmax: 40, ground: true },
+  forklift: { h: 1.2, dmin: 25, dmax: 40, ground: true },
+  boat: { h: 0.8, dmin: 25, dmax: 40, ground: false },
+  drone: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },
+  skier: { h: 0.9, dmin: 25, dmax: 40, ground: true },
+  bike: { h: 0.9, dmin: 25, dmax: 40, ground: true },
+  supercar: { h: 0.6, dmin: 25, dmax: 40, ground: true },
+  heli: { h: 1.6, dmin: 25, dmax: 40, ground: false, bank: 0.8 },
+  fpv: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 2.2 },
+  ray: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.2 },
+  shuttle: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 0.6 },   // 제국 수송정
+  scout: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },     // 제국 정찰 드론
+  skiff: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.0 },     // 에일 비행정
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
@@ -45,7 +45,7 @@ export class TrackingMode extends Mode {
     { const R = this.model.userData.radius || 1.5, hh = Math.max(0.35, this.info.h); w.rider(this.model, [[0, this.info.h, 0, Math.max(0.3, R * 0.42), hh, Math.max(0.3, R * 0.9)]], "subject"); }
     w.scene.add(this.model);
     this._sync(0);
-    this.placePlayer(this._behind(new THREE.Vector3(), 9, 0.3), this._yaw());
+    this.placePlayer(this._clearBehind(0.3), this._yaw());
   }
 
   _yaw() { _f.copy(this.mover.vel); if (_f.lengthSq() < 0.01) _f.set(0, 0, -1).applyQuaternion(this.mover.quat); return Math.atan2(-_f.x, -_f.z); }
@@ -56,7 +56,14 @@ export class TrackingMode extends Mode {
     return out;
   }
 
-  respawnPoint() { return { pos: this._behind(new THREE.Vector3(), 7, 3), yaw: this._yaw() }; }
+  // 적정 거리(25~40m) 안에서 시작: 32m 뒤부터, 건물에 막히면 조금씩 가까이
+  _clearBehind(up) {
+    const out = new THREE.Vector3(), col = this.s.world.col;
+    for (const back of [32, 28, 24, 18, 12, 9]) { this._behind(out, back, up + (back > 12 ? 4 : 0)); if (!col.blocked || !col.blocked(out, 2)) return out; }
+    return out;
+  }
+
+  respawnPoint() { return { pos: this._clearBehind(3), yaw: this._yaw() }; }
 
   _sync(dt) {
     this.model.position.copy(this.mover.pos);
