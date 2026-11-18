@@ -271,8 +271,46 @@ const CHAPTERS = [
     intro: "전쟁이 끝나고 반년. 별 너머로 매일 쏘아 보내던 유리의 라디오에 처음으로 답장이 왔다. 아샤의 초대 — 인류 최초로, 에일의 고향 ‘어미별’로.",
     stages: [
       S("track", "에일 가오리", ["아샤|가오리는 흩어진 노래 조각이 있는 곳을 아오. 놀라지 않게, 멀지 않게 따라가 주시오.", "노을|……저 노래, 들은 적 있어."], { si: 2, need: 2 }),
-      S("escort", "노래 운반", ["모아|탐사 트럭에 공명통이랑 송신기 실었어! 노래 바위까지 지켜 줘!", "아샤|저들도 우리 종족이오. 노래를 잃어 무서운 것뿐이오."], { team: 3, power: 1.25, boss: { name: "무리 우두머리 ‘창끝’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
-      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { bossPos: [140, 82, -140], power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
+    ],
+  },
+  {
+    id: "s6", map: "ail", hidden: 2, faction: "ail", title: "굳은 노래", en: "GLASS DUNES",
+    intro: "가오리가 알려 준 노래 조각은 다섯. 그중 넷은 어미별의 네 끝에 흩어져 있었다. 첫 번째는 서쪽, 대답받지 못한 노래가 유리로 굳는 사막.",
+    stages: [
+      S("track", "모래 가오리", ["아샤|모래 가오리요. 굳은 노래 사이를 헤엄치며 따뜻한 조각을 찾소.", "서하린|★끝까지 촬영이 핵심. 거리 유지 65% 이상."], { si: 2, need: 2 }),
+      S("strike", "가시 둥지", ["아샤|조각을 품은 둥지요. 가시탑을 꺾으면 심장이 드러나오.", "서하린|★둥지 심장 파괴가 핵심. 제한 시간 75% 안에."], { team: 3, power: 1.2, boss: { name: "에일 둥지지기 ‘가시 어미’", kind: "gunship", unit: "aa", scale: 1.6, at: 50, hp: 1.3 } }),
+    ],
+  },
+  {
+    id: "s7", map: "ail", hidden: 2, faction: "ail", title: "가라앉은 합창", en: "SUNKEN CHORUS",
+    intro: "두 번째 조각은 빛 바다 밑. 합창당 섬의 ‘목구멍’으로 바다가 빨려 들고, 그 밑바닥에 여제가 삼킨 합창이 가라앉아 있다.",
+    stages: [
+      S("escort", "물길 로버", ["모아|수륙 로버 준비 끝! 인양 윈치 달았어.", "서하린|★로버 도착이 핵심. 로버 내구도 60% 이상."], { team: 3, power: 1.2 }),
+      S("waves", "목구멍 인양", ["유리|인양하는 동안 공명 코어를 켜 둬야 해요. 꺼지면 조각이 다시 가라앉아요.", "서하린|★코어 사수가 핵심. 코어 내구도 50% 이상."], { team: 3, power: 1.25 }),
+    ],
+  },
+  {
+    id: "s8", map: "ail", hidden: 2, faction: "ail", title: "어미나무의 뿌리", en: "ROOTWOOD",
+    intro: "세 번째 조각은 포자 숲 깊은 곳, 어미나무의 뿌리 속. 숲의 둥지들은 포자 포드 없이는 겨울을 나지 못한다.",
+    stages: [
+      S("supply", "포드 배달", ["한별|첫 둥지, 여기예요! 아기들이 기다려요.", "서하린|★포드 넷 전달이 핵심. 제한 시간 75% 안에."], { team: 1, power: 1.1 }),
+      S("infil", "뿌리길", ["아샤|어미나무가 길을 열어 주오. 입구가 닫히기 전에.", "서하린|★제한 시간 안에 도달이 핵심."], { ti: 2, laps: 1, limitK: 1.3 }),
+    ],
+  },
+  {
+    id: "s9", map: "ail", hidden: 2, faction: "ail", title: "폭풍 무덤", en: "STORM GRAVE",
+    intro: "마지막 조각은 동쪽 끝 폭풍 무덤. 여제 함대의 잔해가 금빛 번개 속에 누워 있고, 그 등뼈를 지키는 것이 아직 깨어 있다.",
+    stages: [
+      S("strike", "번개 둥지", ["서하린|계기 믿지 마. 눈으로 날아.", "서하린|★둥지 심장 파괴가 핵심. 제한 시간 75% 안에."], { team: 3, power: 1.3 }),
+      S("boss", "등뼈지기", ["아샤|등뼈지기요. 여제가 거둔 마지막 노래를 지키고 있소.", "서하린|★격파가 핵심. 기체 내구도 40% 이상."], { team: 3, power: 1.3, diff: "hard", boss: { name: "에일 수호체 ‘등뼈지기’", hp: 1, scale: 2.2 } }),
+    ],
+  },
+  {
+    id: "s10", map: "ail", hidden: 2, faction: "ail", title: "빈 합창", en: "HOLLOW CHORUS",
+    intro: "다섯 조각 가운데 넷이 모였다. 남은 하나는 ‘빈 합창’의 심장 속. 공명통을 실은 트럭이 노래 바위로 출발한다.",
+    stages: [
+      S("escort", "노래 운반", ["모아|탐사 트럭에 공명통이랑 송신기 실었어! 노래 바위까지 지켜 줘!", "아샤|저들도 우리 종족이오. 노래를 잃어 무서운 것뿐이오."], { sid: "s5-2", team: 3, power: 1.25, boss: { name: "무리 우두머리 ‘창끝’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { sid: "s5-3", bossPos: [140, 82, -140], power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
     ],
   },
 ];
@@ -281,7 +319,7 @@ const CHAPTERS = [
 function mkStage(ch, route, list, def) {
   const map = MAPS[ch.map];
   if (NEEDS[def.kind] && !map[NEEDS[def.kind]]) return;
-  const id = `${ch.id}${route ? route.id : ""}-${list.length + 1}`;
+  const id = def.o.sid || `${ch.id}${route ? route.id : ""}-${list.length + 1}`;   // sid: 대본 키를 그대로 쓰는 단계 (장을 옮겨도 장면이 따라온다)
   const st = { id, kind: def.kind, title: def.title, talk: def.talk, brief: def.talk.map((l) => l.split("|").pop()).join(" "), o: def.o, boss: def.o.boss || null, after: def.o.after || null, chapter: ch, route, no: list.length + 1 };
   list.push(st);
   return st;
