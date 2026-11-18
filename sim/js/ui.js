@@ -945,6 +945,7 @@ export class UI {
         ${this.range("gamepad.deadzone", "데드존", 0, 0.3, 0.01)}
         ${G ? `<h3>버튼 (${esc(info.name)})</h3><table class="keys">
           <tr><td>${kb(G.fire)} ${kb(G.missile)}</td><td>레이저 · 미사일</td></tr>
+          <tr><td>${kb(G.skill)}</td><td>스킬 발동 (게이지가 차면)</td></tr>
           <tr><td>${kb(G.dodge)}</td><td>고속 회피 (2회 충전 · 6초마다 1회 회복, 롤 방향으로 옆 이동 · 입력 없으면 앞으로)</td></tr>
           <tr><td>${kb(G.item)} ${kb(G.itemNext)}</td><td>아이템 사용 · 교체</td></tr>
           <tr><td>${kb(G.camera)} ${kb(G.modeNext)} ${kb(G.reset)}</td><td>시점 · 비행 모드 · 리셋</td></tr>
@@ -1007,7 +1008,9 @@ export class UI {
         <tr><td><kbd>Shift</kbd></td><td>누르는 동안 스틱을 절반만 (정밀 조종)</td></tr>
         <tr><td><kbd>1</kbd>~<kbd>5</kbd> / <kbd>M</kbd></td><td>비행 모드: ACRO · HORIZON · ANGLE · ALT HOLD · LOITER(GPS)</td></tr>
         <tr><td><kbd>C</kbd></td><td>시점 전환: 1인칭(FPV) → 3인칭(추적) → 지상 시점</td></tr>
-        <tr><td><kbd>X</kbd></td><td>스킬 발동 (전투 · 게이지가 차면)</td></tr><tr><td><kbd>R</kbd></td><td>마지막 체크포인트에서 다시 시작 / 뒤집힌 기체 세우기</td></tr>
+        <tr><td><kbd>X</kbd></td><td>스킬 발동 (전투 · 게이지가 차면)</td></tr>
+        <tr><td><kbd>V</kbd></td><td>고속 회피 (전투 · 2회 충전, 6초마다 1회 회복 · 잠깐 무적, 노리던 미사일 유도 끊기)</td></tr>
+        <tr><td><kbd>R</kbd></td><td>마지막 체크포인트에서 다시 시작 / 뒤집힌 기체 세우기</td></tr>
         <tr><td><kbd>Space</kbd></td><td>레이저 발사 (전투 모드)</td></tr>
         <tr><td><kbd>F</kbd></td><td>미사일 발사 — 적을 조준선 근처에 두면 자동 락온</td></tr>
         <tr><td><kbd>E</kbd></td><td>보관 중인 아이템 사용 (실드·부스트·과충전·EMP)</td></tr>
@@ -1030,8 +1033,8 @@ export class UI {
     const info = this.game.input.padInfo;
     const G = info ? info.glyphs : glyphsFor("xbox");
     const name = info ? info.name : "게임패드";
-    if (info && info.type === "rc") return `<b>${name}</b>: 스틱은 실제 조종처럼 쓰고, 스위치 ${kb(G.fire)} 레이저 · ${kb(G.missile)} 미사일 · ${kb(G.dodge)} 회피 · ${kb(G.reset)} 리셋 · ${kb(G.camera)} 시점. 메뉴는 오른쪽 스틱으로 이동, ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.`;
-    return `<b>${name}</b>: 스틱 2개 = 좌/우 스틱, ${kb(G.fire)} 레이저, ${kb(G.missile)} 미사일, ${kb(G.dodge)} 고속 회피, ${kb(G.item)} 아이템 사용, 십자키 좌·우 아이템 교체, ${kb(G.reset)} 리셋, ${kb(G.camera)} 시점, ${kb(G.modeNext)} 비행 모드, ${kb(G.pause)} 일시정지. 메뉴는 십자키·스틱으로 이동하고 ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.${info ? "" : " PlayStation·Switch Pro 컨트롤러를 연결하면 그 버튼 글자로 바뀝니다."}`;
+    if (info && info.type === "rc") return `<b>${name}</b>: 스틱은 실제 조종처럼 쓰고, 스위치 ${kb(G.fire)} 레이저 · ${kb(G.missile)} 미사일 · ${kb(G.skill)} 스킬 · ${kb(G.dodge)} 회피 · ${kb(G.reset)} 리셋 · ${kb(G.camera)} 시점. 메뉴는 오른쪽 스틱으로 이동, ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.`;
+    return `<b>${name}</b>: 스틱 2개 = 좌/우 스틱, ${kb(G.fire)} 레이저, ${kb(G.missile)} 미사일, ${kb(G.skill)} 스킬, ${kb(G.dodge)} 고속 회피, ${kb(G.item)} 아이템 사용, 십자키 좌·우 아이템 교체, ${kb(G.reset)} 리셋, ${kb(G.camera)} 시점, ${kb(G.modeNext)} 비행 모드, ${kb(G.pause)} 일시정지. 메뉴는 십자키·스틱으로 이동하고 ${kb(G.ok)} 확인 · ${kb(G.back)} 뒤로.${info ? "" : " PlayStation·Switch Pro 컨트롤러를 연결하면 그 버튼 글자로 바뀝니다."}`;
   }
 
   // ── 일시정지 ──
