@@ -128,20 +128,26 @@ export class CollisionWorld {
   }
 
   // 점 p (여유 r) 가 막혀 있는지
-  blocked(p, r = 0) {
+  blocked(p, r = 0) { return this.hitBy(p, r) !== null; }
+
+  // 점 p (여유 r) 를 막는 것: 없으면 null, 지형이면 true, 콜라이더면 그 콜라이더 (c.owner 가 있으면 그 액터의 몸체)
+  // this.skip 에 유닛을 넣어 두면 그 유닛 자신의 몸체 충돌 상자는 무시한다 (자기 몸에 가려 조준·사격이 막히지 않게)
+  hitBy(p, r = 0) {
     if (p.y - r < this.heightFn(p.x, p.z)) return true;
+    const sk = this.skip;
     const x0 = Math.floor((p.x - r) / CELL), x1 = Math.floor((p.x + r) / CELL);
     const z0 = Math.floor((p.z - r) / CELL), z1 = Math.floor((p.z + r) / CELL);
     for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) {
       const cell = this.grid.get(ix * 8192 + iz);
       if (!cell) continue;
-      for (let i = 0; i < cell.length; i++) if (!cell[i].off && this._dist(cell[i], p) < r) return true;
+      for (let i = 0; i < cell.length; i++) { const c = cell[i]; if (!c.off && !(sk && c.owner && c.owner.unit === sk) && this._dist(c, p) < r) return c; }
     }
     for (let i = 0; i < this.dyn.length; i++) {
       const c = this.dyn[i];
-      if (!c.off && p.distanceToSquared(c.c) < (c.R + r) * (c.R + r) && this._dist(c, p) < r) return true;
+      if (c.off || (sk && c.owner && c.owner.unit === sk)) continue;
+      if (p.distanceToSquared(c.c) < (c.R + r) * (c.R + r) && this._dist(c, p) < r) return c;
     }
-    return false;
+    return null;
   }
 
   // 가장 가까운 표면까지의 거리 (maxR 이내만 탐색, 없으면 maxR)
@@ -182,7 +188,11 @@ export class CollisionWorld {
   }
 
   // a 에서 b 가 보이는지 (시야 가림 판정)
-  visible(a, b, step = 1.2) {
+  visible(a, b, step = 1.2, skip = null) {
+    const prev = this.skip; if (skip) this.skip = skip;
+    try { return this._visible(a, b, step); } finally { this.skip = prev; }
+  }
+  _visible(a, b, step) {
     _dir.copy(b).sub(a);
     const len = _dir.length();
     if (len < step) return true;

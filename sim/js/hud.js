@@ -592,6 +592,31 @@ export class Hud {
     this.stroke2(HC.gold, 2.2 * u);
   }
 
+  // 스킬 게이지 바: 체력바 바로 아래. 채워진 양 = 게이지, 눈금 = 발동에 필요한 양, 발동 중엔 남은 시간이 흰 띠로 줄어든다
+  _skillBar(sk, x, y, w, h, session) {
+    const g = this.g, u = this.u, d = sk.def, col = "#" + d.color.toString(16).padStart(6, "0"), t = this.t;
+    const ready = sk.ready(), A = sk.active, k = clamp(sk.gauge / 100, 0, 1);
+    const shake = sk.denyT > 0 ? Math.sin(sk.denyT * 60) * 3 * u * sk.denyT * 2 : 0;
+    x += shake;
+    this.plate(x, y, w, h, { fill: ready ? "rgba(14,20,38,0.96)" : "rgba(10,14,28,0.92)", accent: ready || A ? col : "#5d6a85", skew: 0.18, lw: 2.5 });
+    this.text(`${d.icon} 스킬`, x + 30 * u, y + h / 2 + 1 * u, { size: 12, align: "center", base: "middle", color: ready || A ? col : "#9aa7bf", shadow: false });
+    const bx = x + 56 * u, bw = w - 128 * u, bh = 10 * u, by = y + (h - bh) / 2;
+    g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(bx - 2 * u, by - 2 * u, bw + 4 * u, bh + 4 * u);
+    g.fillStyle = "rgba(255,255,255,0.08)"; g.fillRect(bx, by, bw, bh);
+    // 채움: 준비되면 스킬 색으로 빛나며 물결, 아니면 회청색
+    if (k > 0) {
+      g.fillStyle = ready ? col : A ? "rgba(150,165,190,0.45)" : "#7f93b8"; g.fillRect(bx, by, bw * k, bh);
+      if (ready) { const sx = bx + ((t * 0.9) % 1) * bw * k; const gr = g.createLinearGradient(sx - 30 * u, 0, sx + 30 * u, 0); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.7)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(bx, by, bw * k, bh); }
+    }
+    if (A && A.dur) { g.fillStyle = "#ffffff"; g.fillRect(bx, by + bh * 0.25, bw * clamp(1 - A.t / A.dur, 0, 1), bh * 0.5); }
+    // 필요량 눈금
+    const cx = bx + bw * (d.cost / 100);
+    g.fillStyle = INK; g.fillRect(cx - 2 * u, by - 5 * u, 4 * u, bh + 10 * u);
+    g.fillStyle = ready ? "#fff" : col; g.fillRect(cx - 1 * u, by - 4 * u, 2 * u, bh + 8 * u);
+    const lab = A ? "발동 중" : ready ? `${session.game.input.glyph ? session.game.input.glyph("skill") : "X"} 발동!` : `${Math.floor(sk.gauge)}%`;
+    this.text(lab, x + w - 14 * u, y + h / 2 + 1 * u, { size: ready ? 14 + Math.sin(t * 7) : 13, align: "right", base: "middle", color: ready ? col : A ? "#fff" : "#c9d3e2", shadow: false });
+  }
+
   // 아래 가운데 콘솔: 스틱 모니터 + 비행 모드 배지 + 스로틀 게이지
   _console(session, dt) {
     const g = this.g, u = this.u, L = this.L, pl = session.player, b = pl.body;
@@ -599,7 +624,9 @@ export class Hud {
     if (me) {
       // 체력바: 아래 가운데에 크게. 실드는 하늘색 띠로 겹치고, 25% 이하면 빨갛게 깜빡인다
       const k = clamp(me.hp / me.maxHp, 0, 1), low = k <= 0.25, col = k > 0.5 ? "#3dff8c" : k > 0.25 ? "#ffd24a" : "#ff4a3a";
-      const w = L.conM, h = 40 * u, x = L.cx - w / 2, y = L.b - h;
+      const sk = cb.skill, skH = sk ? 22 * u : 0;
+      const w = L.conM, h = 40 * u, x = L.cx - w / 2, y = L.b - h - (sk ? skH + 4 * u : 0);
+      if (sk) this._skillBar(sk, x, L.b - skH, w, skH, session);
       this.plate(x, y, w, h, { fill: low && Math.floor(this.t * 5) % 2 ? "rgba(90,12,12,0.92)" : "rgba(10,14,28,0.94)", accent: col, skew: 0.18, lw: 3 });
       this.text("HP", x + 22 * u, y + h / 2 + 1 * u, { size: 14, align: "center", base: "middle", color: col, shadow: false });
       const bx = x + 40 * u, bw = w - 100 * u, bh = 18 * u, by = y + (h - bh) / 2;

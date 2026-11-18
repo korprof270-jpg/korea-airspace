@@ -534,7 +534,8 @@ export default {
       id: "boat", name: "강 위의 보트", type: "boat", level: 1, desc: "댐 아래에서 호수까지 굽이치는 강을 내려가는 보트를 따라가세요", duration: 80, closed: false,
       path: [...Array.from({ length: 24 }, (_, i) => { const z = 252 - i * 20; return [riverX(z), 0.15, z, 7]; }), [-30, 0.15, -230, 7], [-40, 0.15, -256, 6], [-20, 0.15, -280, 6], [10, 0.15, -286, 5]],
     },
-    { id: "runner", name: "강변 러너", type: "runner", level: 1, desc: "강변 오솔길을 달리는 러너를 가까이에서 따라가세요", duration: 70, path: RUNNER },
+    // 강변을 낮게 순찰하는 제국 감시 드론 (예전 '강변 러너' 자리: 스토리 4장에 맞춰 사람 대신 비행체)
+    { id: "patrol", name: "제국 감시 드론", type: "scout", level: 1, desc: "강변을 따라 낮게 순찰하는 제국 감시 드론을 가까이에서 따라가세요", duration: 70, path: RUNNER.map((p) => [p[0], height(p[0], p[2]) + 6.5, p[2], Math.max(9, (p[3] ?? 4.2) * 2.2)]) },
     { id: "buggy", name: "오프로드 버기", type: "sportscar", level: 2, desc: "풍력 단지와 후두 정원을 도는 버기 추적. 언덕 뒤로 숨는 순간을 조심하세요", duration: 85, color: 0xd9772f, path: BUGGY },
     {
       id: "drone", name: "협곡 드론", type: "drone", level: 3, desc: "폭포 골짜기와 바늘귀 협곡을 드나드는 드론을 화면에 담으세요", duration: 85,

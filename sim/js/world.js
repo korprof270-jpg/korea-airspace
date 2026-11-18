@@ -139,9 +139,11 @@ export class World {
 
   // 움직이는 물체에 충돌 상자를 붙인다. src: Object3D 또는 [InstancedMesh, 인스턴스 번호]
   // boxes: [[cx, cy, cz, hx, hy, hz], ...] (물체 로컬 좌표의 중심과 절반 크기)
+  // 돌려주는 값: 만든 충돌 상자 목록 (c.owner 에 액터를 넣으면 그 상자에 맞은 탄이 그 액터에 피해를 준다)
   rider(src, boxes, tag = "mover") {
-    const list = this.riders || (this.riders = []);
-    for (const b of boxes) list.push({ src, off: new THREE.Vector3(b[0], b[1], b[2]), c: this.col.addDynamic(new THREE.Vector3(b[3], b[4], b[5]), tag), first: true });
+    const list = this.riders || (this.riders = []), out = [];
+    for (const b of boxes) { const c = this.col.addDynamic(new THREE.Vector3(b[3], b[4], b[5]), tag); out.push(c); list.push({ src, off: new THREE.Vector3(b[0], b[1], b[2]), c, first: true }); }
+    return out;
   }
 
   _riders(dt) {

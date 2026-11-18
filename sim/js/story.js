@@ -356,13 +356,24 @@ export function stageOpts(st) {
 }
 export function stageBoss(st) { const o = stageOpts(st); return o.boss === null ? null : o.boss || st.boss; }
 // 목표 목록과 필요 개수
+// 목표 완화: 모든 달성 기준을 원래의 약 70% 수준으로 (격추 수·내구도·유지율은 0.7배, 순위·추락 허용은 한 칸 넉넉히, 시간 여유는 0.7배만 요구)
+const EASE = 0.7;
+function ease(x) {
+  switch (x.t) {
+    case "kills": x.n = Math.max(1, Math.round(x.n * EASE)); break;
+    case "truck": case "core": case "keep": case "hp": x.n = Math.round(x.n * EASE / 5) * 5; break;
+    case "time": x.n = Math.min(100, Math.round(100 - (100 - x.n) * EASE)); break;
+    case "stars": x.n = Math.max(1, Math.round(x.n * EASE)); break;
+    case "rank": case "crash": x.n += 1; break;
+  }
+}
 export function objectivesOf(st) {
   const o = stageOpts(st), m = missionMod(st) || {};
   const view = Object.assign({}, st, { boss: stageBoss(st) });
   let list = (o.obj || defaultObjectives(view, o)).map((x) => Object.assign({}, x));
   if (m.objDel) list = list.filter((x) => x.req || !m.objDel.includes(x.t));
   if (m.objAdd) for (const x of m.objAdd) { const i = list.findIndex((y) => y.t === x.t && !y.req); if (i >= 0) list[i] = Object.assign({}, x); else if (list.length < 4) list.push(Object.assign({}, x)); else { let j = list.length - 1; while (j > 0 && list[j].req) j--; list[j] = Object.assign({}, x); } }
-  for (const x of list) x.text = objText(x, view);
+  for (const x of list) { ease(x); x.text = objText(x, view); }
   return { list, need: needCount(list, o.objNeed) };
 }
 

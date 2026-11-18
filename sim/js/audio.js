@@ -275,6 +275,9 @@ export class Sound {
       case "fail": T("sawtooth", 300, 80, 0.5, 0.14); break;
       case "win": [523, 659, 784, 1047, 1319].forEach((f, i) => T("triangle", f, f, 0.22, 0.14, i * 0.11)); break;
       case "emp": T("sawtooth", 2000, 60, 0.6, 0.16); N(0.5, 0.2, 6000, 300); break;
+      case "skill": N(0.5, 0.22, 300, 6000, 0, "bandpass", 1.4, 0.25); T("sawtooth", 110, 440, 0.5, 0.1, 0, 0.3); [523, 659, 784, 1047].forEach((f, i) => T("triangle", f, f * 1.01, 0.35, 0.09, 0.28 + i * 0.05)); T("sine", 60, 40, 0.6, 0.3, 0.28); break;
+      case "skillready": [880, 1175, 1568].forEach((f, i) => T("sine", f, f, 0.16, 0.09, i * 0.06)); T("triangle", 2349, 2349, 0.25, 0.04, 0.18); break;
+      case "orbital": T("sawtooth", 1800, 90, 1.2, 0.14); N(1.4, 0.45, 4000, 60, 0.02); T("sine", 55, 28, 1.4, 0.4, 0.02); N(0.6, 0.2, 9000, 2500, 0, "highpass", 0.8); break;
       // ── 메뉴 ──
       case "click": T("sine", 900, 700, 0.04, 0.08); break;
       case "hover": T("sine", 1500, 1500, 0.022, 0.022); break;

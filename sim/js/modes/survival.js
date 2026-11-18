@@ -61,7 +61,7 @@ export class SurvivalMode extends CombatMode {
     const allies = Math.floor((n - 1) / 2), enemies = n - allies;
 
     if (v === "base") {
-      this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 1000);
+      this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 2000);
       this._makeOutposts(B);
       const mk = (team, i) => {
         // 아군: 코어·포탑 공략과 기지 방어를 나눠 맡는다. 적: 절반은 우리 기지를 치고 절반은 자기 거점을 지킨다

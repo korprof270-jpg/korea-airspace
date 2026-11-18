@@ -16,6 +16,7 @@ export const MISSIONS = [
 ];
 
 const _v = new THREE.Vector3();
+const AMBUSH = new Set([2, 4]);   // 호송: 이 구간(0~5)만 바로 앞 매복, 나머지는 바깥에서 날아온다
 const setOb = (o, pos, label, color) => { o.pos = pos; o.label = label; o.color = color; return o; };
 
 export class ChallengeMode extends CombatMode {
@@ -26,7 +27,8 @@ export class ChallengeMode extends CombatMode {
     this.title = `스토리 · ${this.def.name}`;
     this.teamN = cfg.team || 0;
     this.scale = (1 + 0.3 * this.teamN) * (cfg.power || 1);   // power: 스토리 단계별 적 규모 배율
-    this.lives = 3;
+    this.lives = cfg.story ? 6 : 3;   // 스토리 임무는 남은 기체 2배
+    this.livesMax = this.lives;
     this.limit = 0;
     this.objective = "";
     this.failT = -1; this.winT = -1;
@@ -71,6 +73,27 @@ export class ChallengeMode extends CombatMode {
 
   enemies() { return this.combat.actors.filter((a) => a.alive && a.team === 1 && a.kind === "bot"); }
 
+  // 바깥에서 들어오는 자리: 지킬 대상(at)에서 dist 쯤 떨어지고, 맵 안이며, 플레이어와도 멀어 갑자기 눈앞에 나타나지 않는 곳.
+  // pref(라디안)를 주면 그 방향 근처를 먼저 본다
+  outerPoint(at, dist, pref = null) {
+    const size = this.s.world.size - 30, me = this.me.pos;
+    let bx = at.x, bz = at.z, bs = -1e9;
+    for (let i = 0; i < 20; i++) {
+      const a = pref !== null && i < 8 ? pref + (Math.random() - 0.5) * 1.4 : Math.random() * Math.PI * 2;
+      const x = clamp(at.x + Math.cos(a) * dist, -size, size), z = clamp(at.z + Math.sin(a) * dist, -size, size);
+      const dt = Math.hypot(x - at.x, z - at.z), dp = Math.hypot(x - me.x, z - me.z);
+      const sc = Math.min(dt, dist) + Math.min(dp, 150) * 0.9 + (dp < 90 ? -400 : 0);
+      if (sc > bs) { bs = sc; bx = x; bz = z; }
+    }
+    return { x: bx, z: bz };
+  }
+  // 적이 오는 방향을 플레이어 기준 말로 (정면·후방·왼쪽·오른쪽)
+  sideOf(x, z) {
+    const me = this.me.pos, hd = this.s.player.body.heading;
+    const a = Math.atan2(-(x - me.x), -(z - me.z)) - hd, r = Math.atan2(Math.sin(a), Math.cos(a));
+    return Math.abs(r) < 0.8 ? "정면" : Math.abs(r) > 2.35 ? "후방" : r > 0 ? "왼쪽" : "오른쪽";
+  }
+
   // 지점 주변 상공에 적 편대 투입
   spawnGroup(cx, cz, rad, list, opts = {}) {
     const c = this.combat, out = [];
@@ -98,7 +121,10 @@ export class ChallengeMode extends CombatMode {
     const bc = this.bossCfg;
     if (bc && !this.bossA && (this.time >= (bc.at ?? 60) || this.winT > 0)) {
       const me = this.me.pos, f = _v.set(-Math.sin(this.s.player.body.heading), 0, -Math.cos(this.s.player.body.heading));
-      const p = this.combat.randomPoint(18, 30, 0, me.x + f.x * 70, me.z + f.z * 70, 30);
+      let p;
+      const guard = this.id === "escort" && this.truck ? this.truck.pos : this.id === "waves" && this.base ? this.base.core.pos : null;
+      if (guard) { const q = this.outerPoint(guard, 190, Math.atan2(f.z, f.x)); p = this.combat.randomPoint(22, 34, 0, q.x, q.z, 15); }   // 호송·방어: 맵 바깥쪽에서 날아든다
+      else p = this.combat.randomPoint(18, 30, 0, me.x + f.x * 70, me.z + f.z * 70, 30);
       this.bossA = this.spawnBoss({ ...bc, pos: p });
       return;
     }
@@ -122,7 +148,7 @@ export class ChallengeMode extends CombatMode {
     const pw = 236 * u, ph = (full ? 66 : 42) * u, x = L.l, y = L.t, lives = Math.max(0, this.lives);
     h.plate(x, y, pw, ph, { accent: "#3dd68c", skew: full ? 0.08 : 0.14 });
     h.text(this.def.name, x + 18 * u, y + 17 * u, { size: 16, base: "middle", shadow: false });
-    h.text(`${"♥".repeat(lives)}${"♡".repeat(3 - Math.min(3, lives))}`, x + pw - 14 * u, y + 17 * u, { size: 15, align: "right", base: "middle", color: "#ff8a8a", shadow: false });
+    h.text(this.livesMax > 3 ? `♥ ×${lives}` : `${"♥".repeat(lives)}${"♡".repeat(3 - Math.min(3, lives))}`, x + pw - 14 * u, y + 17 * u, { size: 15, align: "right", base: "middle", color: "#ff8a8a", shadow: false });
     h.text(this.objective, x + 14 * u, y + 38 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
     if (full) h.text(`격추 ${this.me.kills}  ·  점수 ${Math.round(this.me.score)}`, x + 12 * u, y + 56 * u, { size: 11, base: "middle", color: "#b4c2d4", shadow: false });
     if (this.limit) {
@@ -180,7 +206,7 @@ export class ChallengeMode extends CombatMode {
   // ── 1. 기지 방어 ──────────────────────────────────────────
   setup_waves(c, map) {
     const [bx, bz] = map.combat.blue;
-    this.base = this.buildBase(bx, bz, 0, 2, 1200);
+    this.base = this.buildBase(bx, bz, 0, 2, 2400);
     this.base.core.armor = 0.75;
     const start = new THREE.Vector3(bx + 14, 0, bz - 10);
     this.placePlayer(start, Math.atan2(-(0 - bx), -(0 - bz)));
@@ -195,10 +221,10 @@ export class ChallengeMode extends CombatMode {
     if (this.pending) {
       if ((this.waveT -= dt) <= 0) {
         this.pending = false; this.wave++;
-        const k = this.wave, s = this.scale, p = this.base.pos, size = this.s.world.size - 25;
-        const ang = Math.random() * Math.PI * 2;
-        const cx = clamp(p.x + Math.cos(ang) * 170, -size, size), cz = clamp(p.z + Math.sin(ang) * 170, -size, size);
-        this.spawnGroup(cx, cz, 30, [
+        const k = this.wave, s = this.scale, p = this.base.pos;
+        const { x: cx, z: cz } = this.outerPoint(p, 210);   // 코어에서 먼 맵 바깥쪽 → 다가오는 모습이 보인다
+        this.s.hud.feed(`적 편대 접근 — ${this.sideOf(cx, cz)}`, "#ff8a8a");
+        this.spawnGroup(cx, cz, 22, [
           ["grunt", Math.round((1 + k) * s * 0.5), "core"], ["grunt", Math.round((1 + k) * s * 0.5), null],
           ["kamikaze", k >= 2 ? Math.round((k - 1) * s) : 0, "core"], ["gunship", k === 3 ? 1 : k === 5 ? Math.round(1.4 * s) : 0, "core"],
         ]);
@@ -254,7 +280,7 @@ export class ChallengeMode extends CombatMode {
     const model = makeTruck(0x2f6fb0);
     w.scene.add(model);
     this.truckModel = model;
-    this.truck = c.addProp(model, { name: "수송 트럭", team: 0, tag: "truck", radius: 4, hp: 900, maxHp: 900, armor: 0.6, pos: this.mover.pos, vel: this.mover.vel, static: true });
+    this.truck = c.addProp(model, { name: "수송 트럭", team: 0, tag: "truck", radius: 4, hp: 2250, maxHp: 2250, armor: 0.6, pos: this.mover.pos, vel: this.mover.vel, static: true });
     this.truckAim = this.truck.pos; // 지면 위치
     this.marks = [0.1, 0.27, 0.44, 0.61, 0.78, 0.9];
     this.mi = 0;
@@ -273,12 +299,21 @@ export class ChallengeMode extends CombatMode {
     this.truckModel.userData.tick(dt, m.speed);
     const u = m.s / m.length;
     if (this.mi < this.marks.length && u >= this.marks[this.mi]) {
-      const i = this.mi++;
-      // 진행 방향 앞쪽에 매복조 투입
-      m.curve.getPointAt(Math.min(1, u + 70 / m.length), _v);
-      const s = this.scale;
-      this.spawnGroup(_v.x, _v.z, 40, [["grunt", Math.round((1 + (i > 2 ? 1 : 0)) * s), "truck"], ["grunt", Math.round(1 * s), null], ["kamikaze", i >= 1 ? Math.round((i >= 4 ? 2 : 1) * s) : 0, "truck"]], { lo: 16, hi: 36 });
-      this.s.hud.toast("매복! 적 드론 출현", "#ff6b5a", 1.8, 26);
+      const i = this.mi++, s = this.scale;
+      const list = [["grunt", Math.round((1 + (i > 2 ? 1 : 0)) * s), "truck"], ["grunt", Math.round(1 * s), null], ["kamikaze", i >= 1 ? Math.round((i >= 4 ? 2 : 1) * s) : 0, "truck"]];
+      if (AMBUSH.has(i)) {
+        // 매복: 진행 방향 바로 앞에서 튀어나온다 (일부 구간만)
+        m.curve.getPointAt(Math.min(1, u + 70 / m.length), _v);
+        this.spawnGroup(_v.x, _v.z, 40, list, { lo: 16, hi: 36 });
+        this.s.hud.toast("매복! 적 드론 출현", "#ff6b5a", 1.8, 26);
+      } else {
+        // 추격·요격: 앞길 옆쪽 멀리(맵 바깥쪽)에서 편대가 날아든다
+        m.curve.getPointAt(Math.min(1, u + 110 / m.length), _v);
+        const t = this.truck.pos, ahead = Math.atan2(_v.z - t.z, _v.x - t.x), side = Math.random() < 0.5 ? 1 : -1;
+        const q = this.outerPoint(t, 180, ahead + side * 1.1);
+        this.spawnGroup(q.x, q.z, 22, list, { lo: 20, hi: 38 });
+        this.s.hud.toast(`적 편대 접근 — ${this.sideOf(q.x, q.z)}`, "#ff6b5a", 1.8, 24);
+      }
       this.s.game.sound.play("warn");
     }
     if (m.done) { const hp = t.hp / t.maxHp; this.winT = 1.2; this.winFn = () => this.win(hp >= 0.75 ? 3 : hp >= 0.4 ? 2 : 1, [{ label: "트럭 내구도", value: `${Math.round(hp * 100)}%` }]); }

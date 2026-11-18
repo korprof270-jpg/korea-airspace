@@ -7,6 +7,29 @@
 //   stars n  평가 별 n개 이상                     keep p   적정 거리 유지 p% 이상 (트래킹)
 //   hp p     끝날 때 기체 내구도 p% 이상
 
+// 목표 완화: 모든 달성 기준을 원래의 약 70% 수준으로
+//  격추 수·내구도·유지율은 0.7배, 순위·추락 허용은 한 칸 넉넉히, 시간 목표는 남겨야 하는 여유를 0.7배로
+export const EASE = 0.7;
+export function easeN(t, n) {
+  switch (t) {
+    case "kills": return Math.max(1, Math.round(n * EASE));
+    case "truck": case "core": case "keep": case "hp": return Math.round(n * EASE / 5) * 5;
+    case "time": return Math.min(100, Math.round(100 - (100 - n) * EASE));
+    case "stars": return Math.max(1, Math.round(n * EASE));
+    case "rank": case "crash": return n + 1;
+    default: return n;
+  }
+}
+// 대사·작전 메모에 적힌 목표 숫자도 같은 규칙으로 바꾼다 (기계적으로 읽히는 표현만)
+export function easeText(s) {
+  return s
+    .replace(/(\d+)기( 이상)? 격추/g, (m, n, x) => `${easeN("kills", +n)}기${x || ""} 격추`)
+    .replace(/적 (\d+)기([,.!])/g, (m, n, x) => `적 ${easeN("kills", +n)}기${x}`)
+    .replace(/내구도(를|는|은)? (\d+)%/g, (m, j, n) => `내구도${j || ""} ${easeN("hp", +n)}%`)
+    .replace(/유지 (\d+)%/g, (m, n) => `유지 ${easeN("keep", +n)}%`)
+    .replace(/시간(의)? (\d+)% 안/g, (m, j, n) => `시간${j || ""} ${easeN("time", +n)}% 안`);
+}
+
 export function objText(o, st) {
   const k = st ? st.kind : "";
   switch (o.t) {
@@ -33,7 +56,7 @@ export function defaultObjectives(st, o) {
     case "infil": return [{ t: "win", req: true }, { t: "time", n: 86 }, { t: "crash", n: 0 }];
     case "track": return [{ t: "win", req: true }, { t: "keep", n: o.need >= 2 ? 65 : 50 }, { t: "stars", n: o.need >= 2 ? 2 : 1 }, { t: "crash", n: 0 }];
     case "dm": return [{ t: "rank", n: 4 - (o.need || 1), req: true }, { t: "kills", n: Math.max(3, Math.round((o.bots || 5) * 0.8)) }, { t: "crash", n: 2 }, ...(boss ? [{ t: "boss" }] : [])];
-    case "escort": return [{ t: "win", req: true }, { t: "truck", n: 60 }, { t: "crash", n: 1 }, ...(boss ? [{ t: "boss" }] : [])];
+    case "escort": return [{ t: "win", req: true }, { t: "truck", n: 60 }, { t: "kills", n: 10 }, ...(boss ? [{ t: "boss" }] : [])];
     case "waves": return [{ t: "win", req: true }, { t: "core", n: 50 }, { t: "crash", n: 1 }, ...(boss ? [{ t: "boss" }] : [])];
     case "strike": case "supply": case "heist": return [{ t: "win", req: true }, { t: "time", n: 75 }, { t: "crash", n: 1 }, ...(boss ? [{ t: "boss" }] : [])];
     case "boss": case "titan": return [{ t: "win", req: true }, { t: "crash", n: 1 }, { t: "kills", n: 8 }, { t: "hp", n: 40 }];

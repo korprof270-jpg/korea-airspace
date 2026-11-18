@@ -41,7 +41,7 @@ export class ConquestMode extends CombatMode {
       const p = i < 2 ? spots[i] : c.units.groundSpot(spots[i].x, spots[i].z, 50, 12);
       p.y = w.h(p.x, p.z);
       t.home.copy(p);
-      t.hq = this.buildBase(p.x, p.z, i, 2, 1300);
+      t.hq = this.buildBase(p.x, p.z, i, 2, i === 0 ? 2600 : 1300);   // 아군 본부만 2배
       t.hq.core.name = `${t.name} 본부`;
       for (const tr of t.hq.turrets) tr.name = `${t.name} 포탑`;
     });

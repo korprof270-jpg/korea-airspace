@@ -144,17 +144,36 @@ export class Feel {
         this.hitCombo = this.hitGap > 0 ? Math.min(12, this.hitCombo + 1) : 0;
         this.hitGap = 0.7;
         if (this.t - this.hitCueT > 0.035) { this.hitCueT = this.t; this.cue("hitc", 0.9, 0, Math.pow(2, this.hitCombo / 16)); }
-        this.flash(WHITE, 0.09 + Math.min(0.06, k / 300), 10, "thin");
-        this.rumble(0, 0.22, 30);
+        this.flash(WHITE, 0.13 + Math.min(0.08, k / 250), 9, "thin");
+        // 손맛: 맞힐 때마다 아주 작게 화면이 튄다 (연속 명중일수록 조금 더)
+        this.addTrauma(0.018 + Math.min(0.05, k / 500) + this.hitCombo * 0.002);
+        this.kickRot((0.1 + Math.min(0.25, k / 120)) * DEG, (Math.random() - 0.5) * 0.12 * DEG, (Math.random() - 0.5) * 0.2 * DEG);
+        this.fovPunch = Math.max(this.fovPunch - 0.2 - Math.min(0.3, k / 100), Math.min(this.fovPunch, -1.2));   // 연사해도 1.2° 이상 쌓이지 않게
+        this.rumble(0.12 + Math.min(0.25, k / 120), 0.3, 40);
         break;
       case "kill": {                     // k: 1 드론 · 2 포탑/건십 · 4 코어/보스
         const big = k >= 2;
         this.cue(big ? "bigkill" : "killc");
         this.flash(GOLD, big ? 0.55 : 0.36, big ? 2 : 3.4);
         if (k >= 4) this.fullFlash("255,236,190", 0.24, 2.4);
-        this.fovPunch -= big ? 2.6 : 1.4;                        // 순간적으로 조여드는 타격감
-        this.addTrauma(big ? 0.3 : 0.14);
+        this.fovPunch -= big ? 3.4 : 2.0;                        // 순간적으로 조여드는 타격감
+        this.addTrauma(big ? 0.38 : 0.2);
+        this.kickRot((big ? 1.1 : 0.55) * DEG, 0, (Math.random() < 0.5 ? -1 : 1) * (big ? 0.9 : 0.5) * DEG);
+        this.fullFlash("255,240,200", big ? 0.16 : 0.08, 7);
         this.rumble(big ? 0.85 : 0.45, big ? 0.6 : 0.5, big ? 340 : 140);
+        break;
+      }
+
+      case "skill": {                    // 스킬 발동. data: 스킬 색(0xRRGGBB)
+        const c = data || 0xffffff, col = `${(c >> 16) & 255},${(c >> 8) & 255},${c & 255}`;
+        this.addTrauma(0.35);
+        this.fovPunch += 6;                                      // 시야가 확 열렸다가 돌아온다
+        this.kickRot(-1.2 * DEG, 0, 0);
+        this.flash(col, 0.8, 1.6, "vig");
+        this.flash(WHITE, 0.4, 4, "frame");
+        this.fullFlash(col, 0.18, 3.5);
+        this.streakPulse = Math.max(this.streakPulse, 1);
+        this.rumble(0.8, 0.7, 380);
         break;
       }
 

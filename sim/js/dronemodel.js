@@ -1,6 +1,7 @@
 // 드론 외형: 프레임·캐노피·프로펠러·LED·스킨을 조합해 절차적으로 만든다 (전방 = -Z)
 import * as THREE from "../vendor/three.module.min.js";
 import { toonMat } from "./toon.js";
+import { FIGHTER_FRAMES, isFighter, buildFighter } from "./fighters.js";
 
 export const FRAMES = {
   x: { name: "트루 X", desc: "대칭형 레이싱 프레임" },
@@ -9,6 +10,7 @@ export const FRAMES = {
   whoop: { name: "덕트 우프", desc: "프로펠러 가드 일체형" },
   hexa: { name: "헥사콥터", desc: "모터 6개 대형 기체" },
   tri: { name: "트라이콥터", desc: "모터 3개 Y자 기체" },
+  ...FIGHTER_FRAMES,
 };
 export const CANOPIES = {
   pod: { name: "유선형 포드" },
@@ -90,21 +92,55 @@ export function buildDrone(look, scale = 1, opts = {}) {
   const discMat = new THREE.MeshBasicMaterial({ color: look.propColor, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false });
   const ledMat = new THREE.MeshBasicMaterial({ color: look.ledColor });
   const lensMat = toonMat({ color: 0x0c0c18, spec: 1, shine: 90 });
+  const extraMats = [];
   const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
 
   const frame = look.frame || "x";
-  const motors = motorLayout(frame);
-  const propR = frame === "whoop" ? 0.05 : frame === "hexa" ? 0.058 : 0.0635;
+  const fighter = isFighter(frame);
+  let motors = motorLayout(frame), propR = frame === "whoop" ? 0.05 : frame === "hexa" ? 0.058 : 0.0635;
+  const props = [];
+  let F = null;
+  if (fighter) {
+    // 전투기형: 동체·날개·꼬리날개 + 덕트 팬
+    const glassMat = toonMat({ color: new THREE.Color(0x7fd6ff).lerp(new THREE.Color(look.ledColor), 0.25).multiplyScalar(0.55), spec: 1, shine: 140, rim: 1 });
+    const metalMat = toonMat({ color: 0x9aa3b2, spec: 0.9, shine: 80, rim: 0.5 });
+    const frameIn = frameMat.clone(); frameIn.side = THREE.DoubleSide;
+    const darkIn = darkMat.clone(); darkIn.side = THREE.DoubleSide;
+    extraMats.push(glassMat, metalMat, frameIn, darkIn);
+    F = buildFighter(frame, add, { frame: frameMat, frameIn, accent: accentMat, dark: darkMat, darkIn, metal: metalMat, led: ledMat, glass: glassMat });
+    motors = F.motors; propR = F.propR;
+    motors.forEach((m, i) => {
+      const [mx, mz] = m, my = m[2] ?? F.motorY;
+      // 덕트 + 모터 + 팬
+      const r = propR;
+      const wall = add(new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.016, 22, 1, true), frameIn, mx, my, mz);
+      const lip = add(new THREE.TorusGeometry(r + 0.004, 0.0035, 6, 26), accentMat, mx, my + 0.008, mz); lip.rotation.x = Math.PI / 2;
+      const lo = add(new THREE.TorusGeometry(r + 0.004, 0.0025, 6, 26), darkMat, mx, my - 0.008, mz); lo.rotation.x = Math.PI / 2;
+      for (let k = 0; k < 2; k++) { const st = add(new THREE.BoxGeometry(r * 2, 0.002, 0.003), darkMat, mx, my - 0.005, mz); st.rotation.y = k * Math.PI / 2 + Math.PI / 4; }
+      add(new THREE.CylinderGeometry(0.009, 0.01, 0.01, 12), darkMat, mx, my - 0.002, mz);
+      add(new THREE.CylinderGeometry(0.0095, 0.0095, 0.002, 12), accentMat, mx, my + 0.004, mz);
+      const hub = new THREE.Group(); hub.position.set(mx, my + 0.005, mz);
+      const n = look.props === 2 ? 2 : 3, nb = n + 2;      // 덕트 팬은 날개를 더 촘촘히
+      for (let b = 0; b < nb; b++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(r * 0.95, 0.0015, 0.009), propMat);
+        blade.position.x = r * 0.48; blade.rotation.x = 0.3;
+        const piv = new THREE.Group(); piv.rotation.y = (b / nb) * Math.PI * 2; piv.add(blade); hub.add(piv);
+      }
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 20), discMat); disc.rotation.x = -Math.PI / 2; disc.position.set(mx, my + 0.006, mz);
+      g.add(hub, disc);
+      props.push({ hub, dir: i % 2 ? 1 : -1 });
+    });
+  }
 
   // 중앙 플레이트
   const bodyLen = frame === "stretch" ? 0.17 : frame === "hexa" ? 0.12 : 0.15;
   const bodyW = frame === "hexa" ? 0.1 : 0.045;
+  if (!fighter) {
   add(new THREE.BoxGeometry(bodyW, 0.006, bodyLen), frameMat, 0, 0, 0);
   add(new THREE.BoxGeometry(bodyW * 0.9, 0.005, bodyLen * 0.92), frameMat, 0, 0.026, 0);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(new THREE.CylinderGeometry(0.003, 0.003, 0.026, 6), accentMat, sx * bodyW * 0.38, 0.013, sz * bodyLen * 0.4);
 
   // 암 + 모터 + 프로펠러
-  const props = [];
   motors.forEach(([mx, mz], i) => {
     const len = Math.hypot(mx, mz);
     const arm = add(new THREE.BoxGeometry(0.014, 0.005, len), frameMat, mx / 2, 0, mz / 2);
@@ -164,7 +200,16 @@ export function buildDrone(look, scale = 1, opts = {}) {
       c.scale.set(0.8, 0.62, 2.1);
     }
   }
+  }
   // FPV 카메라 + 안테나
+  let tail;
+  if (fighter) {
+    // 기수 아래 FPV 카메라 렌즈, 등 안테나 둘
+    const [nx, ny, nz] = F.nose;
+    const lens = add(new THREE.CylinderGeometry(0.006, 0.006, 0.01, 10), lensMat, nx, ny - 0.006, nz + 0.03); lens.rotation.x = Math.PI / 2 - 0.3;
+    for (const s of [-1, 1]) { const a = add(new THREE.CylinderGeometry(0.001, 0.001, 0.035, 4), darkMat, s * 0.01, 0.04, F.bodyLen * 0.2); a.rotation.x = -0.6; a.rotation.z = s * 0.3; }
+    tail = F.tail;
+  } else {
   const camBox = add(new THREE.BoxGeometry(0.02, 0.02, 0.016), darkMat, 0, 0.016, -bodyLen / 2 - 0.004);
   camBox.rotation.x = 0.45;
   const lens = add(new THREE.CylinderGeometry(0.007, 0.007, 0.012, 10), lensMat, 0, 0.02, -bodyLen / 2 - 0.014);
@@ -173,7 +218,8 @@ export function buildDrone(look, scale = 1, opts = {}) {
   ant.rotation.x = -0.5;
   add(new THREE.SphereGeometry(0.006, 8, 6), accentMat, 0, 0.082, bodyLen / 2 + 0.018);
   // 후방 LED 바
-  const tail = add(new THREE.BoxGeometry(bodyW * 0.9, 0.008, 0.004), ledMat, 0, 0.013, bodyLen / 2 + 0.002);
+  tail = add(new THREE.BoxGeometry(bodyW * 0.9, 0.008, 0.004), ledMat, 0, 0.013, bodyLen / 2 + 0.002);
+  }
 
   // 적/아군 식별용 발광 고리(전투 모드)
   let halo = null;
@@ -203,7 +249,7 @@ export function buildDrone(look, scale = 1, opts = {}) {
   root.userData.tail = tail;
   root.userData.dispose = () => {
     root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
-    for (const m of [frameMat, accentMat, darkMat, propMat, discMat, ledMat, lensMat]) m.dispose();
+    for (const m of [frameMat, accentMat, darkMat, propMat, discMat, ledMat, lensMat, ...extraMats]) m.dispose();
     if (tex) tex.dispose();
     if (halo) halo.material.dispose();
   };
@@ -218,9 +264,11 @@ export function botLook(kind, team) {
     frameColor: red ? "#2a1114" : "#101b2e", accentColor: red ? "#ff2d3d" : "#2f8cff",
     propColor: red ? "#ff7a7a" : "#8ec5ff", ledColor: red ? "#ff2020" : "#40a0ff",
   };
-  if (kind === "kamikaze") return { ...base, frame: "tri", canopy: "pod", accentColor: "#ffb300", ledColor: "#ffb300", ledMode: "blink" };
-  if (kind === "gunship") return { ...base, frame: "hexa", canopy: "battery", skin: "hazard" };
-  if (kind === "boss") return { ...base, frame: "hexa", canopy: "cine", skin: "carbon", accentColor: "#b000ff", ledColor: "#ff00d0", ledMode: "rainbow" };
-  if (kind === "racer") return { ...base, frame: "stretch", canopy: "racer" };
+  // 전투 드론은 전투기형 프레임: 일반=랩터, 자폭=크로스윙, 건쉽=팬텀, 보스=팬텀(보라), 레이서=바이퍼
+  if (kind === "kamikaze") return { ...base, frame: "cross", canopy: "pod", accentColor: "#ffb300", ledColor: "#ffb300", ledMode: "blink" };
+  if (kind === "gunship") return { ...base, frame: "phantom", canopy: "battery", skin: "hazard" };
+  if (kind === "boss") return { ...base, frame: "phantom", canopy: "cine", skin: "carbon", accentColor: "#b000ff", ledColor: "#ff00d0", ledMode: "rainbow" };
+  if (kind === "racer") return { ...base, frame: "viper", canopy: "racer" };
+  if (kind === "grunt" || kind === "ace") return { ...base, frame: "raptor" };
   return base;
 }

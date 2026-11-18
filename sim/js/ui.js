@@ -125,6 +125,7 @@ export class UI {
   _syncStage() {
     const menu = this.game.menu;
     menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
+    if (menu.previewSkill) menu.previewSkill(this.screen === "hangar" && this._gtab === "skill" ? this._skPv || GP.skillEquipped() : null);
     const st = this.root.querySelector("[data-stage]");
     if (!st || !st.offsetWidth) { menu.focus = null; return; }
     let x = 0, y = 0, e = st;
@@ -744,7 +745,7 @@ export class UI {
       const own = GP.owns(kind, k), on = String(cur) === k;
       return `<button class="chip ${on ? "on" : ""} ${own ? "" : "lock"}" data-a="gbuy" data-kind="${kind}" data-key="${key}" data-v="${k}">${own ? "" : "🔒 "}${label(v)}${own ? "" : ` <em>${P(GP.priceOf(kind, k))}</em>`}</button>`;
     }).join("")}</div>`;
-    const tabs = [["look", "외형"], ["theme", "테마"], ["fx", "효과"], ["parts", "파츠"], ["quest", "퀘스트"]];
+    const tabs = [["look", "외형"], ["theme", "테마"], ["fx", "효과"], ["parts", "파츠"], ["skill", "스킬"], ["quest", "퀘스트"]];
     let body = "";
     if (tab === "look") {
       const paint = GP.owns("paint", "on");
@@ -785,6 +786,16 @@ export class UI {
             ${cur.lv < 5 ? `<button class="primary small" data-a="gup" data-v="${slot}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${cur.lv + 1} · ${P(cost)}</button>` : `<span class="maxed">최대 단계</span>`}</div>`;
         }).join("")
         + `<div class="sumL"><b>현재 보정</b> 내구도 +${Math.round(L.hp * 100)}% · 추력 +${Math.round(L.thrust * 100)}% · 레이저 +${Math.round(L.laserDmg * 100)}%${L.crit ? ` · 치명타 ${Math.round(L.crit * 100)}%` : ""} · 미사일 피해 +${Math.round(L.mDmg * 100)}% · 락온 ${Math.round(L.lock * 100)}% · 아이템 지속 +${Math.round(L.itemDur * 100)}%${L.regen ? ` · 재생 ${L.regen}/초` : ""}</div>`;
+    } else if (tab === "skill") {
+      const eq = GP.skillEquipped(), pv = this._skPv || eq, ck = (c) => "#" + c.toString(16).padStart(6, "0");
+      body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
+        <div class="skills">${Object.entries(GP.SKILLS).map(([id, k]) => {
+          const own = GP.skillOwns(id), on = eq === id, c = ck(k.color);
+          return `<div class="skc ${on ? "on" : ""} ${pv === id ? "pv" : ""}" style="--k:${c}">
+            <button class="skp" data-a="gskpv" data-v="${id}"><span class="ic">${k.icon}</span><span class="tx"><b>${k.name}</b><small>${k.tag} · 게이지 ${k.cost}%${k.dur ? ` · ${k.dur}초` : ""}</small><em>${esc(k.desc)}</em></span><span class="eye">${pv === id ? "▶ 미리보기 중" : "▷ 미리보기"}</span></button>
+            ${on ? `<span class="skst">✔ 장착 중</span>` : own ? `<button class="primary small" data-a="gskill" data-v="${id}">장착</button>` : `<button class="primary small" data-a="gskill" data-v="${id}" ${GP.points() < k.price ? "disabled" : ""}>구매 · ${P(k.price)}</button>`}
+          </div>`;
+        }).join("")}</div>`;
     } else {
       const q = GP.quests(), rin = GP.resetIn(), hm = (ms) => `${Math.floor(ms / 3600000)}시간 ${Math.floor((ms % 3600000) / 60000)}분`;
       const qrow = (x) => { const cur = x.unit === "s" ? Math.floor(x.prog / 60) : x.prog, max = x.unit === "s" ? x.n / 60 : x.n; return `<div class="q ${x.done ? "done" : ""}"><div class="qt"><b>${esc(x.text)}</b><span>${x.done ? "✔ 완료" : `${cur} / ${max}`}</span></div><div class="b"><i style="width:${Math.round((x.prog / x.n) * 100)}%"></i></div><em>+${x.pts}P</em></div>`; };
@@ -805,7 +816,18 @@ export class UI {
   _gnote(t, bad = false) { this._gmsg = { t, bad }; clearTimeout(this._gmt); this._gmt = setTimeout(() => { this._gmsg = null; if (this.screen === "hangar") this.redraw(); }, 2200); }
   _look() { save(); this.game.menu.setLook(settings.drone); this.redraw(); }
   a_gq() { this._gtab = "quest"; this.show("hangar"); }
-  a_gtab(v) { this._gtab = v; this.redraw(); }
+  a_gtab(v) { this._gtab = v; this.redraw(); this._syncStage(); }
+  a_gskpv(v) { this._skPv = v; this.game.sound.play("click"); this.redraw(); this._syncStage(); }
+  a_gskill(v) {
+    const k = GP.SKILLS[v];
+    if (!GP.skillOwns(v)) {
+      if (!GP.skillBuy(v)) return (this._gnote(`포인트가 부족합니다 (${k.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this._gnote(`${k.name} 구매 · -${k.price.toLocaleString()}P`); this.game.sound.play("pickup");
+    } else this.game.sound.play("confirm");
+    GP.skillEquip(v); this._skPv = v;
+    if (!this._gmsg) this._gnote(`스킬 「${k.name}」 장착`);
+    this.redraw(); this._syncStage();
+  }
   a_gbuy(v, el) {
     const kind = el.dataset.kind, key = el.dataset.key;
     if (!GP.owns(kind, v)) {
@@ -985,7 +1007,7 @@ export class UI {
         <tr><td><kbd>Shift</kbd></td><td>누르는 동안 스틱을 절반만 (정밀 조종)</td></tr>
         <tr><td><kbd>1</kbd>~<kbd>5</kbd> / <kbd>M</kbd></td><td>비행 모드: ACRO · HORIZON · ANGLE · ALT HOLD · LOITER(GPS)</td></tr>
         <tr><td><kbd>C</kbd></td><td>시점 전환: 1인칭(FPV) → 3인칭(추적) → 지상 시점</td></tr>
-        <tr><td><kbd>R</kbd></td><td>마지막 체크포인트에서 다시 시작 / 뒤집힌 기체 세우기</td></tr>
+        <tr><td><kbd>X</kbd></td><td>스킬 발동 (전투 · 게이지가 차면)</td></tr><tr><td><kbd>R</kbd></td><td>마지막 체크포인트에서 다시 시작 / 뒤집힌 기체 세우기</td></tr>
         <tr><td><kbd>Space</kbd></td><td>레이저 발사 (전투 모드)</td></tr>
         <tr><td><kbd>F</kbd></td><td>미사일 발사 — 적을 조준선 근처에 두면 자동 락온</td></tr>
         <tr><td><kbd>E</kbd></td><td>보관 중인 아이템 사용 (실드·부스트·과충전·EMP)</td></tr>

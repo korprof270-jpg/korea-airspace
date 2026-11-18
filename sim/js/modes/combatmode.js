@@ -27,7 +27,7 @@ export class CombatMode extends Mode {
     const c = this.combat, mid = o.kind !== "boss";
     let b;
     if (o.unit) b = c.units.spawn(o.unit, { pos: o.pos, name: o.name, hp: o.hp || 1, scale: o.scale, home: o.pos, rank: o.rank });   // 전차·대공 로봇·전투함·순양함·거대로봇
-    else { b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6), rank: o.rank }); if (mid) b.model.scale.multiplyScalar(1.35); }
+    else { b = c.spawnBot({ kind: o.kind || "gunship", team: 1, name: o.name, pos: o.pos, hpScale: o.hp || (mid ? 2.5 : 0.6), rank: o.rank }); if (mid) { b.model.scale.multiplyScalar(1.35); c.fitBody(b); } }
     this.bossIntro(b, b.name, o.sub || (mid ? "중간 보스" : "보스"), mid);
     return b;
   }
@@ -164,7 +164,7 @@ export class CargoSys {
 
   _release(c, respawn) {
     if (c.carrier && c.carrier.isPlayer) this.s.player.body.extraMass = 0;
-    c.carrier = null;
+    c.carrier = null; c.mesh.scale.setScalar(1);
     c.state = "respawn"; c.t = respawn; c.mesh.visible = false;
   }
 
@@ -190,9 +190,13 @@ export class CargoSys {
       }
       const a = c.carrier;
       if (!a.alive) { this._release(c, 4); continue; }
-      c.pos.copy(a.pos); c.pos.y -= a.radius + (a.isPlayer ? 0.55 : 0.9);
+      // 내가 들었을 때: 작게 줄여 더 아래에 매달고, 1인칭(FPV) 시야에서는 숨긴다 (화면을 가리지 않게. HUD 에 운반 중 표시가 따로 있다)
+      const mine = a.isPlayer;
+      c.pos.copy(a.pos); c.pos.y -= a.radius + (mine ? 1.3 : 0.9);
       c.mesh.position.copy(c.pos);
       c.mesh.rotation.y = 0;
+      c.mesh.scale.setScalar(mine ? 0.45 : 1);
+      c.mesh.visible = !(mine && pl.camMode === "fpv");
       for (const p of pads) {
         if (p.done || (p.team >= 0 && p.team !== a.team)) continue;
         if (Math.hypot(a.pos.x - p.pos.x, a.pos.z - p.pos.z) < p.r && a.pos.y - p.pos.y < 9) {

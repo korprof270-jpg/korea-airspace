@@ -1,6 +1,7 @@
 // 격납고 경제: 포인트 · 퀘스트(일일/주간) · 업적 · 상점(외형·테마·효과) · 파츠(교체 + 단계 업그레이드)
 // 저장: records.gp = { pts, earned, owned:{}, eq:{}, parts:{slot:{v,lv}}, own:{slot:[variants]}, stat:{}, ach:{}, daily:{key,list}, weekly:{key,list} }
 import { records, save, settings } from "./config.js";
+import { SKILLS, SKILL_DEF } from "./skilldefs.js";
 
 // ── 저장 상태 ──
 function S() {
@@ -160,7 +161,7 @@ export function onResult(cfg, r) {
 // ── 상점: 외형 · 테마 · 효과 ──
 // key: "frame:hexa" 처럼 종류:값. price 0 = 기본 제공
 export const SHOP = {
-  frame: { name: "프레임", items: { x: 0, stretch: 300, deadcat: 300, tri: 450, whoop: 500, hexa: 700 } },
+  frame: { name: "프레임", items: { x: 0, stretch: 300, deadcat: 300, tri: 450, whoop: 500, hexa: 700, cross: 600, raptor: 750, viper: 800, phantom: 1000 } },
   canopy: { name: "캐노피", items: { pod: 0, racer: 200, battery: 200, cine: 250 } },
   skin: { name: "스킨", items: { solid: 0, stripe: 250, camo: 300, hazard: 350, carbon: 400, flame: 500 } },
   led: { name: "LED", items: { solid: 0, off: 0, blink: 120, rainbow: 450 } },
@@ -280,3 +281,14 @@ export function loadout() {
   L.fx = { laser: f("laser").color, beam: f("beam"), missile: f("missile").color, boost: f("boost"), item: f("item") };
   return L;
 }
+
+// ── 스킬: 상점에서 사서 격납고에서 하나 장착 ──
+export { SKILLS };
+export const skillOwns = (id) => !!SKILLS[id] && (SKILLS[id].price === 0 || !!S().owned[`skill:${id}`]);
+export function skillBuy(id) {
+  if (skillOwns(id)) return true;
+  if (!spend(SKILLS[id].price)) return false;
+  S().owned[`skill:${id}`] = 1; changed(); return true;
+}
+export const skillEquipped = () => (skillOwns(S().eq.skill) ? S().eq.skill : SKILL_DEF);
+export function skillEquip(id) { if (!skillOwns(id)) return false; S().eq.skill = id; changed(); return true; }

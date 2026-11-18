@@ -236,9 +236,43 @@ export function makeHeli(color = 0xd13b3b) {
   return g;
 }
 
+// 제국 수송정: 검은 각진 선체, 아래 반중력 추진기 넷, 붉은 눈 띠와 화물 칸. 떠서 난다
+export function makeShuttle(color = 0x8a1018) {
+  const g = new THREE.Group(), hull = gloss(0x1b1e25, 0.45), trim = gloss(color, 0.4), dark = mat(0x0e1014), steel = gloss(0x5a616d, 0.6);
+  const eye = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2a36).multiplyScalar(2.2) }), thr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff7a2a).multiplyScalar(2.4) });
+  part(g, new THREE.BoxGeometry(2.6, 1.3, 6.2), hull, 0, 1.5, 0);
+  part(g, new THREE.BoxGeometry(2.0, 0.9, 1.8), hull, 0, 1.45, -3.7).rotation.x = 0.22;           // 기수
+  part(g, new THREE.BoxGeometry(2.1, 0.22, 0.08), eye, 0, 1.75, -4.58);                           // 눈 띠
+  part(g, new THREE.BoxGeometry(2.7, 0.18, 6.3), trim, 0, 2.2, 0);                                // 등 띠
+  part(g, new THREE.BoxGeometry(2.2, 0.9, 3.0), steel, 0, 0.55, 0.6);                             // 화물 칸
+  for (const z of [-0.3, 0.6, 1.5]) part(g, new THREE.BoxGeometry(2.3, 0.94, 0.12), dark, 0, 0.55, z);
+  part(g, new THREE.BoxGeometry(0.2, 1.5, 1.6), trim, 0, 2.9, 2.5);                               // 꼬리날개
+  const pods = [];
+  for (const x of [-1.9, 1.9]) for (const z of [-1.9, 2.1]) {
+    part(g, new THREE.BoxGeometry(1.0, 0.25, 0.5), hull, x * 0.8, 1.4, z);
+    part(g, new THREE.CylinderGeometry(0.62, 0.72, 0.7, 12), dark, x, 1.25, z);
+    pods.push(part(g, new THREE.CylinderGeometry(0.5, 0.5, 0.08, 12), thr, x, 0.88, z));
+    part(g, new THREE.TorusGeometry(0.66, 0.06, 6, 16), steel, x, 1.6, z).rotation.x = Math.PI / 2;
+  }
+  for (const x of [-1.3, 1.3]) part(g, new THREE.BoxGeometry(0.1, 0.1, 0.1), eye, x, 1.5, 3.15);
+  let t = 0;
+  g.userData.tick = (dt) => { t += dt; const k = 0.85 + Math.sin(t * 22) * 0.15; for (const p of pods) p.scale.set(k, 1, k); };
+  g.userData.radius = 3.2;
+  return g;
+}
+
 // 종류 이름 → 모델
 export function makeSubjectModel(type, color) {
   switch (type) {
+    case "shuttle": return makeShuttle(color);
+    case "scout": case "skiff": {   // 제국 정찰 드론(scout) · 에일 비행정(skiff): 진영 전투 모델을 크게 키운 비행체
+      const ail = type === "skiff", g = new THREE.Group(), m = factionModel(ail ? "ail" : "eia", ail ? "gunship" : "grunt", color ?? (ail ? 0xc060ff : 0xff2d3d));
+      m.scale.setScalar(ail ? 1.5 : 2.4); g.add(m);
+      g.userData.radius = ail ? 2.4 : 1.4;
+      let t = 0;
+      g.userData.tick = (dt) => { t += dt; m.userData.tick(dt, 0.6, t); };
+      return g;
+    }
     case "car": return makeCar(color ?? 0xd13b3b);
     case "sportscar": return makeCar(color ?? 0xffc400, true);
     case "truck": return makeTruck(color);

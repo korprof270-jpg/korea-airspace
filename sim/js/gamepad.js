@@ -3,11 +3,11 @@
 // 브라우저가 "standard" 배치로 정리해 주는 패드는 버튼 번호가 같다 — 0 아래 · 1 오른쪽 · 2 왼쪽 · 3 위 · 4/5 LB/RB · 6/7 LT/RT · 8/9 보기/메뉴 · 12~15 십자키
 
 // 표준 배치 버튼 → 비행 중 동작
-const STD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "dodge", 7: "fire", 8: "hud", 9: "pause", 14: "itemNext", 15: "itemNext" };
-// 표준 배치가 아닌 일반 게임패드(다이렉트인풋 계열): 흔히 0~3 = 1·2·3·4번, 4~7 = L1·R1·L2·R2, 8·9 = 셀렉트·스타트
-const GEN_ACTIONS = { 0: "camera", 1: "item", 2: "reset", 3: "modeNext", 4: "missile", 5: "fire", 6: "dodge", 7: "fire", 8: "hud", 9: "pause" };
+const STD_ACTIONS = { 0: "item", 1: "reset", 2: "camera", 3: "modeNext", 4: "missile", 5: "fire", 6: "dodge", 7: "fire", 8: "hud", 9: "pause", 10: "skill", 11: "skill", 14: "itemNext", 15: "itemNext" };
+// 표준 배치가 아닌 일반 게임패드(다이렉트인풋 계열): 흔히 0~3 = 1·2·3·4번, 4~7 = L1·R1·L2·R2, 8·9 = 셀렉트·스타트, 10·11 = 스틱 누름
+const GEN_ACTIONS = { 0: "camera", 1: "item", 2: "reset", 3: "modeNext", 4: "missile", 5: "fire", 6: "dodge", 7: "fire", 8: "hud", 9: "pause", 10: "skill", 11: "skill" };
 // RC 조종기: 스위치가 버튼으로 잡힌다. 많아야 몇 개뿐이므로 자주 쓰는 것만
-const RC_ACTIONS = { 0: "fire", 1: "missile", 2: "reset", 3: "camera", 4: "item", 5: "modeNext", 6: "pause", 7: "dodge" };
+const RC_ACTIONS = { 0: "fire", 1: "missile", 2: "reset", 3: "camera", 4: "item", 5: "modeNext", 6: "pause", 7: "dodge", 8: "skill" };
 
 // 종류별 기본 축 배치 (위·오른쪽으로 밀면 + 가 되도록 inv)
 const STD_AXES = { lx: { i: 0, inv: false }, ly: { i: 1, inv: true }, rx: { i: 2, inv: false }, ry: { i: 3, inv: true } };
@@ -22,13 +22,13 @@ const MENU = { std: { ok: 0, back: 1 }, switch: { ok: 1, back: 0 }, generic: { o
 
 // 버튼 글자: 동작 → 화면 표시
 const GLYPHS = {
-  xbox: { dodge: "LT", ok: "A", back: "B", item: "A", reset: "B", camera: "X", modeNext: "Y", missile: "LB", fire: "RT", hud: "보기", pause: "메뉴", itemNext: "◀▶" },
-  ps: { dodge: "L2", ok: "✕", back: "○", item: "✕", reset: "○", camera: "□", modeNext: "△", missile: "L1", fire: "R2", hud: "만들기", pause: "옵션", itemNext: "◀▶" },
+  xbox: { ok: "A", back: "B", item: "A", reset: "B", camera: "X", modeNext: "Y", missile: "LB", fire: "RT", hud: "보기", pause: "메뉴", itemNext: "◀▶", skill: "L3·R3", dodge: "LT" },
+  ps: { ok: "✕", back: "○", item: "✕", reset: "○", camera: "□", modeNext: "△", missile: "L1", fire: "R2", hud: "만들기", pause: "옵션", itemNext: "◀▶", skill: "L3·R3", dodge: "L2" },
   // Switch Pro 의 표준 배치: 아래 = B, 오른쪽 = A, 왼쪽 = Y, 위 = X
-  switch: { dodge: "ZL", ok: "A", back: "B", item: "B", reset: "A", camera: "Y", modeNext: "X", missile: "L", fire: "ZR", hud: "−", pause: "+", itemNext: "◀▶" },
-  generic: { dodge: "L2", ok: "2", back: "3", item: "2", reset: "3", camera: "1", modeNext: "4", missile: "L1", fire: "R2", hud: "셀렉트", pause: "스타트", itemNext: "—" },
-  rc: { dodge: "SW8", ok: "SW1", back: "SW2", item: "SW5", reset: "SW3", camera: "SW4", modeNext: "SW6", missile: "SW2", fire: "SW1", hud: "—", pause: "SW7", itemNext: "—" },
-  keyboard: { dodge: "V", ok: "Enter", back: "Esc", item: "E", reset: "R", camera: "C", modeNext: "M", missile: "F", fire: "Space", hud: "H", pause: "Esc", itemNext: "Q" },
+  switch: { ok: "A", back: "B", item: "B", reset: "A", camera: "Y", modeNext: "X", missile: "L", fire: "ZR", hud: "−", pause: "+", itemNext: "◀▶", skill: "L·R 스틱", dodge: "ZL" },
+  generic: { ok: "2", back: "3", item: "2", reset: "3", camera: "1", modeNext: "4", missile: "L1", fire: "R2", hud: "셀렉트", pause: "스타트", itemNext: "—", skill: "스틱 누름", dodge: "L2" },
+  rc: { ok: "SW1", back: "SW2", item: "SW5", reset: "SW3", camera: "SW4", modeNext: "SW6", missile: "SW2", fire: "SW1", hud: "—", pause: "SW7", itemNext: "—", skill: "SW9", dodge: "SW8" },
+  keyboard: { ok: "Enter", back: "Esc", item: "E", reset: "R", camera: "C", modeNext: "M", missile: "F", fire: "Space", hud: "H", pause: "Esc", itemNext: "Q", skill: "X", dodge: "V" },
 };
 
 export const PAD_NAMES = { xbox: "Xbox 컨트롤러", ps: "PlayStation 컨트롤러", switch: "Switch Pro 컨트롤러", generic: "게임패드", rc: "RC 조종기" };

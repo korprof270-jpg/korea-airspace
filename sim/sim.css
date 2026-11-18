@@ -373,6 +373,11 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 #touch .tbtns .b-item:not(:disabled) { background: rgba(16, 24, 44, 0.9); font-size: 14px; }
 #touch .tbtns .b-swap { font-size: 12px; color: var(--muted); }
 #touch .tbtns .b-swap[hidden] { display: none; }
+#touch .tbtns .b-skill { position: relative; overflow: hidden; font-size: 13px; }
+#touch .tbtns .b-skill i { position: absolute; left: 0; bottom: 0; height: 4px; background: currentColor; opacity: 0.8; }
+#touch .tbtns .b-skill.rdy { background: rgba(16, 24, 44, 0.95); box-shadow: 0 0 0 2px currentColor, 0 2px 0 var(--ink); animation: skrdy 0.9s ease-in-out infinite; }
+#touch .tbtns .b-skill.act { opacity: 0.7; }
+@keyframes skrdy { 50% { transform: scale(1.06); } }
 
 /* ── 타이틀 화면 ── */
 #ui > .screen.titlescreen { cursor: pointer; overflow: hidden; align-items: center; justify-content: flex-start; padding-top: clamp(28px, 11vh, 110px); text-align: center; user-select: none;
@@ -817,3 +822,18 @@ kbd.pad { min-width: 1.6em; text-align: center; border-radius: 999px; background
 .tutfly .tf-t { flex: 1 1 100%; font-size: 15px; line-height: 1.5; }
 .tutfly .tf-p { flex: 1; font-size: 11px; color: var(--muted); }
 .tutfly button { padding: 4px 10px; font-size: 12px; }
+/* 격납고 · 스킬 */
+.hangar .skills { display: flex; flex-direction: column; gap: 8px; }
+.hangar .skc { display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); border-radius: 12px; background: rgba(255, 255, 255, 0.05); padding: 8px 10px 8px 6px; box-shadow: 0 3px 0 var(--ink); }
+.hangar .skc.pv { background: rgba(255, 255, 255, 0.1); border-color: var(--k); }
+.hangar .skc.on { box-shadow: 0 0 0 2px var(--k), 0 3px 0 var(--ink); }
+.hangar .skp { flex: 1; display: flex; align-items: center; gap: 10px; background: none; border: 0; text-align: left; padding: 0; min-width: 0; }
+.hangar .skp .ic { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: var(--k); background: rgba(10, 16, 30, 0.9); border: 2px solid var(--k); }
+.hangar .skp .tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hangar .skp .tx b { font-size: 15px; color: var(--k); }
+.hangar .skp .tx small { font-size: 11px; color: var(--muted); }
+.hangar .skp .tx em { font-style: normal; font-size: 12px; color: var(--fg); opacity: 0.85; line-height: 1.35; }
+.hangar .skp .eye { flex: none; font-size: 11px; color: var(--muted); }
+.hangar .skc.pv .eye { color: var(--k); }
+.hangar .skc .small { flex: none; padding: 8px 12px; font-size: 13px; }
+.hangar .skst { flex: none; font-size: 12px; font-weight: 800; color: var(--k); }

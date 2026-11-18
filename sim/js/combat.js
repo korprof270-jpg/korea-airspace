@@ -5,6 +5,7 @@ import { DIFFICULTY, settings, clamp } from "./config.js";
 import { Units, buildJet } from "./enemies.js";
 import { factionModel } from "./factions.js";
 import * as GP from "./garage.js";
+import { SkillSys } from "./skills.js";
 import { rollRank, rankStats, baseLevel, clampRank } from "./ranks.js";
 
 export const ITEMS = {
@@ -31,6 +32,7 @@ export const KINDS = {
   boss: { hp: 1500, radius: 5.5, scale: 17, speed: 8, accel: 4, dmg: 9, rate: 7, range: 55, missiles: 99, score: 2000 },
 };
 
+const HIT_T = 0.32;               // 조준선 명중 표시가 남는 시간(초)
 const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄은 더 느려 보고 피할 수 있다
 export const PLAYER_HP = 150, BOT_HP = 1.5, SHIELD_HP = 120;
 const RESPAWN = 5;
@@ -147,7 +149,17 @@ export class Combat {
     this.botN++;
     a.pos.copy(o.pos || this.randomPoint());
     model.position.copy(a.pos);
+    if (kind === "gunship" || kind === "boss") this.fitBody(a);
     return a;
+  }
+
+  // 덩치 큰 드론(중간 보스·보스): 이동 충돌 반경을 실제 모델 크기에 맞춘다 (명중 판정 반경 a.radius 는 그대로)
+  fitBody(a) {
+    if (!a.model) return;
+    a.model.position.copy(a.pos); a.model.updateWorldMatrix(true, true);
+    const bb = new THREE.Box3().setFromObject(a.model), sz = bb.getSize(new THREE.Vector3());
+    if (!isFinite(sz.x)) return;
+    a.bodyR = Math.max(a.radius, Math.max(sz.x, sz.z) * 0.5, sz.y * 0.6);
   }
 
   // 고정 포탑: 사거리 안의 적을 조준 사격
@@ -299,7 +311,7 @@ export class Combat {
     this.shots.push({ pos: origin.clone(), dir: dir.clone(), speed, life: 0.85, dmg, owner: a, color });
   }
 
-  fireMissile(a, origin, dir, target, dmg = 55) {
+  fireMissile(a, origin, dir, target, dmg = 55, quiet = false) {
     const mesh = new THREE.Mesh(this.missileGeo, this.missileMat);
     // 불빛: 내가 쏜 것은 주황, 나를 노리는 것은 빨강
     if (a.isPlayer) dmg *= 1 + this.L.mDmg;
@@ -309,8 +321,8 @@ export class Combat {
     mesh.position.copy(origin);
     this.w.scene.add(mesh);
     this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0 });
-    this.snd.play("missile", a.isPlayer ? 1 : this.volAt(origin), a.isPlayer ? 0 : this.panAt(origin));
-    if (a.isPlayer) this.feel.emit("missile");
+    this.snd.play("missile", a.isPlayer ? (quiet ? 0.45 : 1) : this.volAt(origin), a.isPlayer ? 0 : this.panAt(origin), quiet ? 1.3 : 1);
+    if (a.isPlayer && !quiet) this.feel.emit("missile");
     if (!a.isPlayer || this.s.player.camMode !== "fpv") this.fx.muzzle(origin, dir, 0xffb060, a.isPlayer ? 1.2 : 2);
     if (target && target.isPlayer) this.warn = 1.2;
   }
@@ -350,7 +362,7 @@ export class Combat {
       _d.copy(pl.aimDir);
       // 조준 보정: 조준선 근처의 적에게는 예상 위치로 살짝 끌어당김
       const t = this._aimTarget(0.075, 170);
-      if (t && this.w.col.visible(pl.aimPos, t.pos)) {
+      if (t && this._vis(pl.aimPos, t)) {
         this._lead(pl.aimPos, t, LASER_SPEED, _a).sub(pl.aimPos).normalize();
         _d.lerp(_a, 0.8).normalize();
       }
@@ -370,10 +382,10 @@ export class Combat {
     }
     // 조준선에 걸린 적 (HUD 색·조준 효과용)
     const on = this._aimTarget(0.06, 170);
-    this.aim = on && this.w.col.visible(pl.aimPos, on.pos) ? on : null;
+    this.aim = on && this._vis(pl.aimPos, on) ? on : null;
     // 락온
     const cand = this._aimTarget(0.17, 170);
-    if (cand && cand === this.lock && this.w.col.visible(pl.aimPos, cand.pos)) {
+    if (cand && cand === this.lock && this._vis(pl.aimPos, cand)) {
       const was = this.lockT < 0.7;
       this.lockT += dt;
       if (was && this.lockT >= this.lockNeed) this.snd.play("lock");
@@ -419,6 +431,30 @@ export class Combat {
     this.feel.emit("item", 1, "dodge");
   }
 
+  // 몸체 충돌 상자의 주인 → 실제로 피해를 받을 액터 (부위가 이미 부서졌으면 본체로)
+  _bodyTarget(o) {
+    if (o.alive && o.targetable) return o;
+    const r = o.unit && o.unit.root;
+    return r && r !== o && r.alive && r.targetable ? r : null;
+  }
+  // a 에서 대상 t 가 보이는지. 대상이 대형 유닛이면 그 유닛 자신의 몸체에는 가리지 않는다
+  _vis(a, t, step = 1.2) { return this.w.col.visible(a, t.pos, step, t.unit || null); }
+
+  // 명중 지점에 떠오르는 피해 숫자 (가까운 연속 명중은 한 숫자로 합쳐 커진다)
+  _pop(pos, amt, kind) {
+    const L = this.pops || (this.pops = []);
+    for (const q of L) if (q.kind === kind && q.t < 0.35 && q.pos.distanceToSquared(pos) < 36) { q.amt += amt; q.t = Math.min(q.t, 0.08); q.pos.lerp(pos, 0.3); q.bump = 1; return; }
+    if (L.length > 14) L.shift();
+    L.push({ pos: pos.clone(), amt, kind, t: 0, bump: 1, dx: (Math.random() - 0.5) * 0.9 });
+  }
+  // 맞은 드론이 움찔: 모델이 잠깐 부풀었다 돌아온다 (모델 재질은 공유라 색 대신 크기로)
+  _pulse(a) {
+    if (!a.model || a.kind !== "bot") return;
+    const ud = a.model.userData;
+    if (ud.bs === undefined) ud.bs = a.model.scale.x;
+    ud.pulse = 1;
+  }
+
   // ── 피해 ──
   damage(a, amount, attacker, point) {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
@@ -427,6 +463,9 @@ export class Combat {
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
     if (attacker && attacker.kind !== "player" && a.isPlayer) amount *= this.diff.dmg;
+    if (a.isPlayer && this.skill) amount *= this.skill.dmgMul;                    // 오버드라이브: 받는 피해 절반
+    if (this.skill && attacker && attacker.isPlayer && this.skill.active && this.hostile(attacker, a)) this.skill.onHit(a, amount, point);   // 스킬 중 명중 연출
+    if (this.skill && attacker && attacker.isPlayer && this.hostile(attacker, a)) this.skill.gain(Math.min(amount, a.hp + (a.shield || 0)) * (a.kind === "core" ? 0.05 : 0.14));   // 스킬 게이지: 준 피해
     const src = attacker && attacker !== a ? attacker.pos : point || null;   // 피해가 온 곳 (효과 방향용)
     if (a.shield > 0) {
       const s = Math.min(a.shield, amount); a.shield -= s; amount -= s;
@@ -434,7 +473,7 @@ export class Combat {
         this.snd.play("shield", clamp(s / 15, 0.4, 1), src ? this.panAt(src) * 0.7 : 0);
         this.feel.emit("shield", s, src);
         if (a.shield <= 0) { this.feel.emit("shieldBreak"); this.fx.ring(a.pos, 0x7fe6ff, 3, 0.4); }
-      } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.hitKind = "shield"; this.hitAmt = s; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 5); }
+      } else if (attacker && attacker.isPlayer) { this.hitMark = HIT_T; this.hitKind = "shield"; this.hitAmt = s; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 8); this._pop(point || a.pos, s, "shield"); }
     }
     if (amount <= 0) return;
     a.hp -= amount;
@@ -447,7 +486,7 @@ export class Combat {
       if (src) this._hurtDir(src, amount);
       this.snd.play("hurt", clamp(amount / 20, 0.3, 1), src ? this.panAt(src) * 0.7 : 0);
       this.feel.emit("hurt", amount, src);
-    } else if (attacker && attacker.isPlayer) { this.hitMark = 0.18; this.hitKind = "hp"; this.hitAmt = amount; this.feel.emit("hit", amount, a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
+    } else if (attacker && attacker.isPlayer) { this.hitMark = HIT_T; this.hitKind = "hp"; this.hitAmt = amount; this.feel.emit("hit", amount, a); this._pop(point || a.pos, amount, a.hp - amount <= 0 ? "kill" : a.armor && a.armor < 0.9 ? "armor" : "hp"); this._pulse(a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
     if (this.h.onDamage) this.h.onDamage(a, amount, attacker);
     if (a.hp <= 0) this.kill(a, attacker);
   }
@@ -483,13 +522,14 @@ export class Combat {
       pl.body.vel.multiplyScalar(0.3);
       a.respawnT = RESPAWN;
       this.feel.emit("death");
+      if (this.skill) this.skill.onPlayerDeath();
     } else {
       if (a.model) a.model.visible = false;
       if (a.collider) a.collider.off = true;
       if (a.collider2) a.collider2.off = true;
       if (a.respawns) a.respawnT = RESPAWN;
       this._blast(a.pos, big);
-      if (killer && killer.isPlayer) this._myKill(a, a.bossBar ? 4 : big);
+      if (killer && killer.isPlayer) { this._myKill(a, a.bossBar ? 4 : big); if (this.skill) { this.skill.onKill(a); this.skill.gain(a.bossBar ? 35 : big >= 4 ? 30 : big >= 2 ? 16 : 9); } }   // 스킬 게이지: 격추
     }
     if (this.h.onKill) this.h.onKill(a, killer);
   }
@@ -537,13 +577,14 @@ export class Combat {
   update(dt) {
     const pl = this.s.player, p = this.player;
     this._playerWeapons(dt);
+    if (p) { if (!this.skill) this.skill = new SkillSys(this); this.skill.update(dt); }
     this.units.update(dt);
 
     // 플레이어 상태 반영
     if (p) {
       p.heat = Math.max(0, p.heat - dt * 0.42);
       if (p.overheated && p.heat < 0.45) { p.overheated = false; this.feel.emit("cool"); }
-      pl.body.boost = (p.boostT > 0 ? 1.6 * (1 + this.L.boost) : 1) * (1 + this.L.thrust);
+      pl.body.boost = (p.boostT > 0 ? 1.6 * (1 + this.L.boost) : 1) * (1 + this.L.thrust) * (this.skill ? this.skill.boostMul : 1);
       // 부스트 효과 (격납고)
       const bf = this.L.fx.boost;
       if (p.alive && p.boostT > 0 && (bf.color || bf.rainbow) && (this._bt = (this._bt || 0) - dt) <= 0) {
@@ -559,6 +600,7 @@ export class Combat {
 
     for (const a of this.actors) {
       if (a.flash > 0) a.flash -= dt;
+      if (a.model && a.model.userData.pulse > 0) { const ud = a.model.userData; ud.pulse = Math.max(0, ud.pulse - dt * 9); a.model.scale.setScalar(ud.bs * (1 + 0.12 * ud.pulse * ud.pulse)); }
       if (a.stunT > 0) a.stunT -= dt;
       if (a.boostT > 0) a.boostT -= dt;
       if (a.overT > 0) a.overT -= dt;
@@ -587,6 +629,7 @@ export class Combat {
     if (this.hurtT > 0) this.hurtT -= dt;
     for (let i = this.hurts.length - 1; i >= 0; i--) if ((this.hurts[i].t -= dt / 1.4) <= 0) this.hurts.splice(i, 1);
     if (this.hitMark > 0) this.hitMark -= dt;
+    if (this.pops) for (let i = this.pops.length - 1; i >= 0; i--) { const q = this.pops[i]; q.t += dt; q.bump = Math.max(0, q.bump - dt * 7); if (q.t > 0.9) this.pops.splice(i, 1); }
     if (this.killMark > 0) this.killMark -= dt;
     if (this.warn > 0) {
       this.warn -= dt;
@@ -614,12 +657,24 @@ export class Combat {
         const th = Math.max(0, t - Math.sqrt(r * r - perp2));
         if (th < bestT) { bestT = th; victim = o; }
       }
-      // 지형·구조물
-      let wall = -1;
-      for (let d = 0.7; d <= len; d += 0.7) { _b.copy(s.pos).addScaledVector(s.dir, d); if (col.blocked(_b, 0.03)) { wall = d; break; } }
+      // 지형·구조물 (쏜 쪽 유닛 자신의 몸체는 통과)
+      let wall = -1, body = null;
+      col.skip = s.owner.unit || null;
+      for (let d = 0.7; d <= len; d += 0.7) { _b.copy(s.pos).addScaledVector(s.dir, d); const hc = col.hitBy(_b, 0.03); if (hc) { wall = d; body = hc.owner || null; break; } }
+      col.skip = null;
+      // 대형 유닛의 몸체(선체·차체·몸통)에 맞음 → 그 몸체 액터가 피해를 받는다
+      if (body && !(victim && bestT <= wall)) {
+        const tgt = this._bodyTarget(body);
+        if (tgt && this.hostile(s.owner, tgt)) {
+          fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(8 * (s.sk || 1)) : 5, true);
+          this.damage(tgt, s.dmg, s.owner, _b);
+          this.shots.splice(i, 1); continue;
+        }
+      }
       if (victim && (wall < 0 || bestT <= wall)) {
         _b.copy(s.pos).addScaledVector(s.dir, bestT);
-        fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(8 * (s.sk || 1)) : 5, victim.radius > 1.5);
+        fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(13 * (s.sk || 1)) : 5, victim.radius > 1.5 || s.owner.isPlayer);
+        if (s.owner.isPlayer) fx.hitSpark(_b, s.dir, 0xffffff, 4, false, false);   // 흰 불똥을 덧대 명중 지점이 또렷하게
         this.damage(victim, s.dmg, s.owner, _b);
         this.shots.splice(i, 1); continue;
       }
@@ -677,11 +732,15 @@ export class Combat {
       this.fx.puff(m.pos, m.mesh.userData.col, 0.75, 0.6, 0.2);
       this.fx.puff(m.pos, 0xffffff, 0.35, 0.25, 0.1);
       if ((m.sm = (m.sm || 0) + 1) % 2 === 0) this.fx.smoke(m.pos, 0.9, 1.6, 0.34, 0.3);
-      let boom = m.life <= 0 || this.w.col.blocked(m.pos, 0.12), direct = null;
+      this.w.col.skip = (m.owner && m.owner.unit) || null;
+      const hc = this.w.col.hitBy(m.pos, 0.12);
+      this.w.col.skip = null;
+      let boom = m.life <= 0 || !!hc, direct = null;
       for (const o of this.actors) {
         if (!o.alive || !o.targetable || !this.hostile(m.owner, o)) continue;
         if (o.pos.distanceTo(m.pos) < (m.owner.isPlayer ? o.radius * hb(o) : o.radius) + 1.6) { boom = true; direct = o; break; }
       }
+      if (!direct && hc && hc.owner) { const tgt = this._bodyTarget(hc.owner); if (tgt && this.hostile(m.owner, tgt)) direct = tgt; }   // 선체·몸통에 직격
       if (boom) {
         this.fx.explosion(m.pos, 1.3);
         this.snd.play("explode", this.volAt(m.pos) * 0.8, this.panAt(m.pos));
@@ -745,7 +804,7 @@ export class Combat {
       if (d < bs) { bs = d; best = o; }
     }
     ai.target = best;
-    ai.los = best ? this.w.col.visible(a.pos, best.pos, 1.5) : false;
+    ai.los = best ? this._vis(a.pos, best, 1.5) : false;
     ai.goal = null;
     // 체력이 낮으면 수리 키트를 찾는다
     if (a.hp < a.maxHp * 0.4 && a.botKind !== "kamikaze" && a.botKind !== "boss") {
@@ -761,11 +820,12 @@ export class Combat {
   }
 
   _bot(a, dt) {
-    const ai = a.ai, K = a.K, w = this.w, col = w.col;
+    const ai = a.ai, K = a.K, w = this.w, col = w.col, BR = a.bodyR || a.radius;
     if (a.stunT > 0) { // EMP: 조종 불능, 서서히 떨어짐
       a.vel.y -= 5 * dt; a.vel.multiplyScalar(1 - dt * 0.8);
       a.pos.addScaledVector(a.vel, dt);
-      const gy = w.h(a.pos.x, a.pos.z) + a.radius; if (a.pos.y < gy) { a.pos.y = gy; a.vel.y = 0; }
+      const gy = w.h(a.pos.x, a.pos.z) + BR; if (a.pos.y < gy) { a.pos.y = gy; a.vel.y = 0; }
+      if (col.querySphere(a.pos, BR, _hit)) a.pos.addScaledVector(_hit.normal, _hit.depth);
       a.model.position.copy(a.pos); a.model.rotation.z += dt * 3; a.model.userData.tick(dt, 0, this.s.time);
       return;
     }
@@ -809,21 +869,21 @@ export class Combat {
     }
 
     // 회피: 지면·천장·경계·장애물
-    const gy = w.h(a.pos.x, a.pos.z) + 2.5 + a.radius;
+    const gy = w.h(a.pos.x, a.pos.z) + 2.5 + BR;
     if (a.pos.y < gy + 3) _des.y += (gy + 3 - a.pos.y) * 2.5;
     if (a.pos.y > w.ceiling - 12) _des.y -= (a.pos.y - (w.ceiling - 12)) * 2;
-    const lim = w.size - 12;
+    const lim = w.size - 12 - BR;
     if (Math.abs(a.pos.x) > lim) _des.x -= Math.sign(a.pos.x) * (Math.abs(a.pos.x) - lim) * 2;
     if (Math.abs(a.pos.z) > lim) _des.z -= Math.sign(a.pos.z) * (Math.abs(a.pos.z) - lim) * 2;
-    _b.copy(a.pos).addScaledVector(a.vel, 0.55);
-    if (col.querySphere(_b, a.radius + 2.2, _hit) && _hit.collider) {
+    _b.copy(a.pos).addScaledVector(a.vel, 0.55 + (BR - a.radius) * 0.04);
+    if (col.querySphere(_b, BR + 2.2, _hit) && _hit.collider) {
       _des.addScaledVector(_hit.normal, speed * 1.1); _des.y += speed * 0.45;
       ai.stuck += dt; if (ai.stuck > 1.2) { ai.orbit = -ai.orbit; ai.stuck = 0; ai.roam = null; }
     } else ai.stuck = Math.max(0, ai.stuck - dt);
     // 서로 겹치지 않게
     for (const o of this.actors) {
       if (o === a || !o.alive || o.kind !== "bot") continue;
-      const d = a.pos.distanceTo(o.pos), min = a.radius + o.radius + 2.5;
+      const d = a.pos.distanceTo(o.pos), min = BR + (o.bodyR || o.radius) + 2.5;
       if (d < min && d > 0.01) _des.addScaledVector(_a.copy(a.pos).sub(o.pos), (min - d) * 3 / d);
     }
 
@@ -832,11 +892,18 @@ export class Combat {
     const am = K.accel * (0.8 + ai.skill * 0.3) * dt, al = _a.length();
     if (al > am) _a.multiplyScalar(am / al);
     a.vel.add(_a);
-    a.pos.addScaledVector(a.vel, dt);
-    if (col.querySphere(a.pos, a.radius, _hit)) {
-      a.pos.addScaledVector(_hit.normal, _hit.depth);
-      const vn = a.vel.dot(_hit.normal); if (vn < 0) a.vel.addScaledVector(_hit.normal, -1.4 * vn);
+    // 한 프레임 이동을 몸 반경보다 잘게 나눠 밀어낸다 (빠르거나 큰 기체가 벽·지형을 뚫고 지나가지 않게)
+    const stepN = Math.min(6, Math.max(1, Math.ceil(a.vel.length() * dt / (BR * 0.5))));
+    for (let k = 0; k < stepN; k++) {
+      a.pos.addScaledVector(a.vel, dt / stepN);
+      for (let it = 0; it < 3 && col.querySphere(a.pos, BR, _hit); it++) {
+        a.pos.addScaledVector(_hit.normal, _hit.depth + 0.01);
+        const vn = a.vel.dot(_hit.normal); if (vn < 0) a.vel.addScaledVector(_hit.normal, -1.4 * vn);
+      }
     }
+    const lim2 = w.size - 2 - BR;   // 맵 경계 밖으로는 나가지 않는다
+    a.pos.x = clamp(a.pos.x, -lim2, lim2); a.pos.z = clamp(a.pos.z, -lim2, lim2);
+    if (a.pos.y > w.ceiling - BR) { a.pos.y = w.ceiling - BR; if (a.vel.y > 0) a.vel.y = 0; }
 
     // 자세: 표적(또는 진행 방향)을 향하고 가속 방향으로 기운다
     if (face) _b.copy(face.pos).sub(a.pos); else _b.copy(a.vel);
@@ -892,7 +959,7 @@ export class Combat {
       for (const o of this.actors) {
         if (!this.hostile(a, o) || o.static) continue;
         const d = o.pos.distanceTo(a.pos);
-        if (d < bd && this.w.col.visible(a.pos, o.pos, 1.5)) { bd = d; best = o; }
+        if (d < bd && this._vis(a.pos, o, 1.5)) { bd = d; best = o; }
       }
       ai.target = best;
     }
@@ -926,6 +993,7 @@ export class Combat {
 
   dispose() {
     const sc = this.w.scene;
+    if (this.skill) this.skill.dispose();
     this.units.dispose();
     for (const a of this.actors) if (a.model && a.kind !== "player") { sc.remove(a.model); if (a.model.userData.dispose) a.model.userData.dispose(); }
     for (const m of this.missiles) { sc.remove(m.mesh); m.mesh.userData.glow.material.dispose(); }

@@ -119,8 +119,10 @@ export function drawCombatHud(c, h, o = {}) {
     }
   }
 
+  if (c.skill && c.skill.marks.length) lockMarks(c, h);
   if (p.alive) reticle(c, h);
   status(c, h);
+
   bossBars(c, h);
 
   if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.banner("⚠ 미사일 접근", H * 0.72, HC.warn, 20);
@@ -128,6 +130,8 @@ export function drawCombatHud(c, h, o = {}) {
 
   if (h.vis("radar")) drawRadar(c, h, o.radarRange || 160);
   if (s.game.input.isHeld("score")) drawBoard(c, h);
+  if (c.skill && (c.skill.active || c.skill.flashT > 0 || c.skill.glitchT > 0)) skillScreen(c, h);
+  if (c.skill && c.skill.banner) skillBanner(c, h);
   g.globalAlpha = h.opacity;
 }
 
@@ -181,7 +185,7 @@ function reticle(c, h) {
   h.project(_a, s.camera, _s);
   if (!_s.front) return;
   const x = _s.x, y = _s.y, t = s.time;
-  const aim = !!c.aim, hot = !!p.overheated, lockK = c.lock ? clamp(c.lockT / LOCK_T, 0, 1) : 0, hit = clamp((c.hitMark || 0) / 0.18, 0, 1);
+  const aim = !!c.aim, hot = !!p.overheated, lockK = c.lock ? clamp(c.lockT / LOCK_T, 0, 1) : 0, hit = clamp((c.hitMark || 0) / 0.32, 0, 1);
   const col = hot ? (Math.floor(t * 8) % 2 ? "#ff5a3a" : "#ffb347") : c.killMark > 0.8 ? "#ff3b3b" : hit > 0.5 ? (c.hitKind === "shield" ? "#bff4ff" : "#fff6c8") : aim ? "#ff6a3a" : "#ffffff";
   const gap = (aim ? 4.5 : 8) * u + hit * 3 * u, len = (aim ? 11 : 9) * u;
 
@@ -209,15 +213,21 @@ function reticle(c, h) {
     h.stroke2(done ? "#ff3030" : HC.gold, 2.4 * u);
     if (done && Math.floor(t * 6) % 2) h.text("미사일 준비", x, y - 38 * u, { size: 11, align: "center", color: "#ff5050" });
   }
-  // 명중 표시(×): 피해가 클수록 크게, 실드 명중은 하늘색
+  // 명중 표시(×): 맞는 순간 크게 튀었다가 조여든다. 피해가 클수록 크고, 연속 명중일수록 흰색→노랑→주황, 실드는 하늘색
   if (hit > 0 && !(c.killMark > 0.75)) {
-    const big = clamp((c.hitAmt || 0) / 30, 0, 1), r0 = (7 + (1 - hit) * 6 + big * 2) * u, r1 = r0 + (8 + big * 5) * u;
+    const big = clamp((c.hitAmt || 0) / 30, 0, 1), combo = (s.feel && s.feel.hitCombo) || 0;
+    const pop = Math.pow(Math.max(0, hit - 0.7) / 0.3, 2);          // 처음 0.1초 동안 바깥으로 튐
+    const r0 = (9 + pop * 7 + big * 3) * u, r1 = r0 + (12 + big * 7 + pop * 4) * u;
+    const mc = c.hitKind === "shield" ? "#7fe6ff" : combo >= 8 ? "#ff9a3a" : combo >= 4 ? "#ffe14a" : "#ffffff";
     g.beginPath();
     for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + i * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); g.moveTo(x + ca * r0, y + sa * r0); g.lineTo(x + ca * r1, y + sa * r1); }
-    h.fade(Math.min(1, hit * 2));
-    h.stroke2(c.hitKind === "shield" ? "#7fe6ff" : "#ffffff", (2.6 + big * 1.4) * u);
+    h.fade(Math.min(1, hit * 2.2));
+    h.stroke2(mc, (3.6 + big * 1.8) * u);
+    // HIT 글자 + 연속 명중 수
+    h.text(combo >= 2 ? `HIT ×${combo + 1}` : "HIT", x + r1 + 6 * u, y - r1 * 0.55, { size: 13 + Math.min(5, combo * 0.5) + pop * 4, color: mc });
     h.fade(1);
   }
+  damagePops(c, h);
   // 격파 표시: 붉은 큰 × 가 조여들고, 고리가 퍼지며, 아래에 이름과 연속 격파
   if (c.killMark > 0) killMarker(c, h, x, y);
   // 발열 게이지(조준선 아래 호)
@@ -234,6 +244,22 @@ function reticle(c, h) {
     if (hot) h.text("과열", x, y + r + 16 * u, { size: 12, align: "center", color: "#ff6b5a" });
     else if (over) h.text("과충전", x, y + r + 16 * u, { size: 11, align: "center", color: HC.pink });
   }
+}
+
+// 명중 지점에서 떠오르는 피해 숫자: 장갑에 막히면 회색, 실드는 하늘색, 마지막 한 방은 붉게
+function damagePops(c, h) {
+  if (!c.pops || !c.pops.length) return;
+  const u = h.u, cam = c.s.camera;
+  for (const q of c.pops) {
+    h.project(q.pos, cam, _s);
+    if (!_s.front) continue;
+    const e = q.t / 0.9, rise = (20 + 34 * e) * u, out = clamp((1 - e) / 0.35, 0, 1);
+    const size = (14 + clamp(q.amt / 4, 0, 12)) * (1 + q.bump * 0.45 + (q.t < 0.08 ? (0.08 - q.t) * 6 : 0));
+    const col = q.kind === "shield" ? "#9fefff" : q.kind === "kill" ? "#ff5a4a" : q.kind === "armor" ? "#c9d3e2" : q.amt >= 20 ? "#ffd24a" : "#ffffff";
+    h.fade(out);
+    h.text(String(Math.max(1, Math.round(q.amt))), _s.x + q.dx * 26 * u * e, _s.y - rise, { size, align: "center", color: col });
+  }
+  h.fade(1);
 }
 
 const STREAK = ["", "", "더블 킬", "트리플 킬", "쿼드라 킬", "펜타 킬"];
@@ -301,6 +327,129 @@ function status(c, h) {
     const pips = "◆".repeat(full) + "◇".repeat(max - full);
     buff(`${L.touch ? "" : h.inp.glyph("dodge") + " "}회피 ${pips}${full < max ? " " + pct + "%" : ""}`, p.dodgeT > 0 ? "#ffffff" : full ? HC.cyan : HC.dim);
   }
+}
+
+// ── 스킬 ──
+const skCss = (n) => "#" + n.toString(16).padStart(6, "0");
+// 스킬 게이지: 상태판 옆 원형 게이지. 바깥 호 = 게이지, 눈금 = 발동에 필요한 양, 안쪽 흰 호 = 남은 발동 시간
+function skillGauge(c, h) {
+  const g = h.g, u = h.u, L = h.L, k = c.skill, d = k.def, col = skCss(d.color), t = c.s.time;
+  const R = 27 * u, w = L.statusW, sx = L.statusRight ? L.statusX - w : L.statusX;
+  let x = L.statusRight ? sx - R - 14 * u : sx + w + R + 14 * u, y = L.b - R - 6 * u;
+  if (k.denyT > 0) x += Math.sin(k.denyT * 60) * 4 * u * k.denyT * 2;
+  const ready = k.ready(), f = k.gauge / 100, a0 = -Math.PI / 2;
+  // 준비되면 맥박처럼 번지는 빛
+  if (ready) { const pz = (t * 1.4) % 1; g.beginPath(); g.arc(x, y, R + (4 + pz * 14) * u, 0, 7); h.fade(0.6 * (1 - pz)); h.stroke2(col, 3 * u); h.fade(1); }
+  g.beginPath(); g.arc(x, y, R, 0, 7); g.fillStyle = ready ? "rgba(12,18,34,0.95)" : "rgba(10,16,30,0.82)"; g.fill();
+  g.lineWidth = 3 * u; g.strokeStyle = INK; g.stroke();
+  g.beginPath(); g.arc(x, y, R - 5 * u, 0, 7); g.lineWidth = 6 * u; g.strokeStyle = "rgba(255,255,255,0.12)"; g.stroke();
+  if (f > 0.005) { g.beginPath(); g.arc(x, y, R - 5 * u, a0, a0 + f * Math.PI * 2); g.lineWidth = 6 * u; g.strokeStyle = ready ? col : "rgba(200,215,235,0.75)"; g.lineCap = "butt"; g.stroke(); }
+  // 필요량 눈금
+  const ca = a0 + (d.cost / 100) * Math.PI * 2;
+  g.beginPath(); g.moveTo(x + Math.cos(ca) * (R - 11 * u), y + Math.sin(ca) * (R - 11 * u)); g.lineTo(x + Math.cos(ca) * (R + 2 * u), y + Math.sin(ca) * (R + 2 * u));
+  h.stroke2(col, 2.4 * u);
+  // 발동 중 남은 시간
+  const A = k.active;
+  if (A && A.dur) { g.beginPath(); g.arc(x, y, R - 12 * u, a0, a0 + (1 - A.t / A.dur) * Math.PI * 2); g.lineWidth = 3 * u; g.strokeStyle = "#ffffff"; g.stroke(); }
+  h.text(d.icon, x, y + 1 * u, { size: 22 + (ready ? Math.sin(t * 6) * 2 : 0), align: "center", base: "middle", color: ready || A ? col : "#7d8aa3" });
+  const lab = A ? "발동 중" : ready ? (L.touch ? "준비" : `${h.inp.glyph("skill")} 발동`) : `${Math.floor(k.gauge)}%`;
+  h.text(lab, x, y - R - 9 * u, { size: ready ? 13 : 11, align: "center", color: ready ? col : A ? "#ffffff" : HC.dim });
+}
+// 락온 일제사격: 조준 중인 적마다 회전하는 꺾쇠
+function lockMarks(c, h) {
+  const g = h.g, u = h.u, cam = c.s.camera, t = c.s.time, col = skCss(c.skill.def.color);
+  for (const o of c.skill.marks) {
+    const sp = h.project(o.pos, cam, h._s);
+    if (!sp.on) continue;
+    const d = o.pos.distanceTo(cam.position), r = clamp(900 * (o.radius || 1) / Math.max(5, d), 12, 60) * u, rot = t * 2.2;
+    g.save(); g.translate(sp.x, sp.y); g.rotate(rot);
+    g.beginPath();
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; g.moveTo(Math.cos(a - 0.35) * r, Math.sin(a - 0.35) * r); g.arc(0, 0, r, a - 0.35, a + 0.35); }
+    h.stroke2(col, 2.6 * u);
+    g.restore();
+    g.beginPath(); g.arc(sp.x, sp.y, 2.5 * u, 0, 7); h.fill2(col, 1.5);
+  }
+}
+// 스킬 화면 효과: 스킬 색 테두리 빛(맥박), 발동 순간 집중선, 오버드라이브 속도선, EMP 화면 잡음, 락온 표적 수
+function skillScreen(c, h) {
+  const g = h.g, u = h.u, W = h.W, H = h.H, k = c.skill, A = k.active, t = c.s.time, col = skCss(k.def.color);
+  const rgbs = `${(k.def.color >> 16) & 255},${(k.def.color >> 8) & 255},${k.def.color & 255}`;
+  // 테두리 빛
+  const a = (A ? 0.22 + 0.08 * Math.sin(t * 6) : 0) + k.flashT * 0.45 + (k.hitPulse || 0) * 0.15;
+  if (a > 0.01) {
+    const gr = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.75);
+    gr.addColorStop(0, `rgba(${rgbs},0)`); gr.addColorStop(1, `rgba(${rgbs},${Math.min(0.85, a)})`);
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  }
+  // 발동 순간 집중선 (화면 가장자리에서 가운데로)
+  if (k.flashT > 0.3) {
+    const n = 56, f = (k.flashT - 0.3) / 0.7;
+    g.save(); g.translate(W / 2, H / 2);
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + Math.sin(i * 12.9) * 0.05, r1 = Math.hypot(W, H) * 0.6, r0 = r1 * (0.35 + 0.35 * Math.abs(Math.sin(i * 7.7 + t * 30)));
+      g.beginPath(); g.moveTo(Math.cos(ang - 0.006) * r1, Math.sin(ang - 0.006) * r1); g.lineTo(Math.cos(ang) * r0, Math.sin(ang) * r0); g.lineTo(Math.cos(ang + 0.006) * r1, Math.sin(ang + 0.006) * r1);
+      g.fillStyle = i % 3 ? `rgba(255,255,255,${0.55 * f})` : `rgba(${rgbs},${0.7 * f})`; g.fill();
+    }
+    g.restore();
+  }
+  // 오버드라이브: 흐르는 속도선
+  if (A && A.id === "overdrive") {
+    g.save(); g.translate(W / 2, H / 2);
+    for (let i = 0; i < 40; i++) {
+      const ang = i * 2.399, ph = ((t * 2.6 + i * 0.137) % 1), r0 = Math.hypot(W, H) * (0.18 + ph * 0.5), len = (40 + ph * 160) * u;
+      g.strokeStyle = i % 4 ? `rgba(255,240,200,${0.45 * ph})` : `rgba(${rgbs},${0.7 * ph})`; g.lineWidth = (1 + ph * 2.5) * u;
+      g.beginPath(); g.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0); g.lineTo(Math.cos(ang) * (r0 + len), Math.sin(ang) * (r0 + len)); g.stroke();
+    }
+    g.restore();
+  }
+  // EMP: 화면 잡음 (가로 띠가 밀리고 청록·자홍으로 갈라짐)
+  if (k.glitchT > 0) {
+    const e = k.glitchT / 0.7;
+    for (let i = 0; i < 9; i++) {
+      const y = ((Math.sin(i * 91.7 + t * 40) * 0.5 + 0.5) * H) | 0, hh = (4 + (i % 3) * 8) * u, dx = Math.sin(t * 70 + i) * 30 * u * e;
+      g.fillStyle = `rgba(80,240,255,${0.25 * e})`; g.fillRect(dx, y, W, hh);
+      g.fillStyle = `rgba(255,60,200,${0.18 * e})`; g.fillRect(-dx * 0.7, y + hh * 0.5, W, hh * 0.5);
+    }
+    g.fillStyle = `rgba(255,255,255,${0.05 * e})`;
+    for (let y = 0; y < H; y += 4 * u) g.fillRect(0, y, W, 1);
+  }
+  // 락온: 위쪽에 표적 수
+  if (A && A.id === "lockon" && k.marks.length) {
+    h.text(`◎ LOCK-ON ×${k.marks.length}`, W / 2, H * 0.2, { size: 18 + Math.sin(t * 12) * 1.5, align: "center", color: col });
+  }
+  if (A && A.dur) {
+    // 남은 시간 원호 (조준선 둘레)
+    const cx = W / 2, cy = h.L.cy || H / 2, r = 46 * u;
+    g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (1 - A.t / A.dur) * Math.PI * 2);
+    h.fade(0.75); h.stroke2(col, 3 * u); h.fade(1);
+  }
+}
+// 발동 배너: 화면 위아래 검은 띠가 들어오고, 색 띠가 가로로 스치며 스킬 이름이 박힌다
+function skillBanner(c, h) {
+  const g = h.g, u = h.u, W = h.W, H = h.H, b = c.skill.banner, e = b.t / b.dur;
+  const inK = clamp(e / 0.12, 0, 1), outK = clamp((1 - e) / 0.25, 0, 1), k = Math.min(inK, outK), ease = 1 - Math.pow(1 - k, 3);
+  // 레터박스
+  const bh = H * 0.075 * ease;
+  g.fillStyle = "rgba(0,0,0,0.85)"; g.fillRect(0, 0, W, bh); g.fillRect(0, H - bh, W, bh);
+  g.fillStyle = b.color; g.fillRect(0, bh - 2 * u, W * ease, 2 * u); g.fillRect(W * (1 - ease), H - bh, W * ease, 2 * u);
+  // 가로 색 띠 (평행사변형)
+  const cy = H * 0.38, bandH = 54 * u, sweep = clamp(e / 0.2, 0, 1), skew = 30 * u;
+  const bx0 = -W * 0.2 + sweep * W * 0.2, bx1 = W * (0.25 + 0.75 * sweep);
+  h.fade(0.82 * outK);
+  g.beginPath(); g.moveTo(bx0 + skew, cy - bandH / 2); g.lineTo(bx1 + skew, cy - bandH / 2); g.lineTo(bx1 - skew, cy + bandH / 2); g.lineTo(bx0 - skew, cy + bandH / 2); g.closePath();
+  const gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(0.35, b.color); gr.addColorStop(0.65, b.color); gr.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = gr; g.fill();
+  // 속도선
+  for (let i = 0; i < 9; i++) {
+    const yy = cy + (i - 4) * 9 * u + Math.sin(i * 7.3) * 4 * u, len = (80 + (i * 37) % 120) * u, xx = ((i * 211 + e * 2600) % (W + 400)) - 200;
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.fillRect(xx, yy, len, 1.6 * u);
+  }
+  h.fade(outK);
+  // 글자: 위로 작은 태그, 가운데 큰 이름 (살짝 커졌다가 자리 잡음)
+  const pop = 1 + (1 - clamp(e / 0.14, 0, 1)) * 0.5;
+  h.text(`SKILL ▸ ${b.tag}`, W / 2, cy - bandH / 2 - 8 * u, { size: 13, align: "center", color: "#ffffff" });
+  h.text(`${b.icon}  ${b.name}`, W / 2, cy + 2 * u, { size: 34 * pop, align: "center", base: "middle", color: "#ffffff" });
+  h.fade(1);
 }
 
 function drawRadar(c, h, range) {
