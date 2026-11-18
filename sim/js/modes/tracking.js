@@ -4,26 +4,27 @@ import { Mode, stars } from "./base.js";
 import { PathMover, makeSubjectModel } from "../entities.js";
 import { submitRecord, records, clamp, fmtTime } from "../config.js";
 
-// 피사체별: 조준 높이, 적정 거리 범위, 지면 추종 여부
+// 피사체별: 평균 속도 v(m/s) · 조준 높이 · 적정 거리 범위 · 지면 추종 여부
 const SUBJ = {
-  runner: { h: 1.0, dmin: 25, dmax: 40, ground: true },
-  car: { h: 0.8, dmin: 25, dmax: 40, ground: true },
-  sportscar: { h: 0.7, dmin: 25, dmax: 40, ground: true },
-  truck: { h: 1.8, dmin: 25, dmax: 40, ground: true },
-  forklift: { h: 1.2, dmin: 25, dmax: 40, ground: true },
-  boat: { h: 0.8, dmin: 25, dmax: 40, ground: false },
-  drone: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },
-  skier: { h: 0.9, dmin: 25, dmax: 40, ground: true },
-  bike: { h: 0.9, dmin: 25, dmax: 40, ground: true },
-  supercar: { h: 0.6, dmin: 25, dmax: 40, ground: true },
-  heli: { h: 1.6, dmin: 25, dmax: 40, ground: false, bank: 0.8 },
-  fpv: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 2.2 },
-  ray: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.2 },
-  shuttle: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 0.6 },   // 제국 수송정
-  scout: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },     // 제국 정찰 드론
-  skiff: { h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.0 },     // 에일 비행정
+  runner: { v: 6, h: 1.0, dmin: 25, dmax: 40, ground: true },
+  car: { v: 14, h: 0.8, dmin: 25, dmax: 40, ground: true },
+  sportscar: { v: 18, h: 0.7, dmin: 25, dmax: 40, ground: true },
+  truck: { v: 11, h: 1.8, dmin: 25, dmax: 40, ground: true },
+  forklift: { v: 6, h: 1.2, dmin: 25, dmax: 40, ground: true },
+  boat: { v: 12, h: 0.8, dmin: 25, dmax: 40, ground: false },
+  drone: { v: 15, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },
+  skier: { v: 13, h: 0.9, dmin: 25, dmax: 40, ground: true },
+  bike: { v: 15, h: 0.9, dmin: 25, dmax: 40, ground: true },
+  supercar: { v: 22, h: 0.6, dmin: 25, dmax: 40, ground: true },
+  heli: { v: 20, h: 1.6, dmin: 25, dmax: 40, ground: false, bank: 0.8 },
+  fpv: { v: 24, h: 0, dmin: 25, dmax: 40, ground: false, bank: 2.2 },
+  ray: { v: 16, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.2 },
+  shuttle: { v: 18, h: 0, dmin: 25, dmax: 40, ground: false, bank: 0.6 },   // 제국 수송정
+  scout: { v: 15, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },     // 제국 정찰 드론
+  skiff: { v: 16, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.0 },     // 에일 비행정
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
+
 
 export class TrackingMode extends Mode {
   constructor(session, cfg) {
@@ -41,6 +42,8 @@ export class TrackingMode extends Mode {
   start() {
     const w = this.s.world, d = this.def;
     this.mover = new PathMover(d.path, { closed: d.closed !== false, ground: this.info.ground ? w : null, bank: this.info.bank || 0, lift: d.lift || 0 });
+    // 속도: 경로에 적힌 속도의 평균을 종류별 평균 속도(v)에 맞춘다. 경로가 원래 더 빠르면 그대로
+    { const sp = this.mover.speeds, avg = sp.reduce((a, b) => a + b, 0) / sp.length; this.spd = Math.max(1, (this.info.v || 12) / Math.max(1, avg)); this.mover.speed *= this.spd; }
     this.model = makeSubjectModel(d.type, d.color);
     { const R = this.model.userData.radius || 1.5, hh = Math.max(0.35, this.info.h); w.rider(this.model, [[0, this.info.h, 0, Math.max(0.3, R * 0.42), hh, Math.max(0.3, R * 0.9)]], "subject"); }
     w.scene.add(this.model);
@@ -75,7 +78,7 @@ export class TrackingMode extends Mode {
   update(dt) {
     super.update(dt);
     if (this.state !== "run") { this._sync(0); return; }
-    this.mover.update(dt);
+    this.mover.update(dt, this.spd || 1);
     this._sync(dt);
 
     // 촬영 품질: 화면 중앙에 가까울수록, 적정 거리일수록 높다

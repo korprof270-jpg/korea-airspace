@@ -39,7 +39,7 @@ export class PathMover {
     const n = this.speeds.length;
     const f = this.u * (this.closed ? n : n - 1), i = Math.floor(f) % n, j = this.closed ? (i + 1) % n : Math.min(n - 1, i + 1);
     const target = (this.speeds[i] + (this.speeds[j] - this.speeds[i]) * (f - Math.floor(f))) * speedScale;
-    this.speed += Math.max(-8 * dt, Math.min(6 * dt, target - this.speed));
+    this.speed += Math.max(-8 * speedScale * dt, Math.min(6 * speedScale * dt, target - this.speed));   // 배율만큼 가감속도 빠르게
     this.s += this.speed * dt;
     if (!this.closed && this.s >= this.length) { this.s = this.length; this.done = true; }
     const u = this.u;
