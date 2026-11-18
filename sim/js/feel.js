@@ -255,6 +255,7 @@ export class Feel {
       // ── 아이템 ──
       case "item":                       // data: 아이템 종류
         if (data === "boost") { this.fovPunch += 5; this.flash(YELLOW, 0.5, 2.4); this.addTrauma(0.16); this.cue("boost"); this.rumble(0.5, 0.6, 260); }
+        else if (data === "dodge") { this.fovPunch += 7; this.flash(BLUE, 0.45, 3); this.rumble(0.4, 0.7, 160); }
         else if (data === "overcharge") { this.flash(MAGENTA, 0.5, 2.4); this.rumble(0.3, 0.5, 180); }
         else if (data === "emp") { this.fullFlash("190,212,255", 0.28, 3); this.flash(BLUE, 0.6, 2.2, "vig"); this.addTrauma(0.35); this.rumble(0.8, 0.8, 300); }
         break;

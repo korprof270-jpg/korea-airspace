@@ -6,7 +6,7 @@ import { detectPad, glyphsFor, readHat, findHat } from "./gamepad.js";
 
 const KEY_ACTIONS = {
   Space: "fire", KeyF: "missile", ControlLeft: "missile", KeyE: "item", KeyQ: "itemNext",
-  KeyC: "camera", KeyR: "reset", KeyM: "modeNext", Escape: "pause", KeyP: "pause", Tab: "score",
+  KeyV: "dodge", KeyC: "camera", KeyR: "reset", KeyM: "modeNext", Escape: "pause", KeyP: "pause", Tab: "score",
   Digit1: "mode1", Digit2: "mode2", Digit3: "mode3", Digit4: "mode4", Digit5: "mode5",
 };
 const HOLD = new Set(["fire", "score"]);

@@ -45,6 +45,9 @@ const _p1 = new THREE.Vector3(), _p2 = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const _s = {};
 
+// 고속 회피: 최대 충전 · 한 칸 다시 차는 시간(초) · 무적 시간 · 밀어내는 속도(m/s)
+export const DODGE = { max: 2, cool: 6, iframe: 0.45, push: 26 };
+
 export class Combat {
   // handlers: { ffa, onKill(victim, killer), onDamage(victim, amount, attacker), spawnPoint(actor), items(개수) }
   constructor(session, handlers = {}) {
@@ -335,6 +338,7 @@ export class Combat {
 
   _playerWeapons(dt) {
     const p = this.player, pl = this.s.player, inp = this.s.game.input;
+    this._dodge(dt, p, pl, inp);
     if (!p.alive || p.stunT > 0 || this.s.mode.state !== "run") { this.lock = null; this.lockT = 0; this.aim = null; return; }
     const over = p.overT > 0;
     p.fireT -= dt; p.missileT -= dt;
@@ -388,9 +392,37 @@ export class Combat {
     this._itemButtons(p);
   }
 
+  // ── 고속 회피: 충전 2회, 하나씩 다시 찬다. 쓰는 동안 잠깐 무적 + 노리던 미사일이 표적을 놓친다 ──
+  _dodge(dt, p, pl, inp) {
+    if (p.dodgeN === undefined) { p.dodgeN = DODGE.max; p.dodgeC = 0; p.dodgeT = 0; }
+    if (p.dodgeT > 0) p.dodgeT -= dt;
+    const tb = this._dodgeBtn || (this._dodgeBtn = document.querySelector("#touch .b-dodge"));
+    if (tb) { const lab = `회피 ${"◆".repeat(p.dodgeN)}${"◇".repeat(DODGE.max - p.dodgeN)}`; if (tb.textContent !== lab) tb.textContent = lab; tb.disabled = p.dodgeN <= 0; }
+    if (p.dodgeN < DODGE.max) { p.dodgeC += dt; if (p.dodgeC >= DODGE.cool) { p.dodgeC = 0; p.dodgeN++; this.snd.play("shieldup", 0.35); } } else p.dodgeC = 0;
+    if (!inp.take("dodge")) return;
+    if (!p.alive || p.stunT > 0 || this.s.mode.state !== "run") return;
+    if (p.dodgeN <= 0) { this.feel.emit("dry"); return; }
+    p.dodgeN--; p.dodgeT = DODGE.iframe;
+    const b = pl.body, c = inp.ctl;
+    // 방향: 롤(좌우) 입력 쪽으로 옆 이동, 피치를 당기면 위로, 입력이 없으면 앞으로 돌진
+    _d.set(0, 0, -1).applyQuaternion(b.quat); _d.y = 0; if (_d.lengthSq() < 1e-4) _d.set(0, 0, -1); _d.normalize();
+    _b.set(-_d.z, 0, _d.x);   // 오른쪽
+    const sx = Math.abs(c.roll) > 0.2 ? Math.sign(c.roll) : 0, up = c.pitch < -0.5 ? 1 : 0;
+    const dir = new THREE.Vector3();
+    if (sx) dir.addScaledVector(_b, sx); if (up) dir.y += 1; if (!sx && !up) dir.copy(_d);
+    dir.normalize();
+    b.vel.addScaledVector(dir, DODGE.push);
+    // 나를 노리던 가까운 미사일은 표적을 잃는다
+    for (const m of this.missiles) if (m.target === p && m.pos.distanceTo(p.pos) < 90) { m.target = null; m.lost = 1; }
+    this.snd.play("whoosh", 1); this.snd.play("boost", 0.6);
+    this.fx.ring(p.pos, 0x7fe6ff, 4, 0.35);
+    this.feel.emit("item", 1, "dodge");
+  }
+
   // ── 피해 ──
   damage(a, amount, attacker, point) {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
+    if (a.isPlayer && a.dodgeT > 0) return;   // 고속 회피 중에는 맞지 않는다
     if (a.armor) amount *= a.armor;
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }

@@ -1,7 +1,7 @@
 // 전투 HUD: 조준선·락온·명중 표시·피격 방향·적/아군 표시·체력/무장·레이더·점수판 (전투 상태는 combat.js 가 관리)
 // 화면 전체 색 효과(피격 번쩍임 등)는 feel.js 담당 — 여기서는 계기 요소만 그린다
 import * as THREE from "../vendor/three.module.min.js";
-import { ITEMS, ITEM_SLOTS, TEAM_CSS } from "./combat.js";
+import { ITEMS, ITEM_SLOTS, TEAM_CSS, DODGE } from "./combat.js";
 import { clamp } from "./config.js";
 import { HC, INK } from "./hud.js";
 
@@ -295,6 +295,12 @@ function status(c, h) {
   if (p.shield > 0 && p.shieldT > 0) buff(`실드 ${p.shieldT.toFixed(0)}s`, HC.cyan);
   if (p.boostT > 0) buff(`부스터 ${p.boostT.toFixed(0)}s`, "#ffe14a");
   if (p.overT > 0) buff(`과충전 ${p.overT.toFixed(0)}s`, HC.pink);
+  // 고속 회피 충전: 찬 칸 ◆, 차오르는 칸은 % 로
+  if (p.dodgeN !== undefined) {
+    const full = p.dodgeN, max = DODGE.max, pct = full < max ? Math.floor((p.dodgeC / DODGE.cool) * 100) : 0;
+    const pips = "◆".repeat(full) + "◇".repeat(max - full);
+    buff(`${L.touch ? "" : h.inp.glyph("dodge") + " "}회피 ${pips}${full < max ? " " + pct + "%" : ""}`, p.dodgeT > 0 ? "#ffffff" : full ? HC.cyan : HC.dim);
+  }
 }
 
 function drawRadar(c, h, range) {
