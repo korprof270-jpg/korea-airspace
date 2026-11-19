@@ -35,7 +35,7 @@ export const KINDS = {
 const HIT_T = 0.32;               // 조준선 명중 표시가 남는 시간(초)
 const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄은 더 느려 보고 피할 수 있다
 export const PLAYER_HP = 150, BOT_HP = 1.5, SHIELD_HP = 120;
-const RESPAWN = 5;
+const RESPAWN = 5, RESPAWN_ME = 3;
 const HITBOX = 1.3;       // 내가 쏜 레이저·미사일의 명중 판정 배율 (포탑·코어 등 구조물만, 적 드론은 1배)
 const hb = (o) => (o.kind === "bot" ? 1 : HITBOX);        // 격추 후 재출격까지(초)
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
@@ -523,7 +523,7 @@ export class Combat {
       const pl = this.s.player;
       pl.crash(); pl.broken = true; pl.model.visible = false;
       pl.body.vel.multiplyScalar(0.3);
-      a.respawnT = RESPAWN;
+      a.respawnT = RESPAWN_ME;   // 내 기체는 3초 뒤 재출격
       this.feel.emit("death");
       if (this.skill) this.skill.onPlayerDeath();
     } else {
