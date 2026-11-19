@@ -926,6 +926,7 @@ export class UI {
         ${this.pct("fx.shake", "화면 흔들림", 0, 1.5, 0.05, "충돌·피격·발사 때 화면이 흔들리는 세기. 0% 는 끄기")}
         ${this.pct("fx.flash", "색 번쩍임", 0, 1, 0.05, "피격·명중·부스트 때 화면 색 효과의 세기. 번쩍임에 민감하면 낮추세요")}
         ${this.toggle("fx.rumble", "진동", "게임패드·모바일 기기의 진동 (지원 기기만)")}
+        ${this.toggle("fx.cockpit", "조종석 효과", "1인칭 시점에서 캐노피 틀·유리 반사·속도선·G 포스 시야 흐림·피격 유리 금·경고등을 보여 줍니다")}
         ${this.toggle("fx.reduceMotion", "움직임 줄이기", "격파 때의 순간 멈춤·슬로모션과 보스 등장 카메라 회전을 끄고, 화면 흔들림을 크게 줄입니다. 멀미가 나면 켜세요")}`;
     } else if (t === "input") {
       const inp = this.game.input, info = inp.padInfo, custom = settings.gamepad.layout === "custom";

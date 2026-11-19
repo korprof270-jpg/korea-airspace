@@ -1,5 +1,6 @@
 // HUD(OSD): 2D 캔버스에 게임풍 파일럿 계기·마커·메시지를 그린다
 // 굵은 먹선 외곽 + 선명한 색 판으로 밤(네온)·낮(노을) 어느 배경에서도 읽히게 한다
+import { Cockpit } from "./cockpit.js";
 import * as THREE from "../vendor/three.module.min.js";
 import { settings, save, FLIGHT_MODE_INFO, HUD_DENSITY, HUD_DENSITY_NAMES, clamp } from "./config.js";
 
@@ -400,6 +401,8 @@ export class Hud {
     if (cyc) this.cycleDensity();
     this._layout(session);
     this.fade(1);
+    // 조종석 효과 (1인칭 시점): HUD 맨 아래층
+    if (pl.camMode === "fpv") { if (this._ckS !== session) { this._ckS = session; this.cockpit = new Cockpit(); } this.cockpit.draw(this, session, dt); this.fade(1); }
     this.obj = null;
     if (this.lvl === "off") { this._warnings(session); return; }
 
@@ -599,8 +602,8 @@ export class Hud {
     const shake = sk.denyT > 0 ? Math.sin(sk.denyT * 60) * 3 * u * sk.denyT * 2 : 0;
     x += shake;
     this.plate(x, y, w, h, { fill: ready ? "rgba(14,20,38,0.96)" : "rgba(10,14,28,0.92)", accent: ready || A ? col : "#5d6a85", skew: 0.18, lw: 2.5 });
-    this.text(`${d.icon} 스킬`, x + 30 * u, y + h / 2 + 1 * u, { size: 12, align: "center", base: "middle", color: ready || A ? col : "#9aa7bf", shadow: false });
-    const bx = x + 56 * u, bw = w - 128 * u, bh = 10 * u, by = y + (h - bh) / 2;
+    this.text(`${d.icon} ${d.name || "스킬"}`.slice(0, 7), x + 36 * u, y + h / 2 + 1 * u, { size: 13, align: "center", base: "middle", color: ready || A ? col : "#b4c0d6", shadow: false });
+    const bx = x + 70 * u, bw = w - 142 * u, bh = 14 * u, by = y + (h - bh) / 2;
     g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(bx - 2 * u, by - 2 * u, bw + 4 * u, bh + 4 * u);
     g.fillStyle = "rgba(255,255,255,0.08)"; g.fillRect(bx, by, bw, bh);
     // 채움: 준비되면 스킬 색으로 빛나며 물결, 아니면 회청색
@@ -624,7 +627,7 @@ export class Hud {
     if (me) {
       // 체력바: 아래 가운데에 크게. 실드는 하늘색 띠로 겹치고, 25% 이하면 빨갛게 깜빡인다
       const k = clamp(me.hp / me.maxHp, 0, 1), low = k <= 0.25, col = k > 0.5 ? "#3dff8c" : k > 0.25 ? "#ffd24a" : "#ff4a3a";
-      const sk = cb.skill, skH = sk ? 22 * u : 0;
+      const sk = cb.skill, skH = sk ? 28 * u : 0;
       const w = L.conM, h = 40 * u, x = L.cx - w / 2, y = L.b - h - (sk ? skH + 4 * u : 0);
       if (sk) this._skillBar(sk, x, L.b - skH, w, skH, session);
       this.plate(x, y, w, h, { fill: low && Math.floor(this.t * 5) % 2 ? "rgba(90,12,12,0.92)" : "rgba(10,14,28,0.94)", accent: col, skew: 0.18, lw: 3 });

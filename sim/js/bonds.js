@@ -28,7 +28,7 @@ export const BOND_DEFS = {
   유리: { key: "yuri", eps: [
     { title: "틀린 음", need: 3, after: "c4", desc: "한밤의 통신실. 제국의 행진곡 속에 숨은 0.02초의 엇박." },
     { title: "잘 자, 라는 신호", need: 7, after: "c6", desc: "엇박의 정체는 궁궐 방송탑에 남은 오래된 목소리였다.",
-      mission: M("heist", "palace", "잘 자, 라는 신호", ["유리|진지 세 곳에 음성 기록 코어가 있어요. 하나도 못 버려요."],
+      mission: M("heist", "palace", "잘 자, 라는 신호", ["유리|진지 두 곳에 음성 기록 코어가 있어요. 하나도 못 버려요."],
         { team: 1, wing: ["유리"], power: 1.0, obj: [{ t: "win", req: true }, { t: "time", n: 80 }, { t: "crash", n: 1 }, { t: "hp", n: 40 }] }) },
   ] },
   차도윤: { key: "doyun", eps: [
@@ -61,7 +61,7 @@ export const BOND_DEFS = {
   진세라: { key: "sera", eps: [
     { title: "계산서", need: 2, after: "c4", desc: "새벽 두 시의 작전실. 진세라의 수첩에는 숫자 대신 이름이 있다." },
     { title: "지워진 사본", need: 4, after: "c7", desc: "제국 중계기지에 남은, 아무도 모르는 보고서의 사본.",
-      mission: M("heist", "island", "지워진 사본", ["진세라|기록 코어 세 개. 계산으로는 둘이면 충분합니다. ……셋 다 가져와 주세요."],
+      mission: M("heist", "island", "지워진 사본", ["진세라|기록 코어 두 개. 계산으로는 하나면 충분합니다. ……둘 다 가져와 주세요."],
         { team: 1, wing: ["진세라"], power: 1.05, obj: [{ t: "win", req: true }, { t: "time", n: 75 }, { t: "crash", n: 0 }, { t: "hp", n: 35 }] }) },
   ] },
   한별: { key: "byeol", eps: [

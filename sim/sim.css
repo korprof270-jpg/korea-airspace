@@ -170,6 +170,8 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 #touch .tbtns button { border: 2px solid var(--ink); background: rgba(16, 24, 44, 0.72); border-radius: 12px; padding: 8px 9px; font-size: 13px; font-weight: 800; min-width: 44px; box-shadow: 0 2px 0 var(--ink); }
 #touch .tbtns.top { gap: 6px; }
 #touch .tbtns.fire button, #touch .tbtns.aux button { min-width: 58px; }
+/* 레이저·미사일은 자동 사격 — 화면 버튼은 숨겨 조종석 시야를 넓힌다 */
+#touch .tbtns.fire, #touch .b-missile { display: none !important; }
 #touch .b-fire { background: rgba(255, 60, 60, 0.45) !important; padding: 18px 16px !important; }
 #touch .tz { top: 40%; }
 
