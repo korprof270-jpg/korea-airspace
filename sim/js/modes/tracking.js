@@ -23,7 +23,7 @@ const SUBJ = {
   scout: { v: 22, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.5 },     // 제국 정찰 드론
   skiff: { v: 24, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.0 },     // 에일 비행정
   craft: { v: 16, h: 0, dmin: 25, dmax: 55, ground: false, bank: 0.9 },     // 아군 소형정 (관측정)
-  cargo: { v: 13, h: 0.6, dmin: 25, dmax: 55, ground: false, bank: 0.5 },   // 화물 드론
+  cargo: { v: 13, h: 0.6, dmin: 25, dmax: 55, ground: false, bank: 0.2 },   // 화물 드론
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
@@ -43,7 +43,7 @@ export class TrackingMode extends Mode {
 
   start() {
     const w = this.s.world, d = this.def;
-    this.mover = new PathMover(d.path, { closed: d.closed !== false, ground: this.info.ground ? w : null, bank: this.info.bank || 0, lift: d.lift || 0 });
+    this.mover = new PathMover(d.clear ? this._clearPath(d.path, d.clear, d.closed !== false) : d.path, { closed: d.closed !== false, ground: this.info.ground ? w : null, bank: this.info.bank || 0, lift: d.lift || 0 });
     // 속도: 경로에 적힌 속도의 평균을 종류별 평균 속도(v)에 맞춘다. 경로가 원래 더 빠르면 그대로
     { const sp = this.mover.speeds, avg = sp.reduce((a, b) => a + b, 0) / sp.length; this.spd = Math.max(1, (d.v || this.info.v || 12) / Math.max(1, avg)); this.mover.speed *= this.spd; }
     this.model = makeSubjectModel(d.type, d.color);
@@ -51,6 +51,26 @@ export class TrackingMode extends Mode {
     w.scene.add(this.model);
     this._sync(0);
     this.placePlayer(this._clearBehind(0.3), this._yaw());
+  }
+
+  // 비행 피사체 경로 다듬기(clear = 여유 반경 m): 구조물·지형에 걸리는 점은 걸리지 않을 때까지 위로 올리고, 이웃 점과의 높이 차를 완만하게 한다
+  _clearPath(path, r, closed) {
+    const col = this.s.world.col, top = this.s.world.ceiling - 10, n = path.length, P = path.map((p) => p.slice()), q = new THREE.Vector3();
+    const free = (x, y, z) => !col.blocked(q.set(x, y, z), r);
+    const lift = (i) => { const p = P[i]; let k = 0; while (k++ < 40 && p[1] < top && !free(p[0], p[1], p[2])) p[1] += 2; };
+    for (let round = 0; round < 10; round++) {
+      let moved = false;
+      for (let i = 0; i < n; i++) lift(i);
+      // 점 사이 곡선도 확인: 막히는 곳은 그 구간의 양 끝 점을 함께 올린다
+      const cv = new THREE.CatmullRomCurve3(P.map((p) => new THREE.Vector3(p[0], p[1], p[2])), closed, "centripetal"), seg = closed ? n : n - 1, up = new Set();
+      for (let i = 0; i < seg; i++) for (let k = 1; k < 8; k++) { cv.getPoint((i + k / 8) / seg, q); if (col.blocked(q, r)) { up.add(i); up.add((i + 1) % n); break; } }
+      for (const i of up) { P[i][1] = Math.min(top, P[i][1] + 2); moved = true; }
+      if (!moved) break;
+    }
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < n; i++) {   // 급하게 오르내리지 않게 (기울기 0.5 이내로 이웃을 끌어올린다)
+      for (const j of [i - 1, i + 1]) { const o = closed ? P[(j + n) % n] : P[j]; if (!o) continue; const d = Math.hypot(o[0] - P[i][0], o[2] - P[i][2]); if (o[1] < P[i][1] - d * 0.5) o[1] = P[i][1] - d * 0.5; }
+    }
+    return P;
   }
 
   _yaw() { _f.copy(this.mover.vel); if (_f.lengthSq() < 0.01) _f.set(0, 0, -1).applyQuaternion(this.mover.quat); return Math.atan2(-_f.x, -_f.z); }

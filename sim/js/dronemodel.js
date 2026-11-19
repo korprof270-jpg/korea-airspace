@@ -2,6 +2,7 @@
 import * as THREE from "../vendor/three.module.min.js";
 import { toonMat } from "./toon.js";
 import { FIGHTER_FRAMES, isFighter, buildFighter } from "./fighters.js";
+import { addParts } from "./partmodel.js";
 
 export const FRAMES = {
   x: { name: "트루 X", desc: "대칭형 레이싱 프레임" },
@@ -76,7 +77,16 @@ function motorLayout(frame) {
   }
 }
 
+// 전투기형 프레임의 파츠 부착점 (partmodel.js 참고). plates 는 [x, y, z, ry, len]
+const FIGHTER_ANCHORS = {
+  raptor: { laser: [0, -0.007, -0.1], pods: [0.06, -0.011, 0.03], belly: [0, -0.012, 0.05], sensor: [0, 0.029, 0], shield: [0.148, 0.009, 0.085], cooler: [0.016, 0.025, 0.09], plates: [[0.045, 0.0105, 0.085, 0, 0.05], [-0.045, 0.0105, 0.085, 0, 0.05]], nose: [0, 0.024, -0.13] },
+  viper: { laser: [0, -0.006, -0.13], pods: [0.07, 0, 0.07], belly: [0, -0.011, 0.04], sensor: [0, 0.031, -0.035], shield: [0.076, 0.016, -0.078], cooler: [0.02, 0.014, 0.125], plates: [[0.05, 0.0135, 0.075, 0, 0.045], [-0.05, 0.0135, 0.075, 0, 0.045]], nose: [0, 0.026, -0.15] },
+  phantom: { laser: [0, -0.004, -0.1], pods: [0.05, -0.005, 0.03], belly: [0, -0.005, 0], sensor: [0, 0.023, 0.03], shield: [0.176, 0.012, 0.055], cooler: [0.022, 0.013, 0.058], plates: [[0.04, 0.0145, -0.06, 0.76, 0.05], [-0.04, 0.0145, -0.06, -0.76, 0.05]], nose: [0, 0.016, -0.12] },
+  cross: { laser: [0, -0.012, -0.1], pods: [0.032, 0.004, -0.03], belly: [0, -0.018, 0.03], sensor: [0, 0.033, -0.02], shield: [0.125, 0.012, 0.05], cooler: [0.02, 0.022, 0.06], plates: [[0.014, 0.03, -0.04, 0, 0.05], [-0.014, 0.03, -0.04, 0, 0.05]], nose: [0, 0.03, -0.12] },
+};
+
 // look: settings.drone 형태. 반환 Group 의 userData.tick(dt, thrust, time) 로 프로펠러·LED 를 움직인다
+// opts.parts: 장착 파츠 { slot: { v, lv } } (garage.partLook) 를 주면 부품 형상을 붙인다 (플레이어 기체)
 export function buildDrone(look, scale = 1, opts = {}) {
   const root = new THREE.Group();
   const g = new THREE.Group();
@@ -221,6 +231,21 @@ export function buildDrone(look, scale = 1, opts = {}) {
   tail = add(new THREE.BoxGeometry(bodyW * 0.9, 0.008, 0.004), ledMat, 0, 0.013, bodyLen / 2 + 0.002);
   }
 
+  // 장착 파츠 형상 (플레이어 기체): 프레임마다 정해 둔 부착점에 붙인다
+  let partTicks = [];
+  if (opts.parts) {
+    const metal = toonMat({ color: 0x9aa3b2, spec: 0.9, shine: 80, rim: 0.5 }), frameIn = frameMat.clone(), darkIn = darkMat.clone();
+    frameIn.side = darkIn.side = THREE.DoubleSide;
+    extraMats.push(metal, frameIn, darkIn);
+    const A = fighter
+      ? { ...(FIGHTER_ANCHORS[frame] || FIGHTER_ANCHORS.raptor), motors: motors.map((m) => [m[0], (m[2] ?? F.motorY) - 0.002, m[1]]), mr: 0.0095, bw: 0.04 }
+      : { laser: [0, -0.011, -bodyLen / 2 + 0.012], pods: [bodyW / 2 + 0.014, -0.012, 0.012], belly: [0, -0.012, 0.035], sensor: [-(bodyW / 2 + 0.005), 0.0235, -bodyLen * 0.2],
+        shield: [bodyW / 2 + 0.005, 0.013, 0], cooler: [bodyW / 2 + 0.005, 0.012, bodyLen / 2 - 0.014],
+        plates: motors.map(([mx, mz]) => [mx * 0.55, 0.0045, mz * 0.55, Math.atan2(mx, mz), Math.hypot(mx, mz) * 0.4]), nose: [0, 0.006, -bodyLen / 2 - 0.002],
+        motors: motors.map(([mx, mz]) => [mx, 0.012, mz]), mr: 0.0135, bw: bodyW + 0.012 };
+    partTicks = addParts(add, { frame: frameMat, accent: accentMat, dark: darkMat, led: ledMat, metal, frameIn, darkIn }, A, opts.parts);
+  }
+
   // 적/아군 식별용 발광 고리(전투 모드)
   let halo = null;
   if (opts.halo) {
@@ -245,6 +270,7 @@ export function buildDrone(look, scale = 1, opts = {}) {
     else if (mode === "blink") ledMat.color.copy(ledBase).multiplyScalar(Math.sin(time * 9) > 0 ? 1 : 0.08);
     else if (mode === "rainbow") ledMat.color.setHSL((time * 0.4) % 1, 1, 0.55).multiplyScalar(2.6);
     else ledMat.color.copy(ledBase);
+    for (const f of partTicks) f(dt, time);
   };
   root.userData.tail = tail;
   root.userData.dispose = () => {

@@ -62,6 +62,7 @@ export class Combat {
     this.ffa = !!handlers.ffa;
     this.L = GP.loadout();                       // 격납고 파츠·효과
     this.lockNeed = 0.7 * Math.max(0.35, 1 + this.L.lock);
+    this.aimRange = 170 * Math.max(0.5, 1 + this.L.range);   // 센서 부품: 조준 보조·락온 거리
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
     this.actors = []; this.shots = []; this.missiles = []; this.pickups = [];
     this.id = 1;
@@ -204,7 +205,7 @@ export class Combat {
     return a;
   }
 
-  // 외부에서 움직이는 액터(호송 트럭 등). pos/vel 은 호출자가 갱신한다
+  // 외부에서 움직이는 액터(호송 수송함 등). pos/vel 은 호출자가 갱신한다
   addProp(model, o) {
     const a = this._actor(Object.assign({ kind: "prop", model, static: true }, o));
     return a;
@@ -361,10 +362,10 @@ export class Combat {
     const auto = settings.autoFire === "on" || inp.device === "touch";   // 터치는 사격 버튼이 없으니 늘 자동
     const wantFire = inp.isHeld("fire") || (auto && !!this.aim && p.heat < 0.8);
     if (wantFire && p.fireT <= 0 && !p.overheated) {
-      p.fireT = 0.105;
+      p.fireT = 0.105 / Math.max(0.4, 1 + this.L.rate);   // 레이저 포 부품: 연사 속도
       _d.copy(pl.aimDir);
       // 조준 보정: 조준선 근처의 적에게는 예상 위치로 살짝 끌어당김
-      const t = this._aimTarget(0.075, 170);
+      const t = this._aimTarget(0.075, this.aimRange);
       if (t && this._vis(pl.aimPos, t)) {
         this._lead(pl.aimPos, t, LASER_SPEED, _a).sub(pl.aimPos).normalize();
         _d.lerp(_a, 0.8).normalize();
@@ -373,8 +374,16 @@ export class Combat {
       _x.set(1, 0, 0).applyQuaternion(pl.body.quat);
       _b.copy(pl.aimPos).addScaledVector(_x, p.side * 0.12).addScaledVector(_d, 0.5);
       const L = this.L, crit = L.crit && Math.random() < L.crit;
-      this.fireLaser(p, _b, _d, (over ? 18 : 9) * (1 + L.laserDmg) * (crit ? 2 : 1), over ? 0xff4ad6 : crit ? 0xffffff : L.fx.laser);
+      const ldmg = (over ? 18 : 9) * Math.max(0.2, 1 + L.laserDmg);
+      this.fireLaser(p, _b, _d, ldmg * (crit ? 2 + L.critK : 1), over ? 0xff4ad6 : crit ? 0xffffff : L.fx.laser);
       const sh = this.shots[this.shots.length - 1]; sh.wk = L.fx.beam.wk; sh.sk = L.fx.beam.spark * (crit ? 1.6 : 1);
+      // 확산형 레이저: 좌우로 벌어지는 보조탄 (피해는 주탄의 일부, 열은 더 쌓이지 않는다)
+      for (let i = 0; i < L.spread; i++) {
+        const sd = i % 2 ? 1 : -1, ang = 0.035 * (1 + (i >> 1));
+        _a.copy(_d).addScaledVector(_x, sd * ang).normalize();
+        this.fireLaser(p, _c.copy(_b).addScaledVector(_x, sd * 0.14), _a, ldmg * (0.4 + L.spreadK), over ? 0xff4ad6 : L.fx.laser);
+        const s2 = this.shots[this.shots.length - 1]; s2.wk = L.fx.beam.wk * 0.7; s2.sk = L.fx.beam.spark * 0.7;
+      }
       this.snd.play("laser", 1, p.side * 0.3, over ? 0.8 : 1);
       this.feel.emit("fire", over ? 1.5 : 1, p.side);
       if (pl.camMode !== "fpv") this.fx.muzzle(_b, _d, over ? 0xff4ad6 : L.fx.laser, 0.9);   // FPV 에서는 화면 모서리 섬광으로 대신한다
@@ -384,10 +393,10 @@ export class Combat {
       if ((p.dryT = (p.dryT || 0) - dt) <= 0) { p.dryT = 0.3; this.feel.emit("dry"); }
     }
     // 조준선에 걸린 적 (HUD 색·조준 효과용)
-    const on = this._aimTarget(0.06, 170);
+    const on = this._aimTarget(0.06, this.aimRange);
     this.aim = on && this._vis(pl.aimPos, on) ? on : null;
     // 락온
-    const cand = this._aimTarget(0.17, 170);
+    const cand = this._aimTarget(0.17, this.aimRange);
     if (cand && cand === this.lock && this._vis(pl.aimPos, cand)) {
       const was = this.lockT < 0.7;
       this.lockT += dt;
@@ -466,6 +475,7 @@ export class Combat {
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
     if (attacker && attacker.kind !== "player" && a.isPlayer) amount *= this.diff.dmg;
+    if (a.isPlayer && this.L.guard) amount *= Math.max(0.4, 1 + this.L.guard);     // 장갑·실드 부품: 받는 피해 감소
     if (a.isPlayer && this.skill) amount *= this.skill.dmgMul;                    // 오버드라이브: 받는 피해 절반
     if (this.skill && attacker && attacker.isPlayer && this.skill.active && this.hostile(attacker, a)) this.skill.onHit(a, amount, point);   // 스킬 중 명중 연출
     if (this.skill && attacker && attacker.isPlayer && this.hostile(attacker, a)) this.skill.gain(Math.min(amount, a.hp + (a.shield || 0)) * (a.kind === "core" ? 0.05 : 0.14));   // 스킬 게이지: 준 피해
@@ -586,7 +596,7 @@ export class Combat {
 
     // 플레이어 상태 반영
     if (p) {
-      p.heat = Math.max(0, p.heat - dt * 0.42);
+      p.heat = Math.max(0, p.heat - dt * 0.42 * Math.max(0.3, 1 + this.L.cool));
       if (p.overheated && p.heat < 0.45) { p.overheated = false; this.feel.emit("cool"); }
       pl.body.boost = (p.boostT > 0 ? 1.6 * (1 + this.L.boost) : 1) * (1 + this.L.thrust) * (this.skill ? this.skill.boostMul : 1);
       // 부스트 효과 (격납고)

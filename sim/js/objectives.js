@@ -1,8 +1,8 @@
 // 스토리 단계 목표: 단계마다 3~4개의 목표 중 정해진 개수(need) 이상 달성해야 클리어. "핵심" 목표는 반드시 달성
 // 목표 정의는 저장 가능한 작은 객체: { t: 종류, n: 값, req: 핵심 여부 }
-//   win      임무 성공 / 완주 / 촬영 완료        rank n   n위 안
+//   win      임무 성공 / 완주 / 추적 완료        rank n   n위 안
 //   crash n  추락·격추 n회 이하 (유지)           kills n  적 n기 격추
-//   boss     보스·중간 보스 격파                   truck p  수송 트럭 내구도 p% 이상
+//   boss     보스·중간 보스 격파                   truck p  아군 수송함 내구도 p% 이상
 //   core p   아군 코어 내구도 p% 이상             time p   제한 시간의 p% 안에 완료
 //   stars n  평가 별 n개 이상                     keep p   적정 거리 유지 p% 이상 (트래킹)
 //   hp p     끝날 때 기체 내구도 p% 이상
@@ -33,12 +33,12 @@ export function easeText(s) {
 export function objText(o, st) {
   const k = st ? st.kind : "";
   switch (o.t) {
-    case "win": return k === "race" ? "완주" : k === "infil" ? "제한 시간 안에 침투" : k === "track" ? "촬영 끝까지 완료" : k === "dm" ? "제한 시간까지 생존 교전" : "임무 성공";
+    case "win": return k === "race" ? "완주" : k === "infil" ? "제한 시간 안에 침투" : k === "track" ? "추적 끝까지 완료" : k === "dm" ? "제한 시간까지 생존 교전" : "임무 성공";
     case "rank": return o.n === 1 ? "1위" : `${o.n}위 안`;
     case "crash": return o.n === 0 ? (k === "race" || k === "infil" || k === "track" ? "추락 없이" : "격추당하지 않기") : (k === "race" || k === "infil" || k === "track" ? `추락 ${o.n}회 이하` : `격추당하는 횟수 ${o.n}회 이하`);
     case "kills": return `적 ${o.n}기 격추`;
     case "boss": return st && st.boss ? `${st.boss.name.replace(/\s*‘.*$/, "")} 격파` : "보스 격파";
-    case "truck": return `수송 트럭 내구도 ${o.n}% 이상 지키기`;
+    case "truck": return `${(st && st.o && st.o.ship) || "수송함"} 내구도 ${o.n}% 이상 지키기`;
     case "core": return `아군 코어 내구도 ${o.n}% 이상 지키기`;
     case "time": return `제한 시간의 ${o.n}% 안에 완료`;
     case "stars": return `평가 별 ${o.n}개 이상`;

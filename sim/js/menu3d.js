@@ -7,6 +7,7 @@ import { toonMat, toonify } from "./toon.js";
 import { World } from "./world.js";
 import { MAPS } from "./maps/index.js";
 import { SKILLS } from "./skilldefs.js";
+import { partLook, skillLv } from "./garage.js";
 
 const V3 = THREE.Vector3;
 const UP = new V3(0, 1, 0);
@@ -93,7 +94,7 @@ class Trail {
 
 // ── 모드별 미니 장면 ─────────────────────────────────────────
 // 반환: { group, tick(dt, t), view: { dist, h, look, angle, spin } }
-function playerDrone(s = 1.45) { const d = buildDrone(settings.drone, s); return d; }
+function playerDrone(s = 1.45) { const d = buildDrone(settings.drone, s, { parts: partLook() }); return d; }
 function botDrone(kind, team, s = 1.35) { return buildDrone(botLook(kind, team), s, { halo: team ? 0xff3d4d : 0x2f8cff }); }
 
 function vRace() {
@@ -322,8 +323,9 @@ function vTraining() {
 
 // ── 격납고 스킬 미리보기: 내 기체 + 적 셋, 3.4초마다 스킬 연출을 되풀이 ──
 const addM = (c, op = 0.8, side = THREE.FrontSide) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(1.6), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side });
-function vSkill(id) {
+function vSkill(id, lv = 1) {
   const D = SKILLS[id] || SKILLS.lockon, col = D.color, g = new THREE.Group(), P = 3.4;
+  const vk = 1 + (lv - 1) * 0.12, acc = lv >= 5 ? 0xfff0b0 : 0xffffff;   // 강화 레벨: 발동 고리가 늘고 커진다 (Lv.3 · Lv.5)
   const me = playerDrone(1.35); g.add(me);
   const home = new V3(0, 0.36, 0);
   const foes = [0, 1, 2].map((i) => { const m = botDrone("grunt", 1, 1.0); g.add(m); return { m, a: i * 2.094 + 0.5, h: 0.32 + i * 0.1, shake: 0, stun: 0, fall: 0 }; });
@@ -331,6 +333,8 @@ function vSkill(id) {
   const torus = new THREE.TorusGeometry(1, 0.02, 6, 64), sph = new THREE.SphereGeometry(1, 24, 16), cylG = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true);
   const mk = (geo, c, op, side) => { const m = new THREE.Mesh(geo, addM(c, op, side)); m.visible = false; g.add(m); return m; };
   const aura = [mk(torus, col, 0.9), mk(torus, 0xffffff, 0.8)], pillar = mk(cylG, col, 0.5, THREE.DoubleSide);
+  if (lv >= 3) aura.push(mk(torus, acc, 0.9));
+  if (lv >= 5) aura.push(mk(torus, acc, 0.9), mk(torus, col, 0.9));
   const flashes = Array.from({ length: 10 }, () => ({ m: mk(sph, col, 0.9), t: 1 }));
   const flash = (p, c = col, s = 0.06) => { const f = flashes.find((x) => x.t >= 1) || flashes[0]; f.t = 0; f.s = s; f.m.position.copy(p); f.m.material.color.set(c).multiplyScalar(1.8); f.m.visible = true; };
   const S = {};   // 스킬별 상태
@@ -366,8 +370,8 @@ function vSkill(id) {
       me.userData.tick(dt, 0.7, t);
       // 공통 발동 연출: 퍼지는 고리 두 겹 + 솟는 빛 기둥
       const e = clamp01(u / 0.6), ee = 1 - (1 - e) * (1 - e);
-      aura.forEach((r, i) => { r.visible = u < 0.6; r.position.copy(me.position); r.position.y += -0.05 + i * 0.06 + ee * 0.05; r.rotation.x = Math.PI / 2; r.scale.setScalar(0.05 + ee * (0.45 + i * 0.25)); r.material.opacity = 0.9 * (1 - e); });
-      pillar.visible = u < 0.6; pillar.position.copy(me.position); pillar.position.y += 0.6; pillar.scale.set(0.05 + ee * 0.08, 1.4, 0.05 + ee * 0.08); pillar.material.opacity = 0.5 * (1 - e);
+      aura.forEach((r, i) => { r.visible = u < 0.6; r.position.copy(me.position); r.position.y += -0.05 + i * 0.06 + ee * 0.05; r.rotation.x = Math.PI / 2; r.scale.setScalar((0.05 + ee * (0.45 + i * 0.25)) * vk); r.material.opacity = 0.9 * (1 - e); });
+      pillar.visible = u < 0.6; pillar.position.copy(me.position); pillar.position.y += 0.6; pillar.scale.set((0.05 + ee * 0.08) * vk * vk, 1.4, (0.05 + ee * 0.08) * vk * vk); pillar.material.opacity = 0.5 * (1 - e);
       // ── 스킬별 ──
       if (id === "lockon") {
         const on = u > 0.3 && u < 2.7;
@@ -500,10 +504,11 @@ export class MenuScene {
     this.setLook(settings.drone);
   }
 
-  setLook(look) {
+  // parts: 미리보기용 파츠 구성 (주지 않으면 지금 장착한 것)
+  setLook(look, parts) {
     if (this.model) { this.pivot.remove(this.model); this.model.userData.dispose(); }
     const cls = DRONE_CLASSES[look.cls] || DRONE_CLASSES.freestyle;
-    this.model = buildDrone(look, cls.scale);
+    this.model = buildDrone(look, cls.scale, { parts: parts || partLook() });
     this.model.position.y = 0.16;
     this.pivot.add(this.model);
     this.size = cls.scale;
@@ -513,16 +518,19 @@ export class MenuScene {
   // 격납고 스킬 미리보기 (null 이면 끈다)
   previewSkill(id) {
     id = id && SKILLS[id] ? id : null;
-    if (id === this.skillId) return;
+    const lv = id ? skillLv(id) : 0;
+    if (id === this.skillId && lv === this.skillLvl) return;
+    this.skillLvl = lv;
     if (this.skillVig) { this.scene.remove(this.skillVig.group); disposeTree(this.skillVig.group); this.skillVig = null; }
+    const was = this.skillId;
     this.skillId = id;
     this.pivot.visible = !id && !this.mode;
     if (!id) return;
-    this.skillVig = vSkill(id);
+    this.skillVig = vSkill(id, lv);
     toonify(this.skillVig.group);
     this.skillVig.group.traverse((o) => { if (o.isMesh && !o.material.isMeshBasicMaterial) o.castShadow = true; });
     this.scene.add(this.skillVig.group);
-    this.angle = this.skillVig.view.angle;
+    if (id !== was) this.angle = this.skillVig.view.angle;
   }
 
   // 모드별 미니 장면으로 바꾼다 (null 이면 받침대 위 드론)
@@ -562,8 +570,10 @@ export class MenuScene {
     } else {
       this.angle += (this.spin + this.drag) * dt;
       this.drag *= Math.exp(-dt * 5);
-      const d = (this.close ? 0.62 : 0.95) * (0.55 + this.size * 0.5) / fit / narrow;
-      this.camera.position.set(Math.sin(this.angle) * d, 0.16 + d * 0.42, Math.cos(this.angle) * d);
+      // 파츠 살펴보기(low): 더 가까이, 기체 높이에서 본다 — 배 아래 무장·배터리가 보이게
+      const lk = (this._low = (this._low || 0) + ((this.low ? 1 : 0) - (this._low || 0)) * Math.min(1, dt * 5));
+      const d = (this.close ? 0.62 : 0.95) * (0.55 + this.size * 0.5) / fit / narrow * (1 - 0.3 * lk);
+      this.camera.position.set(Math.sin(this.angle) * d, 0.16 + d * (0.42 - 0.47 * lk), Math.cos(this.angle) * d);
       this.camera.lookAt(0, this.close ? 0.15 : 0.15 + d * 0.3, 0);
       this.model.position.y = 0.16 + Math.sin(this.t * 1.6) * 0.012;
       this.model.rotation.z = Math.sin(this.t * 1.1) * 0.05;

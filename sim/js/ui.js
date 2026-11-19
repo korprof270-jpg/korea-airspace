@@ -24,26 +24,27 @@ const MODE_META = {
     long: "스틱을 놓아도 수평으로 돌아오지 않는 ACRO(수동) 모드를 처음부터 배웁니다. 과목마다 주어진 과제를 순서대로 해내면 다음 과목이 열립니다.", tags: ["3개 과정 · 17개 과목", "과제별 요령 안내", "ACRO 전용"] },
   race: { name: "레이싱", en: "RACE", icon: "🏁", c: "#ff5a1f", desc: "게이트를 순서대로 통과하며 기록과 순위를 다툽니다.",
     long: "네온 게이트와 공중 링을 순서대로 통과하세요. 통과할 때마다 다음 게이트로 가는 길이 화면과 공중에 표시됩니다.", tags: ["코스 13개", "AI 라이벌 최대 5기", "랩·구간 기록"] },
-  tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "달리는 차·보트·드론을 화면 가운데에 담아 끝까지 따라가며 촬영합니다.",
-    long: "달리는 차, 강을 내려가는 보트, 곡예 드론을 화면 가운데에 담아 끝까지 따라가면 촬영 점수가 오릅니다.", tags: ["피사체 17종", "프레이밍 점수", "시네 비행 연습"] },
+  tracking: { name: "트래킹", en: "TRACK", icon: "🎥", c: "#21d4fd", desc: "달리는 차·보트·드론을 화면 가운데에 두고 끝까지 따라가며 촬영합니다.",
+    long: "달리는 차, 강을 내려가는 보트, 곡예 드론을 화면 가운데에 담아 끝까지 따라가면 추적 점수가 오릅니다.", tags: ["피사체 17종", "프레이밍 점수", "시네 비행 연습"] },
   freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·틈새 통과를 이어 콤보 점수를 쌓습니다.",
     long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
   survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 AI 드론과 싸우는 점수제 전투입니다.",
     long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·4팀 점령전", "아이템 6종", "5초 재출격"] },
   challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "챕터마다 이어지는 이야기를 따라 임무를 하나씩 깨 나갑니다.",
-    long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·촬영·호송·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
+    long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·추적·호위·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
 // 비행훈련장으로 쓸 수 있는 맵 (출발 지점 앞이 넓게 비어 있는 곳)
 const TR_MAPS = ["factory", "arena", "moon", "snow", "palace", "airbase"].filter((id) => MAPS[id]);
 // 타이틀 배경 장면 (sim/img/title): 파일 이름, 아래 작은 표시
 const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", "서바이벌 · 네온 아레나"], ["3-freestyle", "프리스타일 · 붉은 협곡"], ["4-story", "스토리 · 달 기지 최종전"],
   ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"],
-  ["9-empire", "레이싱 · 기계제국 수도"], ["10-airbase", "레이싱 · 비행기지 격납고"], ["11-ail", "레이싱 · 에일 행성"]];
+  ["9-empire", "레이싱 · 기계제국 수도"], ["10-airbase", "레이싱 · 비행기지 격납고"], ["11-ail", "레이싱 · 에일 행성"],
+  ["12-frost", "스토리 · 설원 통신기지"]];
 // 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
-  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·촬영·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
+  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
 };
 const SUB = {
   training: { img: "7-training" },
@@ -81,6 +82,11 @@ export class UI {
       const fn = this[`a_${el.dataset.a}`];
       if (fn) { this.game.sound.play(UI_SND[el.dataset.a] || "click"); fn.call(this, el.dataset.v, el); }
     });
+    // 격납고 파츠: 카드에 올리거나 초점을 주면 기체·성능 막대로 미리 본다
+    const pvOf = (e) => { const el = e.target.closest && e.target.closest("[data-pv]"); return el ? el.dataset.pv : null; };
+    this.root.addEventListener("pointerover", (e) => { if (e.pointerType !== "touch") { const id = pvOf(e); if (id && id !== this._hov) this._ptHover((this._hov = id)); } });
+    this.root.addEventListener("pointerout", (e) => { if (this._hov && pvOf(e) === this._hov && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(`[data-pv="${this._hov}"]`))) { this._hov = null; this._ptHover(null); } });
+    this.root.addEventListener("focusin", (e) => { if (this.screen === "hangar" && this._gtab === "parts") this._ptHover(pvOf(e)); });
     this.root.addEventListener("input", (e) => this._input(e.target));
     this.root.addEventListener("change", (e) => this._input(e.target, true));
     addEventListener("keydown", (e) => {
@@ -125,6 +131,8 @@ export class UI {
   _syncStage() {
     const menu = this.game.menu;
     menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
+    if (this._ptKey && (this.screen !== "hangar" || this._gtab !== "parts")) this._ptClear();   // 파츠 미리보기는 파츠 탭에서만
+    menu.low = this.screen === "hangar" && this._gtab === "parts";
     if (menu.previewSkill) menu.previewSkill(this.screen === "hangar" && this._gtab === "skill" ? this._skPv || GP.skillEquipped() : null);
     const st = this.root.querySelector("[data-stage]");
     if (!st || !st.offsetWidth) { menu.focus = null; return; }
@@ -776,24 +784,46 @@ export class UI {
         return `<button class="chip fxc ${on ? "on" : ""} ${own ? "" : "lock"}" data-a="gfx" data-slot="${slot}" data-v="${k}">${c ? `<b class="dot" style="background:${c}"></b>` : ""}${own ? "" : "🔒 "}${it.name}${own ? "" : ` <em>${P(it.price)}</em>`}</button>`;
       }).join("")}</div>`).join("") + `<p class="hint2">레이저 형태: 헤비 빔은 굵고 화려한 명중 불꽃, 니들은 가늘고 날카롭게, 노바는 명중 순간 큰 섬광. 부스트 효과는 부스터 아이템을 쓰는 동안 기체 뒤에 꼬리를 남깁니다.</p>`;
     } else if (tab === "parts") {
-      const L = GP.loadout();
-      body = `<p class="hint2">파츠는 교체(변형 구매)와 업그레이드(0~5단계)로 성능을 올립니다. 3단계와 5단계에서 추가 효과가 열립니다. 효과는 전투 모드(서바이벌·점령전·스토리 임무)에서 적용되고, 모터는 모든 비행에 적용됩니다(비행훈련 제외).</p>`
-        + Object.entries(GP.PARTS).map(([slot, Pt]) => {
-          const cur = GP.partOf(slot), V = Pt.variants[cur.v], cost = GP.UP_COST[cur.lv];
-          return `<div class="part"><div class="ph"><b>${Pt.icon} ${Pt.name}</b><span class="lv">${"◆".repeat(cur.lv)}${"◇".repeat(5 - cur.lv)} <small>Lv.${cur.lv}</small></span></div>
-            <div class="chips">${Object.entries(Pt.variants).map(([k, v]) => { const own = GP.variantOwns(slot, k); return `<button class="chip ${cur.v === k ? "on" : ""} ${own ? "" : "lock"}" data-a="gpart" data-slot="${slot}" data-v="${k}">${own ? "" : "🔒 "}${v.name}${own ? "" : ` <em>${P(v.price)}</em>`}</button>`; }).join("")}</div>
-            <div class="pd">${esc(V.desc)} · <span class="${cur.lv >= 3 ? "on" : ""}">3단계: ${esc(V.b3[0])}</span> · <span class="${cur.lv >= 5 ? "on" : ""}">5단계: ${esc(V.b5[0])}</span></div>
-            ${cur.lv < 5 ? `<button class="primary small" data-a="gup" data-v="${slot}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${cur.lv + 1} · ${P(cost)}</button>` : `<span class="maxed">최대 단계</span>`}</div>`;
-        }).join("")
-        + `<div class="sumL"><b>현재 보정</b> 내구도 +${Math.round(L.hp * 100)}% · 추력 +${Math.round(L.thrust * 100)}% · 레이저 +${Math.round(L.laserDmg * 100)}%${L.crit ? ` · 치명타 ${Math.round(L.crit * 100)}%` : ""} · 미사일 피해 +${Math.round(L.mDmg * 100)}% · 락온 ${Math.round(L.lock * 100)}% · 아이템 지속 +${Math.round(L.itemDur * 100)}%${L.regen ? ` · 재생 ${L.regen}/초` : ""}</div>`;
+      const slot = GP.PARTS[this._pslot] ? this._pslot : (this._pslot = GP.SLOTS[0]), Pt = GP.PARTS[slot], cur = GP.partOf(slot), pv = this._ppv && this._ppv.slot === slot ? this._ppv.v : null;
+      const chipsOf = (e) => Object.entries(e || {}).map(([k, v]) => `<i class="${GP.statGood(k, v) ? "up" : "dn"}">${esc(GP.statText(k, v))}</i>`).join("");
+      body = `<p class="hint2">슬롯마다 부품 하나를 <b>장착</b>합니다. 부품은 저마다 장단점이 있고, 부품마다 따로 <b>0~5단계</b> 업그레이드합니다(3·5단계에서 추가 효과). 부품을 누르면 왼쪽 기체와 성능 막대로 <b>미리 볼 수</b> 있습니다. 효과는 전투 모드에 적용되고, 추력은 모든 비행에 적용됩니다(비행훈련 제외).</p>
+        <div class="pslots">${GP.SLOTS.map((k) => { const c = GP.partOf(k); return `<button class="${k === slot ? "on" : ""}" data-a="gslot" data-v="${k}"><span class="ic">${GP.PARTS[k].icon}</span><b>${GP.PARTS[k].short}</b><small>Lv.${c.lv}</small></button>`; }).join("")}</div>
+        <h3 class="psh">${Pt.icon} ${Pt.name} <small>${Object.keys(Pt.variants).length}종 · 하나 장착</small></h3>`
+        + Object.entries(Pt.variants).map(([k, V]) => {
+          const own = GP.variantOwns(slot, k), on = cur.v === k, lv = GP.partLv(slot, k), cost = GP.UP_COST[lv], id = `${slot}.${k}`;
+          const next = lv < 5 ? { ...V.per } : null;
+          if (next && lv + 1 === 3) for (const [a, b] of Object.entries(V.b3)) next[a] = (next[a] || 0) + b;
+          if (next && lv + 1 === 5) for (const [a, b] of Object.entries(V.b5)) next[a] = (next[a] || 0) + b;
+          return `<div class="pcard ${on ? "eq" : ""} ${(pv ? pv === k : on) ? "pv" : ""} ${own ? "" : "lock"}" data-pv="${id}">
+            <button class="pch" data-a="gpsel" data-v="${id}">
+              <span class="pn"><b>${V.name}</b><i class="tag">${V.tag}</i><span class="st ${on ? "eq" : own ? "own" : "buy"}">${on ? "✔ 장착 중" : own ? "보유" : `🔒 ${P(V.price)}`}</span></span>
+              <em class="ds">${esc(V.desc)}</em>
+              <span class="fxc">${V.base ? chipsOf(V.base) : `<i class="nt">기본형 · 장단점 없음</i>`}</span>
+              <span class="plv"><span class="pips">${"◆".repeat(lv)}${"◇".repeat(5 - lv)}</span> <small>Lv.${lv}</small> <span class="per">단계마다 ${esc(GP.effText(V.per))}</span></span>
+              <span class="bon"><i class="${lv >= 3 ? "on" : ""}">${lv >= 3 ? "✔" : "🔒"} 3단계 · ${esc(GP.effText(V.b3))}</i><i class="${lv >= 5 ? "on" : ""}">${lv >= 5 ? "✔" : "🔒"} 5단계 · ${esc(GP.effText(V.b5))}</i></span>
+            </button>
+            <div class="pact">
+              ${on ? "" : `<button class="primary small" data-a="gpart" data-v="${id}" ${own || GP.points() >= V.price ? "" : "disabled"}>${own ? "장착" : `구매 · ${P(V.price)}`}</button>`}
+              ${!own ? `<span class="nx">구매하면 업그레이드할 수 있습니다</span>` : lv < 5 ? `<button class="primary small up" data-a="gup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${lv + 1} · ${P(cost)}</button><span class="nx">다음 단계: ${esc(GP.effText(next))}</span>` : `<span class="maxed">★ 최대 단계</span>`}
+            </div></div>`;
+        }).join("");
     } else if (tab === "skill") {
       const eq = GP.skillEquipped(), pv = this._skPv || eq, ck = (c) => "#" + c.toString(16).padStart(6, "0");
-      body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
+      body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 포인트로 <b>Lv.5</b>까지 강화하면 수치와 연출이 함께 커집니다(Lv.3·Lv.5 에서 새 효과). 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
         <div class="skills">${Object.entries(GP.SKILLS).map(([id, k]) => {
-          const own = GP.skillOwns(id), on = eq === id, c = ck(k.color);
+          const own = GP.skillOwns(id), on = eq === id, c = ck(k.color), lv = GP.skillLv(id), st = GP.skillStat(id, lv), nx = lv < GP.SKILL_MAX ? GP.skillStat(id, lv + 1) : null, ms = GP.skillMilestone(id), cost = GP.SKILL_UP_COST[lv - 1];
+          const rows = GP.skillRows(id).map(([key, nm, un]) => `<span class="${nx && nx[key] !== st[key] ? "ch" : ""}"><small>${nm}</small><b>${st[key]}${un}</b>${nx && nx[key] !== st[key] ? `<em>→ ${nx[key]}${un}</em>` : ""}</span>`).join("");
           return `<div class="skc ${on ? "on" : ""} ${pv === id ? "pv" : ""}" style="--k:${c}">
-            <button class="skp" data-a="gskpv" data-v="${id}"><span class="ic">${k.icon}</span><span class="tx"><b>${k.name}</b><small>${k.tag} · 게이지 ${k.cost}%${k.dur ? ` · ${k.dur}초` : ""}</small><em>${esc(k.desc)}</em></span><span class="eye">${pv === id ? "▶ 미리보기 중" : "▷ 미리보기"}</span></button>
+            <div class="skr">
+            <button class="skp" data-a="gskpv" data-v="${id}"><span class="ic">${k.icon}</span><span class="tx"><b>${k.name} <i class="slv ${lv >= 5 ? "mx" : ""}">Lv.${lv}</i></b><small>${k.tag} · 게이지 ${st.cost}%${st.dur ? ` · ${st.dur}초` : ""}</small><em>${esc(GP.skillDesc(id, lv))}</em></span><span class="eye">${pv === id ? "▶ 미리보기 중" : "▷ 미리보기"}</span></button>
             ${on ? `<span class="skst">✔ 장착 중</span>` : own ? `<button class="primary small" data-a="gskill" data-v="${id}">장착</button>` : `<button class="primary small" data-a="gskill" data-v="${id}" ${GP.points() < k.price ? "disabled" : ""}>구매 · ${P(k.price)}</button>`}
+            </div>
+            <div class="skl">
+              <span class="pips">${"●".repeat(lv)}${"○".repeat(GP.SKILL_MAX - lv)}</span>
+              <div class="skv">${rows}</div>
+              <div class="bon"><i class="${lv >= 3 ? "on" : ""}">${lv >= 3 ? "✔" : "🔒"} Lv.3 · ${esc(ms.m3)}</i><i class="${lv >= 5 ? "on" : ""}">${lv >= 5 ? "✔" : "🔒"} Lv.5 · ${esc(ms.m5)}</i></div>
+              ${!own ? "" : nx ? `<button class="primary small up" data-a="gskup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>강화 Lv.${lv + 1} · ${P(cost)}</button>` : `<span class="maxed">★ 최대 레벨</span>`}
+            </div>
           </div>`;
         }).join("")}</div>`;
     } else {
@@ -805,7 +835,7 @@ export class UI {
         <p class="hint2">게임을 마치면 기본 보상과 별·승리 보상이 들어오고, 퀘스트와 업적은 달성하는 순간 자동으로 포인트가 지급됩니다.</p>`;
     }
     return `<div class="screen hangar">
-      <div class="view" data-stage><button class="back" data-a="back">← 뒤로</button><div class="tip">드래그해서 돌려 보기</div></div>
+      <div class="view"><button class="back" data-a="back">← 뒤로</button><div class="stg" data-stage><div class="tip">드래그해서 돌려 보기</div></div>${this._gsum()}</div>
       <div class="side">
         <div class="head"><h2>🛠 격납고</h2><span class="pts">◆ ${P(GP.points())}</span></div>
         ${this._gmsg ? `<div class="gmsg ${this._gmsg.bad ? "bad" : ""}">${esc(this._gmsg.t)}</div>` : ""}
@@ -816,7 +846,7 @@ export class UI {
   _gnote(t, bad = false) { this._gmsg = { t, bad }; clearTimeout(this._gmt); this._gmt = setTimeout(() => { this._gmsg = null; if (this.screen === "hangar") this.redraw(); }, 2200); }
   _look() { save(); this.game.menu.setLook(settings.drone); this.redraw(); }
   a_gq() { this._gtab = "quest"; this.show("hangar"); }
-  a_gtab(v) { this._gtab = v; this.redraw(); this._syncStage(); }
+  a_gtab(v) { this._gtab = v; if (v !== "parts") this._ptClear(); this.redraw(); this._syncStage(); }
   a_gskpv(v) { this._skPv = v; this.game.sound.play("click"); this.redraw(); this._syncStage(); }
   a_gskill(v) {
     const k = GP.SKILLS[v];
@@ -857,22 +887,88 @@ export class UI {
     }
     GP.themeEquip(v); this._gnote(`테마 「${t.name}」 장착`); this._look();
   }
-  a_gpart(v, el) {
-    const slot = el.dataset.slot, V = GP.PARTS[slot].variants[v];
-    if (!GP.variantOwns(slot, v)) {
-      if (!GP.variantBuy(slot, v)) return (this._gnote(`포인트가 부족합니다 (${V.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this._gnote(`${V.name} 구매 · -${V.price.toLocaleString()}P`); this.game.sound.play("pickup");
+  // ── 격납고: 장착 요약(왼쪽 기체 아래) · 파츠 미리보기 ──
+  // 요약: 종합 성능 막대(현재 → 미리보기) + 슬롯별 장착 부품·단계·주요 효과
+  _gsum() {
+    const pv = this._gtab === "parts" ? this._ppv : null, prev = this._barPrev || {};
+    const bars = GP.RATINGS.map(([k, nm]) => { const o = prev[k] || { a: 33, b: 33 }; return `<div class="lb" data-r="${k}"><span>${nm}</span><div class="b2"><i class="cur" style="width:${Math.min(o.a, o.b)}%"></i><i class="dl" style="left:${Math.min(o.a, o.b)}%;width:${Math.abs(o.b - o.a)}%"></i><u></u></div><em></em></div>`; }).join("");
+    const slots = GP.SLOTS.map((slot) => {
+      const Pt = GP.PARTS[slot], c = GP.partOf(slot), isPv = pv && pv.slot === slot && pv.v !== c.v, v = isPv ? pv.v : c.v, lv = isPv ? GP.partLv(slot, v) : c.lv;
+      const eff = Object.entries(GP.partEffect(slot, v, lv)).filter((e) => Math.abs(e[1]) > 1e-9).sort((a, b) => Math.abs(b[1] / (GP.STATS[b[0]].pct ? 1 : 20)) - Math.abs(a[1] / (GP.STATS[a[0]].pct ? 1 : 20))).slice(0, 2);
+      return `<button class="ls ${this._gtab === "parts" && this._pslot === slot ? "on" : ""} ${isPv ? "pvw" : ""}" data-a="gslot" data-v="${slot}" title="${Pt.name}">
+        <span class="ic">${Pt.icon}</span><span class="tx"><b>${isPv ? "미리보기 · " : ""}${Pt.variants[v].name}</b><small class="pips">${"●".repeat(lv)}${"○".repeat(5 - lv)}</small></span>
+        <span class="fxc">${eff.map(([k, n]) => `<i class="${GP.statGood(k, n) ? "up" : "dn"}">${esc(GP.statText(k, n))}</i>`).join("") || `<i class="nt">기본 성능</i>`}</span></button>`;
+    }).join("");
+    requestAnimationFrame(() => this._gsumUpd());
+    return `<div class="lsum"><div class="lbars">${bars}</div><div class="lslots">${slots}</div></div>`;
+  }
+  // 막대만 제자리에서 갱신 (너비가 바뀌며 움직인다). hover: 잠깐 올려 본 부품
+  _gsumUpd(hover) {
+    const box = this.root.querySelector(".lsum");
+    if (!box) return;
+    const pv = hover || (this._gtab === "parts" ? this._ppv : null);
+    const R0 = GP.ratings(GP.loadout()), R1 = pv ? GP.ratings(GP.loadout(pv)) : R0, w = (x) => Math.round(Math.max(0, Math.min(1, (x - 0.5) / 1.3)) * 1000) / 10, pc = (x) => `${x >= 1 ? "+" : ""}${Math.round((x - 1) * 100)}%`;
+    this._barPrev = {};
+    for (const [k] of GP.RATINGS) {
+      const el = box.querySelector(`[data-r="${k}"]`), a = w(R0[k]), b = w(R1[k]), d = Math.round((R1[k] - R0[k]) * 100);
+      this._barPrev[k] = { a, b };
+      if (!el) continue;
+      el.querySelector(".cur").style.width = `${Math.min(a, b)}%`;
+      const dl = el.querySelector(".dl"); dl.style.left = `${Math.min(a, b)}%`; dl.style.width = `${Math.abs(b - a)}%`;
+      dl.className = `dl ${b >= a ? "up" : "dn"}`;
+      el.querySelector("em").innerHTML = d ? `${pc(R0[k])} <b class="${d > 0 ? "up" : "dn"}">→ ${pc(R1[k])}</b>` : pc(R0[k]);
     }
-    GP.variantEquip(slot, v); this.redraw();
+  }
+  // 미리보기 부품을 3D 기체에 반영 (같은 구성이면 다시 만들지 않는다)
+  _ptModel(pv) {
+    const key = pv ? `${pv.slot}.${pv.v}` : "";
+    if (key === (this._ptKey || "")) return;
+    this._ptKey = key;
+    this.game.menu.setLook(settings.drone, GP.partLook(pv));
+  }
+  _ptClear() { this._ppv = null; if (this._ptKey) { this._ptKey = ""; this.game.menu.setLook(settings.drone); } }
+  _ptHover(id) {
+    if (this.screen !== "hangar" || this._gtab !== "parts") return;
+    const [slot, v] = id ? id.split(".") : [];
+    const pv = slot && GP.PARTS[slot] && GP.PARTS[slot].variants[v] ? { slot, v } : this._ppv;
+    this._ptModel(pv); this._gsumUpd(pv);
+  }
+  a_gslot(v) { if (!GP.PARTS[v]) return; this._gtab = "parts"; this._pslot = v; this._ppv = null; this._ptModel(null); this.redraw(); this._syncStage(); }
+  a_gpsel(v) {
+    const [slot, k] = v.split(".");
+    if (!GP.PARTS[slot] || !GP.PARTS[slot].variants[k]) return;
+    this._ppv = GP.partOf(slot).v === k ? null : { slot, v: k };
+    this._ptModel(this._ppv); this.redraw();
+  }
+  a_gpart(v) {
+    const [slot, k] = v.split("."), V = GP.PARTS[slot] && GP.PARTS[slot].variants[k];
+    if (!V) return;
+    if (!GP.variantOwns(slot, k)) {
+      if (!GP.variantBuy(slot, k)) return (this._gnote(`포인트가 부족합니다 (${V.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this._gnote(`${V.name} 구매 · -${V.price.toLocaleString()}P`); this.game.sound.play("pickup");
+    } else this._gnote(`${GP.PARTS[slot].name}: 「${V.name}」 장착`);
+    GP.variantEquip(slot, k); this._ppv = null; this._ptKey = "?"; this._ptModel(null); this.redraw();
   }
   a_gup(v) {
-    const lv = GP.partOf(v).lv, cost = GP.UP_COST[lv];
-    if (!GP.upgrade(v)) return (this._gnote(`포인트가 부족합니다 (${cost.toLocaleString()}P 필요)`, true), this.redraw());
-    const V = GP.PARTS[v].variants[GP.partOf(v).v], nl = lv + 1;
-    this._gnote(`${GP.PARTS[v].name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${V.b3[0]}` : nl === 5 ? ` · 추가 효과: ${V.b5[0]}` : ""}`);
-    this.game.sound.play("lap"); this.redraw();
+    const [slot, k] = v.split("."), V = GP.PARTS[slot] && GP.PARTS[slot].variants[k];
+    if (!V) return;
+    const lv = GP.partLv(slot, k), cost = GP.UP_COST[lv];
+    if (!GP.upgrade(slot, k)) return (this._gnote(lv >= 5 ? "이미 최대 단계입니다" : `포인트가 부족합니다 (${cost.toLocaleString()}P 필요)`, true), this.redraw());
+    const nl = lv + 1;
+    this._gnote(`${V.name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${GP.effText(V.b3)}` : nl === 5 ? ` · 추가 효과: ${GP.effText(V.b5)}` : ""}`);
+    this.game.sound.play("lap");
+    const keep = this._ppv; this._ptKey = "?"; this._ptModel(keep); this.redraw();   // 단계가 오르면 기체 모습도 바뀐다
   }
-
+  a_gskup(v) {
+    const k = GP.SKILLS[v];
+    if (!k) return;
+    const lv = GP.skillLv(v), cost = GP.SKILL_UP_COST[lv - 1];
+    if (!GP.skillUp(v)) return (this._gnote(lv >= GP.SKILL_MAX ? "이미 최대 레벨입니다" : `포인트가 부족합니다 (${(cost || 0).toLocaleString()}P 필요)`, true), this.redraw());
+    const ms = GP.skillMilestone(v);
+    this._gnote(`${k.name} Lv.${lv + 1}${lv + 1 === 3 ? ` · ${ms.m3}` : lv + 1 === 5 ? ` · ${ms.m5}` : ""}`);
+    this.game.sound.play("lap"); this._skPv = v;
+    this.redraw(); this._syncStage();
+  }
 
   // ── 설정 ──
   s_settings() {

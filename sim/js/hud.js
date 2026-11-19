@@ -616,6 +616,8 @@ export class Hud {
     const cx = bx + bw * (d.cost / 100);
     g.fillStyle = INK; g.fillRect(cx - 2 * u, by - 5 * u, 4 * u, bh + 10 * u);
     g.fillStyle = ready ? "#fff" : col; g.fillRect(cx - 1 * u, by - 4 * u, 2 * u, bh + 8 * u);
+    // 스킬 강화 레벨: 게이지 왼쪽 끝의 작은 표
+    if (sk.lv) { const lw = 30 * u; g.fillStyle = INK; g.fillRect(bx, by, lw, bh); g.fillStyle = sk.lv >= 5 ? "#ffe9a0" : sk.lv >= 3 ? col : "#c9d3e2"; g.fillRect(bx, by + bh - 2 * u, lw, 2 * u); this.text(`Lv${sk.lv}`, bx + lw / 2, by + bh / 2, { size: 10.5, align: "center", base: "middle", color: sk.lv >= 5 ? "#ffe9a0" : "#fff", shadow: false }); }
     const lab = A ? "발동 중" : ready ? `${session.game.input.glyph ? session.game.input.glyph("skill") : "X"} 발동!` : `${Math.floor(sk.gauge)}%`;
     this.text(lab, x + w - 14 * u, y + h / 2 + 1 * u, { size: ready ? 14 + Math.sin(t * 7) : 13, align: "right", base: "middle", color: ready ? col : A ? "#fff" : "#c9d3e2", shadow: false });
   }

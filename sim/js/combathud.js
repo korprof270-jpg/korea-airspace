@@ -353,6 +353,7 @@ function skillGauge(c, h) {
   const A = k.active;
   if (A && A.dur) { g.beginPath(); g.arc(x, y, R - 12 * u, a0, a0 + (1 - A.t / A.dur) * Math.PI * 2); g.lineWidth = 3 * u; g.strokeStyle = "#ffffff"; g.stroke(); }
   h.text(d.icon, x, y + 1 * u, { size: 22 + (ready ? Math.sin(t * 6) * 2 : 0), align: "center", base: "middle", color: ready || A ? col : "#7d8aa3" });
+  if (k.lv) h.text(`Lv${k.lv}`, x, y + R - 9 * u, { size: 9.5, align: "center", base: "middle", color: k.lv >= 5 ? "#ffe9a0" : "#dfe7f5" });   // 스킬 강화 레벨
   const lab = A ? "발동 중" : ready ? (L.touch ? "준비" : `${h.inp.glyph("skill")} 발동`) : `${Math.floor(k.gauge)}%`;
   h.text(lab, x, y - R - 9 * u, { size: ready ? 13 : 11, align: "center", color: ready ? col : A ? "#ffffff" : HC.dim });
 }

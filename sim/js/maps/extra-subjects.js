@@ -33,10 +33,21 @@ const ADD = {
   arena: (m) => [{ id: "fpv", name: "아레나 레이서", type: "fpv", level: 2, desc: "타워 코스를 도는 다른 레이싱 드론", duration: 70, path: gatePath(m, "towers", 17) }],
 };
 
+// 스토리 추적 단계용 비행 피사체. 기존 번호·기록이 밀리지 않게 각 맵 목록의 맨 끝에 붙인다
+const lifted = (map, id, dy, v) => { const t = map.tracking.find((x) => x.id === id); return t ? t.path.map((p) => [p[0], p[1] + dy, p[2], v ?? p[3]]) : null; };
+const AIR = {
+  airbase: (m) => [{ id: "target", name: "교관 표적 드론", type: "drone", clear: 1.5, level: 1, desc: "교관이 띄운 표적 드론. 기지 상공을 불규칙하게 돈다", duration: 80, v: 18, path: lifted(m, "drone", 0) }],
+  factory: (m) => [{ id: "hauler", name: "폐기 화물 드론", type: "cargo", clear: 3.5, level: 1, desc: "폐기 컨테이너를 매달고 단지 위를 나는 화물 드론", duration: 80, path: lifted(m, "drone", 3, 9) }],
+  canyon: (m) => [{ id: "courier", name: "제국 연락정", type: "shuttle", clear: 5, level: 2, desc: "강 위를 낮게 타고 내려가는 제국 연락정", duration: 80, closed: false, v: 19, path: lifted(m, "boat", 9) }],
+  palace: (m) => [{ id: "prison", name: "제국 포로 호송정", type: "shuttle", clear: 5, level: 2, desc: "포로를 싣고 궁궐 위를 소리 없이 미끄러지는 제국 호송정", duration: 80, v: 15, path: lifted(m, "drone", 6) }],
+  arena: (m) => [{ id: "obs", name: "한서윤 관측정", type: "craft", clear: 4, level: 1, desc: "경기장 둘레를 천천히 도는 1인승 관측정", duration: 70, v: 12, path: lifted(m, "camera", 0, 8) }],
+};
+
 export function addSubjects(maps) {
   for (const m of maps) {
     const add = ADD[m.id] && ADD[m.id](m);
     if (!add) continue;
     for (const t of add) if (t.path && t.path.length > 2 && !m.tracking.find((x) => x.id === t.id)) m.tracking.push(t);
   }
+  for (const m of maps) for (const t of (AIR[m.id] ? AIR[m.id](m) : [])) if (t.path && t.path.length > 2 && !m.tracking.find((x) => x.id === t.id)) m.tracking.push(t);
 }

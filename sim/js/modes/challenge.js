@@ -1,21 +1,23 @@
 // 챌린지: 혼자 또는 AI 윙맨과 편대를 이뤄 컴퓨터가 조종하는 적을 상대로 임무 수행
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
-import { PathMover, makeTruck } from "../entities.js";
+import { PathMover } from "../entities.js";
+import { makeTransportShip, makeEscortCraft } from "../ships.js";
 import { submitRecord, fmtTime, clamp } from "../config.js";
 import { drawCombatHud } from "../combathud.js";
 
 export const MISSIONS = [
   { id: "waves", name: "기지 방어", icon: "🛡", map: "canyon", level: 1, desc: "다섯 차례 몰려오는 적 드론 편대로부터 아군 코어를 지켜내세요" },
   { id: "strike", name: "포탑 소탕", icon: "🎯", map: "factory", level: 2, desc: "공장 지대의 적 방공 포탑과 지휘소를 제한 시간 안에 모두 파괴하세요" },
-  { id: "escort", name: "호송 작전", icon: "🚚", map: "city", level: 2, desc: "도심을 지나는 수송 트럭을 매복한 적 드론으로부터 보호하세요" },
+  { id: "escort", name: "호송 작전", icon: "🚢", map: "city", level: 2, desc: "도심 상공을 지나는 아군 수송함을 매복한 적 드론으로부터 보호하세요" },
   { id: "supply", name: "긴급 보급", icon: "📦", map: "canyon", level: 2, desc: "협곡 곳곳의 캠프 네 곳에 보급 상자를 제한 시간 안에 전달하세요" },
   { id: "heist", name: "탈취 작전", icon: "🗝", map: "palace", level: 3, desc: "적 진지 두 곳에 보관된 에너지 코어를 훔쳐 아군 착륙장으로 가져오세요", hidden: true },
   { id: "titan", name: "초거대로봇 격파", icon: "🗿", map: "moon", level: 4, desc: "초거대로봇의 팔·포·다리를 부수고 동체를 파괴하세요", hidden: true },
   { id: "boss", name: "모선 격추", icon: "👾", map: "arena", level: 3, desc: "거대 모선의 엔진 포드 네 개를 부숴 보호막을 벗기고 코어를 파괴하세요" },
 ];
 
-const _v = new THREE.Vector3();
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _p = new THREE.Vector3(), _eu = new THREE.Euler(), _alt = { y: 0, slope: 0 };
+const josa = (w) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 > 0 ? "이" : "가");   // 받침에 따른 조사
 const AMBUSH = new Set([2, 4]);   // 호송: 이 구간(0~5)만 바로 앞 매복, 나머지는 바깥에서 날아온다
 const setOb = (o, pos, label, color) => { o.pos = pos; o.label = label; o.color = color; return o; };
 
@@ -117,6 +119,8 @@ export class ChallengeMode extends CombatMode {
 
   update(dt) {
     super.update(dt);
+    // 호송: 카운트다운 동안 수송함 뒤 공중에 떠서 기다린다
+    if (this.state === "countdown" && this.id === "escort") { const b = this.s.player.body, sp = this.s.player.spawn; if (sp && sp.pos) { b.pos.copy(sp.pos); b.vel.set(0, 0, 0); if (b.omega) b.omega.set(0, 0, 0); b.onGround = false; } }
     if (this.state !== "run" || this.cut) return;
     if (this.introBoss) { const b = this.introBoss; this.introBoss = null; return this.bossIntro(b, b.name, "보스", false); }
     if (this.failT > 0) { if ((this.failT -= dt) <= 0) this.fail(this.failWhy); return; }
@@ -175,7 +179,7 @@ export class ChallengeMode extends CombatMode {
     switch (this.id) {
       case "waves": return this.base && this.base.core.alive ? setOb(o, this.base.core.pos, "아군 코어", "#5aa9ff") : null;
       case "strike": return this.near && this.near.alive ? setOb(o, this.near.pos, this.near.name, "#ff8a5a") : null;
-      case "escort": return this.truck && this.truck.alive ? setOb(o, this.truck.pos, "수송 트럭", "#5aa9ff") : null;
+      case "escort": return this.truck && this.truck.alive ? setOb(o, this.truck.pos, this.shipName, "#5aa9ff") : null;
       case "supply": {
         if (!this.cargo) return null;
         if (this.cargo.carried(me)) {
@@ -276,30 +280,136 @@ export class ChallengeMode extends CombatMode {
     if (this.near && this.me.alive) h.marker(this.near.pos, this.s.camera, "#ff8a5a", this.near.name, this.near.pos.distanceTo(this.me.pos));
   }
 
-  // ── 3. 호송 작전 ──────────────────────────────────────────
+  // ── 3. 호송 작전: 아군 수송함이 길 위 상공을 떠서 간다 (내부 이름은 예전 그대로 truck) ──
   setup_escort(c, map, w) {
     const cv = map.convoy;
-    this.mover = new PathMover(cv.path, { closed: false, ground: w, speed: cv.speed || 7 });
-    const model = makeTruck(0x2f6fb0);
+    const m = this.mover = new PathMover(cv.path, { closed: false, speed: cv.speed || 7 });
+    this.shipName = this.cfg.ship || "아군 수송함";
+    this._shipProfile(m, w);
+    const model = makeTransportShip(0x2f6fb0);
     w.scene.add(model);
     this.truckModel = model;
-    this.truck = c.addProp(model, { name: "수송 트럭", team: 0, tag: "truck", radius: 4, hp: 2250, maxHp: 2250, armor: 0.6, pos: this.mover.pos, vel: this.mover.vel, static: true });
-    this.truckAim = this.truck.pos; // 지면 위치
+    this.shipYaw = null; this.shipRoll = 0; this.shipPitch = 0; this.shipFx = 0; this.shipSmoke = 0; this.shipWarn = 0;
+    // 호위정 둘: 수송함 뒤 좌우에서 같은 길을 따라 난다 (장식 — 표적이 되지 않는다)
+    this.wings = [-1, 1].map((side, i) => { const g = makeEscortCraft(0x2f6fb0); w.scene.add(g); return { g, side, lat: 11, want: 11, back: 17 + i * 7, ph: i * 2.3, chk: i * 0.07 }; });
+    this._shipPose(0);
+    const unit = {};   // 표식: 수송함을 겨눌 때 그 자신의 선체 충돌 상자에는 가리지 않는다
+    this.truck = c.addProp(model, { name: this.shipName, team: 0, tag: "truck", radius: model.userData.radius, hp: 3400, maxHp: 3400, armor: 0.6, pos: m.pos, vel: m.vel, static: true, unit });
+    unit.root = this.truck;
+    for (const col of w.rider(model, model.userData.boxes, "ship")) col.owner = this.truck;   // 선체: 부딪히고, 맞으면 수송함이 피해를 받는다
     this.marks = [0.1, 0.27, 0.44, 0.61, 0.78, 0.9];
     this.mi = 0;
-    this.homeFn = () => _v.copy(this.mover.pos).setY(this.mover.pos.y + 6);
-    const p = this.mover.pos, q = this.mover.quat;
-    const back = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
-    this.placePlayer(new THREE.Vector3(p.x + back.x * 10, p.y + 0.3, p.z + back.z * 10), Math.atan2(back.x, back.z));
+    const yaw = this.shipYaw, back = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    this.homeFn = () => _v.set(m.pos.x + Math.sin(this.shipYaw) * 15, m.pos.y + 5, m.pos.z + Math.cos(this.shipYaw) * 15);
+    // 출발 위치: 수송함 뒤쪽, 살짝 아래 (조종석 카메라가 위로 들려 있어 수송함이 화면 가운데쯤 온다). 막혀 있으면 더 높이·더 가까이
+    const sp = new THREE.Vector3();
+    find: for (const d of [27, 22, 17]) for (const up of [-2.5, 2, 7, 12]) { sp.set(m.pos.x + back.x * d, m.pos.y + up, m.pos.z + back.z * d); if (!w.col.blocked(sp, 2.5)) break find; }
+    this.placePlayer(sp, yaw);
     c.scatterPickups(8);
-    this.objective = "트럭을 보호하세요";
+    this.objective = `${this.shipName}을 보호하세요`;
+  }
+  // 수송함 고도: 길을 4m 간격으로 훑어 지형·구조물에서 넉넉히 떨어진 높이를 재고, 넓게 최댓값을 잡은 뒤 부드럽게 다듬는다
+  _shipProfile(m, w) {
+    const N = Math.max(8, Math.ceil(m.length / 3)), raw = new Float32Array(N + 1), p = new THREE.Vector3(), top = w.ceiling - 12;
+    for (let i = 0; i <= N; i++) {
+      m.curve.getPointAt(i / N, p);
+      let y = w.h(p.x, p.z);
+      for (let k = 0; k < 8; k++) y = Math.max(y, w.h(p.x + Math.cos(k * 0.785) * 8, p.z + Math.sin(k * 0.785) * 8));
+      y += 14;
+      for (let k = 0; k < 60 && y < top; k++) { p.y = y; if (!w.col.blocked(p, 7.5)) break; y += 2.5; }
+      raw[i] = Math.min(y, top);
+    }
+    // 넓게 최댓값 → 완만한 기울기 → 흐림. 다듬어 올린 높이가 머리 위 구조물(다리·아치)에 걸리면 그 위로 넘도록 다시 잰다
+    const R = 12, step = m.length / N;
+    let cur = raw;
+    for (let round = 0; round < 8; round++) {
+      const a = new Float32Array(N + 1);
+      for (let i = 0; i <= N; i++) { let v = raw[i]; for (let k = Math.max(0, i - R); k <= Math.min(N, i + R); k++) v = Math.max(v, raw[k]); a[i] = v; }
+      for (let i = 1; i <= N; i++) a[i] = Math.max(a[i], a[i - 1] - 0.4 * step);
+      for (let i = N - 1; i >= 0; i--) a[i] = Math.max(a[i], a[i + 1] - 0.4 * step);
+      cur = a;
+      for (let pass = 0; pass < 2; pass++) {
+        const b = new Float32Array(N + 1);
+        for (let i = 0; i <= N; i++) { let sum = 0; for (let k = i - 5; k <= i + 5; k++) sum += cur[Math.max(0, Math.min(N, k))]; b[i] = sum / 11; }
+        cur = b;
+      }
+      let fixed = false;
+      for (let i = 0; i <= N; i++) {
+        m.curve.getPointAt(i / N, p); let y = cur[i]; p.y = y;
+        if (!w.col.blocked(p, 7)) continue;
+        for (let k = 0; k < 60 && y < top; k++) { y += 2.5; p.y = y; if (!w.col.blocked(p, 7.5)) break; }
+        raw[i] = Math.max(raw[i], Math.min(y, top)); fixed = true;
+      }
+      if (!fixed) break;
+    }
+    this.shipY = cur;
+  }
+  // 길의 s 지점 고도와 기울기
+  _shipAlt(s, out) {
+    const P = this.shipY, n = P.length - 1, f = clamp(s / this.mover.length, 0, 1) * n, i = Math.min(n - 1, Math.floor(f));
+    out.y = P[i] + (P[i + 1] - P[i]) * (f - i); out.slope = (P[i + 1] - P[i]) / (this.mover.length / n);
+    return out;
+  }
+  // 수송함 자세: 진행 방향으로 돌고, 선회하면 살짝 기울고, 오르내릴 때 고개를 든다. 호위정도 함께 움직인다
+  _shipPose(dt) {
+    const m = this.mover, g = this.truckModel, al = this._shipAlt(m.s, _alt);
+    m.curve.getTangentAt(m.u, _v);
+    const yaw = Math.atan2(-_v.x, -_v.z);
+    if (this.shipYaw === null) this.shipYaw = yaw;
+    const dy = Math.atan2(Math.sin(yaw - this.shipYaw), Math.cos(yaw - this.shipYaw)), k = Math.min(1, dt * 1.5);
+    this.shipRoll += (clamp(dt > 0 ? (dy / dt) * 0.9 : 0, -0.26, 0.26) - this.shipRoll) * k;
+    this.shipPitch += (clamp(al.slope * 0.5, -0.14, 0.14) - this.shipPitch) * k;
+    this.shipYaw = yaw;
+    m.pos.y = al.y + Math.sin(this.time * 0.9) * 0.3;
+    m.vel.y = m.done ? 0 : al.slope * m.speed;
+    g.position.copy(m.pos); g.quaternion.setFromEuler(_eu.set(this.shipPitch, yaw, this.shipRoll, "YXZ"));
+    g.userData.tick(dt, m.done ? 0 : m.speed);
+    const col = this.s.world.col;
+    for (const e of this.wings) {
+      const back = Math.min(e.back, m.s), s = m.s - back, u = clamp(s / m.length, 0, 1);
+      m.curve.getPointAt(u, _w); m.curve.getTangentAt(u, _v);
+      const ey = Math.atan2(-_v.x, -_v.z), rx = Math.cos(ey), rz = -Math.sin(ey), y = this._shipAlt(s, _alt).y + 1.2 + Math.sin(this.time * 1.3 + e.ph) * 0.5;
+      if ((e.chk -= dt) <= 0) {   // 옆자리가 막히면(건물·절벽) 수송함 뒤로 줄지어 선다
+        e.chk = 0.15;
+        _p.set(_w.x + rx * e.side * 11, y, _w.z + rz * e.side * 11);
+        e.want = back > 14 && col.blocked(_p, 4) ? 0 : 11;
+      }
+      e.lat += clamp(e.want - e.lat, -5 * dt, 5 * dt);
+      e.g.position.set(_w.x + rx * e.side * e.lat, y, _w.z + rz * e.side * e.lat);
+      e.g.quaternion.setFromEuler(_eu.set(0, ey, Math.sin(this.time * 0.8 + e.ph) * 0.07 + clamp((e.want - e.lat) * e.side * 0.04, -0.3, 0.3), "YXZ"));
+      e.g.userData.tick(dt, m.done ? 0 : m.speed);
+    }
+  }
+  // 엔진 분사 불티와, 크게 손상됐을 때의 연기·불꽃
+  _shipFx(dt, c) {
+    const t = this.truck, g = this.truckModel, fx = c.fx;
+    if (g.position.distanceToSquared(this.s.camera.position) > 90000) return;
+    if ((this.shipFx -= dt) <= 0 && !this.mover.done) {
+      this.shipFx = 0.05;
+      _w.set(0, 0, 1).applyQuaternion(g.quaternion);
+      for (const n of g.userData.nozzles) fx.cone(_p.copy(n).applyQuaternion(g.quaternion).add(g.position), _w, 0x58c8ff, 1, 7, 0.12, 0.5, 0.75);
+    }
+    const f = t.hp / t.maxHp;
+    if (f < 0.5 && (this.shipSmoke -= dt) <= 0) {
+      this.shipSmoke = 0.04 + f * 0.3;
+      _p.set((Math.random() - 0.5) * 4.5, 1 + Math.random() * 1.5, (Math.random() - 0.3) * 12).applyQuaternion(g.quaternion).add(g.position);
+      fx.smoke(_p, 2.2, 1.8, 0.1, 1.6);
+      if (f < 0.25) { fx.burst(_p, 0xff8a3a, 3, 3, 0.7, 0.9, -2); if (Math.random() < 0.3) fx.spark(_p, 0xffd27a, 6); }
+    }
   }
   tick_escort(dt, c) {
     const m = this.mover, t = this.truck;
-    if (!t.alive) { this.failT = 1.5; this.failWhy = "수송 트럭이 파괴되었습니다"; return; }
+    if (!t.alive) {
+      this.failT = 1.5; this.failWhy = `${this.shipName}${josa(this.shipName)} 파괴되었습니다`;
+      c.fx.destroy(t.pos, 3); c._blast(t.pos, 3);   // 큰 폭발
+      _w.set(0, 0, 6).applyQuaternion(this.truckModel.quaternion).add(t.pos); c.fx.destroy(_w, 2);
+      return;
+    }
     m.update(dt);
-    this.truckModel.position.copy(m.pos); this.truckModel.quaternion.copy(m.quat);
-    this.truckModel.userData.tick(dt, m.speed);
+    this._shipPose(dt);
+    this._shipFx(dt, c);
+    { const f = t.hp / t.maxHp, lv = f < 0.25 ? 2 : f < 0.5 ? 1 : 0;   // 내구도 경고 (50% · 25%)
+      if (lv > this.shipWarn) { this.shipWarn = lv; this.s.hud.toast(`${this.shipName} 내구도 ${lv === 2 ? 25 : 50}% — 엄호하세요!`, "#ff6b5a", 2, 22); this.s.game.sound.play("warn"); } }
     const u = m.s / m.length;
     if (this.mi < this.marks.length && u >= this.marks[this.mi]) {
       const i = this.mi++, s = this.scale;
@@ -319,13 +429,13 @@ export class ChallengeMode extends CombatMode {
       }
       this.s.game.sound.play("warn");
     }
-    if (m.done) { const hp = t.hp / t.maxHp; this.winT = 1.2; this.winFn = () => this.win(hp >= 0.75 ? 3 : hp >= 0.4 ? 2 : 1, [{ label: "트럭 내구도", value: `${Math.round(hp * 100)}%` }]); }
+    if (m.done) { const hp = t.hp / t.maxHp; this.winT = 1.2; this.winFn = () => this.win(hp >= 0.75 ? 3 : hp >= 0.4 ? 2 : 1, [{ label: "수송함 내구도", value: `${Math.round(hp * 100)}%` }]); }
     this.objective = `목적지까지 ${Math.round((1 - u) * m.length)}m · 주변 적 ${this.enemies().length}`;
   }
   hud_escort(h) {
     const t = this.truck;
-    this.topBar(h, "수송 트럭", t.hp / t.maxHp, "#5aa9ff");
-    if (t.alive && t.pos.distanceTo(this.me.pos) > 40) h.marker(t.pos, this.s.camera, "#5aa9ff", "트럭", t.pos.distanceTo(this.me.pos));
+    this.topBar(h, this.shipName, t.hp / t.maxHp, "#5aa9ff");
+    if (t.alive && t.pos.distanceTo(this.me.pos) > 40) h.marker(t.pos, this.s.camera, "#5aa9ff", this.shipName, t.pos.distanceTo(this.me.pos));
   }
 
   // ── 4. 긴급 보급 ──────────────────────────────────────────
@@ -485,7 +595,8 @@ export class ChallengeMode extends CombatMode {
 
   dispose() {
     super.dispose();
-    if (this.truckModel) this.s.world.scene.remove(this.truckModel);
+    if (this.truckModel) { this.s.world.scene.remove(this.truckModel); if (this.truckModel.userData.dispose) this.truckModel.userData.dispose(); }
+    for (const e of this.wings || []) { this.s.world.scene.remove(e.g); e.g.userData.dispose(); }
     if (this.podGeo) this.podGeo.dispose();
   }
 }

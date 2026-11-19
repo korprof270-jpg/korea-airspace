@@ -21,8 +21,8 @@ export const BOND_DEFS = {
   바우: { key: "bau", eps: [
     { title: "라면 한 그릇의 값", need: 3, after: "c3", desc: "자정의 휴게실, 봉투 여러 장과 너무 짠 라면." },
     { title: "곰 형의 배달", need: 7, after: "c6", desc: "첫눈 내린 날, 해바라기 고아원 돔의 불이 꺼져 간다.",
-      mission: M("escort", "city", "곰 형의 배달", ["바우|트럭이 끝까지 가는 게 핵심이다! 저 끝에 우리 꼬맹이들이 있어!"],
-        { team: 1, wing: ["바우"], power: 1.0, boss: { name: "제국 약탈선 ‘까마귀떼’", kind: "gunship", unit: "frigate", at: 50, hp: 0.8 },
+      mission: M("escort", "city", "곰 형의 배달", ["바우|수송정이 끝까지 가는 게 핵심이다! 저 끝에 우리 꼬맹이들이 있어!"],
+        { ship: "보급 수송정", team: 1, wing: ["바우"], power: 1.0, boss: { name: "제국 약탈선 ‘까마귀떼’", kind: "gunship", unit: "frigate", at: 50, hp: 0.8 },
           obj: [{ t: "win", req: true }, { t: "truck", n: 70 }, { t: "crash", n: 1 }, { t: "kills", n: 6 }] }) },
   ] },
   유리: { key: "yuri", eps: [
@@ -67,7 +67,7 @@ export const BOND_DEFS = {
   한별: { key: "byeol", eps: [
     { title: "무서운 거랑 가는 거랑", need: 2, after: "c3", desc: "의무실의 소독약 냄새. 한별이 기억하지 못하는 세 살의 밤." },
     { title: "눈 속의 구급상자", need: 4, after: "c6", desc: "눈보라에 갇힌 대피소들. 곰 오빠 없이 나는 첫 구조 비행.",
-      mission: M("supply", "snow", "눈 속의 구급상자", ["한별|약 상자 네 개, 대피소 네 곳. 하나도 안 늦어요."],
+      mission: M("supply", "frost", "눈 속의 구급상자", ["한별|약 상자 네 개, 대피소 네 곳. 하나도 안 늦어요."],
         { team: 1, wing: ["한별"], power: 0.95, obj: [{ t: "win", req: true }, { t: "time", n: 85 }, { t: "crash", n: 0 }, { t: "hp", n: 45 }] }) },
   ] },
   루카: { key: "luka", eps: [

@@ -3,6 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { settings, DRONE_CLASSES, FLIGHT_MODES, clamp, save } from "./config.js";
 import { DroneBody } from "./physics.js";
 import { buildDrone } from "./dronemodel.js";
+import { partLook } from "./garage.js";
 
 const STEP = 1 / 240;
 const DEG = Math.PI / 180;
@@ -25,7 +26,7 @@ export class Player {
     const cls = DRONE_CLASSES[settings.drone.cls] || DRONE_CLASSES.freestyle;
     this.cls = cls;
     this.body = new DroneBody(cls);
-    this.model = buildDrone(settings.drone, cls.scale);
+    this.model = buildDrone(settings.drone, cls.scale, { parts: partLook() });   // 격납고에서 장착한 파츠가 기체에 보인다
     session.world.scene.add(this.model);
     this.flightMode = settings.flightMode;
     this.camMode = settings.camera;

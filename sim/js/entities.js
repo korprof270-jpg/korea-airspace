@@ -3,6 +3,7 @@ import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
 import { toonMat } from "./toon.js";
 import { factionModel } from "./factions.js";
+import { makeEscortCraft, makeCargoDrone } from "./ships.js";
 
 const _t = new THREE.Vector3();
 const _m = new THREE.Matrix4();
@@ -265,6 +266,8 @@ export function makeShuttle(color = 0x8a1018) {
 export function makeSubjectModel(type, color) {
   switch (type) {
     case "shuttle": return makeShuttle(color);
+    case "craft": return makeEscortCraft(color);   // 아군 소형정 (관측정)
+    case "cargo": return makeCargoDrone(color);    // 컨테이너를 매단 화물 드론
     case "scout": case "skiff": {   // 제국 정찰 드론(scout) · 에일 비행정(skiff): 진영 전투 모델을 크게 키운 비행체
       const ail = type === "skiff", g = new THREE.Group(), m = factionModel(ail ? "ail" : "eia", ail ? "gunship" : "grunt", color ?? (ail ? 0xc060ff : 0xff2d3d));
       m.scale.setScalar(ail ? 1.5 : 2.4); g.add(m);
