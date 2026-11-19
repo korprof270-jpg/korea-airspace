@@ -362,7 +362,7 @@ export class ChallengeMode extends CombatMode {
     else { const cr = this.cargo.nearestIdle(me.pos); if (cr) h.marker(cr.pos, cam, "#ffd24a", "보급 상자", cr.pos.distanceTo(me.pos)); }
   }
 
-  // ── 6. 탈취 작전: 적 진지 세 곳의 에너지 코어를 훔쳐 아군 착륙장으로. 코어를 집으면 경보가 울려 추격대가 붙는다 ──
+  // ── 6. 탈취 작전: 적 진지 두 곳의 에너지 코어를 훔쳐 아군 착륙장으로. 코어를 집으면 경보가 울려 추격대가 붙는다 ──
   setup_heist(c, map, w) {
     const home = this.home, sites = [], N = HEIST_N;
     this.cargo = new CargoSys(this);
