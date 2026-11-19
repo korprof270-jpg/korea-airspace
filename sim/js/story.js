@@ -423,7 +423,7 @@ function goalBase(st) {
     case "track": return `추적 평가 별 ${need}개 이상`;
     case "free": return `트릭 평가 별 ${need}개 이상`;
     case "dm": return `${4 - need}위 안에 들기`;
-    case "heist": return "에너지 코어 3개 탈취";
+    case "heist": return "에너지 코어 2개 탈취";
     case "titan": return "초거대로봇 격파";
     default: return "임무 성공";
   }
