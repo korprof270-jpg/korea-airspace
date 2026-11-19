@@ -6,22 +6,24 @@ import { submitRecord, records, clamp, fmtTime } from "../config.js";
 
 // 피사체별: 평균 속도 v(m/s) · 조준 높이 · 적정 거리 범위 · 지면 추종 여부
 const SUBJ = {
-  runner: { v: 6, h: 1.0, dmin: 25, dmax: 40, ground: true },
-  car: { v: 14, h: 0.8, dmin: 25, dmax: 40, ground: true },
-  sportscar: { v: 18, h: 0.7, dmin: 25, dmax: 40, ground: true },
-  truck: { v: 11, h: 1.8, dmin: 25, dmax: 40, ground: true },
-  forklift: { v: 6, h: 1.2, dmin: 25, dmax: 40, ground: true },
-  boat: { v: 12, h: 0.8, dmin: 25, dmax: 40, ground: false },
-  drone: { v: 15, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },
-  skier: { v: 13, h: 0.9, dmin: 25, dmax: 40, ground: true },
-  bike: { v: 15, h: 0.9, dmin: 25, dmax: 40, ground: true },
-  supercar: { v: 22, h: 0.6, dmin: 25, dmax: 40, ground: true },
-  heli: { v: 20, h: 1.6, dmin: 25, dmax: 40, ground: false, bank: 0.8 },
-  fpv: { v: 24, h: 0, dmin: 25, dmax: 40, ground: false, bank: 2.2 },
-  ray: { v: 16, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.2 },
-  shuttle: { v: 18, h: 0, dmin: 25, dmax: 40, ground: false, bank: 0.6 },   // 제국 수송정
-  scout: { v: 15, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.5 },     // 제국 정찰 드론
-  skiff: { v: 16, h: 0, dmin: 25, dmax: 40, ground: false, bank: 1.0 },     // 에일 비행정
+  runner: { v: 9, h: 1.0, dmin: 25, dmax: 55, ground: true },
+  car: { v: 21, h: 0.8, dmin: 25, dmax: 55, ground: true },
+  sportscar: { v: 27, h: 0.7, dmin: 25, dmax: 55, ground: true },
+  truck: { v: 16, h: 1.8, dmin: 25, dmax: 55, ground: true },
+  forklift: { v: 9, h: 1.2, dmin: 25, dmax: 55, ground: true },
+  boat: { v: 18, h: 0.8, dmin: 25, dmax: 55, ground: false },
+  drone: { v: 22, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.5 },
+  skier: { v: 20, h: 0.9, dmin: 25, dmax: 55, ground: true },
+  bike: { v: 22, h: 0.9, dmin: 25, dmax: 55, ground: true },
+  supercar: { v: 33, h: 0.6, dmin: 25, dmax: 55, ground: true },
+  heli: { v: 30, h: 1.6, dmin: 25, dmax: 55, ground: false, bank: 0.8 },
+  fpv: { v: 36, h: 0, dmin: 25, dmax: 55, ground: false, bank: 2.2 },
+  ray: { v: 24, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.2 },
+  shuttle: { v: 27, h: 0, dmin: 25, dmax: 55, ground: false, bank: 0.6 },   // 제국 수송정
+  scout: { v: 22, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.5 },     // 제국 정찰 드론
+  skiff: { v: 24, h: 0, dmin: 25, dmax: 55, ground: false, bank: 1.0 },     // 에일 비행정
+  craft: { v: 16, h: 0, dmin: 25, dmax: 55, ground: false, bank: 0.9 },     // 아군 소형정 (관측정)
+  cargo: { v: 13, h: 0.6, dmin: 25, dmax: 55, ground: false, bank: 0.5 },   // 화물 드론
 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
@@ -43,7 +45,7 @@ export class TrackingMode extends Mode {
     const w = this.s.world, d = this.def;
     this.mover = new PathMover(d.path, { closed: d.closed !== false, ground: this.info.ground ? w : null, bank: this.info.bank || 0, lift: d.lift || 0 });
     // 속도: 경로에 적힌 속도의 평균을 종류별 평균 속도(v)에 맞춘다. 경로가 원래 더 빠르면 그대로
-    { const sp = this.mover.speeds, avg = sp.reduce((a, b) => a + b, 0) / sp.length; this.spd = Math.max(1, (this.info.v || 12) / Math.max(1, avg)); this.mover.speed *= this.spd; }
+    { const sp = this.mover.speeds, avg = sp.reduce((a, b) => a + b, 0) / sp.length; this.spd = Math.max(1, (d.v || this.info.v || 12) / Math.max(1, avg)); this.mover.speed *= this.spd; }
     this.model = makeSubjectModel(d.type, d.color);
     { const R = this.model.userData.radius || 1.5, hh = Math.max(0.35, this.info.h); w.rider(this.model, [[0, this.info.h, 0, Math.max(0.3, R * 0.42), hh, Math.max(0.3, R * 0.9)]], "subject"); }
     w.scene.add(this.model);
@@ -59,7 +61,7 @@ export class TrackingMode extends Mode {
     return out;
   }
 
-  // 적정 거리(25~40m) 안에서 시작: 32m 뒤부터, 건물에 막히면 조금씩 가까이
+  // 적정 거리(25~55m) 안에서 시작: 32m 뒤부터, 건물에 막히면 조금씩 가까이
   _clearBehind(up) {
     const out = new THREE.Vector3(), col = this.s.world.col;
     for (const back of [32, 28, 24, 18, 12, 9]) { this._behind(out, back, up + (back > 12 ? 4 : 0)); if (!col.blocked || !col.blocked(out, 2)) return out; }
@@ -67,6 +69,8 @@ export class TrackingMode extends Mode {
   }
 
   respawnPoint() { return { pos: this._clearBehind(3), yaw: this._yaw() }; }
+  // 재배치 직후에도 스틱을 움직일 때까지 제자리에 떠 있는다
+  onReset() { super.onReset(); this._hold = true; this._holdAt = this.time; this._holdPos = this.s.player.body.pos.clone(); }
 
   _sync(dt) {
     this.model.position.copy(this.mover.pos);
@@ -76,12 +80,19 @@ export class TrackingMode extends Mode {
   }
 
   update(dt) {
+    // 시작 전 대기 + 출발 직후: 스틱을 움직이기 전까지 제자리에 떠 있는다 (떨어지지 않게 위치·속도를 붙잡는다)
+    {
+      const pl = this.s.player, b = pl.body, sp = pl.spawn, st = this.s.game.input.sticks;
+      if (this.state === "countdown") { this._hold = true; this._holdAt = 0; this._holdPos = sp && sp.pos; }
+      else if (this._hold && (Math.abs(st.lx) > 0.12 || Math.abs(st.ly) > 0.12 || Math.abs(st.rx) > 0.12 || Math.abs(st.ry) > 0.12 || pl.crashed || this.time - this._holdAt > 6)) this._hold = false;
+      if (this._hold && this._holdPos && this.state !== "done") { b.pos.copy(this._holdPos); b.vel.set(0, 0, 0); if (b.omega) b.omega.set(0, 0, 0); b.onGround = false; }
+    }
     super.update(dt);
     if (this.state !== "run") { this._sync(0); return; }
     this.mover.update(dt, this.spd || 1);
     this._sync(dt);
 
-    // 촬영 품질: 화면 중앙에 가까울수록, 적정 거리일수록 높다
+    // 추적 품질: 화면 중앙에 가까울수록, 적정 거리일수록 높다
     const cam = this.s.camera, info = this.info;
     _p.copy(this.target).applyMatrix4(cam.matrixWorldInverse);
     const front = _p.z < 0;
@@ -119,7 +130,7 @@ export class TrackingMode extends Mode {
       this.keepRatio = keep;
       const rec = submitRecord(this.recKey, sc);
       this.finish({
-        title: "촬영 종료", sub: this.def.name, stars: stars(keep, [0.45, 0.68, 0.86]), record: rec,
+        title: "추적 종료", sub: this.def.name, stars: stars(keep, [0.45, 0.68, 0.86]), record: rec,
         lines: [
           { label: "적정 거리 유지", value: `${Math.round(keep * 100)}%` },
           { label: "점수", value: `${sc}` }, { label: "평균 프레이밍", value: `${Math.round((this.qSum / this.duration) * 100)}%` },
@@ -156,7 +167,7 @@ export class TrackingMode extends Mode {
       const cb = this.combo || 1;
       h.text(`콤보 ×${cb.toFixed(1)}`, x + 14 * u, y + 47 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
       h.bar(x + 84 * u, y + 43 * u, pw - 100 * u, 7 * u, (cb - 1) / 2, "#ffd24a");
-      // 촬영 중 표시
+      // 추적 중 표시
       if (this.state === "run" && Math.floor(s.time * 2) % 2) { g.fillStyle = "#ff3b3b"; g.beginPath(); g.arc(x + pw + 14 * u, y + 13 * u, 5 * u, 0, 7); g.fill(); g.lineWidth = 2 * u; g.strokeStyle = "#0a0f1c"; g.stroke(); }
       if (this.state === "run") h.text("REC", x + pw + 24 * u, y + 14 * u, { size: 12, base: "middle", color: "#ff6b5a" });
     }
