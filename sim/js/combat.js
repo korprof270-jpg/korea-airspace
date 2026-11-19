@@ -50,6 +50,9 @@ const _s = {};
 // 고속 회피: 최대 충전 · 한 칸 다시 차는 시간(초) · 무적 시간 · 밀어내는 속도(m/s)
 export const DODGE = { max: 2, cool: 6, iframe: 0.45, push: 26 };
 
+// 리스폰 직후 무적 시간(초)
+export const SPAWN_GOD = 3;
+
 export class Combat {
   // handlers: { ffa, onKill(victim, killer), onDamage(victim, amount, attacker), spawnPoint(actor), items(개수) }
   constructor(session, handlers = {}) {
@@ -458,7 +461,7 @@ export class Combat {
   // ── 피해 ──
   damage(a, amount, attacker, point) {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
-    if (a.isPlayer && a.dodgeT > 0) return;   // 고속 회피 중에는 맞지 않는다
+    if (a.isPlayer && (a.dodgeT > 0 || this.s.time < (a.spawnGodT || 0))) return;   // 고속 회피 중 · 리스폰 직후 3초는 맞지 않는다
     if (a.armor) amount *= a.armor;
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
@@ -556,6 +559,7 @@ export class Combat {
     if (a.isPlayer) {
       a.missiles = Math.max(a.missiles, 3 + this.L.mStart); a.shield = 40 + this.L.spawnShield; a.shieldT = 3 + (this.L.spawnShield ? 2 : 0);
       this.s.player.respawn(pos, sp ? sp.yaw || 0 : Math.atan2(pos.x, pos.z));
+      a.spawnGodT = this.s.time + SPAWN_GOD; this.s.hud.toast(`리스폰 보호 ${SPAWN_GOD}초`, "#7fe6ff", 1.4, 20);
     } else {
       a.pos.copy(pos); a.vel.set(0, 0, 0); a.missiles = a.K.missiles;
       if (a.model) a.model.visible = true;

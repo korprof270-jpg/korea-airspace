@@ -320,6 +320,7 @@ function status(c, h) {
   const buff = (txt, col) => { h.text(txt, bxp, sy - 10 * u, { size: 12, color: col }); bxp += (txt.length * 11 + 10) * u; };
   if (p.shield > 0 && p.shieldT > 0) buff(`실드 ${p.shieldT.toFixed(0)}s`, HC.cyan);
   if (p.boostT > 0) buff(`부스터 ${p.boostT.toFixed(0)}s`, "#ffe14a");
+  { const gl = (p.spawnGodT || 0) - c.s.time; if (gl > 0) buff(`리스폰 보호 ${gl.toFixed(1)}s`, "#7fe6ff"); }
   if (p.overT > 0) buff(`과충전 ${p.overT.toFixed(0)}s`, HC.pink);
   // 고속 회피 충전: 찬 칸 ◆, 차오르는 칸은 % 로
   if (p.dodgeN !== undefined) {
