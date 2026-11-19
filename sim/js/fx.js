@@ -206,6 +206,33 @@ export class FX {
     for (let i = 0; i < n; i++) this.smoke(pos, 1.5 * scale, 1.7, 0.1, 2.4 * scale);
   }
 
+  // 격파 폭발: 여러 겹으로 터진다 — 흰 섬광 → 불덩이 → 2차 폭발 연쇄 → 이중 충격파 → 오래 남는 검은 연기 기둥과 불씨
+  // 멀리서도 보이도록 섬광·충격파를 크게, 길게. lastBlast 는 조종석 효과(열기·흔들림)가 읽는다
+  destroy(pos, scale = 1) {
+    const k = Math.max(0.6, scale), q = Math.max(0.4, this.density);
+    this.explosion(pos, k * 1.25);
+    this.flash(pos, 0xffffff, 10 * k, 0.2);                                   // 눈부신 첫 섬광
+    this.flash(pos, 0xff9a40, 13 * k, 1.1);                                   // 남는 불빛
+    this.ring(pos, 0xffffff, 11 * k, 0.4);
+    this.burst(pos, 0xffe9b0, Math.round(26 * k * q), 30 * k, 0.55, 0.3 * k, 6);       // 멀리 튀는 불티
+    this.burst(pos, 0xff7a2a, Math.round(30 * k * q), 6 * k, 1.8, 3.4 * k, -1.5);
+    this.burst(pos, 0xffd070, Math.round(16 * k * q), 3 * k, 1.1, 4.2 * k, -0.5);     // 밝은 중심     // 피어오르는 불덩이
+    this.debrisBurst(pos, 0x3a3f4a, Math.round((5 + 3 * k) * q), 10 + 3 * k, 0.2 + 0.1 * k);
+    const L = this.later || (this.later = []), at = pos.clone();
+    const n2 = Math.min(5, 1 + Math.round(k * 1.2));
+    for (let i = 0; i < n2; i++) L.push({ t: 0.1 + i * 0.13 + Math.random() * 0.08, f: () => {    // 2차 폭발 연쇄
+      _s.set((Math.random() - 0.5) * 3.2 * k, (Math.random() - 0.2) * 2.4 * k, (Math.random() - 0.5) * 3.2 * k).add(at);
+      this.burst(_s, 0xffc060, Math.round(20 * q), 9 * k, 0.7, 2.2 * k, 2); this.flash(_s, 0xffd9a0, 6 * k, 0.3);
+    } });
+    L.push({ t: 0.18, f: () => this.ring(at, 0xffc98a, 17 * k, 0.75) });                // 늦게 퍼지는 둘째 충격파
+    for (let i = 0; i < 7; i++) L.push({ t: 0.3 + i * 0.28, f: () => {                  // 2초쯤 이어지는 연기 기둥
+      _s.set(at.x, at.y + i * 0.9 * k, at.z);
+      for (let j = 0; j < Math.max(1, Math.round(3 * q)); j++) this.smoke(_s, (1.8 + i * 0.25) * k, 2.4, 0.06, 1.6 * k);
+      if (i < 4) this.burst(_s, 0xff8a3a, Math.round(5 * q), 3 * k, 0.9, 0.5 * k, -2);
+    } });
+    this.lastBlast = { pos: at, scale: k, t: 0 };
+  }
+
   spark(pos, color = 0xffd27a, n = 8) { this.burst(pos, color, n, 6, 0.3, 0.16, 12); }
 
   // 명중 불꽃: 탄이 날아온 반대쪽으로 튄다 (dir = 탄 진행 방향)
@@ -265,6 +292,8 @@ export class FX {
     const scale = viewH / (2 * Math.tan((camera.fov * Math.PI) / 360));
     this.glow.update(dt, scale);
     this.smokeP.update(dt, scale);
+    if (this.lastBlast) this.lastBlast.t += dt;
+    if (this.later && this.later.length) { for (const e of this.later) e.t -= dt; const due = this.later.filter((e) => e.t <= 0); this.later = this.later.filter((e) => e.t > 0); for (const e of due) e.f(); }
 
     for (const f of this.flashes) {
       if (!f.on) continue;

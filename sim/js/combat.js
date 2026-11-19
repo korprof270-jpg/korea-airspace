@@ -514,7 +514,7 @@ export class Combat {
       if (a.bossBar || a.botKind === "boss" || a.botKind === "gunship") GP.ev("boss");
     }
     const big = a.kind === "core" || a.botKind === "boss" ? 4 : a.kind === "turret" || a.botKind === "gunship" ? 2 : 1;
-    this.fx.explosion(a.pos, big);
+    this.fx.destroy(a.pos, a.isPlayer ? 1.4 : big);
     this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2), a.isPlayer ? 0 : this.panAt(a.pos));
     if (a.isPlayer) {
       const pl = this.s.player;

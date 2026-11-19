@@ -92,7 +92,7 @@ export class Player {
     this.crash();
     this.broken = true;
     this.model.visible = false;
-    s.fx.explosion(b.pos, 0.5);
+    s.fx.destroy(b.pos, 0.9);
     s.fx.burst(b.pos, 0x30343c, 16, 9, 1.1, 0.22, 14);
     s.game.sound.play("explode", 0.8);
     b.vel.multiplyScalar(0.25);
