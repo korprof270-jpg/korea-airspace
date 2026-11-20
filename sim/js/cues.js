@@ -16,7 +16,7 @@ export const MOODS = {
 export const BG_MOOD = {
   black: "mystery", briefing: "calm", hangarin: "daily", night: "calm", lab: "mystery", control: "tense",
   arena: "daily", airbase: "daily", empire: "eia", city: "daily", cityfire: "tense", canyon: "tense", canyonbase: "tense", factory: "tense",
-  island: "calm", snow: "calm", frost: "calm", snowstrike: "tense", palace: "mystery", moon: "space", moonsky: "space", ail: "space",
+  island: "calm", snow: "calm", frost: "calm", snowstrike: "tense", vault: "mystery", outpost: "tense", foundry: "eia", spaceport: "tense", moon: "space", moonsky: "space", ail: "space", aildune: "space", ailsea: "space", ailwood: "space", ailsky: "space",
   eia: "eia", eiafactory: "eia", fortress: "eia", titan: "eia", wreck: "sad", noeul: "mystery", rival: "daily", squad: "resolve",
 };
 

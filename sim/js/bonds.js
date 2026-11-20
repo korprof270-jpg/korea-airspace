@@ -27,8 +27,8 @@ export const BOND_DEFS = {
   ] },
   유리: { key: "yuri", eps: [
     { title: "틀린 음", need: 3, after: "c4", desc: "한밤의 통신실. 제국의 행진곡 속에 숨은 0.02초의 엇박." },
-    { title: "잘 자, 라는 신호", need: 7, after: "c6", desc: "엇박의 정체는 궁궐 방송탑에 남은 오래된 목소리였다.",
-      mission: M("heist", "palace", "잘 자, 라는 신호", ["유리|진지 두 곳에 음성 기록 코어가 있어요. 하나도 못 버려요."],
+    { title: "잘 자, 라는 신호", need: 7, after: "c6", desc: "엇박의 정체는 저장고 북쪽 옛 방송탑에 남은 오래된 목소리였다.",
+      mission: M("heist", "vault", "잘 자, 라는 신호", ["유리|진지 두 곳에 음성 기록 코어가 있어요. 하나도 못 버려요."],
         { team: 1, wing: ["유리"], power: 1.0, obj: [{ t: "win", req: true }, { t: "time", n: 80 }, { t: "crash", n: 1 }, { t: "hp", n: 40 }] }) },
   ] },
   차도윤: { key: "doyun", eps: [

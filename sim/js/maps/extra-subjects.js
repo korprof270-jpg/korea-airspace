@@ -23,7 +23,6 @@ const ADD = {
   canyon: (m) => [{ id: "fpv", name: "협곡 레이서", type: "fpv", level: 3, desc: "바늘귀 협곡을 빠져나가는 레이싱 드론", duration: 70, path: gatePath(m, "slot", 19) }],
   island: (m) => [{ id: "heli", name: "관광 헬기", type: "heli", level: 2, desc: "화산을 한 바퀴 도는 관광 헬리콥터", duration: 75, path: ring(-10, -40, 170, 80, 18, 22) },
     { id: "fpv", name: "정글 레이서", type: "fpv", level: 3, desc: "폭포와 신전 사이를 누비는 레이싱 드론", duration: 70, path: gatePath(m, "jungle", 19) }],
-  palace: (m) => [{ id: "fpv", name: "성곽 레이서", type: "fpv", level: 3, desc: "성벽을 따라 도는 레이싱 드론", duration: 70, path: gatePath(m, "rampart", 21) }],
   moon: (m) => [{ id: "ufo", name: "미확인 비행체", type: "skiff", level: 2, desc: "레이더에 잡히지 않는 보랏빛 비행체가 달 기지 둘레를 돈다. 놓치지 말고 화면에 담으세요", duration: 80, path: hover(ring(-20, 0, 185, 0, 20, 16), moonH, 60) },
     { id: "fpv", name: "가속 고리 레이서", type: "fpv", level: 3, desc: "매스 드라이버 고리를 타고 오르는 레이싱 드론", duration: 70, path: gatePath(m, "driver", 22) }],
   empire: (m) => [{ id: "heli", name: "제국 수송기", type: "heli", level: 2, desc: "탑 숲 위를 크게 도는 제국 수송기", duration: 75, path: ring(0, 0, 175, 150, 16, 22) },

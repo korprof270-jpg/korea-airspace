@@ -35,10 +35,10 @@ const MODE_META = {
     long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·추적·호위·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
 // 비행훈련장으로 쓸 수 있는 맵 (출발 지점 앞이 넓게 비어 있는 곳)
-const TR_MAPS = ["factory", "arena", "moon", "snow", "palace", "airbase"].filter((id) => MAPS[id]);
+const TR_MAPS = ["factory", "arena", "moon", "snow", "airbase"].filter((id) => MAPS[id]);
 // 타이틀 배경 장면 (sim/img/title): 파일 이름, 아래 작은 표시
 const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", "서바이벌 · 네온 아레나"], ["3-freestyle", "프리스타일 · 붉은 협곡"], ["4-story", "스토리 · 달 기지 최종전"],
-  ["5-tracking", "트래킹 · 화산섬"], ["6-palace", "레이싱 · 단풍 고궁"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"],
+  ["5-tracking", "트래킹 · 화산섬"], ["6-vault", "스토리 · 제국 코어 저장고"], ["7-training", "비행훈련 · 8자 비행"], ["8-snow", "프리스타일 · 설국 산장"],
   ["9-empire", "레이싱 · 기계제국 수도"], ["10-airbase", "레이싱 · 비행기지 격납고"], ["11-ail", "레이싱 · 에일 행성"],
   ["12-frost", "스토리 · 설원 통신기지"]];
 // 메인 메뉴의 세 갈래와 하위 메뉴 카드 (이미지 = sim/img/title)
@@ -403,13 +403,13 @@ export class UI {
     const stCards = list.map((x) => {
       const open = unlocked(x), cl = SY.cleared(x);
       return `<button class="card stage ${x.id === st.id ? "sel" : ""} ${open ? "" : "locked"} ${cl ? "cleared" : ""}" data-a="sel" data-k="stage" data-v="${x.id}">
-        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (SY.isBoss(x) ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${KIND[x.kind]} · 목표 ${SY.objectivesOf(x).list.length}개 중 ${SY.objectivesOf(x).need}개${SY.missionMod(x) ? " · ⚑ 작전 변경" : ""}</small></span>
+        <span class="sno">${open ? x.no : "🔒"}</span><span class="stx"><b>${x.title}${x.boss ? (SY.isBoss(x) ? ` <i class="bosstag">BOSS</i>` : ` <i class="bosstag mid">중간 보스</i>`) : ""}</b><small>${SY.stageMap(x).id !== ch.map ? `📍 ${esc(SY.stageMap(x).name)} · ` : ""}${KIND[x.kind]} · 목표 ${SY.objectivesOf(x).list.length}개 중 ${SY.objectivesOf(x).need}개${SY.missionMod(x) ? " · ⚑ 작전 변경" : ""}</small></span>
         <span class="stars">${cl ? starStr(stageStars(x)) : open ? "도전" : ""}</span></button>`;
     }).join("");
     const open = unlocked(st);
     if (!usesTeam(st)) s.team = s.team || 0;
     const talk = st.talk.map((l) => { const [who, line] = l.includes("|") ? l.split("|") : ["", l]; return `<div class="ln"><b style="color:${SY.CAST[who] || "#dfe7f1"}">${esc(who)}</b><span>${esc(line)}</span></div>`; }).join("");
-    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no}</div><div class="talk">${talk}</div>${(() => { const md = SY.missionMod(st), OB = SY.objectivesOf(st);
+    let brief = `<div class="brief"><div class="bk">${KIND[st.kind]} · CHAPTER ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} · ${esc(SY.stageMap(st).name)}</div><div class="talk">${talk}</div>${(() => { const md = SY.missionMod(st), OB = SY.objectivesOf(st);
       return `${md && md.note ? `<div class="mnote">⚑ 작전 변경 · ${esc(md.note)}</div>` : ""}<div class="objs"><b>목표 — ${OB.list.length}개 중 ${OB.need}개 이상 달성</b><ul>${OB.list.map((o) => `<li class="${o.req ? "req" : ""}">${o.req ? "★ " : ""}${esc(o.text)}${o.req ? " <i>핵심</i>" : ""}</li>`).join("")}</ul></div>`; })()}${SY.preScene(st) && open ? `<button class="ghost scenebtn" data-a="scene">▶ ${SY.sceneSeen(st) ? "장면 다시 보기" : "출격 전 장면 미리 보기"}</button>` : ""}</div>`;
     if (!open) brief += `<p class="hint2">${SY.chapterOpen(ch) ? "앞 단계를 먼저 깨야 열립니다." : "앞 장을 먼저 끝내야 열립니다."}</p>`;
     if (usesTeam(st)) brief += `<div class="opt"><label>편대</label>${this.seg("team", [[0, "혼자"], [1, "2기 편대"], [3, "4기 편대"]], s.team ?? st.o.team ?? 0)}<div class="hint">윙맨이 늘면 적도 늘어납니다. 권장: ${[0, 1, 3].includes(st.o.team) ? ["혼자", "2기 편대", "", "4기 편대"][st.o.team] : "혼자"}</div></div>`;
@@ -424,7 +424,7 @@ export class UI {
       <div class="pane" data-scroll>
         <div class="head"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">${ch.hidden ? "HIDDEN" : m.en}</span>${ch.hidden === 2 ? "별의 저편" : ch.hidden ? "에이아 연대기" : "노을의 날개"}</h2><span class="prog">${prog}/${flat.length} 단계</span></div>
         ${this._stabs()}${body}
-        <div class="startbar"><span class="sum">${esc(MAPS[ch.map].name)} · ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} ${esc(st.title)}</span>
+        <div class="startbar"><span class="sum">${esc(SY.stageMap(st).name)} · ${ch.no}${rt ? rt.id.toUpperCase() : ""}-${st.no} ${esc(st.title)}</span>
           <button class="primary" data-a="start" ${open ? "" : "disabled"}>${open ? "출격" : "잠김"} <span aria-hidden="true">→</span></button></div>
       </div>
       <div class="rcol"><div class="stage" data-stage></div></div>

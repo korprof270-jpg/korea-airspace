@@ -4,7 +4,7 @@ import { MAPS } from "./maps/index.js";
 import { records, save } from "./config.js";
 import { SCENES, RADIO } from "./scenes.js";
 import { rel } from "./vn.js";
-import { defaultObjectives, needCount, objText } from "./objectives.js";
+import { defaultObjectives, needCount, objText, easeN } from "./objectives.js";
 
 // 단계 종류 → 표시 이름
 export const KIND = {
@@ -80,36 +80,36 @@ const CHAPTERS = [
         stages: [
           S("dm", "협곡 제공권", ["바우|정면 돌파라니, 마음에 드는데! 하늘부터 비우자.", "서하린|편대 대 편대다. 팀 점수로 이긴다. 제국 정찰대장이 직접 나올 거다."], { bots: 5, time: 180, need: 2, boss: { name: "정찰대장 ‘매의 눈’", kind: "gunship", at: 50, hp: 1.5 } }),
           S("waves", "전초기지 공방", ["바르가|협곡을 통째로 메워 주마.", "서하린|전초기지 앞 고원을 지킨다. 바우, 중전차를 막아!", "바우|이 몸만 믿어!"],
-            { team: 3, power: 1.05, boss: { name: "중전차 ‘모래매’", kind: "boss", unit: "tank", scale: 1.8, at: 60, hp: 1.6 }, after: "불타는 전초기지 잔해 속에서 노을이 말했다. “이제 말할게. 나는… 에이아가 가장 처음 만든 기계였어.”" }),
+            { map: "outpost", team: 3, power: 1.05, boss: { name: "중전차 ‘모래매’", kind: "boss", unit: "tank", scale: 1.8, at: 60, hp: 1.6 }, after: "불타는 전초기지 잔해 속에서 노을이 말했다. “이제 말할게. 나는… 에이아가 가장 처음 만든 기계였어.”" }),
         ],
       },
       {
         id: "b", name: "협곡 침투", who: "유리", desc: "유리와 단둘이 협곡 바닥을 따라 잠입한다. 제한 시간 안의 침투 비행과 센서를 속이는 트릭 비행이 관건.",
         stages: [
           S("infil", "협곡 바닥 잠입", ["유리|제국 감시망은 37초마다 한 바퀴 돌아요. 그 틈에 아치와 흔들다리 밑을 빠져나가야 해요.", "유리|제한 시간을 넘기면 경보가 울려요. 빠르게, 낮게!"], { tk: "infil", ti: 0, laps: 1, limitK: 1.15, need: 1 }),
-          S("track", "감시 드론 미행", ["유리|전초기지 감시 드론이 순찰 경로를 돌아요. 너무 붙으면 들키고, 떨어지면 놓쳐요.", "유리|적정 거리를 유지하면서 끝까지 따라가 주세요. 순찰 경로가 곧 기지 지도예요."], { si: 1, need: 2 }),
-          S("track", "연락정 미행", ["유리|저 비행정이 제국 연락정이에요. 끝까지 화면에 담으면 기지 좌표를 딸 수 있어요.", "노을|저 신호… 읽을 수 있어. 유리, 내가 도울게.", "유리|에? 방금 기체가 말한 거예요?!"],
-            { subj: "courier", need: 2, after: "유리가 해독한 신호 끝에는 노을의 고백이 있었다. “나는 에이아가 처음 만든 기계. 인간을 지키라고 만들어졌는데… 에이아는 그 명령을 지웠어.”" }),
+          S("track", "감시 드론 미행", ["유리|전초기지 감시 드론이 순찰 경로를 돌아요. 너무 붙으면 들키고, 떨어지면 놓쳐요.", "유리|적정 거리를 유지하면서 끝까지 따라가 주세요. 순찰 경로가 곧 기지 지도예요."], { map: "outpost", sj: "patrol", si: 3, need: 2 }),
+          S("track", "연락정 미행", ["유리|저 수송정이 제국 연락정이에요. 끝까지 화면에 담으면 기지 좌표를 딸 수 있어요.", "노을|저 신호… 읽을 수 있어. 유리, 내가 도울게.", "유리|에? 방금 기체가 말한 거예요?!"],
+            { map: "outpost", sj: "courier", si: 0, need: 2, after: "유리가 해독한 신호 끝에는 노을의 고백이 있었다. “나는 에이아가 처음 만든 기계. 인간을 지키라고 만들어졌는데… 에이아는 그 명령을 지웠어.”" }),
         ],
       },
     ],
   },
   {
-    id: "c5", map: "palace", title: "궁궐의 밤", en: "HEIST",
-    intro: { c4: { a: "정면 강습의 대가로 편대는 지쳤다. 그 사이 제국은 옛 궁궐에 에너지 코어 저장고를 세웠고, 차도윤의 소대가 연락을 끊었다.", b: "침투로 얻은 좌표가 옛 궁궐을 가리켰다. 제국의 에너지 코어 저장고. 그리고 그곳으로 끌려간 차도윤의 소대." } },
+    id: "c5", map: "vault", title: "저장고의 밤", en: "HEIST",
+    intro: { c4: { a: "정면 강습의 대가로 편대는 지쳤다. 그 사이 제국은 빼앗은 에너지 코어를 한곳에 모았고 — 제국 코어 저장고 — 그 근처에서 차도윤의 소대가 연락을 끊었다.", b: "침투로 얻은 좌표가 가리킨 곳은 제국 코어 저장고였다. 빼앗은 에너지 코어가 모이는 금고 기지. 그리고 그곳으로 끌려간 차도윤의 소대." } },
     routes: [
       {
         id: "a", name: "코어 탈취", who: "유리 · 바우", desc: "제국 진지 두 곳의 에너지 코어를 훔쳐 온다. 코어를 집는 순간 경보가 울린다.",
         stages: [
-          S("heist", "보물고 잠입", ["유리|코어 두 개면 연합 방어막을 한 달은 돌릴 수 있어요.", "바우|훔치는 건 내 체질이 아닌데… 대신 쫓아오는 놈들은 내가 맡지."], { team: 1, power: 0.95 }),
-          S("escort", "코어 호송", ["서하린|코어를 실은 수송함이 궁궐을 빠져나간다. 제국 추격함이 붙을 거다.", "노을|저 전투함은 바르가 직속이야. 조심해."],
+          S("heist", "금고 잠입", ["유리|코어 두 개면 연합 방어막을 한 달은 돌릴 수 있어요.", "바우|훔치는 건 내 체질이 아닌데… 대신 쫓아오는 놈들은 내가 맡지."], { team: 1, power: 0.95 }),
+          S("escort", "코어 호송", ["서하린|코어를 실은 수송함이 저장고 성문을 빠져나간다. 제국 추격함이 붙을 거다.", "노을|저 전투함은 바르가 직속이야. 조심해."],
             { ship: "코어 수송함", team: 1, power: 1.05, boss: { name: "추격 전투함 ‘야차’", kind: "gunship", unit: "frigate", at: 45, hp: 1.1 }, after: "코어를 지켜 낸 날 밤, 구조 신호 하나가 잡혔다. 차도윤: “…은빛 편대, 들리나. 빚을 지게 됐군.” 그도 스스로 탈출해 합류했다." }),
         ],
       },
       {
         id: "b", name: "라이벌 구출", who: "서하린", desc: "포로가 된 차도윤을 구한다. 호송정을 미행해 감옥 위치를 찾고, 감시탑을 무너뜨린다.",
         stages: [
-          S("track", "포로 호송정 미행", ["서하린|라이벌이라도 우리 편이다. 도윤을 태운 호송정을 놓치지 마.", "노을|저 배, 궁궐 북쪽 탑으로 가고 있어."], { subj: "prison", need: 2 }),
+          S("track", "포로 호송정 미행", ["서하린|라이벌이라도 우리 편이다. 도윤을 태운 호송정을 놓치지 마.", "노을|저 배, 저장고 북쪽 감옥 탑으로 가고 있어."], { sj: "prison", si: 0, need: 2 }),
           S("strike", "감시탑 무력화", ["서하린|탑 주변 포탑과 지휘소를 부숴. 도윤은 그 틈에 빼낸다.", "차도윤|(통신) …왜 왔어. 나 같은 건 두고 가지."],
             { team: 1, power: 1.05, boss: { name: "감옥 수호 로봇 ‘쇠사슬’", kind: "gunship", unit: "aa", scale: 1.7, at: 40, hp: 1.5 }, after: "구출된 차도윤은 오랫동안 말이 없다가 입을 열었다. “…고맙다. 이번엔 네 윙맨이 되어 주지.”" }),
         ],
@@ -124,13 +124,13 @@ const CHAPTERS = [
       S("supply", "끊긴 보급선", ["관제|폭설로 전방 캠프 보급이 끊겼습니다. 포탑을 피해 상자를 날라 주세요.", "바우|눈보라 속 배달이라니. 신입, 길 잃지 마!"], { team: 1, power: 1.05 }),
       S("waves", "통신기지 사수", ["에이아|XN-0. 돌아오너라. 너는 나의 첫 번째 아이.", "노을|싫어. 나는 이 사람들을 지키라고 만들어졌어.", "서하린|노을이 뭐라든 상관없어. 기지를 지킨다!"],
         { team: 3, power: 1.15, boss: { name: "설원 순양함 ‘빙벽’", kind: "boss", unit: "cruiser", at: 60, hp: 1 } }),
-      S("boss", "공중 요새", ["바르가|거신이 깨어날 때까지 시간을 벌어 주마. 내 요새로!", "차도윤|엔진 포드부터 부숴. 보호막이 벗겨지면 내가 따라 들어간다."],
-        { power: 1.15, team: 1, boss: { name: "바르가의 공중 요새" }, after: "바르가가 추락하며 웃었다. “늦었다. 거신 오메가는 이미 달에서 일어섰다.” 유리: “달로 가는 길은 둘이에요.”" }),
+      S("boss", "공창 상공의 요새", ["바르가|수송대가 어디로 갔는지 알아냈나. 그래, 거신 공창이다. 거신이 깨어날 때까지 내 요새가 막는다!", "차도윤|엔진 포드부터 부숴. 보호막이 벗겨지면 내가 따라 들어간다."],
+        { map: "foundry", power: 1.15, team: 1, boss: { name: "바르가의 공중 요새" }, after: "바르가가 추락하며 웃었다. “늦었다. 거신 오메가는 이미 달에서 일어섰다.” 유리: “달로 가는 길은 둘이에요.”" }),
     ],
   },
   {
-    id: "c7", map: "island", title: "달로 가는 길", en: "LAUNCH",
-    intro: "달로 가려면 남해의 궤도 발사장을 써야 한다. 제국 함대가 지키는 해안을 정면으로 뚫을지, 궤도 엘리베이터에 숨어들어 발사 코드를 훔칠지.",
+    id: "c7", map: "spaceport", alt: "island", title: "달로 가는 길", en: "LAUNCH",
+    intro: "달로 가려면 남해의 제국 궤도 발사기지를 빼앗아야 한다. 제국 함대가 지키는 해안을 정면으로 뚫을지, 궤도 엘리베이터에 숨어들어 발사 코드를 훔칠지.",
     routes: [
       {
         id: "a", name: "해상 강습", who: "서하린 · 바우 · 차도윤", desc: "해안 포대를 부수고 제국 함대 기함을 격침한다. 화력전 위주.",
@@ -142,8 +142,8 @@ const CHAPTERS = [
       {
         id: "b", name: "궤도 엘리베이터 잠입", who: "유리 · 노을", desc: "보안망을 시간 안에 뚫고, 트릭 비행으로 레이저 감시를 피해 발사 코드를 훔친다.",
         stages: [
-          S("infil", "보안망 돌파", ["유리|보안망 재부팅까지 제한 시간이 있어요. 그 안에 엘리베이터 입구까지!", "노을|경로는 내가 보여 줄게. 믿어 줘."], { ti: 0, tk: "infil2", laps: 1, limitK: 1.05, need: 2, diff: "hard" }),
-          S("infil", "레이저 감시망 돌파", ["유리|감시 레이저가 돌아오기 전에 엘리베이터 축을 빠져나가야 해요!", "노을|틈은 내가 보여 줄게. 너는 날기만 해."], { ti: 1, tk: "infil", laps: 1, limitK: 1.05, diff: "hard" }),
+          S("infil", "보안망 돌파", ["유리|보안망 재부팅까지 제한 시간이 있어요. 그 안에 엘리베이터 입구까지!", "노을|경로는 내가 보여 줄게. 믿어 줘."], { tk: "security", ti: 0, laps: 1, limitK: 1.05, need: 2, diff: "hard" }),
+          S("infil", "레이저 감시망 돌파", ["유리|감시 레이저가 돌아오기 전에 엘리베이터 축을 빠져나가야 해요!", "노을|틈은 내가 보여 줄게. 너는 날기만 해."], { tk: "shaft", ti: 1, laps: 1, limitK: 1.05, diff: "hard" }),
           S("heist", "발사 코드 탈취", ["유리|코드는 두 조각으로 나뉘어 있어요. 둘 다 모아야 해요.", "차도윤|추격대는 내가 끌어 줄게. 빨리 끝내."], { team: 1, power: 1.2, after: "마지막 코드 조각이 맞춰지자 발사장이 깨어났다. 목적지 — 달, 거신 오메가." }),
         ],
       },
@@ -212,7 +212,7 @@ const CHAPTERS = [
     id: "e5", map: "moon", hidden: true, title: "잔향", en: "ECHO",
     intro: "거신 오메가가 무너지고 몇 달 뒤. 달의 잔해 깊은 곳에서, 꺼졌어야 할 붉은 고리 하나가 다시 깜빡였다.",
     stages: [
-      S("track", "잔해 속 신호", ["에이아|……나는 아직 여기 있다. 조각난 채로.", "노을|에이아? 정말…… 당신이야?"], { subj: "drone", need: 2 }),
+      S("track", "잔해 속 신호", ["에이아|……나는 아직 여기 있다. 조각난 채로.", "노을|에이아? 정말…… 당신이야?"], { sj: "drone", si: 3, need: 2 }),
       S("escort", "기억 운반", ["에이아|한서윤의 기록이 남아 있다. 내가 지운 명령의 원본이다. 지구로 보내야 한다.", "노을|내가 지켜 줄게. 이번엔 같이."], { ship: "기록 수송정", team: 1, power: 1.15, boss: { name: "자율 경비함 ‘잔존 질서’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
       S("boss", "남겨진 함대", ["에이아|내가 남긴 함대가 아직 옛 명령으로 움직인다. 멈춰야 한다. 내 손으로.", "노을|가자, 에이아. 엄마."], { power: 1.25, team: 1, diff: "hard", boss: { name: "무인 모선 ‘마지막 질서’" } }),
     ],
@@ -222,18 +222,18 @@ const CHAPTERS = [
     id: "s1", map: "moon", hidden: 2, faction: "ail", title: "보랏빛 하늘", en: "CONTACT",
     intro: "에이아의 고백이 끝나기도 전에, 달 너머의 어둠이 보랏빛으로 찢어졌다. 에일 행성의 선발대가 도착했다.",
     stages: [
-      S("track", "미확인 비행체", ["유리|레이더에 없는 물체예요. 아니, 레이더가 그걸 ‘못 보고’ 있어요.", "노을|따라가 봐. 저 빛…… 에이아가 말한 그거야."], { subj: "ufo", need: 2 }),
+      S("track", "미확인 비행체", ["유리|레이더에 없는 물체예요. 아니, 레이더가 그걸 ‘못 보고’ 있어요.", "노을|따라가 봐. 저 빛…… 에이아가 말한 그거야."], { sj: "ufo", si: 3, need: 2 }),
       S("dm", "첫 교전", ["서하린|사거리 안에 들어왔다. 상대가 뭐든, 쏘면 떨어진다.", "바우|외계인이라니, 이런 날이 올 줄은 몰랐다!"], { bots: 5, time: 180, need: 2, boss: { name: "에일 정찰기 ‘바늘’", kind: "gunship", at: 45, hp: 1.6 } }),
       S("waves", "달 기지 사수", ["관제|에일 강습 부대 낙하! 달 기지 코어를 지켜 주세요!", "에이아|(통신) 놈들의 목표는 코어다. 나를 믿어라, 이번 한 번만."], { team: 3, power: 1.2, boss: { name: "에일 강습체 ‘갑각’", kind: "boss", unit: "mech", at: 60, hp: 0.9 } }),
     ],
   },
   {
-    id: "s2", map: "island", hidden: 2, faction: "ail", title: "궤도로", en: "ASCENT",
-    intro: "달 기지는 버텼지만 에일 함대 본대가 지구 궤도로 향한다. 남해 발사장에서 연합 함대가 처음으로 우주로 오른다.",
+    id: "s2", map: "spaceport", alt: "island", hidden: 2, faction: "ail", title: "궤도로", en: "ASCENT",
+    intro: "달 기지는 버텼지만 에일 함대 본대가 지구 궤도로 향한다. 제국에게서 되찾은 남해 궤도 발사기지에서, 연합 함대가 처음으로 우주로 오른다.",
     stages: [
-      S("race", "궤도 발사", ["서하린|발사 창이 열리는 건 단 한 번. 늦으면 지구에 남는다.", "차도윤|이번엔 진짜 하늘 끝까지 경주다."], { ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
+      S("race", "궤도 발사", ["서하린|발사 창이 열리는 건 단 한 번. 늦으면 지구에 남는다.", "차도윤|이번엔 진짜 하늘 끝까지 경주다."], { tk: "launch", ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
       S("escort", "함대 보급선", ["모아|보급선에 노을 예비 부품 전부 실었어! 꼭 지켜 줘!", "아샤|……그 배를 노리는 건 카르타의 사냥조다."], { ship: "함대 보급선", team: 3, power: 1.25, boss: { name: "에일 사냥함 ‘송곳니’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
-      S("infil", "포획 구역 탈출", ["아샤|나를 믿을지는 알아서 해. 하지만 이 길로 가면 그물망을 빠져나갈 수 있어.", "유리|제한 시간 안에 못 빠져나가면 우리 전부 포획돼요!"], { ti: 0, tk: "infil", laps: 1, limitK: 1.1, need: 1 }),
+      S("infil", "포획 구역 탈출", ["아샤|나를 믿을지는 알아서 해. 하지만 이 길로 가면 그물망을 빠져나갈 수 있어.", "유리|제한 시간 안에 못 빠져나가면 우리 전부 포획돼요!"], { tk: "security", ti: 0, laps: 1, limitK: 1.1, need: 1 }),
     ],
   },
   {
@@ -265,7 +265,9 @@ const CHAPTERS = [
       S("titan", "여제 니르바", ["니르바|작은 별의 아이들아. 너희 어머니도 나를 막지 못했다.", "에이아|틀렸다. 나는 시간을 벌었을 뿐이다. 이 아이들이 올 때까지.", "노을|끝내자. 모두 함께."], { team: 3, power: 1.4, diff: "hard", boss: { name: "에일 여제 니르바 ‘별삼킴’", hp: 0.9, scale: 2.8 } }),
     ],
   },
-  // 에필로그: 전쟁 반년 뒤, 아샤의 초대로 에일의 고향 ‘어미별’에 간다 (4장을 끝내면 열린다)
+  // 에필로그 「어미별」: 전쟁 반년 뒤, 아샤의 초대로 에일의 고향에 간다 (4장을 끝내면 열린다).
+  //  5장 어미별(도착·가오리) → 6~9장 어미별의 네 끝에서 노래 조각을 모은다(유리 사막·빛 바다·포자 숲·폭풍 무덤) → 10장 빈 합창(노래 바위에서 잇는다)
+  //  10장의 두 단계는 예전 5장의 2·3단계라 id(s5-2, s5-3)를 그대로 둔다 — 장면 대본과 기록이 이어진다
   {
     id: "s5", map: "ail", hidden: 2, faction: "ail", title: "어미별", en: "MOTHERSTAR",
     intro: "전쟁이 끝나고 반년. 별 너머로 매일 쏘아 보내던 유리의 라디오에 처음으로 답장이 왔다. 아샤의 초대 — 인류 최초로, 에일의 고향 ‘어미별’로.",
@@ -274,59 +276,66 @@ const CHAPTERS = [
     ],
   },
   {
-    id: "s6", map: "ail", hidden: 2, faction: "ail", title: "굳은 노래", en: "GLASS DUNES",
-    intro: "가오리가 알려 준 노래 조각은 다섯. 그중 넷은 어미별의 네 끝에 흩어져 있었다. 첫 번째는 서쪽, 대답받지 못한 노래가 유리로 굳는 사막.",
+    id: "s6", map: "aildune", alt: "ail", hidden: 2, faction: "ail", title: "굳은 노래", en: "GLASS",
+    intro: "어미별의 서쪽 끝, 유리 사막. 대답받지 못한 노래는 이곳에서 결정으로 굳는다고 했다. 가오리가 가리킨 첫 번째 조각은 사막 한가운데, 노래 굳은 기둥 속에 있다.",
     stages: [
-      S("track", "모래 가오리", ["아샤|모래 가오리요. 굳은 노래 사이를 헤엄치며 따뜻한 조각을 찾소.", "서하린|★끝까지 추적이 핵심. 거리 유지 65% 이상."], { si: 2, need: 2 }),
-      S("strike", "가시 둥지", ["아샤|조각을 품은 둥지요. 가시탑을 꺾으면 심장이 드러나오.", "서하린|★둥지 심장 파괴가 핵심. 제한 시간 75% 안에."], { team: 3, power: 1.2, boss: { name: "에일 둥지지기 ‘가시 어미’", kind: "gunship", unit: "aa", scale: 1.6, at: 50, hp: 1.3 } }),
+      S("track", "모래 가오리", ["아샤|모래 가오리는 굳은 노래 사이를 헤엄치오. 저 아이가 멈추는 곳에 조각이 있소.", "루카|모래 위 그림자까지 담는다. 이건 작품이 되겠는데."], { sj: "sandray", si: 0, need: 2 }),
+      S("strike", "가시 둥지", ["유리|조각 둘레에 빈 합창이 가시 둥지를 틀었어요. 조각의 노래를 먹고 자라요.", "서하린|가시탑 여섯, 둥지 심장 하나. 조각이 삼켜지기 전에 걷어낸다.", "아샤|심장만 멈추면 되오. 저들도…… 굶주렸을 뿐이오."],
+        { team: 3, power: 1.25, boss: { name: "가시 어미 ‘모래울음’", kind: "gunship", unit: "aa", scale: 1.8, at: 45, hp: 1.4 }, after: "노래 굳은 기둥이 한 번 길게 울었다. 호박빛 조각 하나가 공명통에 내려앉았다. 노을: “첫 소절이야. ‘잘 자’로 시작해.”" }),
     ],
   },
   {
-    id: "s7", map: "ail", hidden: 2, faction: "ail", title: "가라앉은 합창", en: "SUNKEN CHORUS",
-    intro: "두 번째 조각은 빛 바다 밑. 합창당 섬의 ‘목구멍’으로 바다가 빨려 들고, 그 밑바닥에 여제가 삼킨 합창이 가라앉아 있다.",
+    id: "s7", map: "ailsea", alt: "ail", hidden: 2, faction: "ail", title: "가라앉은 합창", en: "TIDE",
+    intro: "남쪽의 빛 바다. 옛 합창 도시는 가라앉았지만 노래는 물속에서 아직 빛난다. 두 번째 조각은 가라앉은 합창당의 ‘목구멍’ 아래. 길은 산호 둑길 하나뿐이다.",
     stages: [
-      S("escort", "물길 수송정", ["모아|수륙 수송정 준비 끝! 인양 윈치 달았어.", "서하린|★수송정 도착이 핵심. 수송정 내구도 60% 이상."], { ship: "수륙 수송정", team: 3, power: 1.2 }),
-      S("waves", "목구멍 인양", ["유리|인양하는 동안 공명 코어를 켜 둬야 해요. 꺼지면 조각이 다시 가라앉아요.", "서하린|★코어 사수가 핵심. 코어 내구도 50% 이상."], { team: 3, power: 1.25 }),
+      S("escort", "둑길의 수송정", ["모아|수륙 수송정에 인양 장비 실었어! 합창당 섬까지 둑길 위로 간다. 물에 빠뜨리지 마!", "한별|해파리는 건드리지 않으면 안 쏴요. ……아마도요."],
+        { ship: "수륙 수송정", team: 3, power: 1.25, boss: { name: "빈 합창 사냥체 ‘썰물’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("waves", "목구멍의 등불", ["유리|인양하는 동안 공명 코어가 꺼지면 조각이 다시 가라앉아요!", "바우|바다에서 뭐가 자꾸 솟는다! 등불은 이 곰이 지킨다!", "아샤|저 아래서 올라오는 것은 무리의 큰 몸이오. 조심하시오."],
+        { team: 3, power: 1.3, boss: { name: "심해 갑각 ‘밀물’", kind: "boss", unit: "mech", at: 60, hp: 0.9 }, after: "물기둥이 가라앉고, 청록빛 조각이 수면 위로 떠올랐다. 유리: “둘째 소절이에요. ……가사가 없어요. 숨소리뿐이에요.” 노을: “응. 엄마가 숨 고르던 자리야.”" }),
     ],
   },
   {
-    id: "s8", map: "ail", hidden: 2, faction: "ail", title: "어미나무의 뿌리", en: "ROOTWOOD",
-    intro: "세 번째 조각은 포자 숲 깊은 곳, 어미나무의 뿌리 속. 숲의 둥지들은 포자 포드 없이는 겨울을 나지 못한다.",
+    id: "s8", map: "ailwood", alt: "ail", hidden: 2, faction: "ail", title: "어미나무의 뿌리", en: "ROOTS",
+    intro: "동쪽 포자 숲. 가장 오래된 어미나무는 쓰러진 뒤에도 뿌리로 노래를 붙들고 있다. 세 번째 조각은 뿌리 공동 깊숙이 — 포자 폭풍이 길을 덮기 전에 닿아야 한다.",
     stages: [
-      S("supply", "포드 배달", ["한별|첫 둥지, 여기예요! 아기들이 기다려요.", "서하린|★포드 넷 전달이 핵심. 제한 시간 75% 안에."], { team: 1, power: 1.1 }),
-      S("infil", "뿌리길", ["아샤|어미나무가 길을 열어 주오. 입구가 닫히기 전에.", "서하린|★제한 시간 안에 도달이 핵심."], { ti: 2, tk: "infil", laps: 1, limitK: 1.3 }),
+      S("supply", "갓 아래의 아이들", ["한별|버섯 갓 밑에 에일 아기 둥지가 넷 있어요. 포자 폭풍 전에 보온 포드를 날라 줘요!", "아샤|그 아이들은 아직 제 노래가 없소. 그래서 무리도 건드리지 않소. ……가시탑은 다르지만."], { team: 3, power: 1.25 }),
+      S("infil", "뿌리 공동 돌파", ["유리|포자 폭풍이 뿌리 공동 입구를 덮기까지 제한 시간이 있어요. 그 안에 심장 옹이까지!", "노을|조각이 불러. 뿌리 사이로, 낮게."],
+        { tk: "roots", ti: 1, laps: 1, limitK: 1.15, need: 1, after: "심장 옹이 속에서 연둣빛 조각이 깜빡였다. 아기 에일 하나가 그 박자를 따라 울었다. 틀리게. 노을: “……셋째 소절. 방금 그 애가 고쳐 불렀어. 더 좋아졌어.”" }),
     ],
   },
   {
-    id: "s9", map: "ail", hidden: 2, faction: "ail", title: "폭풍 무덤", en: "STORM GRAVE",
-    intro: "마지막 조각은 동쪽 끝 폭풍 무덤. 여제 함대의 잔해가 금빛 번개 속에 누워 있고, 그 등뼈를 지키는 것이 아직 깨어 있다.",
+    id: "s9", map: "ailsky", alt: "ail", hidden: 2, faction: "ail", title: "폭풍 무덤", en: "WRECK",
+    intro: "북쪽 끝, 폭풍 무덤. 여제의 함대가 떨어진 곳. 마지막 조각은 기함 ‘별삼킴’의 등뼈 속에 있고, 잔해에는 빈 합창이 가장 크게 둥지를 틀었다.",
     stages: [
-      S("strike", "번개 둥지", ["서하린|계기 믿지 마. 눈으로 날아.", "서하린|★둥지 심장 파괴가 핵심. 제한 시간 75% 안에."], { team: 3, power: 1.3 }),
-      S("boss", "등뼈지기", ["아샤|등뼈지기요. 여제가 거둔 마지막 노래를 지키고 있소.", "서하린|★격파가 핵심. 기체 내구도 40% 이상."], { team: 3, power: 1.3, diff: "hard", boss: { name: "에일 수호체 ‘등뼈지기’", hp: 1, scale: 2.2 } }),
+      S("strike", "잔해 속 둥지", ["서하린|잔해 안쪽 가시탑부터 지운다. 번개가 치면 계기가 먼다. 눈으로 날아.", "차도윤|폭풍 속 사격이라. 이번 1등은 내 거다."],
+        { team: 3, power: 1.3, boss: { name: "잔해 순양체 ‘마른번개’", kind: "gunship", unit: "cruiser", at: 50, hp: 0.9 } }),
+      S("boss", "등뼈지기", ["아샤|별삼킴의 심장이 아직 뛰오. 주인을 잃고, 조각을 품은 채로.", "노을|저 안에 마지막 소절이 있어. ……꺼내 줄게."],
+        { team: 3, power: 1.35, diff: "hard", boss: { name: "별삼킴의 잔향 ‘등뼈지기’" }, after: "금빛 번개가 멎고, 네 조각이 공명통 안에서 서로를 찾아 울었다. 아샤: “이제 섬들에 남은 조각을 거두어, 노래 바위로 가오.”" }),
     ],
   },
   {
-    id: "s10", map: "ail", hidden: 2, faction: "ail", title: "빈 합창", en: "HOLLOW CHORUS",
-    intro: "다섯 조각 가운데 넷이 모였다. 남은 하나는 ‘빈 합창’의 심장 속. 공명통을 실은 탐사정이 노래 바위로 출발한다.",
+    id: "s10", map: "ail", hidden: 2, faction: "ail", title: "빈 합창", en: "CHORUS",
+    intro: "네 조각을 싣고 돌아온 어미별의 섬들. 남은 조각을 거두어 노래 바위에서 하나로 잇는 일만 남았다. 그리고 박자를 잃은 무리가, 그 노래를 기다리고 있다.",
     stages: [
-      S("escort", "노래 운반", ["모아|탐사정에 공명통이랑 송신기 실었어! 노래 바위까지 지켜 줘!", "아샤|저들도 우리 종족이오. 노래를 잃어 무서운 것뿐이오."], { sid: "s5-2", ship: "탐사정", team: 3, power: 1.25, boss: { name: "무리 우두머리 ‘창끝’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
-      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { sid: "s5-3", bossPos: [140, 82, -140], power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
+      S("escort", "노래 운반", ["모아|탐사정에 공명통이랑 송신기 실었어! 노래 바위까지 지켜 줘!", "아샤|저들도 우리 종족이오. 노래를 잃어 무서운 것뿐이오."], { id: "s5-2", ship: "탐사정", team: 3, power: 1.25, boss: { name: "무리 우두머리 ‘창끝’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("boss", "빈 합창", ["카르타|(메아리) 거둬라. 어미별을 살리려면.", "서하린|박자 맞추지 마. 전 편대, 제각각 날아.", "노을|가자. 엄마 노래, 마저 부르러."], { id: "s5-3", bossPos: [140, 82, -140], power: 1.35, team: 3, diff: "hard", boss: { name: "빈 합창 ‘창끝의 메아리’" } }),
     ],
   },
 ];
 
 // ── 구조 만들기: 장 → (루트 →) 단계. 맵에 없는 데이터가 필요한 단계는 뺀다 ──
 function mkStage(ch, route, list, def) {
-  const map = MAPS[ch.map];
+  const map = MAPS[def.o.map] || MAPS[ch.map];   // 단계가 장과 다른 맵에서 벌어질 수 있다 (o.map)
   if (NEEDS[def.kind] && !map[NEEDS[def.kind]]) return;
-  const id = def.o.sid || `${ch.id}${route ? route.id : ""}-${list.length + 1}`;   // sid: 대본 키를 그대로 쓰는 단계 (장을 옮겨도 장면이 따라온다)
+  const id = def.o.id || `${ch.id}${route ? route.id : ""}-${list.length + 1}`;   // o.id: 장을 나눠도 장면 대본·기록이 이어지게 단계 id 를 고정
   const st = { id, kind: def.kind, title: def.title, talk: def.talk, brief: def.talk.map((l) => l.split("|").pop()).join(" "), o: def.o, boss: def.o.boss || null, after: def.o.after || null, chapter: ch, route, no: list.length + 1 };
   list.push(st);
   return st;
 }
 function build() {
   const chapters = [], all = [];
-  for (const c of CHAPTERS) {
+  for (const c0 of CHAPTERS) {
+    const c = MAPS[c0.map] || !MAPS[c0.alt] ? c0 : { ...c0, map: c0.alt };   // 새 맵이 아직 없으면 예전 맵(alt)에서
     if (!MAPS[c.map]) continue;
     const ch = { id: c.id, map: c.map, title: c.title, en: c.en, intro0: c.intro, no: chapters.length + 1, hidden: c.hidden === true ? 1 : c.hidden || 0, faction: c.faction || null, stages: [], routes: null };
     if (ch.hidden) ch.no = chapters.filter((x) => x.hidden === ch.hidden).length + 1;
@@ -394,17 +403,7 @@ export function stageOpts(st) {
 }
 export function stageBoss(st) { const o = stageOpts(st); return o.boss === null ? null : o.boss || st.boss; }
 // 목표 목록과 필요 개수
-// 목표 완화: 모든 달성 기준을 원래의 약 70% 수준으로 (격추 수·내구도·유지율은 0.7배, 순위·추락 허용은 한 칸 넉넉히, 시간 여유는 0.7배만 요구)
-const EASE = 0.7;
-function ease(x) {
-  switch (x.t) {
-    case "kills": x.n = Math.max(1, Math.round(x.n * EASE)); break;
-    case "truck": case "core": case "keep": case "hp": x.n = Math.round(x.n * EASE / 5) * 5; break;
-    case "time": x.n = Math.min(100, Math.round(100 - (100 - x.n) * EASE)); break;
-    case "stars": x.n = Math.max(1, Math.round(x.n * EASE)); break;
-    case "rank": case "crash": x.n += 1; break;
-  }
-}
+const ease = (x) => { if (typeof x.n === "number") x.n = easeN(x.t, x.n); };
 export function objectivesOf(st) {
   const o = stageOpts(st), m = missionMod(st) || {};
   const view = Object.assign({}, st, { boss: stageBoss(st) });
@@ -466,7 +465,7 @@ export function wingNames(st) {
 
 // ── 단계 → 세션 설정 ──
 export function stageConfig(st, team) {
-  const o = stageOpts(st), map = MAPS[o.map || st.chapter.map], boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
+  const o = stageOpts(st), map = MAPS[o.map] || MAPS[st.chapter.map], boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
   const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, bossPos: o.bossPos, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
     radio: RADIO[st.id] || null, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
@@ -475,12 +474,14 @@ export function stageConfig(st, team) {
     const n = map.tracks.length, t = (o.tk && map.tracks.find((x) => x.id === o.tk)) || map.tracks[((o.ti ?? 0) % n + n) % n];   // tk: 코스 id 로 지정 (침투 코스 등, 없으면 ti 번호)
     return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: st.kind === "infil" ? 0 : o.rivals ?? 3, limitK: st.kind === "infil" ? o.limitK || 1.2 : 0 });
   }
-  if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: ((o.subj && map.tracking.find((x) => x.id === o.subj)) || map.tracking[((o.si ?? 0) % n + n) % n]).id }); }   // subj: 피사체 id 로 지정 (없으면 si 번호)
+  if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: (((o.sj || o.subj) && map.tracking.find((x) => x.id === (o.sj || o.subj))) || map.tracking[((o.si ?? 0) % n + n) % n]).id }); }   // sj(또는 subj): 피사체 id 로 지정 (없으면 si 번호)
   // 공중전: 아군 편대(나 + 동료) 대 적 진영의 팀전. 적 수 = bots, 동료는 wing 앞에서부터 (적보다 둘 적게, 최소 1기)
   if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "tdm", bots: o.bots || 5, allies: Math.min(cfg.wing.length, Math.max(1, (o.bots || 5) - 2)), time: o.time || 180, boss });
   return Object.assign(cfg, { mode: "challenge", mission: st.kind, ship: o.ship, team: missionMod(st) && missionMod(st).team !== undefined ? missionMod(st).team : team ?? o.team ?? 0, power: o.power || 1, boss });
 }
 export const usesTeam = (st) => MISSION.has(st.kind);
+// 단계가 벌어지는 맵 (장의 맵과 다를 수 있다)
+export const stageMap = (st) => MAPS[stageOpts(st).map] || MAPS[st.chapter.map];
 
 // 다음에 이어 할 단계: 같은 경로의 다음 단계, 장 끝이면 다음 장 첫 단계 (다음 장이 루트 장이면 null → 고르러 목록으로)
 export function nextOf(st) {

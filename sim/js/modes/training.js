@@ -15,7 +15,6 @@ export const SITES = {
   arena: { pos: [-28, 0.4, -4], yaw: 270 },
   moon: { pos: [0, 0.3, 80], yaw: 180 },
   snow: { pos: [60, 0.5, 120], yaw: 0 },
-  palace: { pos: [-15, 0.3, 45], yaw: 0 },
   airbase: { pos: [-170, 0.3, 100], yaw: 270 },
 };
 

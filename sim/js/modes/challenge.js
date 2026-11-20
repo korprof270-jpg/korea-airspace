@@ -11,7 +11,7 @@ export const MISSIONS = [
   { id: "strike", name: "포탑 소탕", icon: "🎯", map: "factory", level: 2, desc: "공장 지대의 적 방공 포탑과 지휘소를 제한 시간 안에 모두 파괴하세요" },
   { id: "escort", name: "호송 작전", icon: "🚢", map: "city", level: 2, desc: "도심 상공을 지나는 아군 수송함을 매복한 적 드론으로부터 보호하세요" },
   { id: "supply", name: "긴급 보급", icon: "📦", map: "canyon", level: 2, desc: "협곡 곳곳의 캠프 네 곳에 보급 상자를 제한 시간 안에 전달하세요" },
-  { id: "heist", name: "탈취 작전", icon: "🗝", map: "palace", level: 3, desc: "적 진지 두 곳에 보관된 에너지 코어를 훔쳐 아군 착륙장으로 가져오세요", hidden: true },
+  { id: "heist", name: "탈취 작전", icon: "🗝", map: "vault", level: 3, desc: "적 진지 두 곳에 보관된 에너지 코어를 훔쳐 아군 착륙장으로 가져오세요", hidden: true },
   { id: "titan", name: "초거대로봇 격파", icon: "🗿", map: "moon", level: 4, desc: "초거대로봇의 팔·포·다리를 부수고 동체를 파괴하세요", hidden: true },
   { id: "boss", name: "모선 격추", icon: "👾", map: "arena", level: 3, desc: "거대 모선의 엔진 포드 네 개를 부숴 보호막을 벗기고 코어를 파괴하세요" },
 ];

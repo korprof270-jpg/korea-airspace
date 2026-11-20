@@ -18,7 +18,16 @@ const THEMES = {
   arena: { style: "funk", bpm: 122, root: 55, scale: MIX, chords: [I7, I7, IV7, bVII], lead: "brass", brass: true, keys: "clav" },
   factory: { style: "funk", bpm: 114, root: 51, scale: MAJ, chords: [IV7, iii, vi, V], lead: "brass", brass: true, keys: "ep", amb: "waves" },
   canyon: { style: "funk", bpm: 116, root: 50, scale: DOR, chords: [I, IV7, I, bVII], lead: "guitar", brass: true, keys: "clav", amb: "wind" },
-  palace: { style: "funk", bpm: 118, root: 55, scale: PENT, chords: [[0, 2, 4], [0, 2, 4], [3, 5, 7], [1, 3, 5]], lead: "gaya", brass: true, keys: "clav", amb: "wind" },
+  // 제국 맵들: 수도와 같은 어두운 프리지안 힙합 틀을 조금씩 달리
+  vault: { style: "hiphop", bpm: 92, root: 43, scale: [0, 1, 3, 5, 7, 8, 10], chords: [I, I, [1, 3, 5], bVII], lead: "bell", brass: true, keys: "ep", amb: "drone" },
+  outpost: { style: "funk", bpm: 112, root: 48, scale: [0, 1, 3, 5, 7, 8, 10], chords: [I, bVII, I, [1, 3, 5]], lead: "guitar", brass: true, keys: "clav", amb: "wind" },
+  foundry: { style: "hiphop", bpm: 100, root: 46, scale: [0, 1, 3, 5, 7, 8, 10], chords: [I, [1, 3, 5], bVII, I], lead: "brass", brass: true, keys: "clav", amb: "wind" },
+  spaceport: { style: "funk", bpm: 120, root: 50, scale: DOR, chords: [I7, bVII, IV7, bVII], lead: "brass", brass: true, keys: "ep", amb: "waves" },
+  // 어미별의 다른 지역
+  aildune: { style: "funk", bpm: 108, root: 50, scale: DOR, chords: [I7, bVII, I7, IV7], lead: "bell", brass: false, keys: "ep", amb: "wind" },
+  ailsea: { style: "funk", bpm: 104, root: 55, scale: DOR, chords: [I7, IV7, I7, bVII], lead: "marimba", brass: false, keys: "ep", amb: "waves" },
+  ailwood: { style: "funk", bpm: 110, root: 53, scale: DOR, chords: [IV7, I7, bVII, I7], lead: "marimba", brass: false, keys: "clav", amb: "drone" },
+  ailsky: { style: "hiphop", bpm: 98, root: 47, scale: DOR, chords: [I7, bVII, IV7, bVII], lead: "bell", brass: true, keys: "ep", amb: "wind" },
   snow: { style: "funk", bpm: 120, root: 58, scale: MAJ, chords: [I, vi, IV, V], lead: "bell", brass: true, keys: "ep", amb: "wind" },
   island: { style: "funk", bpm: 116, root: 53, scale: MAJ, chords: [I, IV, V, IV], lead: "marimba", brass: true, keys: "clav", amb: "waves" },
   moon: { style: "funk", bpm: 114, root: 50, scale: DOR, chords: [I7, IV7, I7, bVII], lead: "ep", brass: true, keys: "ep", amb: "drone" },
