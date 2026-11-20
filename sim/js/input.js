@@ -137,6 +137,8 @@ export class Input {
     const G = this.device === "gamepad" && this.padInfo ? this.padInfo.glyphs : glyphsFor("keyboard");
     return G[action] || "";
   }
+  // 지금 패드가 진동을 지원하는가
+  canRumble() { try { const p = this._pad(); return !!(p && (p.vibrationActuator || (p.hapticActuators && p.hapticActuators[0]))); } catch (_) { return false; } }
   // 이번 프레임의 메뉴 입력 하나 꺼내기
   takeNav() { return this.nav.shift() || null; }
 
@@ -177,6 +179,8 @@ export class Input {
   // 지금 쓰는 입력 장치에만 보낸다. 보냈으면 true
   rumble(strong, weak, ms) {
     if (!settings.fx || !settings.fx.rumble) return false;
+    const K = settings.fx.rumbleK ?? 1; strong = Math.min(1, strong * K); weak = Math.min(1, weak * K);   // 진동 세기 설정
+    if (K <= 0 && ms > 0) return false;
     try {
       if (this.device === "gamepad") {
         const pad = this._pad(), act = pad && (pad.vibrationActuator || (pad.hapticActuators && pad.hapticActuators[0]));

@@ -462,8 +462,18 @@ export class Feel {
       this.rumbleN++;
       this.rCool = 0.045;
       if (this.inp && this.inp.rumble) this.inp.rumble(this.rS, this.rW, this.rMs);
+      this.evT = this.rMs / 1000;
     }
     this.rS = this.rW = this.rMs = 0;
+    // 엔진 진동: 비행 중 스로틀·속도에 비례하는 약한 떨림 (효과 진동이 없을 때만, 게임패드만)
+    this.evT = (this.evT || 0) - dt; this.engT = (this.engT || 0) - dt;
+    const fx = settings.fx || {}, pl = this.s.player, inp = this.inp;
+    if (fx.rumble && fx.rumbleEngine !== false && inp && inp.device === "gamepad" && this.evT <= 0 && this.engT <= 0 && pl && pl.body && !pl.body.onGround && !pl.crashed && this.s.mode && this.s.mode.state === "run") {
+      this.engT = 0.12;
+      const thr = Math.max(0, Math.min(1, (inp.ctl.throttle + 1) / 2)), sp = Math.min(1, pl.body.speed / 40);
+      const w = 0.04 + thr * 0.1 + sp * 0.06;
+      if (inp.rumble) inp.rumble(w * 0.35, w, 150);
+    }
   }
 
   // ── 그리기용 스프라이트 (색·모양별로 한 번만 만든다) ──

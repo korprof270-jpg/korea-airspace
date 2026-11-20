@@ -119,7 +119,7 @@ export const DEFAULTS = {
   },
   // 화면 효과: 흔들림 세기(0~1.5), 색 번쩍임 세기(0~1), 진동(게임패드·모바일)
   // reduceMotion: 슬로모션·히트스톱·보스 등장 카메라 회전을 끄고 흔들림을 크게 줄인다 (기기의 '동작 줄이기' 설정이 기본값)
-  fx: { shake: 1, flash: 1, rumble: true, cockpit: true, reduceMotion: typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches },
+  fx: { shake: 1, flash: 1, rumble: true, rumbleK: 1, rumbleEngine: true, cockpit: true, reduceMotion: typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches },
   autoFire: "touch",        // 자동 사격: off | touch(터치 조작일 때만) | on
   crashAssist: true,        // 가벼운 접촉은 튕겨내고 계속 비행
   drone: {

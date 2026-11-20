@@ -787,6 +787,8 @@ export class UI {
     if (bar) bar.style.width = `${Math.round(Math.min(1, prog) * 100)}%`;
   }
 
+  a_rumbletest() { const inp = this.game.input, ok = inp.rumble(1, 0.6, 350); setTimeout(() => inp.rumble(0.3, 1, 250), 450); this.game.sound.play(ok ? "confirm" : "back"); }
+
   a_set(v, el) {
     const path = el.dataset.k;
     const cur = getPath(settings, path);
@@ -1121,6 +1123,12 @@ export class UI {
         <p class="muted" style="font-size:13px">${custom ? "스틱을 움직였을 때 반응하는 축 번호를 아래에 지정하세요. 위·오른쪽으로 밀었을 때 값이 +가 되도록 반전을 맞춥니다." : "지금 쓰는 배치입니다 (자동). 바꾸려면 위에서 ‘직접 지정’을 고르세요."}</p>
         ${row("lx", "왼쪽 스틱 가로")}${row("ly", "왼쪽 스틱 세로")}${row("rx", "오른쪽 스틱 가로")}${row("ry", "오른쪽 스틱 세로")}
         ${this.range("gamepad.deadzone", "데드존", 0, 0.3, 0.01)}
+        <h3>진동</h3>
+        ${this.toggle("fx.rumble", "진동", "게임패드·조종기(지원 기기)와 휴대폰의 진동. 명중·피격·격파·폭발·부스터·회피·게이트 통과 등에서 울립니다")}
+        ${this.range("fx.rumbleK", "진동 세기", 0, 1.5, 0.05)}
+        ${this.toggle("fx.rumbleEngine", "엔진 진동", "비행 중 스로틀과 속도에 맞춰 약하게 계속 떨립니다 (게임패드)")}
+        <div class="opt"><label>진동 테스트</label><button data-a="rumbletest" ${info ? "" : "disabled"}>📳 진동 시험</button>
+          <div class="hint">${info ? (inp.canRumble() ? "이 조종기는 진동을 지원합니다." : "이 조종기(또는 브라우저)는 진동 신호를 받지 못합니다. 크롬·엣지에서 Xbox·PlayStation 패드는 대부분 지원하고, RC 조종기는 진동 모터가 없습니다.") : "연결된 게임패드가 없습니다."}</div></div>
         ${G ? `<h3>버튼 (${esc(info.name)})</h3><table class="keys">
           <tr><td>${kb(G.fire)} ${kb(G.missile)}</td><td>레이저 · 미사일</td></tr>
           <tr><td>${kb(G.skill)}</td><td>스킬 발동 (게이지가 차면)</td></tr>
