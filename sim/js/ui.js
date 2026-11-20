@@ -68,6 +68,10 @@ function setPath(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.r
 const UI_SND = { back: "back", ovclose: "back", quit: "back", start: "confirm", enter: "confirm", diffpick: "confirm", resume: "confirm", restart: "confirm",
   replay: "confirm", nextstage: "confirm", nextlesson: "confirm", storypost: "confirm", scene: "confirm", tostory: "confirm", totraining: "confirm" };
 
+// 게임패드에서 바꿀 수 있는 동작
+const PAD_ACTS = [["fire", "레이저"], ["missile", "미사일"], ["skill", "스킬 발동"], ["dodge", "고속 회피"], ["item", "아이템 사용"], ["itemNext", "아이템 교체"],
+  ["camera", "시점 전환"], ["modeNext", "비행 모드"], ["reset", "리셋"], ["pause", "일시정지"], ["hud", "HUD 표시 전환"]];
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -98,6 +102,7 @@ export class UI {
       if (e.code === "KeyH" && !e.repeat && this.game.state === "play" && !(e.target instanceof HTMLInputElement)) { this.game.input.queue.push("hud"); return; }
       // 타이틀: 아무 키나 누르면 메뉴로
       if (this.screen === "title" && !["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"].includes(e.code)) { e.preventDefault(); this.a_enter(); return; }
+      if (e.code === "Escape" && this._rebind) { this._rebind = null; this.game.input.suppressNavUntil = 0; this.redraw(); return; }
       if (e.code === "Escape" && this.root.querySelector("[data-ovl]")) { this.a_ovclose(); return; }
       if ((this.screen === "main" || this.screen === "group") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
         const cards = [...this.root.querySelectorAll(".hcard")], i = cards.indexOf(document.activeElement), d = e.code === "ArrowUp" || e.code === "ArrowLeft" ? -1 : 1;
@@ -167,6 +172,7 @@ export class UI {
   update() {
     // 설정 > 입력장치: 게임패드 축 실시간 표시
     if (this.screen !== "settings" || this.tab !== "input") return;
+    if (this._rebind) this._rebindTick();
     if (this._cal) { const now = performance.now(); this._calibTick(Math.min(1, (now - (this._calT || now)) / 1000)); this._calT = now; }
     const inp = this.game.input, box = this.root.querySelector("#padlive");
     if (!box) return;
@@ -787,6 +793,36 @@ export class UI {
     if (bar) bar.style.width = `${Math.round(Math.min(1, prog) * 100)}%`;
   }
 
+  // ── 게임패드 버튼 재배치 ──
+  a_rebind(v) {
+    const inp = this.game.input; if (!inp.padInfo) return;
+    let pad = null; try { pad = navigator.getGamepads()[inp.padIndex]; } catch (_) { /* 무시 */ }
+    inp.suppressNavUntil = Infinity;
+    this._rebind = v; this._rbHeld = pad ? pad.buttons.map((b) => b.pressed || b.value > 0.5) : []; this._rbT = performance.now();
+    this.redraw();
+  }
+  a_rebindreset() { const inp = this.game.input; if (settings.gamepad.btn && inp.padInfo) delete settings.gamepad.btn[inp.padInfo.id]; save(); inp.applyButtonMap(); this.redraw(); }
+  _rebindTick() {
+    const inp = this.game.input, act = this._rebind;
+    if (!act || !inp.padInfo) return;
+    if (performance.now() - this._rbT > 8000) { this._rebind = null; inp.suppressNavUntil = 0; this.redraw(); return; }
+    let pad = null; try { pad = navigator.getGamepads()[inp.padIndex]; } catch (_) { return; }
+    if (!pad) return;
+    pad.buttons.forEach((b, i) => {
+      const on = b.pressed || b.value > 0.5;
+      if (on && !this._rbHeld[i] && this._rebind) {
+        const info = inp.padInfo, all = settings.gamepad.btn || (settings.gamepad.btn = {}), map = all[info.id] || (all[info.id] = {});
+        const prevIdx = Object.keys(info.actions).find((k) => info.actions[k] === act);   // 이 동작이 쓰던 버튼
+        const other = info.actions[i];                                                   // 누른 버튼에 있던 동작
+        map[act] = i;
+        if (other && other !== act && PAD_ACTS.some(([k]) => k === other)) { if (prevIdx !== undefined) map[other] = +prevIdx; else delete map[other]; }
+        save(); inp.applyButtonMap(); this._rebind = null; this.game.sound.play("confirm"); inp.suppressNavUntil = performance.now() + 400; inp.nav.length = 0;
+        this.redraw();
+      }
+      this._rbHeld[i] = on;
+    });
+  }
+
   a_rumbletest() { const inp = this.game.input, ok = inp.rumble(1, 0.6, 350); setTimeout(() => inp.rumble(0.3, 1, 250), 450); this.game.sound.play(ok ? "confirm" : "back"); }
 
   a_set(v, el) {
@@ -1129,14 +1165,11 @@ export class UI {
         ${this.toggle("fx.rumbleEngine", "엔진 진동", "비행 중 스로틀과 속도에 맞춰 약하게 계속 떨립니다 (게임패드)")}
         <div class="opt"><label>진동 테스트</label><button data-a="rumbletest" ${info ? "" : "disabled"}>📳 진동 시험</button>
           <div class="hint">${info ? (inp.canRumble() ? "이 조종기는 진동을 지원합니다." : "이 조종기(또는 브라우저)는 진동 신호를 받지 못합니다. 크롬·엣지에서 Xbox·PlayStation 패드는 대부분 지원하고, RC 조종기는 진동 모터가 없습니다.") : "연결된 게임패드가 없습니다."}</div></div>
-        ${G ? `<h3>버튼 (${esc(info.name)})</h3><table class="keys">
-          <tr><td>${kb(G.fire)} ${kb(G.missile)}</td><td>레이저 · 미사일</td></tr>
-          <tr><td>${kb(G.skill)}</td><td>스킬 발동 (게이지가 차면)</td></tr>
-          <tr><td>${kb(G.dodge)}</td><td>고속 회피 (2회 충전 · 6초마다 1회 회복, 롤 방향으로 옆 이동 · 입력 없으면 앞으로)</td></tr>
-          <tr><td>${kb(G.item)} ${kb(G.itemNext)}</td><td>아이템 사용 · 교체</td></tr>
-          <tr><td>${kb(G.camera)} ${kb(G.modeNext)} ${kb(G.reset)}</td><td>시점 · 비행 모드 · 리셋</td></tr>
-          <tr><td>${kb(G.pause)} ${kb(G.hud)}</td><td>일시정지 · HUD 표시 전환</td></tr>
-          <tr><td>${info.type === "rc" ? "오른쪽 스틱" : "십자키 / 왼쪽 스틱"} · ${kb(G.ok)} ${kb(G.back)}</td><td>메뉴 이동 · 확인 · 뒤로</td></tr></table>` : ""}
+        ${G ? `<h3>버튼 (${esc(info.name)})</h3>
+          <div class="hint" style="margin:-4px 0 8px">‘변경’을 누른 뒤 쓰고 싶은 버튼을 누르세요. 다른 동작에 쓰던 버튼이면 그 동작과 자리를 바꿉니다. (Esc: 취소)</div>
+          <table class="keys btnmap">${PAD_ACTS.map(([k, label]) => `<tr><td>${kb(G[k] || "—")}</td><td>${label}</td><td><button data-a="rebind" data-v="${k}" class="${this._rebind === k ? "on" : ""}">${this._rebind === k ? "버튼을 누르세요…" : "변경"}</button></td></tr>`).join("")}
+          <tr><td>${info.type === "rc" ? "오른쪽 스틱" : "십자키 / 왼쪽 스틱"} · ${kb(G.ok)} ${kb(G.back)}</td><td>메뉴 이동 · 확인 · 뒤로</td><td></td></tr></table>
+          ${(settings.gamepad.btn || {})[info.id] ? `<button data-a="rebindreset">버튼 기본값으로</button>` : ""}` : ""}
         <h3>터치</h3>
         <div class="opt"><label>화면 가상 스틱</label>${this.seg("touchSticks", [["auto", "자동"], ["on", "항상"], ["off", "끄기"]], settings.touchSticks, "set")}</div>`;
     } else {

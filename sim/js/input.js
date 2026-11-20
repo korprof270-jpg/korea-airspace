@@ -120,6 +120,7 @@ export class Input {
     }
     this.padIndex = gp.index;
     this.padInfo = Object.assign(detectPad(gp), { id: gp.id, hat: -2 });
+    this.applyButtonMap();
     this._padRef = null;
     this.padHeld = new Set();
     this._navHeld = {};
@@ -137,6 +138,21 @@ export class Input {
     const G = this.device === "gamepad" && this.padInfo ? this.padInfo.glyphs : glyphsFor("keyboard");
     return G[action] || "";
   }
+  // 버튼 재배치: settings.gamepad.btn[패드 id] = { 동작: 버튼 번호 } 를 기본 배치 위에 덮어쓴다
+  applyButtonMap() {
+    const info = this.padInfo;
+    if (!info) return;
+    if (!info.defActions) { info.defActions = info.actions; info.defGlyphs = info.glyphs; }
+    const map = (settings.gamepad.btn || {})[info.id] || {};
+    const acts = Object.assign({}, info.defActions), gl = Object.assign({}, info.defGlyphs);
+    const nameOf = (i) => { const a = info.defActions[i]; return a && info.defGlyphs[a] ? info.defGlyphs[a] : `B${i}`; };
+    for (const [act, idx] of Object.entries(map)) {
+      for (const k of Object.keys(acts)) if (acts[k] === act) delete acts[k];   // 이 동작의 원래 버튼은 풀린다
+      acts[idx] = act; gl[act] = nameOf(idx);
+    }
+    for (const a of Object.keys(gl)) if (!["ok", "back"].includes(a) && !Object.values(acts).includes(a)) gl[a] = "—";
+    info.actions = acts; info.glyphs = gl;
+  }
   // 지금 패드가 진동을 지원하는가
   canRumble() { try { const p = this._pad(); return !!(p && (p.vibrationActuator || (p.hapticActuators && p.hapticActuators[0]))); } catch (_) { return false; } }
   // 이번 프레임의 메뉴 입력 하나 꺼내기
@@ -144,6 +160,7 @@ export class Input {
 
   // 메뉴 입력: 십자키·스틱(방향, 누르고 있으면 반복) + 확인·뒤로
   _menuNav(pad, dt) {
+    if (this.suppressNavUntil && performance.now() < this.suppressNavUntil) { this._navHeld = { ok: true, back: true, any: true }; return; }   // 버튼 재배치 중에는 메뉴 입력을 막는다
     const info = this.padInfo, b = pad.buttons, pr = (i) => !!(b[i] && (b[i].pressed || b[i].value > 0.5));
     const dir = { up: false, down: false, left: false, right: false };
     if (info.std) { dir.up = pr(12); dir.down = pr(13); dir.left = pr(14); dir.right = pr(15); }
