@@ -2,12 +2,15 @@
 //  · 남서: 청팀 기지 (코어 반응로·기지 문 셋·정비 패드) / 북동: 홍팀 기지 (원점 대칭)
 //  · 세 라인: 위(서쪽·북쪽 가장자리) · 가운데(대각선) · 아래(남쪽·동쪽 가장자리). 바닥 빛 트랙과 120 m 마다 빛 고리
 //  · 라인 사이 정글: 기둥·LED 탑·떠 있는 판·고리·아치·터널, 정글 캠프 여덟 자리, 숨은 상자 여덟 자리
+//  · 엄폐물(stadium-cover.js): 라인 옆 에너지 방벽 · 장갑 격벽 · 타워 곁 블록 · 캠프 벽 · 높은 기둥 · 고가 다리
 //  · 가운데: 보랏빛 보스 구덩이 / 둘레: 광고판 담장, 계단식 관중석과 대형 전광판, 모서리 조명탑, 먼 미래 도시
 // 기지전(AOS) 모드가 쓰는 배치는 aos 필드로 내보낸다 (modes/aos.js)
+import * as THREE from "../../vendor/three.module.min.js";
 import { Blinkers } from "./moon-kit.js";
 import { NeonSigns, height, colorFn, BASES, BASE_R, PAD_R, LANES, TOWERS, TOWER_H, CAMPS, CACHES, BOSS, PIT, HALF, RING_R, laneHoops } from "./stadium-kit.js";
 import { bases, lanes, towers, bossPit, campPads, cacheHides, jungle, padPos } from "./stadium-field.js";
 import { stands, floodlights, skyline, blimps } from "./stadium-arena.js";
+import { cover, COVER } from "./stadium-cover.js";
 
 export { height };
 
@@ -67,7 +70,9 @@ function build(w) {
   const S = new NeonSigns(w, SIGNS);
   w.terrain(height, colorFn, { flat: "asphalt", flatTint: "0.7, 0.85, 1.0", rockTint: "0.55, 0.6, 0.75", rockLo: 0.35, rockHi: 0.6 });
   const t0 = performance.now();
-  bases(w, K, S); lanes(w, K); towers(w, K); bossPit(w, K, S); campPads(w, K); cacheHides(w, K); jungle(w, K, S);
+  bases(w, K, S); lanes(w, K); towers(w, K); bossPit(w, K, S); campPads(w, K); cacheHides(w, K); cover(w, K);
+  const tourKeep = new THREE.CatmullRomCurve3(TOUR.map((g) => new THREE.Vector3(...g.p)), true, "centripetal").getSpacedPoints(300).map((v) => [v.x, v.z]);
+  jungle(w, K, S, tourKeep);
   stands(w, K, S); floodlights(w, K); skyline(w, K); blimps(w, S);
   S.finish(); K.blink.finish();
   w.detailMs = Math.round(performance.now() - t0);
@@ -94,5 +99,5 @@ export default {
   tracking: TRACKING,
   combat: { blue: BASES[0], red: BASES[1], depots: CAMPS.filter((c) => c.big).map((c) => c.p), startOffset: 40 },
   // 기지전(AOS) 배치
-  aos: { hoops: Object.fromEntries(Object.keys(LANES).map((id) => [id, laneHoops(id)])), bases: BASES, baseR: BASE_R, padR: PAD_R, pads: [padPos(0), padPos(1)], lanes: LANES, towers: TOWERS, towerH: TOWER_H, camps: CAMPS, caches: CACHES, boss: BOSS, pit: PIT },
+  aos: { hoops: Object.fromEntries(Object.keys(LANES).map((id) => [id, laneHoops(id)])), bases: BASES, baseR: BASE_R, padR: PAD_R, pads: [padPos(0), padPos(1)], lanes: LANES, towers: TOWERS, towerH: TOWER_H, camps: CAMPS, caches: CACHES, boss: BOSS, pit: PIT, cover: COVER },
 };

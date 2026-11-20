@@ -7,7 +7,8 @@
 //  · 30초마다 양쪽 기지에서 미니언이 라인마다 날아 나가 서로 싸우며 타워를 민다
 //  · 정글 캠프(60초마다 부활)와 가운데 보스(3분마다 부활): 잡으면 포인트, 보스는 팀 전체에 60초 강화(피해 +25% · 초당 회복)
 //  · 숨은 상자: 구조물 속(떠 있는 판 밑·터널 안·LED 탑 꼭대기·아치 속)에서 경기 동안만 쓰는 부품 획득
-//  · 전장 포인트(ⓟ): 미니언·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 정비 패드(기지 원 안)에서 화력·장갑·기동·스킬을 Lv5 까지 강화
+//  · 전장 포인트(ⓟ): 미니언·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 원 안에서 왼쪽 위 포인트 판(또는 아이템 키)으로 업그레이드 창을 열어 화력·장갑·기동·스킬을 Lv5 까지 강화
+//  · 코어 체력은 다른 모드의 4배(6400) · 공격받는 아군 타워·코어는 전장 지도에 붉은 경보로 뜬다
 //  · 승리: 적 코어 파괴. 시간이 끝나면 부순 타워 수 → 코어 체력 → 격추 수 순으로 판정
 //
 // ── 네트워크 (js/net/README.md 의 NetGame 사용, 동기화 세부는 aos-net.js) ──
@@ -15,7 +16,7 @@
 //  this.authority = ng.owner   true = 월드(타워·코어·미니언·정글·보스·상자·봇·팀 포인트)를 직접 시뮬레이션하는 쪽 (오프라인·호스트)
 //                              false = 클라이언트: 월드 결정(생성·AI·점수)은 하지 않고 호스트 프레즌스로 받은 상태를 그린다
 //  클라이언트가 월드 오브젝트를 맞히면 NetGame 이 누적 피해로 호스트에 보고 → 호스트의 combat.damage 로 적용 (reportHit 은 같은 일을 하는 직접 진입점)
-//  업그레이드: wantBuy(key) — 오프라인·호스트는 바로, 클라이언트는 프레즌스 필드 "buy" 로 요청하고 호스트가 기지 안인지 확인해 반영
+//  업그레이드: wantBuy(key) — 업그레이드 창(AosShop)에서만 부른다. 오프라인·호스트는 바로, 클라이언트는 프레즌스 필드 "buy" 로 요청하고 호스트가 기지 안인지 확인해 반영
 //  snapshot()/applySnapshot(s): 디버그·저장용 전체 상태(구조물·팀·상자·미니언·정글·봇·ⓟ). 온라인 경로는 aos-net.js 의 작은 필드들을 쓴다
 //  PvP 규칙: cfg.net 이거나 cfg.pvp 이면 격납고 파츠 능력치 끔(baseStats) · 스킬 피해 60%(skillK). 경기 내 부품·강화는 그대로
 import * as THREE from "../../vendor/three.module.min.js";
@@ -51,7 +52,7 @@ export const PARTS = {
 export const PART_KEYS = Object.keys(PARTS);
 export const PTS = { passive: 2, minion: 14, minionShare: 5, camp: 28, elite: 70, boss: 150, kill: 120, assist: 50, tower: 150, towerLast: 60, cache: 60 };
 const WAVE_T = 30, FIRST_WAVE = 6, WAVE_N = 4, CAMP_FIRST = 20, CAMP_RE = 60, BOSS_FIRST = 100, BOSS_RE = 180, CACHE_RE = 90, CACHE_FIRST = 40;
-const TOWER_HP = { outer: 900, inner: 1100 }, TOWER_RANGE = 72, CORE_HP = 1600, CORE_RANGE = 64;
+const TOWER_HP = { outer: 900, inner: 1100 }, TOWER_RANGE = 72, CORE_HP = 6400 /* 4× — 코어 공성은 긴 싸움 */, CORE_RANGE = 64;
 const HERO_HP = 150, MINION_HP = 75, HEAVY_HP = 200, LANE_Y = 13;
 const BUFF_T = 60, LEASH = 80, BOSS_LEASH = 100;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -77,7 +78,7 @@ export class AosMode extends CombatMode {
     this.teams = AOS_TEAM.map((name, id) => ({ id, name, css: TEAM_CSS[id], kills: 0, lost: 0, buffT: 0, core: null, towers: [], pad: new THREE.Vector3(), base: new THREE.Vector3(), bossCallT: 0, callEval: 10 + id * 3, pushT: 0, pushLane: null, pushEval: 90 + id * 7 }));
     this.towers = []; this.heroes = []; this.minions = []; this.camps = []; this.caches = []; this.bubbles = [];
     this.boss = null; this.bossT = BOSS_FIRST; this.waveT = FIRST_WAVE; this.wave = 0; this.campT = CAMP_FIRST;
-    this.endT = -1; this.winner = -1; this.alerts = {}; this.hint = null; this.nid = 1; this.byId = new Map();
+    this.endT = -1; this.winner = -1; this.alerts = {}; this.mapAlerts = []; this.hint = null; this.nid = 1; this.byId = new Map();
     let seen = false; try { seen = !!localStorage.getItem("fpv-aos-rules"); } catch (_) { /* 저장 불가 */ }
     this.ruleT = seen ? 0 : 8;   // 처음이면 시작 뒤에도 8초 동안 규칙 카드
   }
@@ -537,7 +538,6 @@ export class AosMode extends CombatMode {
     }
     if (a.dmgBy && k && k.isHero) a.dmgBy.set(k, now);
     if ((a.aosTower || a.kind === "core") && k && k.aos) k.aos.towerDmg += amt;
-    if ((a.aosTower || a.kind === "core") && a.team === this.me.team && k && k.isHero && !this.spectator) this._alert("tw", a.kind === "core" ? "아군 코어 공격받는 중!" : "아군 타워 공격받는 중", "#ff8a7a", 12, a);
     if (a.isNeutral && k && k.team !== 2) { a.camp.aggro = k; a.camp.aggroT = 6; }
   }
   _credit(victim, k) {
@@ -621,6 +621,22 @@ export class AosMode extends CombatMode {
     this._hint(txt, col, 4, at ? at.pos : null);
   }
   _hint(txt, col, dur, pos = null) { this.hint = { txt, col, t: dur, dur, pos }; }
+  // 공격받는 아군 구조물(타워·코어) → 전장 지도 경보. 체력이 줄어든 것으로 알아채므로 클라이언트(동기화된 체력)에서도 같다
+  //  구조물마다 6초에 한 번, 경보 고리는 4초. 글 알림은 타워 10초 · 코어 8초에 한 번 (더 긴 목표 알림은 덮지 않는다)
+  _watchStructs(dt) {
+    for (let i = this.mapAlerts.length - 1; i >= 0; i--) if ((this.mapAlerts[i].t -= dt) <= 0) this.mapAlerts.splice(i, 1);
+    if (this.spectator) return;
+    const now = this.s.time, t = this.teams[this.me.team];
+    for (const a of [t.core, ...t.towers]) {
+      const prev = a._hp0 ?? a.hp; a._hp0 = a.hp;
+      if (!a.alive || a.hp >= prev - 0.5 || (a._alertT || -99) > now) continue;
+      a._alertT = now + 6;
+      const core = a.kind === "core";
+      this.mapAlerts.push({ x: a.pos.x, z: a.pos.z, t: 4, dur: 4, core });
+      if (this.hint && this.hint.dur > 4 && this.hint.t > 1.5) continue;
+      this._alert(core ? "core" : "tw", core ? "아군 코어 공격받는 중!" : `${a.name.replace(t.name, "아군")} 공격받는 중`, "#ff6b5a", core ? 8 : 10, a);
+    }
+  }
 
   // ── 매 프레임 ──
   // 온라인 일시정지 중에도 세계는 돌지만 조종은 막는다
@@ -637,7 +653,7 @@ export class AosMode extends CombatMode {
     }
   }
   update(dt) {
-    if (this.shop) this.shop.update(dt);   // 기지 안에서는 아이템 키가 상점 조작이라 전투 시스템보다 먼저
+    if (this.shop) this.shop.update(dt);   // 기지 안에서는 아이템 키가 업그레이드 창 조작이라 전투 시스템보다 먼저
     super.update(dt);
     this.ng.update(dt); this.net.update(dt);
     // 클라이언트: 호스트 시계보다 많이 늦으면 따라잡는다
@@ -649,6 +665,7 @@ export class AosMode extends CombatMode {
     if (this.ruleT > 0 && this.state === "run" && (this.ruleT -= dt) <= 0) { try { localStorage.setItem("fpv-aos-rules", "1"); } catch (_) { /* 저장 불가 */ } }
     if (this.hint && (this.hint.t -= dt) <= 0) this.hint = null;
     if (this.state !== "run") return;
+    this._watchStructs(dt);
     this._caches(dt);
     this._recall(dt); this._hoops(dt);
     if (this.authority) this._world(dt);

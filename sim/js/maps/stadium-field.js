@@ -1,6 +1,7 @@
 // 드론 리그 스타디움 — 경기장 안: 두 팀 기지(코어 반응로·기지 문·정비 패드), 세 라인(빛 트랙·빛 고리), 타워 기둥, 정글(기둥·LED 탑·떠 있는 판·고리·아치·터널), 캠프 자리, 보스 구덩이, 숨은 상자 자리
 import { ring, octa, ball } from "./moon-kit.js";
 import { beam } from "./canyon-kit.js";
+import { coverDist } from "./stadium-cover.js";
 import { BASES, BASE_R, PAD_R, LANES, TOWERS, TOWER_H, CAMPS, CACHES, PIT, laneDist, laneHoops, TRACK_KEEP, rng, DEG,
   CYAN, MAG, LIME, AMB, VIO, WH, TB, TR, DARK, DARK2, STEEL, PANEL, INK } from "./stadium-kit.js";
 
@@ -168,7 +169,7 @@ export function cacheHides(w, K) {
 }
 
 // ── 정글 장애물: 청 쪽에 고르게 뿌리고 원점 대칭으로 홍 쪽에 똑같이 ──
-export function jungle(w, K, S) {
+export function jungle(w, K, S, keep = []) {
   const r = rng(4242), items = [];
   const keepOut = (x, z, m) => {
     if (z < x + 30) return true;                                                                   // 청 쪽 반(강 z = x 의 남서쪽)만
@@ -178,6 +179,8 @@ export function jungle(w, K, S) {
     for (const c of CAMPS) if (Math.hypot(x - c.p[0], z - c.p[1]) < 32 + m) return true;
     for (const c of CACHES) if (Math.hypot(x - c.p[0], z - c.p[2]) < 30 + m) return true;
     if (Math.hypot(x, z) < PIT.r1 + 30 + m) return true;
+    if (coverDist(x, z) < 14 + m) return true;
+    for (const [kx, kz] of keep) if (Math.hypot(x - kx, z - kz) < 22 + m || Math.hypot(x + kx, z + kz) < 22 + m) return true;   // 그랜드 투어 길                                                     // 엄폐물 자리
     for (const [kx, kz, kr] of TRACK_KEEP) if (Math.hypot(x - kx, z - kz) < kr + 10 + m || Math.hypot(x + kx, z + kz) < kr + 10 + m) return true;
     for (const it of items) if (Math.hypot(x - it[1], z - it[2]) < 24 + m + it[3]) return true;
     return false;

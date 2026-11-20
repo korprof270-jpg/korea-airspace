@@ -28,7 +28,7 @@ const GLYPHS = {
   switch: { ok: "A", back: "B", item: "B", reset: "A", camera: "Y", modeNext: "X", missile: "L", fire: "ZR", hud: "−", pause: "+", itemNext: "◀▶", skill: "L·R 스틱", dodge: "ZL" },
   generic: { ok: "2", back: "3", item: "2", reset: "3", camera: "1", modeNext: "4", missile: "L1", fire: "R2", hud: "셀렉트", pause: "스타트", itemNext: "—", skill: "스틱 누름", dodge: "L2" },
   rc: { ok: "SW1", back: "SW2", item: "SW5", reset: "SW3", camera: "SW4", modeNext: "SW6", missile: "SW2", fire: "SW1", hud: "—", pause: "SW7", itemNext: "—", skill: "SW9", dodge: "SW8" },
-  keyboard: { ok: "Enter", back: "Esc", item: "E", reset: "R", camera: "C", modeNext: "M", missile: "F", fire: "Space", hud: "H", pause: "Esc", itemNext: "Q", skill: "X", dodge: "V" },
+  keyboard: { ok: "Enter", back: "Esc", item: "E", reset: "R", camera: "C", modeNext: "M", missile: "F", fire: "Space", hud: "H", pause: "Esc", itemNext: "Q", skill: "X", dodge: "V", shop: "B" },
 };
 
 export const PAD_NAMES = { xbox: "Xbox 컨트롤러", ps: "PlayStation 컨트롤러", switch: "Switch Pro 컨트롤러", generic: "게임패드", rc: "RC 조종기" };
