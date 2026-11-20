@@ -5,6 +5,7 @@
   "description": "대한민국 드론 비행 공역 확인 (웹 + 앱)",
   "scripts": {
     "start": "npx --yes http-server . -p 8080 -c-1",
+    "sim": "npx --yes http-server . -p 8080 -c-1 -o /sim/",
     "build": "node scripts/build.mjs",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "ios": "npm run build && npx cap sync ios && npx cap open ios"

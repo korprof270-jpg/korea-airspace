@@ -1,0 +1,62 @@
+{
+  "name": "fpv-project",
+  "productName": "FPV PROJECT",
+  "version": "1.0.0",
+  "description": "FPV PROJECT — 3D 드론 비행 게임",
+  "author": "FPV PROJECT",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "pack-web": "node ../pack-web.mjs web",
+    "start": "npm run pack-web && electron .",
+    "dist": "npm run pack-web && electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "kr.fpvproject.game",
+    "productName": "FPV PROJECT",
+    "files": [
+      "main.js",
+      "web/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "web/icons/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "FPV-PROJECT-Setup-${version}.exe",
+      "shortcutName": "FPV PROJECT"
+    },
+    "portable": {
+      "artifactName": "FPV-PROJECT-Portable-${version}.exe"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "web/icons/icon-512.png",
+      "category": "Game",
+      "artifactName": "FPV-PROJECT-${version}.AppImage"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "web/icons/icon-512.png",
+      "category": "public.app-category.games",
+      "artifactName": "FPV-PROJECT-${version}-mac.dmg"
+    },
+    "publish": null
+  }
+}
