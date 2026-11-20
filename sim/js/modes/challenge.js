@@ -126,7 +126,7 @@ export class ChallengeMode extends CombatMode {
     if (this.failT > 0) { if ((this.failT -= dt) <= 0) this.fail(this.failWhy); return; }
     // 정해진 시각이 되거나 목표를 먼저 끝내면 보스가 나타난다. 보스를 잡아야 임무 완료
     const bc = this.bossCfg;
-    if (bc && !this.bossA && (this.time >= (bc.at ?? 60) || this.winT > 0)) {
+    if (bc && !this.bossA && (this.id === "waves" ? this.winT > 0 : this.time >= (bc.at ?? 60) || this.winT > 0)) {   // 기지 방어: 보스는 마지막 웨이브와 함께 (tick_waves)
       const me = this.me.pos, f = _v.set(-Math.sin(this.s.player.body.heading), 0, -Math.cos(this.s.player.body.heading));
       let p;
       const guard = this.id === "escort" && this.truck ? this.truck.pos : this.id === "waves" && this.base ? this.base.core.pos : null;
@@ -235,8 +235,14 @@ export class ChallengeMode extends CombatMode {
           ["grunt", Math.round((1 + k) * s * 0.5), "core"], ["grunt", Math.round((1 + k) * s * 0.5), null],
           ["kamikaze", k >= 2 ? Math.round((k - 1) * s) : 0, "core"], ["gunship", k === 3 ? 1 : k === 5 ? Math.round(1.4 * s) : 0, "core"],
         ]);
-        this.s.hud.toast(`웨이브 ${k} / ${this.waves}`, "#ff6b5a", 2, 34);
+        this.s.hud.toast(k === this.waves ? "최종 웨이브!" : `웨이브 ${k} / ${this.waves}`, "#ff6b5a", 2, 34);
         this.s.game.sound.play("warn");
+        if (k === this.waves && this.bossCfg && !this.bossA) {   // 보스는 최종 웨이브와 함께 같은 방향에서 날아든다. 웨이브를 다 잡고 보스까지 쓰러뜨려야 승리
+          const bc = this.bossCfg, msg = `최종 웨이브 — ${bc.name || "보스"} 출현!`;
+          this.bossA = this.spawnBoss({ ...bc, pos: c.randomPoint(22, 34, 0, cx, cz, 15) });
+          if (this.cut) this.cut.msg = msg; else this.s.hud.toast(msg, "#ff4a5a", 2.2, 28);
+          this.s.hud.feed(msg, "#ff8a8a");
+        }
       }
     } else if (left === 0) {
       if (this.wave >= this.waves) {

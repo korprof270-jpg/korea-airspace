@@ -835,6 +835,7 @@ export class Combat {
       if (d > 260 && o.kind !== ai.focus) continue;
       if (ai.focus && (o.kind === ai.focus || o.tag === ai.focus)) d *= 0.35;
       if (o === ai.lastHit) d *= 0.5;
+      if (o.flagship) d *= 4;   // 하늘 높이 뜬 기함(fleet.js)은 가까운 다른 표적이 없을 때만 노린다
       if (o.kind === "turret" && ai.focus !== "turret") d *= 1.6;
       if (d < bs) { bs = d; best = o; }
     }

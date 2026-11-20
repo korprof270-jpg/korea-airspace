@@ -3,6 +3,7 @@ import * as THREE from "../../vendor/three.module.min.js";
 import { Mode } from "./base.js";
 import { Combat, TEAM_COLOR } from "../combat.js";
 import { settings } from "../config.js";
+import { Fleet, fleetWanted } from "../fleet.js";
 
 const _v = new THREE.Vector3();
 
@@ -44,7 +45,7 @@ export class CombatMode extends Mode {
     k.t += dt;
     if ((k.t > 0.6 && s.game.input.take("fire")) || k.t >= k.dur || !a.alive) {   // 사격 버튼으로 건너뛰기
       this.cut = null; s.debugCam = null; s.player.frozen = false; s.player.camInit = false;
-      s.hud.toast(`${k.name} 출현!`, k.mid ? "#ffb02e" : "#ff4a5a", 1.6, 26);
+      s.hud.toast(k.msg || `${k.name} 출현!`, k.mid ? "#ffb02e" : "#ff4a5a", k.msg ? 2.4 : 1.6, 26);   // msg: 모드가 정한 출현 문구 (예: 최종 웨이브)
       return;
     }
     if (k.t < 0.15 && Math.floor(k.t * 60) % 20 === 0) s.game.sound.play("warn");
@@ -80,16 +81,22 @@ export class CombatMode extends Mode {
     if (this.cut) return this._cutStep(dt);
     super.update(dt);
     if (this.state !== "countdown") this.combat.update(dt);
+    this._fleetTick(dt, this.state === "run");
+  }
+  // 대규모 전투의 기함 함대 (fleet.js): 처음 갱신할 때 만든다(모드 설정이 끝난 뒤). 컷신·카운트다운에는 순항만
+  _fleetTick(dt, live) {
+    if (this.fleet === undefined) this.fleet = fleetWanted(this) ? new Fleet(this) : null;
+    if (this.fleet) this.fleet.update(dt, live && !this.cut);
   }
   // 컷신 동안에도 유닛은 제자리 동작(걷기·포탑)을 이어 가되 쏘지는 않는다
-  _cutUnits(dt) { this.combat.units.update(dt); this.s.world.update(0); }
+  _cutUnits(dt) { this.combat.units.update(dt); this._fleetTick(dt, false); this.s.world.update(0); }
 
   finish(result) {
     this.combat.frozen = true;
     super.finish(result);
   }
 
-  dispose() { if (this.cargo) this.cargo.dispose(); this.combat.dispose(); }
+  dispose() { if (this.cargo) this.cargo.dispose(); if (this.fleet) this.fleet.dispose(); this.combat.dispose(); }
 
   // HUD 목표: 조준·락온 중인 적이 우선, 없으면 임무 목표(각 모드의 missionObjective)
   hudObjective() {
