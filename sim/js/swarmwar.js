@@ -193,14 +193,16 @@ export class SwarmWar {
   // 편대 투입: n 기를 5~6기 쐐기 편대로 나눠
   _wave(side, n, first = false) {
     const ships = first ? [] : this._ships(side);
-    let left = n, k = 0;
+    let left = n, k = 0, base = null;
     while (left > 0) {
       const m = Math.min(left, left - 6 < 3 ? left : 6);
       const at = new V3();
       let launch = null;
       if (ships.length) { launch = ships[k % ships.length]; at.copy(launch.pos); at.y -= 6; }
+      else if (first) { if (!base) { base = this._rear(side, new V3()); base.addScaledVector(this.lat, -_b.copy(base).sub(this.F).dot(this.lat)); base.y = this._fy(base, this.F.y); } at.copy(base); }   // 처음 편대는 한 기준점에서 나란히
       else this._rear(side, at);
-      if (first) at.addScaledVector(this.lat, (k - (n / 6 - 1) / 2) * 34);
+      // 처음 편대: 편대끼리 옆으로 넉넉히(70m), 앞뒤·높이도 번갈아 벌려서 뭉치지 않게 출발
+      if (first) { at.addScaledVector(this.lat, (k - (Math.ceil(n / 6) - 1) / 2) * 70).addScaledVector(this.axis, (side ? 1 : -1) * (k % 2) * 45); at.y += (k % 3 - 1) * 12; at.x = clamp(at.x, -this.lim + 20, this.lim - 20); at.z = clamp(at.z, -this.lim + 20, this.lim - 20); }
       const dir = _a.copy(this.F).sub(at).setY(0); if (dir.lengthSq() < 1) dir.copy(this.axis).multiplyScalar(side ? -1 : 1); dir.normalize();
       const sq = { side, anchor: at.clone(), dir: dir.clone(), st: 0, spd: rnd(21, 25), t: 0, n: 0, chk: Math.random() };
       for (let i = 0; i < m; i++) this._spawn(sq, i, launch);

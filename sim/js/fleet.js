@@ -248,12 +248,13 @@ export class Fleet {
         sh.A = A;
         sh.alt = this._alt(sh) + i * 12 + side * 6;
         // 전투 액터: 적은 표적(플레이어가 격침 가능), 아군은 표적 아님
-        const hp = (big ? 5200 : 2800) * (side ? 1 : 1.25) * (mode.cfg.power || 1);
+        const hp = (big ? 5200 : 2800) * (mode.variant === "fleet" ? 5 : 1) * (side ? 1 : 1.25) * (mode.cfg.power || 1);   // 함대전: 함선 내구도 5배
         sh.actor = this.c.addProp(new THREE.Object3D(), { name: sh.name, team: side, radius: (big ? 10 : 7), hp, maxHp: hp, static: true, targetable: !!side, flagship: true, armor: side ? 0.5 : 1 });
         sh.actor.ai = { lastHit: null, lastHitT: 0 };   // 마지막으로 때린 쪽 (combat.damage 가 적는다) → 플레이어 격침 보너스
         sh.hit = new THREE.Group(); model.add(sh.hit);
         const cols = w.rider(sh.hit, model.userData.boxes, side ? "enemy" : "mover");
         for (const cc of cols) cc.owner = sh.actor;
+        sh.actor.colliders = cols;   // 조준 시야 판정에서 자기 선체는 빼도록
         this.ships.push(sh);
         this._place(sh, 0);
       }
