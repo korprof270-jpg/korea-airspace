@@ -179,7 +179,7 @@ export class PadUI {
     if (sc.el.matches && sc.el.matches("[data-ovl]")) { ui.a_ovclose(); this.cur = null; return; }
     if (ui.screen === "pause") { g.resume(); return; }
     if (ui.screen === "main") { ui.show("title"); this.cur = null; return; }
-    if (["setup", "hangar", "settings", "help", "group", "story", "training"].includes(ui.screen)) { ui.a_back(); this.cur = null; }
+    if (["setup", "hangar", "settings", "help", "group", "story", "training", "pvp"].includes(ui.screen)) { ui.a_back(); this.cur = null; }
   }
 
   _key(code) {

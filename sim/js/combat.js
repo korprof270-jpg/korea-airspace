@@ -37,7 +37,7 @@ const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄�
 export const PLAYER_HP = 150, BOT_HP = 1.5, SHIELD_HP = 120;
 const RESPAWN = 5, RESPAWN_ME = 3;
 const HITBOX = 1.3;       // 내가 쏜 레이저·미사일의 명중 판정 배율 (포탑·코어 등 구조물만, 적 드론은 1배)
-const hb = (o) => (o.kind === "bot" ? 1 : HITBOX);        // 격추 후 재출격까지(초)
+const hb = (o) => (o.kind === "bot" || o.remote ? 1 : HITBOX);        // 격추 후 재출격까지(초)
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3();
 const _des = new THREE.Vector3(), _aim = new THREE.Vector3();
 const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
@@ -60,7 +60,10 @@ export class Combat {
     this.feel = session.feel;      // 화면 효과 관리자: 공격·명중·피해 사건을 알린다
     this.h = handlers;
     this.ffa = !!handlers.ffa;
-    this.L = GP.loadout();                       // 격납고 파츠·효과
+    this.L = handlers.baseStats ? GP.baseLoadout() : GP.loadout();   // 격납고 파츠·효과 (PvP: 파츠 능력치 미적용, 외형 효과만)
+    this.skillK = handlers.skillK ?? 1;         // 스킬이 주는 피해 배율 (PvP 0.6)
+    this._sk = 0;                                // > 0: 지금 스킬이 피해를 주는 중 (스킬 탄·미사일은 skl 표시로 이어 받는다)
+    this._net = false;                           // 네트워크로 받은 피해를 적용하는 중
     this.lockNeed = 0.7 * Math.max(0.35, 1 + this.L.lock);
     this.aimRange = 170 * Math.max(0.5, 1 + this.L.range);   // 센서 부품: 조준 보조·락온 거리
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
@@ -312,7 +315,8 @@ export class Combat {
 
   // ── 무기 ──
   fireLaser(a, origin, dir, dmg, color, speed = LASER_SPEED) {
-    this.shots.push({ pos: origin.clone(), dir: dir.clone(), speed, life: 0.85, dmg, owner: a, color });
+    a.shotN = (a.shotN || 0) + 1;                // 온라인: 사격 연출을 다른 사람에게 알리는 횟수
+    this.shots.push({ pos: origin.clone(), dir: dir.clone(), speed, life: 0.85, dmg, owner: a, color, skl: this._sk > 0 });
   }
 
   fireMissile(a, origin, dir, target, dmg = 55, quiet = false) {
@@ -324,7 +328,8 @@ export class Combat {
     glow.position.z = -0.9; mesh.add(glow); mesh.userData.glow = glow; mesh.userData.col = mcol;
     mesh.position.copy(origin);
     this.w.scene.add(mesh);
-    this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0 });
+    this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0, skl: this._sk > 0 });
+    if (this.h.onMissile) this.h.onMissile(a, target);
     this.snd.play("missile", a.isPlayer ? (quiet ? 0.45 : 1) : this.volAt(origin), a.isPlayer ? 0 : this.panAt(origin), quiet ? 1.3 : 1);
     if (a.isPlayer && !quiet) this.feel.emit("missile");
     if (!a.isPlayer || this.s.player.camMode !== "fpv") this.fx.muzzle(origin, dir, 0xffb060, a.isPlayer ? 1.2 : 2);
@@ -355,7 +360,7 @@ export class Combat {
   _playerWeapons(dt) {
     const p = this.player, pl = this.s.player, inp = this.s.game.input;
     this._dodge(dt, p, pl, inp);
-    if (!p.alive || p.stunT > 0 || this.s.mode.state !== "run") { this.lock = null; this.lockT = 0; this.aim = null; return; }
+    if (!p.alive || p.stunT > 0 || this.s.mode.state !== "run" || this.s.game.state === "pause") { this.lock = null; this.lockT = 0; this.aim = null; return; }
     const over = p.overT > 0;
     p.fireT -= dt; p.missileT -= dt;
     // 자동 사격: 조준선에 적이 걸리면 레이저, 락온되면 미사일을 알아서 쏜다 (조종에만 집중)
@@ -470,11 +475,13 @@ export class Combat {
   // ── 피해 ──
   damage(a, amount, attacker, point) {
     if (!a.alive || a.invulnerable || amount <= 0 || this.frozen) return;
+    if (this._sk > 0 && attacker && attacker.isPlayer) amount *= this.skillK;   // 스킬 피해 배율 (PvP)
+    if (a.remote) return this._remoteHit(a, amount, attacker, point);           // 다른 사람의 기체·호스트 소유 오브젝트: 맞은 쪽에 보고
     if (a.isPlayer && (a.dodgeT > 0 || this.s.time < (a.spawnGodT || 0))) return;   // 고속 회피 중 · 리스폰 직후 3초는 맞지 않는다
     if (a.armor) amount *= a.armor;
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
-    if (attacker && attacker.kind !== "player" && a.isPlayer) amount *= this.diff.dmg;
+    if (attacker && attacker.kind !== "player" && a.isPlayer && !this._net && !attacker.remote) amount *= this.diff.dmg;
     if (a.isPlayer && this.L.guard) amount *= Math.max(0.4, 1 + this.L.guard);     // 장갑·실드 부품: 받는 피해 감소
     if (a.isPlayer && this.skill) amount *= this.skill.dmgMul;                    // 오버드라이브: 받는 피해 절반
     if (this.skill && attacker && attacker.isPlayer && this.skill.active && this.hostile(attacker, a)) this.skill.onHit(a, amount, point);   // 스킬 중 명중 연출
@@ -502,6 +509,20 @@ export class Combat {
     } else if (attacker && attacker.isPlayer) { this.hitMark = HIT_T; this.hitKind = "hp"; this.hitAmt = amount; this.feel.emit("hit", amount, a); this._pop(point || a.pos, amount, a.hp - amount <= 0 ? "kill" : a.armor && a.armor < 0.9 ? "armor" : "hp"); this._pulse(a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
     if (this.h.onDamage) this.h.onDamage(a, amount, attacker);
     if (a.hp <= 0) this.kill(a, attacker);
+  }
+
+  // 대리 액터(원격 플레이어·호스트 소유 오브젝트) 명중: 체력은 건드리지 않고 보고만 (맞은 쪽이 적용)
+  _remoteHit(a, amount, attacker, point) {
+    if (a.god || !attacker || attacker.remote || !this.h.onRemoteHit) return;
+    if (!this.h.onRemoteHit(a, amount, attacker)) return;
+    a.flash = 0.12;
+    if (!attacker.isPlayer) return;
+    if (this.skill && this.skill.active) this.skill.onHit(a, amount, point);
+    if (this.skill) this.skill.gain(Math.min(amount, a.hp + (a.shield || 0)) * 0.14);
+    const sh = a.shield > 0;
+    this.hitMark = HIT_T; this.hitKind = sh ? "shield" : "hp"; this.hitAmt = amount;
+    this.feel.emit("hit", amount, a);
+    this._pop(point || a.pos, amount, sh ? "shield" : a.hp - amount <= 0 ? "kill" : "hp");
   }
 
   // 피격 방향 표시 추가: 같은 쪽(가까운 위치)에서 연달아 맞으면 하나로 합쳐 더 진하게
@@ -681,7 +702,7 @@ export class Combat {
         const tgt = this._bodyTarget(body);
         if (tgt && this.hostile(s.owner, tgt)) {
           fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(8 * (s.sk || 1)) : 5, true);
-          this.damage(tgt, s.dmg, s.owner, _b);
+          this._sk += s.skl ? 1 : 0; try { this.damage(tgt, s.dmg, s.owner, _b); } finally { this._sk -= s.skl ? 1 : 0; }
           this.shots.splice(i, 1); continue;
         }
       }
@@ -689,7 +710,7 @@ export class Combat {
         _b.copy(s.pos).addScaledVector(s.dir, bestT);
         fx.hitSpark(_b, s.dir, s.color, s.owner.isPlayer ? Math.round(13 * (s.sk || 1)) : 5, victim.radius > 1.5 || s.owner.isPlayer);
         if (s.owner.isPlayer) fx.hitSpark(_b, s.dir, 0xffffff, 4, false, false);   // 흰 불똥을 덧대 명중 지점이 또렷하게
-        this.damage(victim, s.dmg, s.owner, _b);
+        this._sk += s.skl ? 1 : 0; try { this.damage(victim, s.dmg, s.owner, _b); } finally { this._sk -= s.skl ? 1 : 0; }
         this.shots.splice(i, 1); continue;
       }
       if (wall >= 0) { fx.hitSpark(_b, s.dir, 0xffd27a, 4, false, false); this.shots.splice(i, 1); continue; }
@@ -760,8 +781,8 @@ export class Combat {
         this.snd.play("explode", this.volAt(m.pos) * 0.8, this.panAt(m.pos));
         this._blast(m.pos, 1.3);
         if (direct && m.owner && m.owner.isPlayer && (this.ffa || m.owner.team !== direct.team)) this._mHit = true;
-        if (direct) this.damage(direct, m.dmg, m.owner, m.pos);
-        this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct);
+        this._sk += m.skl ? 1 : 0;
+        try { if (direct) this.damage(direct, m.dmg, m.owner, m.pos); this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct); } finally { this._sk -= m.skl ? 1 : 0; }
         this.w.scene.remove(m.mesh); m.mesh.userData.glow.material.dispose();
         this.missiles.splice(i, 1);
       }
@@ -1002,7 +1023,7 @@ export class Combat {
 
   // 점수판 행: 드론(플레이어·AI)만
   board() {
-    return this.actors.filter((a) => a.kind === "player" || (a.kind === "bot" && a.respawns)).sort((a, b) => b.score - a.score);
+    return this.actors.filter((a) => a.kind === "player" || (a.kind === "bot" && a.respawns) || (a.remote && (a.isPilot || a.isBot))).sort((a, b) => b.score - a.score);
   }
 
   dispose() {

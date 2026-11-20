@@ -62,7 +62,7 @@ export class SkillSys {
     const A = this.active;
     if (A) {
       if (!p.alive) this._end();
-      else { A.t += dt; this["u_" + A.id](A, dt); if (A.done || (A.dur && A.t >= A.dur)) this._end(); }
+      else { A.t += dt; this.c._sk++; try { this["u_" + A.id](A, dt); } finally { this.c._sk--; } if (A.done || (A.dur && A.t >= A.dur)) this._end(); }
     }
     this._touchBtn();
     for (let i = this.objs.length - 1; i >= 0; i--) {
@@ -100,13 +100,14 @@ export class SkillSys {
     this._burst(p.pos, col);
     this.flashT = 1;                           // 화면 효과(테두리 빛·집중선) 세기
     GP.ev("skill");
-    this["s_" + this.id](this.active);
+    this.actN = (this.actN || 0) + 1;          // 온라인: 다른 사람 화면에 발동 연출
+    c._sk++; try { this["s_" + this.id](this.active); } finally { c._sk--; }
   }
   _end() {
     const A = this.active;
     if (!A) return;
     this.active = null;
-    if (this["e_" + A.id]) this["e_" + A.id](A);
+    if (this["e_" + A.id]) { this.c._sk++; try { this["e_" + A.id](A); } finally { this.c._sk--; } }
   }
 
   // 발동 순간 기체 둘레: 위로 솟는 빛 기둥, 퍼지는 고리 세 겹, 위로 흩날리는 빛 입자
@@ -483,7 +484,7 @@ export class SkillSys {
       s.refl = true;
       const src = s.owner;
       if (src && src.alive && src.pos) s.dir.copy(src.pos).sub(s.pos).normalize(); else s.dir.multiplyScalar(-1);
-      s.owner = p; s.dmg *= this.st.refl; s.color = this.m5 ? this.acc : col; s.life = 0.9; s.speed = Math.max(s.speed, 150);
+      s.owner = p; s.dmg *= this.st.refl; s.skl = true; s.color = this.m5 ? this.acc : col; s.life = 0.9; s.speed = Math.max(s.speed, 150);
       this.fx.hitSpark(s.pos, s.dir, col, 12, true);
       this.fx.ring(s.pos, col, 3, 0.25); this.fx.flash(s.pos, 0xffffff, 1.5, 0.08);
       A.hitT = 1; this.hitPulse = 1; this.s.feel.addTrauma(0.04);

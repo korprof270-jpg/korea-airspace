@@ -13,12 +13,15 @@ import { SurvivalMode } from "./modes/survival.js";
 import { ChallengeMode } from "./modes/challenge.js";
 import { TrainingMode } from "./modes/training.js";
 import { ConquestMode } from "./modes/conquest.js";
+import { PvpMode } from "./modes/pvp.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 import * as GP from "./garage.js";
 import { metrics, judge } from "./objectives.js";
 
-const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode };
+const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode, pvp: PvpMode };
+// 다른 모듈이 새 게임 모드를 붙일 때 (예: 점령전 AOS): registerMode("aos", AosMode)
+export const registerMode = (id, cls) => { MODES[id] = cls; };
 
 export class Session {
   constructor(game, cfg) {
@@ -50,7 +53,7 @@ export class Session {
   // 히트스톱/슬로모션: dur 초 동안 시간을 min 배로 (hold 비율만큼 머물렀다가 부드럽게 원래대로)
   // '움직임 줄이기' 설정이면 하지 않는다. 더 강한(느린) 요청이 이미 진행 중이면 무시
   slowMo(dur, min, hold = 0.35) {
-    if (settings.fx && settings.fx.reduceMotion) return;
+    if ((settings.fx && settings.fx.reduceMotion) || this.cfg.net) return;   // 온라인 경기는 시간을 멈추거나 늦추지 않는다
     const s = this._slow;
     if (s && s.t < s.dur && s.min <= min) return;
     this._slow = { t: 0, dur, min, hold };
@@ -85,6 +88,7 @@ export class Session {
 
     inp.enabled = !mode.locked || mode.state === "done";
     const ctl = inp.update(dt0);
+    if (this.cfg.net && g.state === "pause") { ctl.throttle = pl.flightMode === "ACRO" ? -0.2 : 0; ctl.pitch = ctl.roll = ctl.yaw = 0; }   // 온라인 일시정지: 멈추지 않고 제자리 비행
     if (mode.state === "done") { ctl.throttle = pl.flightMode === "ACRO" ? -0.2 : 0; ctl.pitch = ctl.roll = ctl.yaw = 0; }
 
     pl.update(dt, ctl);

@@ -18,6 +18,7 @@ import { SCENES } from "./scenes.js";
 import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 import { glyphsFor } from "./gamepad.js";
+import { PvpUI } from "./pvpui.js";
 
 const MODE_META = {
   training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 수동 비행을 이륙부터 곡예까지 단계별 과제로 배웁니다.",
@@ -45,12 +46,15 @@ const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
   game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
+  survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve", "pvp"], back: "game", hidden: true },
 };
 const SUB = {
   training: { img: "7-training" },
   trick: { name: "트릭 연습", en: "TRICKS", c: "#ff5ad6", img: "3-freestyle", desc: "롤·플립·스핀·루프를 시범으로 보고 스틱 타이밍대로 따라 해 봅니다." },
   free: { name: "자유 비행", en: "FREE FLIGHT", c: "#21d4fd", img: "8-snow", desc: "원하는 맵을 시간 제한 없이 마음껏 날아다니며 연습합니다." },
   race: { img: "1-race" }, tracking: { img: "5-tracking" }, freestyle: { img: "3-freestyle" }, survival: { img: "2-combat" },
+  pve: { name: "PVE", en: "PVE · AI 대전", c: "#ff3d5a", img: "2-combat", desc: "AI 드론과 싸우는 서바이벌. 데스매치·4팀 점령전, 격납고 파츠 능력치가 그대로 적용됩니다." },
+  pvp: { name: "PVP", en: "PVP · 대인전", c: "#21d4fd", img: "9-empire", desc: "다른 플레이어와 실시간 대전. 배틀넷 랜덤 매칭 또는 커스텀 방. 파츠 능력치 미적용 · 스킬 피해 60%." },
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
 
@@ -100,7 +104,14 @@ export class UI {
         if (cards.length) cards[i < 0 ? 0 : (i + d + cards.length) % cards.length].focus();
         e.preventDefault(); return;
       }
+      // PVP 메뉴: 방향키·Enter 로 패드처럼 이동 (입력 칸에서는 그대로)
+      if (this.screen === "pvp" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLSelectElement)) {
+        const d = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.code];
+        if (d) { e.preventDefault(); this.game.padui._nav(d); return; }
+        if ((e.code === "Enter" || e.code === "NumpadEnter") && this.game.padui.cur) { e.preventDefault(); this.game.padui._nav("ok"); return; }
+      }
       if (e.code !== "Escape" || !this.screen) return;
+      if (this.screen === "pvp" && !(e.target instanceof HTMLInputElement)) { this.a_back(); return; }
       if (["setup", "hangar", "settings", "help", "group"].includes(this.screen)) this.a_back();
     });
     // 정비소: 드래그로 회전
@@ -274,7 +285,7 @@ export class UI {
   }
   s_main() {
     const sp = progress(), tp = TR.progress();
-    const hubs = Object.entries(HUB).map(([id, h], i) => this._hcard("hub", id, Object.assign({}, h,
+    const hubs = Object.entries(HUB).filter(([, h]) => !h.hidden).map(([id, h], i) => this._hcard("hub", id, Object.assign({}, h,
       id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => MODE_META[k].name) }), i)).join("");
     return `<div class="screen hub">
       <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div>
@@ -296,6 +307,9 @@ export class UI {
     </div>`;
   }
   a_sub(v) {
+    if (v === "survival") { this._group = "survival"; return this.show("group"); }   // 서바이벌: PVE / PVP 갈림
+    if (v === "pvp") return this._pvOpen("hub");
+    if (v === "pve") v = "survival";
     if (v === "free") { this.sel.mode = "freestyle"; this.sel.fs = "free"; }
     else if (v === "trick" || v === "training") { this.sel.mode = "training"; this.sel.course = v === "trick" ? "trick" : null; this.sel.lesson = null; }
     else { this.sel.mode = v; if (v === "freestyle" && this._group === "game") this.sel.fs = "timed"; }
@@ -320,6 +334,8 @@ export class UI {
   a_back() {
     if (this.game.state === "pause") return this.show("pause");
     if (this.screen === "setup" && this._group) return this.show("group");   // 하위 메뉴에서 들어왔으면 그리로
+    if (this.screen === "pvp") return this._pvBack();
+    if (this.screen === "group" && HUB[this._group] && HUB[this._group].back) { this._group = HUB[this._group].back; return this.show("group"); }
     this._group = this.screen === "group" ? null : this._group;
     this.show("main");
   }
@@ -1146,12 +1162,12 @@ export class UI {
       <div class="list">
         <button class="primary" data-a="resume">계속하기</button>
         ${s && s.mode.demoKey ? `<button data-a="replay">🎬 시범 다시 보기</button>` : ""}
-        <button data-a="restart">다시 시작</button>
+        ${s && s.cfg.pvp ? "" : `<button data-a="restart">다시 시작</button>`}
         <button data-a="hud">HUD·효과 설정</button>
         <button data-a="go" data-v="settings">설정</button>
         <button data-a="go" data-v="help">조작법</button>
-        <button data-a="quit">메인 메뉴로</button>
-      </div></div></div>`;
+        <button data-a="quit">${s && s.cfg.pvp ? "경기 나가기" : "메인 메뉴로"}</button>
+      </div>${s && s.cfg.net ? `<p class="muted" style="font-size:12px">온라인 경기는 멈추지 않습니다 — 기체는 제자리 비행 중</p>` : ""}</div></div>`;
   }
   a_pfm(v) { const s = this.game.session; if (s) s.player.setFlightMode(v); this.redraw(); }
   a_pcam(v) { const s = this.game.session; if (s) { s.player.camMode = v; s.player.camInit = false; } settings.camera = v; save(); this.redraw(); }
@@ -1174,7 +1190,7 @@ export class UI {
       ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : r.story.bond ? `인연 · ${esc(r.story.bond.who)} 임무 성공` : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
       ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
-      <div class="list">
+      ${r.pvp ? `<div class="list">${r.pvp.auto ? `<button class="primary" data-a="pvrequeue">다시 매칭</button>` : `<button class="primary" data-a="pvlobby">대기실로</button>`}<button data-a="pvexit">PVP 메뉴로</button></div>` : `<div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
         ${r.story && r.story.post ? `<button class="primary" data-a="storypost" data-v="${r.story.stage.id}">이야기 계속 →</button>` : ""}
         ${r.story && r.story.next && !r.story.post ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
@@ -1182,7 +1198,7 @@ export class UI {
         ${r.story ? `<button class="${r.story.choose && !r.story.post ? "primary" : ""}" data-a="tostory">${r.story.choose && !r.story.post ? "다음 장: 작전 선택 →" : r.story.bond ? "인연 목록으로" : "단계 목록으로"}</button>` : ""}
         ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
-      </div></div></div>`;
+      </div>`}</div></div>`;
   }
   a_nextlesson(v) {
     const l = TR.LESSONS.find((x) => x.id === v);
@@ -1253,3 +1269,5 @@ export class UI {
     this.game.quit(); this.show("setup");
   }
 }
+
+Object.assign(UI.prototype, PvpUI);   // PVP 메뉴 화면 (pvpui.js)

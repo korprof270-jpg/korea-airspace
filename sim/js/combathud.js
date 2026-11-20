@@ -77,7 +77,7 @@ export function drawCombatHud(c, h, o = {}) {
     const big = a.kind === "core" || a.kind === "turret" || a.botKind === "boss" || a.botKind === "gunship" || a.kind === "prop";
     const isLock = a === c.lock, isAim = a === c.aim;
     const col = enemy ? (isLock && locked ? "#ff3030" : isAim ? "#ffd24a" : c.multi ? TEAM_CSS[a.team] : "rgba(255,96,96,0.95)") : "rgba(96,174,255,0.9)";
-    const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock ? a.name : null);
+    const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock || a.isPilot ? a.name : null);
     if (!b) continue;
     if (enemy && a.rk && (d < 140 || isAim || isLock)) {   // 계급 색 마름모: 병 노랑 · 부사관 초록 · 장교 파랑 · 고위 장교 빨강
       const r = 7 * u, x = b.x - b.px - 3 * u, y = b.y - b.px - 3 * u;

@@ -926,3 +926,92 @@ kbd.pad { min-width: 1.6em; text-align: center; border-radius: 999px; background
 }
 @media (prefers-reduced-motion: reduce) { .lb .b2 i { transition: none; } }
 .gtabs button { white-space: nowrap; padding-left: 4px; padding-right: 4px; }
+
+/* ── PVP 메뉴 ── */
+#ui > .screen.pvp { background: linear-gradient(180deg, rgba(7, 10, 24, 0.78), rgba(7, 10, 24, 0.94)), url(img/title/9-empire.jpg) center / cover; }
+.pvwrap { width: min(1040px, 100%); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.pvp .head h2 { display: flex; align-items: baseline; gap: 10px; font-size: clamp(22px, 2.6vw, 30px); font-weight: 900; }
+.pvp .head h2 .en { font-size: 12px; letter-spacing: 0.16em; color: var(--c); font-weight: 800; }
+.pvrule { font-size: 12px; font-weight: 800; color: #9fd8ff; border: 1px solid rgba(159, 216, 255, 0.45); border-radius: 999px; padding: 5px 10px; background: rgba(5, 8, 15, 0.5); white-space: nowrap; }
+.pvp input[type="text"], .pvp input:not([type]) { background: #10172b; border: 2px solid var(--ink); border-radius: 10px; padding: 9px 12px; font-size: 15px; min-width: 0; -webkit-user-select: text; user-select: text; box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.35); }
+.pvp input:focus { outline: 2px solid var(--c); }
+.pvp select { background: #151c30; border: 2px solid var(--ink); border-radius: 10px; padding: 8px 10px; font-size: 14px; max-width: 100%; }
+.pvnick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.pvnick label { font-weight: 800; font-size: 14px; }
+.pvnick input { width: 220px; }
+.pvnick .muted { font-size: 12px; }
+.pvnote { border: 2px solid var(--ink); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; background: rgba(14, 20, 36, 0.86); }
+.pvnote.ok { color: #7dffb0; } .pvnote.warn { border-color: rgba(255, 210, 74, 0.5); color: #ffe7a0; }
+.pvmsg { border-radius: 10px; padding: 9px 13px; margin: 0 0 12px; background: rgba(255, 90, 102, 0.16); border: 1px solid rgba(255, 90, 102, 0.55); color: #ffb4bb; font-weight: 700; font-size: 14px; }
+.pvhub { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pvcard { border: 2px solid var(--ink); border-radius: 18px; background: var(--panel); padding: 18px; box-shadow: 0 5px 0 var(--ink); }
+.pvcard small { font-size: 11px; letter-spacing: 0.16em; font-weight: 800; color: var(--c); }
+.pvcard.cust small { color: #ffb02e; }
+.pvcard h3 { margin: 4px 0 6px; font-size: 22px; color: var(--fg); text-transform: none; letter-spacing: -0.01em; }
+.pvcard h3 span { font-size: 14px; color: var(--muted); font-weight: 700; }
+.pvcard p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.pvmodes { display: grid; gap: 8px; }
+.pvmode { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; text-align: left; border: 2px solid var(--ink); border-radius: 12px; background: #1b2540; padding: 10px 12px; box-shadow: 0 3px 0 var(--ink); }
+.pvmode:hover:not(:disabled) { background: #26335a; }
+.pvmode .ic { grid-row: span 2; font-size: 26px; align-self: center; }
+.pvmode b { font-size: 16px; } .pvmode i { font-style: normal; font-size: 12px; color: var(--muted); }
+.pvp button:disabled { opacity: 0.45; cursor: default; }
+.primary.sm { padding: 9px 18px; font-size: 15px; }
+.pvforms { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.pvform { border: 2px solid var(--ink); border-radius: 14px; background: var(--panel); padding: 12px 14px; }
+.pvform b { display: block; font-size: 14px; margin-bottom: 8px; }
+.pvform .row { flex-wrap: nowrap; } .pvform input { flex: 1; width: 100%; }
+.pvform [data-pvcode] { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 800; }
+.pvh { margin: 6px 0 8px; }
+.pvrooms { display: grid; gap: 8px; }
+.pvroom { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; text-align: left; border: 2px solid var(--ink); border-radius: 12px; background: var(--panel); padding: 11px 14px; box-shadow: 0 3px 0 var(--ink); }
+.pvroom:hover:not(:disabled) { background: #1d2846; }
+.pvroom b { font-size: 16px; } .pvroom .code { font-family: ui-monospace, monospace; font-weight: 800; color: var(--gold); letter-spacing: 0.12em; text-align: right; }
+.pvroom span { font-size: 13px; color: var(--muted); } .pvroom .cnt { text-align: right; }
+.pvempty { padding: 14px 4px; }
+.pvqueue { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 26px 12px; border: 2px solid var(--ink); border-radius: 18px; background: var(--panel); }
+.pvqueue h3 { margin: 6px 0 0; font-size: 20px; color: var(--fg); text-transform: none; letter-spacing: 0; }
+.pvqueue p { margin: 0; }
+.pvqueue .spin { width: 42px; height: 42px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, 0.15); border-top-color: var(--c); animation: pvspin 0.9s linear infinite; }
+@keyframes pvspin { to { transform: rotate(360deg); } }
+.pvroomhd { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.pvroomhd small { font-size: 11px; letter-spacing: 0.14em; color: var(--c); font-weight: 800; }
+.pvroomhd h3 { margin: 2px 0; font-size: 22px; color: var(--fg); text-transform: none; letter-spacing: -0.01em; }
+.pvroomhd .muted { font-size: 13px; }
+.pvcode { text-align: center; border: 2px solid var(--ink); border-radius: 14px; background: #10172b; padding: 6px 16px; box-shadow: 0 3px 0 var(--ink); }
+.pvcode small { display: block; color: var(--muted); letter-spacing: 0.06em; }
+.pvcode b { font-family: ui-monospace, monospace; font-size: 28px; letter-spacing: 0.18em; color: var(--gold); -webkit-user-select: text; user-select: text; }
+.pvteams { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.pvteam { border: 2px solid var(--ink); border-top: 4px solid var(--t); border-radius: 14px; background: var(--panel); padding: 8px; display: grid; gap: 6px; align-content: start; }
+.pvteam .th { font-weight: 900; color: var(--t); font-size: 14px; padding: 2px 4px; } .pvteam .th span { color: var(--muted); font-weight: 700; }
+.pvslot { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); min-height: 38px; }
+.pvslot.me { background: rgba(255, 210, 74, 0.12); }
+.pvslot.bot .nm { color: #c9d4e4; }
+.pvslot .nm { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pvslot .nm em { font-style: normal; color: var(--gold); font-size: 12px; }
+.pvslot .st { font-size: 12px; color: var(--muted); } .pvslot .rdy { color: #7dffb0; }
+.pvslot .crown { font-style: normal; margin-right: 4px; }
+.pvslot .mini { border: 2px solid var(--ink); background: #1b2540; border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 800; box-shadow: 0 2px 0 var(--ink); }
+.pvslot .mini.warn { color: #ff9aa2; }
+.pvadd { border: 2px dashed rgba(255, 255, 255, 0.25); background: transparent; border-radius: 10px; padding: 7px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.pvadd:hover { border-color: var(--c); color: var(--fg); }
+.pvsets { margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; background: var(--panel); padding: 6px 14px; }
+.pvsets .opt > label { min-width: 100px; }
+.pvsets .opt .hint { margin-left: 112px; }
+.pvsets .seg button:disabled { opacity: 1; color: var(--muted); } .pvsets .seg button.on:disabled { color: #fff; opacity: 0.8; }
+.pvbar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 14px 0 6px; margin-top: 10px; background: linear-gradient(180deg, transparent, rgba(7, 10, 24, 0.97) 38%); flex-wrap: wrap; }
+.pvbar .muted { margin-right: auto; font-size: 13px; }
+.ghost.on { border-color: var(--ok); color: var(--ok); }
+@media (max-width: 760px) {
+  .pvhub, .pvforms { grid-template-columns: 1fr; }
+  .pvrule { display: none; }
+  .pvsets .opt .hint { margin-left: 0; }
+}
+@media (max-height: 540px) {
+  .pvp .head { margin-bottom: 8px; }
+  .pvcard { padding: 12px 14px; } .pvcard p { margin-bottom: 8px; }
+  .pvmodes { grid-template-columns: 1fr 1fr; }
+  .pvmode i { display: none; }
+  .pvqueue { padding: 14px; }
+  .pvbar { padding-top: 8px; }
+}

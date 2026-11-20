@@ -136,7 +136,7 @@ class Game {
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
         this.input.flush();
         this._aq = null;                               // 맵 생성 직후의 끊김은 재지 않는다
-        this.ui.tut.onFlight(this.session);   // 첫 비행이면 할 일을 하나씩 띄운다
+        if (!cfg.pvp) this.ui.tut.onFlight(this.session);   // 첫 비행이면 할 일을 하나씩 띄운다 (PvP 경기 중에는 띄우지 않는다)
       } catch (e) {
         console.error(e);
         this.state = "menu";
@@ -179,11 +179,12 @@ class Game {
   }
 
   quit() {
+    const pvp = this.session && this.session.cfg.pvp;
     if (this.session) { this.session.dispose(); this.session = null; }
     this.state = "menu";
     this.music.setTheme("menu");
     this.hud.clear();
-    this.ui.show("main");
+    if (pvp) this.ui.pvpAfterMatch(); else this.ui.show("main");
     this._touchLayer();
   }
 
@@ -236,6 +237,11 @@ class Game {
       s.update(dt);
       s.render();
       if (this.state === "play") this._autoQuality(t - this._lastT);
+    } else if (s && this.state === "pause" && s.cfg.net) {
+      // 온라인 경기: 일시정지 메뉴가 떠 있어도 세계는 계속 돈다 (기체는 제자리 비행)
+      s.update(dt);
+      s.render();
+      if (this.input.take("pause")) this.resume();
     } else if (s && this.state === "pause") {
       this.input.update(dt);                             // 게임패드 메뉴 입력·일시정지 버튼
       if (this.input.take("pause")) this.resume();
@@ -244,7 +250,7 @@ class Game {
     } else {
       this.input.update(dt);
       this.input.flush();
-      if (!["title", "main", "group"].includes(this.ui.screen)) {   // 사진 배경 화면(타이틀·메인·하위 메뉴)에서는 3D 를 그리지 않는다
+      if (!["title", "main", "group", "pvp"].includes(this.ui.screen)) {   // 사진 배경 화면(타이틀·메인·하위 메뉴)에서는 3D 를 그리지 않는다
         this.menu.update(dt, innerWidth / innerHeight);
         this.draw(this.menu.scene, this.menu.camera);
         this._autoQuality(t - this._lastT);

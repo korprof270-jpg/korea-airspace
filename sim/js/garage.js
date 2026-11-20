@@ -360,6 +360,13 @@ export function loadout(over) {
   L.fx = { laser: f("laser").color, beam: f("beam"), missile: f("missile").color, boost: f("boost"), item: f("item") };
   return L;
 }
+// PvP: 파츠 능력치를 모두 뺀 기본(0단계 기본 부품) 수치. 외형 효과(레이저·미사일·부스트 색)는 그대로
+export function baseLoadout() {
+  const L = loadout();
+  for (const k of Object.keys(L)) if (k !== "fx") L[k] = 0;
+  for (const [k, v] of Object.entries(Object.assign({}, ...SLOTS.map((slot) => partEffect(slot, "std", 0))))) L[k] = v;
+  return L;
+}
 // 종합 성능 (1 = 기본 기체). 격납고 요약 막대용
 export const RATINGS = [["speed", "기동"], ["fire", "화력"], ["def", "방어"], ["util", "지원"]];
 export function ratings(L = loadout()) {
