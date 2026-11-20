@@ -1,17 +1,20 @@
-// 서바이벌(점수제 전투): 데스매치 / 거점 공략전 (화물 운반전은 스토리 전용)
+// 서바이벌(점수제 전투): 데스매치(개인전) / 팀 데스매치(편대전 — 스토리 공중전도 이것) / 거점 공략전 (화물 운반전은 스토리 전용)
+//  팀 데스매치: 나 + 아군 편대(cfg.allies 기, 이름은 cfg.wing) 대 적 편대(cfg.bots 기 + 보스 cfg.boss + 지상 전차). 끝날 때 팀 점수가 높은 쪽 승리
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
 import { submitRecord, records, fmtTime } from "../config.js";
 import { drawCombatHud } from "../combathud.js";
+import { rankStats, clampRank } from "../ranks.js";
 
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
+  tdm: { name: "팀 데스매치", icon: "⚔️", desc: "아군 편대와 함께 적 편대와 맞붙는 팀전. 제한 시간이 끝날 때 팀 점수(격추·피해)가 높은 쪽이 이깁니다" },
   aos: { name: "기지전 (AOS)", icon: "🏯", desc: "드론 리그 스타디움에서 두 팀이 세 라인을 밀어 상대 코어를 부숩니다. 미니언·타워·정글·보스, 숨은 상자 부품과 경기 내 업그레이드" },
   conq: { name: "점령전", icon: "🚩", desc: "4개 팀이 지역 거점을 땅따먹기처럼 차지하는 팀전. 상대 본부를 부수면 그 팀은 탈락, 격추·점령·본부 파괴로 점수를 쌓아 순위를 겨룹니다" },
   base: { name: "거점 공략전", icon: "🏰", desc: "숨은 적 거점 5곳을 찾아 부수는 팀전", hidden: true },
   cargo: { name: "화물 운반전", icon: "📦", desc: "보급 상자를 집어 아군 착륙장으로 운반. 적 운반 드론을 막으면 더 유리합니다", hidden: true },   // 스토리 단계에서만 쓴다
 };
-const TEAM_NAME = ["청팀", "홍팀"];
+const TEAM_NAME = ["청팀", "홍팀"], TDM_NAME = ["아군", "적군"];
 const _v = new THREE.Vector3();
 const c0 = (m, t) => m.combat.kill(t, null);
 const POINTS = 5, REVEAL_R = 90;   // 적 거점 수, 드러나는 거리(m)
@@ -60,6 +63,25 @@ export class SurvivalMode extends CombatMode {
     start.y = w.h(start.x, start.z) + 0.3;
     this.placePlayer(start, Math.atan2(-dir.x, -dir.z));
     const allies = Math.floor((n - 1) / 2), enemies = n - allies;
+
+    if (v === "tdm") {
+      // 아군 편대: 이름 있는 동료(에이스)가 나를 따라 날다 적을 만나면 교전. 적 편대: 데스매치와 같은 구성 + 지상 전차
+      const na = this.cfg.allies ?? Math.max(1, n - 2), wing = this.cfg.wing || [];
+      for (let i = 0; i < na; i++) {
+        const b = c.spawnBot({ kind: "ace", team: 0, respawns: true, hpScale: 1.3, leader: this.me, slot: i, name: wing[i] || `윙맨 ${i + 1}` });
+        const rk = rankStats(clampRank(c.level));   // 동료도 그 단계 적과 같은 급의 실력 (계급 표시는 없이 능력만)
+        b.hp = b.maxHp = b.maxHp * rk.hp; b.ai.skill *= rk.skill; b.K = Object.assign({}, b.K, { dmg: b.K.dmg * rk.dmg });
+        b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
+      }
+      for (let i = 0; i < n; i++) {
+        const kind = i % 4 === 3 ? "jet" : hard && i % 3 === 0 ? "ace" : "grunt";
+        const b = c.spawnBot({ kind, team: 1, respawns: true, hpScale: kind === "grunt" ? 100 / 70 : 1 });
+        b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
+      }
+      c.scatterPickups(11);
+      c.units.spawn("tank", { pos: c.randomPoint(3, 5, 0.6) });
+      return;
+    }
 
     if (v === "base") {
       this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 2000);
@@ -161,11 +183,23 @@ export class SurvivalMode extends CombatMode {
   }
 
   _botGoal(a) {
+    if (this.variant === "tdm") return this._hunt(a);
     if (this.variant !== "cargo" || a.ai.role !== "courier") return null;
     if (this.cargo.carried(a)) return this.padGoal[a.team];
     const cr = this.cargo.nearestIdle(a.pos);
     return cr ? cr.pos : null;
   }
+
+  // 팀 데스매치: 표적이 없으면 가장 가까운 적 드론 쪽으로 (아군 편대는 내 곁을 따른다)
+  _hunt(a) {
+    const c = this.combat;
+    if (a.ai.target || (a.team === 0 && a.ai.leader && a.ai.leader.alive && a.ai.leader.pos.distanceTo(a.pos) < 160)) return null;
+    let best = null, bd = 1e9;
+    for (const o of c.actors) if ((o.kind === "bot" || o.kind === "player") && o.targetable && c.hostile(a, o)) { const d = o.pos.distanceTo(a.pos); if (d < bd) { bd = d; best = o; } }
+    return best ? best.pos : null;
+  }
+  // 팀전 승패 (목표 판정): 진행 중엔 앞서는지, 끝나면 이겼는지. 개인전은 없음
+  get teamWin() { return this.variant === "dm" ? undefined : this.state === "done" ? this.won === true : this.team[0] > this.team[1]; }
 
   _onKill(a, k) {
     const h = this.s.hud, me = this.me;
@@ -201,7 +235,7 @@ export class SurvivalMode extends CombatMode {
     const bc = this.cfg.boss;
     if (bc && !this.bossA && !this.cut && this.time >= (bc.at ?? 60)) {
       const live = this.outposts ? this.outposts.filter((b) => b.core.alive) : [], c = this.combat;
-      const at = live.length ? live[0].pos : this.basePos ? this.basePos[1] : c.randomPoint(20, 30);
+      const at = live.length ? live[0].pos : this.variant === "tdm" ? _v.copy(this.me.pos).lerp(this.basePos[1], 0.5) : this.basePos ? this.basePos[1] : c.randomPoint(20, 30);
       this.bossA = this.spawnBoss({ ...bc, pos: c.randomPoint(18, 28, 0, at.x, at.z, 30) });
     }
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
@@ -211,7 +245,8 @@ export class SurvivalMode extends CombatMode {
   _end() {
     const c = this.combat, me = this.me, sc = Math.round(me.score);
     const rec = submitRecord(this.recKey, sc);
-    const rows = c.board().map((a) => ({ name: a.name + (this.variant === "dm" ? "" : ` · ${TEAM_NAME[a.team]}`), me: a === me, vals: [Math.round(a.score), a.kills, a.deaths] }));
+    const TN = this.variant === "tdm" ? TDM_NAME : TEAM_NAME;
+    const rows = c.board().sort((x, y) => (this.variant === "tdm" ? x.team - y.team : 0) || y.score - x.score).map((a) => ({ name: a.name + (this.variant === "dm" ? "" : ` · ${TN[a.team]}`), me: a === me, vals: [Math.round(a.score), a.kills, a.deaths] }));
     const board = { cols: ["점수", "격추", "피격추"], rows };
     if (this.variant === "dm") {
       const rank = (this.rank = 1 + c.board().filter((a) => a !== me && a.score > me.score).length);
@@ -222,10 +257,12 @@ export class SurvivalMode extends CombatMode {
     } else {
       const [a, b] = this.team.map(Math.round);
       const win = this.coreDown !== undefined ? this.coreDown === 1 : a > b;
+      this.won = win;
+      const tk = [0, 1].map((t) => c.actors.filter((x) => x.team === t && (x.kind === "bot" || x.kind === "player")).reduce((q, x) => q + x.kills, 0));
       this.finish({
-        title: win ? "승리!" : a === b && this.coreDown === undefined ? "무승부" : "패배", sub: `${VARIANTS[this.variant].name} · ${TEAM_NAME[0]} ${a} : ${b} ${TEAM_NAME[1]}`,
+        title: win ? "승리!" : a === b && this.coreDown === undefined ? "무승부" : "패배", sub: `${VARIANTS[this.variant].name} · ${TN[0]} ${a} : ${b} ${TN[1]}`,
         win, record: rec, stars: win ? (a > b * 1.5 ? 3 : 2) : a > b * 0.7 ? 1 : 0, board,
-        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
+        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
       });
     }
   }
@@ -278,6 +315,10 @@ export class SurvivalMode extends CombatMode {
       h.text(`${Math.round(this.team[0])}`, L.cx - 100 * u, ty + 17 * u, { size: 20, align: "right", base: "middle", mono: true, color: "#8cc4ff", shadow: false });
       h.plate(L.cx + 92 * u, ty, tw, th, { accent: "#ff5a66", side: "right", skew: 0.16 });
       h.text(`${Math.round(this.team[1])}`, L.cx + 104 * u, ty + 17 * u, { size: 20, base: "middle", mono: true, color: "#ff8a94", shadow: false });
+      if (this.variant === "tdm") {
+        h.text("아군 편대", L.cx - 92 * u - tw / 2, ty + th + 10 * u, { size: 10.5, align: "center", base: "middle", color: "#8cc4ff" });
+        h.text("적 편대", L.cx + 92 * u + tw / 2, ty + th + 10 * u, { size: 10.5, align: "center", base: "middle", color: "#ff8a94" });
+      }
       if (full) {
         h.text(`격추 ${me.kills}`, x + 14 * u, y + 46 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
         if (this.cargo) h.text(`배달 ${this.delivered[0]} : ${this.delivered[1]}`, x + pw - 14 * u, y + 46 * u, { size: 13, align: "right", base: "middle", color: "#b4c2d4", shadow: false });

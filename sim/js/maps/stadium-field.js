@@ -2,12 +2,12 @@
 import { ring, octa, ball } from "./moon-kit.js";
 import { beam } from "./canyon-kit.js";
 import { coverDist } from "./stadium-cover.js";
-import { BASES, BASE_R, PAD_R, LANES, TOWERS, TOWER_H, CAMPS, CACHES, PIT, laneDist, laneHoops, TRACK_KEEP, rng, DEG,
+import { BASES, BASE_R, PAD_R, REACTOR, corePos, padPos, fwdOf, defensePos, gateAngles, LANES, TOWERS, TOWER_H, CAMPS, CACHES, PIT, laneDist, laneHoops, TRACK_KEEP, rng, DEG,
   CYAN, MAG, LIME, AMB, VIO, WH, TB, TR, DARK, DARK2, STEEL, PANEL, INK } from "./stadium-kit.js";
 
 const TEAM = [TB, TR];
 const dirDeg = (dx, dz) => Math.atan2(dx, dz) / DEG;   // +z 를 이 방향으로 돌리는 yaw(도)
-export const padPos = (t) => { const [x, z] = BASES[t], L = Math.hypot(x, z); return [x + (x / L) * 30, z + (z / L) * 30]; };   // 코어 뒤(바깥쪽) 정비 패드
+export { padPos };   // 기지 한가운데 조금 앞(경기장 쪽) 정비 패드 — 코어 반응로는 그 뒤 깊숙이
 
 // ── 기지 ──
 export function bases(w, K, S) {
@@ -17,18 +17,8 @@ export function bases(w, K, S) {
     w.cyl(bx, y - 0.4, bz, BASE_R, 0.8, DARK2, { mat: "paint", col: false, ao: false });
     ring(w, bx, y + 0.45, bz, BASE_R - 0.6, 0.35, col, { pitch: 90, mat: "glow", col: false, seg: 64 });
     ring(w, bx, y + 0.42, bz, BASE_R * 0.62, 0.18, col, { pitch: 90, mat: "glow", col: false, seg: 48 });
-    // 코어 반응로: 네 기둥 + 위아래 고리 + 바닥 받침 (코어 자체는 모드가 세운다)
-    octa(w, bx, y, bz, 11, 2, STEEL, { mat: "metal" });
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 4, px = bx + Math.cos(a) * 15, pz = bz + Math.sin(a) * 15;
-      w.cyl(px, y, pz, 1.5, 30, PANEL, { mat: "metal", rt: 1.1 });
-      w.box(px, y + 3, pz, 0.5, 24, 0.5, col, { mat: "glow", col: false });
-      K.blink.add(px, y + 30.6, pz, col, 0.6, i);
-    }
-    ring(w, bx, y + 29, bz, 15, 0.9, STEEL, { pitch: 90, mat: "metal", col: false, seg: 40 });
-    ring(w, bx, y + 29.8, bz, 15, 0.3, col, { pitch: 90, mat: "glow", col: false, seg: 40 });
-    ring(w, bx, y + 4, bz, 15, 0.6, col, { pitch: 90, mat: "glow", col: false, seg: 40 });
-    w.shaft(bx, y + 60, bz, 1, 5, 60, col, 0.08);
+    // 코어 반응로: 기지 깊숙이 높은 단 + 둘레 높은 방벽(경기장 쪽만 열림) + 짧은 진입로 벽 + 방어 포탑 받침 (코어·포탑 머리는 모드가 세운다)
+    reactor(w, K, t, y, col);
     // 정비 패드: 재출격·업그레이드 자리
     const [px, pz] = padPos(t);
     w.cyl(px, y, pz, PAD_R, 0.5, 0x1c2232, { mat: "paint", col: false, ao: false });
@@ -38,7 +28,7 @@ export function bases(w, K, S) {
     S.add("pad", px, y + 0.62, pz, 22, { pitch: -90, ry: dirDeg(-px, -pz) + 180 });
     S.add(t ? "padR" : "padB", px, y + 14, pz, 26, { holo: true, ry: dirDeg(-px, -pz) });
     // 기지 문: 라인이 나가는 쪽마다 아치 문. 그 사이는 낮은 빛 담장
-    const gates = Object.values(LANES).map((pts) => { const p = t ? pts[pts.length - 2] : pts[1]; return Math.atan2(p[1] - bz, p[0] - bx); });
+    const gates = gateAngles(t);
     for (const a of gates) {
       const cx = bx + Math.cos(a) * (BASE_R - 2), cz = bz + Math.sin(a) * (BASE_R - 2), ry = -a / DEG, ox = -Math.sin(a), oz = Math.cos(a);
       for (const s of [-1, 1]) {
@@ -58,6 +48,52 @@ export function bases(w, K, S) {
       w.box(cx, y, cz, 1.2, 5, L, DARK, { mat: "paint", ry: -am / DEG });
       w.box(cx, y + 5, cz, 1.3, 0.35, L, col, { mat: "glow", col: false, ry: -am / DEG });
     }
+  }
+}
+
+// 코어 반응로 (팀 t): 단(높이 h) · 방벽(반경 wallR, 경기장 쪽 ±open° 열림) · 진입로 벽 둘 · 방어 포탑 받침 넷
+function reactor(w, K, t, y, col) {
+  const R = REACTOR, [cx, cz] = corePos(t), [fx, fz] = fwdOf(t), px = -fz, pz = fx, fa = Math.atan2(fz, fx), oa = R.open * DEG;
+  // 단: 두 겹 원기둥 + 빛 테 + 바닥 문양
+  w.cyl(cx, y, cz, R.r + 2.5, 1.2, DARK2, { mat: "metal" });
+  w.cyl(cx, y + 1.2, cz, R.r, R.h - 1.2, PANEL, { mat: "metal", rt: R.r - 0.6 });
+  ring(w, cx, y + R.h + 0.05, cz, R.r - 0.4, 0.35, col, { pitch: 90, mat: "glow", col: false, seg: 48 });
+  ring(w, cx, y + R.h + 0.05, cz, R.r * 0.55, 0.2, col, { pitch: 90, mat: "glow", col: false, seg: 36 });
+  ring(w, cx, y + 1.25, cz, R.r + 0.1, 0.25, AMB, { pitch: 90, mat: "glow", col: false, seg: 48 });
+  w.pool(cx, y + R.h + 0.1, cz, R.r * 0.9, col, 0.35);
+  w.shaft(cx, y + 70, cz, 1, 5, 64, col, 0.08);
+  // 방벽: 열린 쪽을 뺀 둘레 조각. 위에 덮개와 빛 줄, 마디마다 경고등
+  const N = 28;
+  for (let i = 0; i < N; i++) {
+    const am = fa + ((i + 0.5) / N) * Math.PI * 2, rel = Math.atan2(Math.sin(am - fa), Math.cos(am - fa));
+    if (Math.abs(rel) < oa) continue;
+    const L = 2 * R.wallR * Math.sin(Math.PI / N) + 0.5, x = cx + Math.cos(am) * R.wallR, z = cz + Math.sin(am) * R.wallR, ry = -am / DEG;
+    w.box(x, y, z, R.wallT, R.wallH, L, DARK2, { mat: "metal", ry });
+    w.box(x, y + R.wallH, z, R.wallT + 0.6, 0.8, L + 0.1, STEEL, { mat: "metal", ry, col: false });
+    w.box(x - Math.cos(am) * (R.wallT / 2 + 0.05), y + R.wallH * 0.55, z - Math.sin(am) * (R.wallT / 2 + 0.05), 0.12, 0.5, L, col, { mat: "glow", col: false, ry });
+    w.box(x + Math.cos(am) * (R.wallT / 2 + 0.05), y + R.wallH - 3, z + Math.sin(am) * (R.wallT / 2 + 0.05), 0.12, 0.4, L, col, { mat: "glow", col: false, ry });
+    if (i % 4 === 0) K.blink.add(x, y + R.wallH + 1.4, z, 0xff3030, 0.5, i & 1);
+  }
+  // 진입로: 열린 면 양끝에서 경기장 쪽으로 뻗는 벽 둘 (끝에 포탑 받침)
+  const m0 = R.wallR * Math.cos(oa), hw = R.wallR * Math.sin(oa) + R.wallT / 2, ry = Math.atan2(fx, fz) / DEG;
+  for (const s of [-1, 1]) {
+    const x = cx + fx * (m0 + R.lane / 2) + px * s * hw, z = cz + fz * (m0 + R.lane / 2) + pz * s * hw;
+    w.box(x, y, z, R.wallT, R.laneH, R.lane + 1.5, DARK2, { mat: "metal", ry });
+    w.box(x, y + R.laneH, z, R.wallT + 0.6, 0.6, R.lane + 1.8, STEEL, { mat: "metal", ry, col: false });
+    w.box(x - px * s * (R.wallT / 2 + 0.05), y + 2, z - pz * s * (R.wallT / 2 + 0.05), 0.12, 0.35, R.lane, AMB, { mat: "glow", col: false, ry });
+  }
+  // 바닥 진입 화살표 (진입로 → 코어)
+  for (let k = 0; k < 3; k++) w.box(cx + fx * (m0 + 4 + k * 5), y + 0.12, cz + fz * (m0 + 4 + k * 5), 7, 0.06, 1.2, col, { mat: "glow", col: false, ao: false, ry: ry + 90 });
+  // 방어 포탑 받침: 진입로 어귀는 굵은 기둥, 뒤쪽은 방벽 위 받침대
+  for (const d of defensePos(t)) {
+    const [x, z] = d.p;
+    if (d.k === "mouth") {
+      octa(w, x, y, z, 4.4, 1.4, DARK2, { mat: "metal" });
+      w.cyl(x, y + 1.4, z, 2.6, d.y - 1.4, PANEL, { mat: "metal", rt: 2 });
+      for (const hh of [5, 10]) ring(w, x, y + hh, z, 2.45 - hh * 0.04, 0.22, col, { pitch: 90, mat: "glow", col: false, seg: 20 });
+    } else w.cyl(x, y + R.wallH - 3, z, 3, 4.2, STEEL, { mat: "metal", rt: 3.4 });
+    w.cyl(x, y + d.y - 0.6, z, 3.4, 0.6, STEEL, { mat: "metal", rt: 3.4, col: false });
+    ring(w, x, y + d.y - 0.1, z, 3.45, 0.2, AMB, { pitch: 90, mat: "glow", col: false, seg: 24 });
   }
 }
 

@@ -1,5 +1,5 @@
 // 맵: 드론 리그 스타디움 — 미래의 야외 드론 경기장. 밤하늘 아래 네온이 번지는 넓은 경기장(보통 맵의 4배 넓이)
-//  · 남서: 청팀 기지 (코어 반응로·기지 문 셋·정비 패드) / 북동: 홍팀 기지 (원점 대칭)
+//  · 남서: 청팀 기지 (기지 문 셋·정비 패드, 맨 안쪽 높은 단 위 코어 반응로 — 방벽과 진입로, 방어 포탑 받침) / 북동: 홍팀 기지 (원점 대칭)
 //  · 세 라인: 위(서쪽·북쪽 가장자리) · 가운데(대각선) · 아래(남쪽·동쪽 가장자리). 바닥 빛 트랙과 120 m 마다 빛 고리
 //  · 라인 사이 정글: 기둥·LED 탑·떠 있는 판·고리·아치·터널, 정글 캠프 여덟 자리, 숨은 상자 여덟 자리
 //  · 엄폐물(stadium-cover.js): 라인 옆 에너지 방벽 · 장갑 격벽 · 타워 곁 블록 · 캠프 벽 · 높은 기둥 · 고가 다리
@@ -7,7 +7,7 @@
 // 기지전(AOS) 모드가 쓰는 배치는 aos 필드로 내보낸다 (modes/aos.js)
 import * as THREE from "../../vendor/three.module.min.js";
 import { Blinkers } from "./moon-kit.js";
-import { NeonSigns, height, colorFn, BASES, BASE_R, PAD_R, LANES, TOWERS, TOWER_H, CAMPS, CACHES, BOSS, PIT, HALF, RING_R, laneHoops } from "./stadium-kit.js";
+import { NeonSigns, height, colorFn, BASES, BASE_R, PAD_R, REACTOR, corePos, defensePos, gateAngles, LANES, TOWERS, TOWER_H, CAMPS, CACHES, BOSS, PIT, HALF, RING_R, laneHoops } from "./stadium-kit.js";
 import { bases, lanes, towers, bossPit, campPads, cacheHides, jungle, padPos } from "./stadium-field.js";
 import { stands, floodlights, skyline, blimps } from "./stadium-arena.js";
 import { cover, COVER } from "./stadium-cover.js";
@@ -41,7 +41,7 @@ const SIGNS = [
 // ── 경주 코스 ──
 // 1. 센터 서킷: 보스 구덩이 둘레를 도는 고리 길 (높낮이를 번갈아)
 const CENTER = Array.from({ length: 10 }, (_, i) => { const a = -(i / 10) * Math.PI * 2 + 0.3; return G(i % 3 === 1 ? "square" : "hoop", [Math.cos(a) * RING_R, i % 2 ? 22 : 9, Math.sin(a) * RING_R], i % 3 === 1 ? { w: 10, h: 7 } : { r: 5 }); });
-// 2. 그랜드 투어: 청 기지 → 가운데 라인 빛 고리 → 홍 기지 반응로 관통 → 위 라인을 되짚어 → 청 기지 반응로 관통
+// 2. 그랜드 투어: 청 기지 → 가운데 라인 빛 고리 → 홍 기지 한가운데 관통 → 위 라인을 되짚어 → 청 기지 한가운데 관통
 const baseGate = (t, id) => { const [bx, bz] = BASES[t], pts = LANES[id], p = t ? pts[pts.length - 2] : pts[1], a = Math.atan2(p[1] - bz, p[0] - bx); return [bx + Math.cos(a) * (BASE_R - 2), 13, bz + Math.sin(a) * (BASE_R - 2)]; };
 const hoopsOf = (id, rev) => { const h = laneHoops(id).map((q) => G("hoop", [q.p[0], 13, q.p[1]], { r: 5.5 })); return rev ? h.reverse() : h; };
 const TOUR = [
@@ -52,7 +52,7 @@ const TOUR = [
 ];
 const TRACKS = [
   { id: "center", name: "센터 서킷", level: 1, laps: 3, desc: "보스 구덩이 둘레를 높고 낮게 번갈아 도는 입문 코스. 정글 탑 사이로 경기장 전체가 보인다", gates: CENTER },
-  { id: "tour", name: "그랜드 투어", level: 3, laps: 1, desc: "가운데 라인의 빛 고리를 꿰어 홍팀 기지 반응로를 관통하고, 위 라인을 따라 경기장 가장자리를 돌아오는 긴 코스", gates: TOUR },
+  { id: "tour", name: "그랜드 투어", level: 3, laps: 1, desc: "가운데 라인의 빛 고리를 꿰어 홍팀 기지 한가운데를 관통하고, 위 라인을 따라 경기장 가장자리를 돌아오는 긴 코스", gates: TOUR },
 ];
 
 // 트래킹: 하늘을 도는 중계 드론
@@ -99,5 +99,5 @@ export default {
   tracking: TRACKING,
   combat: { blue: BASES[0], red: BASES[1], depots: CAMPS.filter((c) => c.big).map((c) => c.p), startOffset: 40 },
   // 기지전(AOS) 배치
-  aos: { hoops: Object.fromEntries(Object.keys(LANES).map((id) => [id, laneHoops(id)])), bases: BASES, baseR: BASE_R, padR: PAD_R, pads: [padPos(0), padPos(1)], lanes: LANES, towers: TOWERS, towerH: TOWER_H, camps: CAMPS, caches: CACHES, boss: BOSS, pit: PIT, cover: COVER },
+  aos: { hoops: Object.fromEntries(Object.keys(LANES).map((id) => [id, laneHoops(id)])), bases: BASES, baseR: BASE_R, padR: PAD_R, pads: [padPos(0), padPos(1)], cores: [corePos(0), corePos(1)], reactor: REACTOR, defenses: [defensePos(0), defensePos(1)], gates: [gateAngles(0), gateAngles(1)], lanes: LANES, towers: TOWERS, towerH: TOWER_H, camps: CAMPS, caches: CACHES, boss: BOSS, pit: PIT, cover: COVER },
 };

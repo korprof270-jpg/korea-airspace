@@ -1,13 +1,14 @@
 // 기지전 온라인 동기화 (netgame.js 의 NetGame 위에서) — 호스트가 월드를 시뮬레이션하고, 클라이언트는 받아 그린다
 //  호스트 → 프레즌스(약 15 Hz, 4 KiB 이하):
-//   · 구조물 14개   defineKind "st"  [체력, 생존]                       (클라이언트는 자기 쪽에 세운 같은 구조물에 반영. 맞히면 호스트로 보고)
+//   · 구조물 22개   defineKind "st"  [체력, 생존]                       (코어 2 · 타워 12 · 기지 방어 포탑 8. 클라이언트는 자기 쪽에 세운 같은 구조물에 반영. 맞히면 호스트로 보고)
 //   · 미니언        defineKind "mn"  [x, y, z, 체력, 팀|중형<<1, 사격 수] (온라인은 동시에 최대 30기)
 //   · 정글 감시자   defineKind "nt"  [x, y, z, 체력, 정예<<1, 사격 수]
 //   · 보스          defineActorKind "boss" (보간되는 대리 액터)
 //   · 봇            shareActor "bot" (NetGame 기본)
 //   · 호스트 값     "a" [승자, 격추0, 격추1, 잃은 타워0, 잃은 타워1, 강화0, 강화1, 상자 비트, 캠프 비트]
 //                   "p" { id: [ⓟ, 화력, 장갑, 기동, 스킬, 부품 비트, 격추, 도움, 구조물 피해] }  (봇·사람 모두)
-//                   "tf" [[구조물 번호, 표적 id], ...]  (타워·코어가 지금 쏘는 표적 — 클라이언트는 피해 없는 탄으로 보여 준다)
+//                   "tf" [[구조물 번호, 표적 id], ...]  (타워·코어·방어 포탑이 지금 쏘는 표적 — 클라이언트는 피해 없는 탄으로 보여 준다)
+//                   "al" [[경보 남은 초 ×10, 경보 횟수], [..]]  (팀별 침입 경보 — 횟수가 늘면 클라이언트도 경보 연출)
 //  클라이언트 → 호스트: 자기 프레즌스 필드 "buy" [번호, 강화 종류] (기지 안에서만 호스트가 받아 준다)
 import * as THREE from "../../vendor/three.module.min.js";
 import { buildDrone, botLook } from "../dronemodel.js";
@@ -20,12 +21,12 @@ export const NET_MINIONS = 30;
 export class AosNet {
   constructor(m) {
     this.m = m; this.ng = m.ng; this.host = m.ng.owner; this.online = m.ng.online;
-    this.buyN = 0; this.seenBuy = new Map(); this.mnN = 0; this.fieldT = 0; this.tfT = 0; this.drop = []; this.lastA = ""; this.lastP = "";
+    this.buyN = 0; this.seenBuy = new Map(); this.mnN = 0; this.fieldT = 0; this.tfT = 0; this.drop = []; this.lastA = ""; this.lastP = ""; this.alSeen = []; this.alN = [];
   }
 
   setup() {
     const m = this.m, ng = this.ng;
-    m.structs = [...m.teams.map((t) => t.core), ...m.towers];
+    m.structs = [...m.teams.map((t) => t.core), ...m.towers, ...m.defs];
     m.structs.forEach((a, i) => { a.nid = "s" + i; });
     ng.defineKind("st", { ser: (a) => [Math.round(a.hp), a.alive ? 1 : 0], create: (id) => m.structs[+id.slice(1)] || null, apply: (a, d) => this._struct(a, d), remove: () => {}, actor: (a) => a });
     for (const kind of ["mn", "nt"]) ng.defineKind(kind, {
@@ -82,8 +83,9 @@ export class AosNet {
     }
     ng.setHostField("p", p);
     const tf = [];
-    m.structs.forEach((s, i) => { const t = s.alive && (s.aosTower ? s.ai.target : s.coreTarget); if (t && t.alive) { const id = ng.idOf(t); if (id) tf.push([i, id]); } });
+    m.structs.forEach((s, i) => { const t = s.alive && (s.aosTower ? s.ai.target : s.aosDef ? s.defTarget : s.coreTarget); if (t && t.alive) { const id = ng.idOf(t); if (id) tf.push([i, id]); } });
     ng.setHostField("tf", tf);
+    ng.setHostField("al", m.teams.map((t) => [Math.round(t.alarmT * 10), t.alarmN]));
   }
 
   // ── 클라이언트 ──
@@ -105,6 +107,16 @@ export class AosNet {
       }
     }
     for (const t of m.teams) if (t.buffT > 0) t.buffT = Math.max(0, t.buffT - dt);
+    // 침입 경보: 호스트의 경보 횟수가 늘면 연출, 남은 시간은 호스트 값을 따르며 사이사이 줄여 간다
+    const al = ng.hostField("al");
+    if (Array.isArray(al)) m.teams.forEach((t, i) => {
+      const x = al[i]; if (!Array.isArray(x)) return;
+      const n = x[1] | 0, key = x.join(",");
+      if (this.alSeen[i] !== undefined && n > this.alN[i]) m._alarmFx(t, null);
+      if (key !== this.alSeen[i]) t.alarmT = Math.max(0, (+x[0] || 0) / 10);
+      this.alSeen[i] = key; this.alN[i] = n; t.alarmN = n;
+    });
+    for (const t of m.teams) if (t.alarmT > 0) t.alarmT = Math.max(0, t.alarmT - dt);
     // 영웅 정보
     const p = ng.hostField("p");
     if (p && typeof p === "object") {
@@ -139,7 +151,7 @@ export class AosNet {
       if (Array.isArray(tf)) for (const e of tf.slice(0, 16)) {
         const s = m.structs[e[0]], t = ng.actorById(e[1]);
         if (!s || !s.alive || !t || !t.alive) continue;
-        this._ghost(s, t, s.aosTower ? 2.6 : 7.5, s.team ? 0xffa040 : 0x66b8ff, 110);
+        this._ghost(s, t, s.aosTower ? 2.6 : s.aosDef ? 3.4 : 7.5, s.aosDef && m.teams[s.team].alarmT > 0 ? 0xff5040 : s.team ? 0xffa040 : 0x66b8ff, s.aosDef ? 150 : 110);
       }
     }
   }
@@ -163,7 +175,7 @@ export class AosNet {
     for (const t of m.teams) {
       for (const x of t.towers) if (x.alive && x.invulnerable && !t.towers.find((y) => y.lane === x.lane && y.tier === "outer").alive) m._unshield(x);
       if (t.core.invulnerable && Object.keys(m.paths).some((ln) => t.towers.filter((x) => x.lane === ln).every((x) => !x.alive))) {
-        m._unshield(t.core);
+        m._openCore(t);
         m._hint(t.id === m.me.team ? "아군 코어 노출! 기지를 지키세요" : `${t.name} 코어 노출 — 코어를 공격하세요!`, t.id === m.me.team ? "#ff6b5a" : "#35ff7a", 8);
       }
     }

@@ -667,7 +667,7 @@ export class UI {
         opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("aosTime", [[480, "8분"], [720, "12분"], [900, "15분"]], s.aosTime || 720)}</div>` + this._diff();
       } else {
-        opts += `<div class="opt"><label>AI 드론 수</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}</div>`;
+        opts += `<div class="opt"><label>${s.variant === "tdm" ? "적 편대 수" : "AI 드론 수"}</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}${s.variant === "tdm" ? `<div class="hint">아군 AI 편대는 적보다 둘 적게(최소 1기) 나와 나를 따라 싸웁니다.</div>` : ""}</div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
       }
     } else {

@@ -45,7 +45,7 @@ const CHAPTERS = [
       S("race", "첫 관문", ["강 교관|휴마 연합 비행단 입단 테스트에 온 걸 환영한다. 첫 과제는 간단해. 게이트를 순서대로 통과해 완주한다.", "차도윤|…저 녀석이 이번 기수 마지막 지원자? 기체도 대여품이네.", "강 교관|잡담 금지. 출발!"], { ti: 0, laps: 1, rivals: 2, need: 1, diff: "easy" }),
       S("infil", "기동 심사", ["강 교관|제국 드론은 빠르다. 기체를 마음대로 못 다루는 놈은 첫 출격에서 떨어진다.", "강 교관|제한 시간 안에 장애물 코스를 빠져나와라."], { ti: 1, laps: 1, limitK: 1.35, diff: "easy" }),
       S("track", "표적 추적", ["강 교관|정찰도 파일럿 임무다. 움직이는 표적을 화면 가운데 두고 끝까지 따라가라.", "차도윤|표적 놓치면 바로 탈락이래. 뭐, 난 만점이었지만."], { subj: "target", need: 1 }),
-      S("dm", "최종 모의전", ["강 교관|마지막은 실전 모의전이다. 훈련용 드론 셋, 그리고…", "차도윤|내가 상대해 주지. 최신예기 ‘백야’로.", "강 교관|3위 안에 들어라. 차도윤의 백야는 도중에 난입한다."],
+      S("dm", "최종 모의전", ["강 교관|마지막은 실전 모의전이다. 훈련용 드론 셋, 그리고…", "차도윤|내가 상대해 주지. 최신예기 ‘백야’로.", "강 교관|서하린과 2인 편대전이다. 팀으로 이겨라. 차도윤의 백야는 도중에 난입한다."],
         { bots: 3, time: 150, need: 2, diff: "easy", boss: { name: "라이벌 차도윤 ‘백야’", kind: "gunship", at: 40, hp: 1.3 }, after: "강 교관: “합격이다. …다만 남은 기체가 없다. 정비창에 가 봐라. 모아가 뭔가 찾아 줄 거다.”" }),
     ],
   },
@@ -78,7 +78,7 @@ const CHAPTERS = [
       {
         id: "a", name: "정면 강습", who: "서하린 · 바우", desc: "편대 전원이 정면으로 제공권을 빼앗고 전초기지를 무너뜨린다. 적이 많지만 동료가 함께한다.",
         stages: [
-          S("dm", "협곡 제공권", ["바우|정면 돌파라니, 마음에 드는데! 하늘부터 비우자.", "서하린|3위 안에 들 만큼 격추해. 제국 정찰대장이 직접 나올 거다."], { bots: 5, time: 180, need: 2, boss: { name: "정찰대장 ‘매의 눈’", kind: "gunship", at: 50, hp: 1.5 } }),
+          S("dm", "협곡 제공권", ["바우|정면 돌파라니, 마음에 드는데! 하늘부터 비우자.", "서하린|편대 대 편대다. 팀 점수로 이긴다. 제국 정찰대장이 직접 나올 거다."], { bots: 5, time: 180, need: 2, boss: { name: "정찰대장 ‘매의 눈’", kind: "gunship", at: 50, hp: 1.5 } }),
           S("waves", "전초기지 공방", ["바르가|협곡을 통째로 메워 주마.", "서하린|전초기지 앞 고원을 지킨다. 바우, 중전차를 막아!", "바우|이 몸만 믿어!"],
             { team: 3, power: 1.05, boss: { name: "중전차 ‘모래매’", kind: "boss", unit: "tank", scale: 1.8, at: 60, hp: 1.6 }, after: "불타는 전초기지 잔해 속에서 노을이 말했다. “이제 말할게. 나는… 에이아가 가장 처음 만든 기계였어.”" }),
         ],
@@ -411,6 +411,7 @@ export function objectivesOf(st) {
   let list = (o.obj || defaultObjectives(view, o)).map((x) => Object.assign({}, x));
   if (m.objDel) list = list.filter((x) => x.req || !m.objDel.includes(x.t));
   if (m.objAdd) for (const x of m.objAdd) { const i = list.findIndex((y) => y.t === x.t && !y.req); if (i >= 0) list[i] = Object.assign({}, x); else if (list.length < 4) list.push(Object.assign({}, x)); else { let j = list.length - 1; while (j > 0 && list[j].req) j--; list[j] = Object.assign({}, x); } }
+  if (st.kind === "dm") list = list.map((x) => (x.t === "rank" ? { t: "team", req: x.req } : x)).filter((x, i, l) => x.t !== "team" || l.findIndex((y) => y.t === "team") === i);   // 공중전은 팀전: 순위 목표 → 팀 승리
   for (const x of list) { ease(x); x.text = objText(x, view); }
   return { list, need: needCount(list, o.objNeed) };
 }
@@ -422,7 +423,7 @@ function goalBase(st) {
     case "infil": return need >= 2 ? `제한 시간 안에 침투 (별 ${need}개)` : "제한 시간 안에 침투";
     case "track": return `추적 평가 별 ${need}개 이상`;
     case "free": return `트릭 평가 별 ${need}개 이상`;
-    case "dm": return `${4 - need}위 안에 들기`;
+    case "dm": return "편대전 팀 승리";
     case "heist": return "에너지 코어 2개 탈취";
     case "titan": return "초거대로봇 격파";
     default: return "임무 성공";
@@ -475,7 +476,8 @@ export function stageConfig(st, team) {
     return Object.assign(cfg, { mode: "race", track: t.id, laps: o.laps || 2, rivals: st.kind === "infil" ? 0 : o.rivals ?? 3, limitK: st.kind === "infil" ? o.limitK || 1.2 : 0 });
   }
   if (st.kind === "track") { const n = map.tracking.length; return Object.assign(cfg, { mode: "tracking", subject: ((o.subj && map.tracking.find((x) => x.id === o.subj)) || map.tracking[((o.si ?? 0) % n + n) % n]).id }); }   // subj: 피사체 id 로 지정 (없으면 si 번호)
-  if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "dm", bots: o.bots || 5, time: o.time || 180, boss });
+  // 공중전: 아군 편대(나 + 동료) 대 적 진영의 팀전. 적 수 = bots, 동료는 wing 앞에서부터 (적보다 둘 적게, 최소 1기)
+  if (st.kind === "dm") return Object.assign(cfg, { mode: "survival", variant: "tdm", bots: o.bots || 5, allies: Math.min(cfg.wing.length, Math.max(1, (o.bots || 5) - 2)), time: o.time || 180, boss });
   return Object.assign(cfg, { mode: "challenge", mission: st.kind, ship: o.ship, team: missionMod(st) && missionMod(st).team !== undefined ? missionMod(st).team : team ?? o.team ?? 0, power: o.power || 1, boss });
 }
 export const usesTeam = (st) => MISSION.has(st.kind);

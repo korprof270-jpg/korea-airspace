@@ -9,6 +9,11 @@
 //  · 숨은 상자: 구조물 속(떠 있는 판 밑·터널 안·LED 탑 꼭대기·아치 속)에서 경기 동안만 쓰는 부품 획득
 //  · 전장 포인트(ⓟ): 미니언·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 원 안에서 왼쪽 위 포인트 판(또는 아이템 키)으로 업그레이드 창을 열어 화력·장갑·기동·스킬을 Lv5 까지 강화
 //  · 코어 체력은 다른 모드의 4배(6400) · 공격받는 아군 타워·코어는 전장 지도에 붉은 경보로 뜬다
+//  · 코어 반응로: 코어는 기지 맨 안쪽 높은 단 위, 둘레는 높은 방벽이고 경기장 쪽 진입로로만 열려 있다 (진입로 정면에서 노려야 맞는다)
+//  · 기지 방어 포탑 넷(진입로 어귀 둘 · 뒤 방벽 위 둘): 기지 안에 들어온 적 드론(그리고 기지 구조물을 쏜 적 드론)을 강하게 쏜다. 미니언은 드론이 없을 때만
+//    코어와 같은 보호막 — 코어가 노출되어야 부술 수 있다. 공격 순서는 방어 포탑 → 코어가 정석
+//  · 침입 감지: 기지 문마다 감지 장막, 담장 위 레이저. 적 드론이 기지 원을 넘으면 그 팀에 경보(“기지 침입 감지!” · 지도 붉은 고동 · 사이렌)
+//    경보 동안(12초, 적이 안에 있으면 계속) 방어 포탑이 깨어나 빨리 쏘고 사거리가 늘며, 가까운 아군 봇 셋이 기지로 돌아온다
 //  · 승리: 적 코어 파괴. 시간이 끝나면 부순 타워 수 → 코어 체력 → 격추 수 순으로 판정
 //
 // ── 네트워크 (js/net/README.md 의 NetGame 사용, 동기화 세부는 aos-net.js) ──
@@ -50,11 +55,13 @@ export const PARTS = {
   cell: { name: "실드 셀", icon: "◈", desc: "초당 체력 3 회복", color: "#35ff7a" },
 };
 export const PART_KEYS = Object.keys(PARTS);
-export const PTS = { passive: 2, minion: 14, minionShare: 5, camp: 28, elite: 70, boss: 150, kill: 120, assist: 50, tower: 150, towerLast: 60, cache: 60 };
+export const PTS = { passive: 2, minion: 14, minionShare: 5, camp: 28, elite: 70, boss: 150, kill: 120, assist: 50, tower: 150, towerLast: 60, cache: 60, def: 80 };
 const WAVE_T = 30, FIRST_WAVE = 6, WAVE_N = 4, CAMP_FIRST = 20, CAMP_RE = 60, BOSS_FIRST = 100, BOSS_RE = 180, CACHE_RE = 90, CACHE_FIRST = 40;
 const TOWER_HP = { outer: 900, inner: 1100 }, TOWER_RANGE = 72, CORE_HP = 6400 /* 4× — 코어 공성은 긴 싸움 */, CORE_RANGE = 64;
 const HERO_HP = 150, MINION_HP = 75, HEAVY_HP = 200, LANE_Y = 13;
 const BUFF_T = 60, LEASH = 80, BOSS_LEASH = 100;
+// 기지 방어 포탑 · 침입 경보
+const DEF_HP = 1300, DEF_RANGE = 88, DEF_BOOST_R = 14, DEF_SHOT = [0.55, 0.3], DEF_DMG = [6, 8], DEF_MINION = 4, ALARM_T = 12, FRONT_COS = Math.cos(42 * Math.PI / 180);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 // 인스턴싱으로 그리는 액터 종류 (전투 시스템의 KINDS 에 덧붙인다: 모델은 대리 Object3D)
@@ -75,8 +82,8 @@ export class AosMode extends CombatMode {
     if (this.pvp) this.title = "PVP · 기지전";
     this.size = clamp(cfg.teamSize || 5, 1, 5);
     this.netNeutrals = [];
-    this.teams = AOS_TEAM.map((name, id) => ({ id, name, css: TEAM_CSS[id], kills: 0, lost: 0, buffT: 0, core: null, towers: [], pad: new THREE.Vector3(), base: new THREE.Vector3(), bossCallT: 0, callEval: 10 + id * 3, pushT: 0, pushLane: null, pushEval: 90 + id * 7 }));
-    this.towers = []; this.heroes = []; this.minions = []; this.camps = []; this.caches = []; this.bubbles = [];
+    this.teams = AOS_TEAM.map((name, id) => ({ id, name, css: TEAM_CSS[id], kills: 0, lost: 0, buffT: 0, core: null, towers: [], defs: [], alarmT: 0, alarmN: 0, intruder: null, pad: new THREE.Vector3(), base: new THREE.Vector3(), bossCallT: 0, callEval: 10 + id * 3, pushT: 0, pushLane: null, pushEval: 90 + id * 7 }));
+    this.towers = []; this.defs = []; this.fields = []; this.heroes = []; this.minions = []; this.camps = []; this.caches = []; this.bubbles = [];
     this.boss = null; this.bossT = BOSS_FIRST; this.waveT = FIRST_WAVE; this.wave = 0; this.campT = CAMP_FIRST;
     this.endT = -1; this.winner = -1; this.alerts = {}; this.mapAlerts = []; this.hint = null; this.nid = 1; this.byId = new Map();
     let seen = false; try { seen = !!localStorage.getItem("fpv-aos-rules"); } catch (_) { /* 저장 불가 */ }
@@ -111,11 +118,17 @@ export class AosMode extends CombatMode {
     this.teams.forEach((t, i) => { t.base.set(A.bases[i][0], 0, A.bases[i][1]); t.pad.set(A.pads[i][0], 0, A.pads[i][1]); });
     // 구조물: 코어 · 타워
     for (const t of this.teams) {
-      const core = (t.core = c.spawnCore(t.base.x, t.base.z, t.id, { hp: CORE_HP, name: `${t.name} 코어` }));
-      const y = w.h(t.base.x, t.base.z), K = 2.6;
+      // 코어: 기지 맨 안쪽 반응로 단 위 (맵이 자리를 주지 않으면 기지 가운데)
+      const [cx, cz] = A.cores ? A.cores[t.id] : [t.base.x, t.base.z];
+      const core = (t.core = c.spawnCore(cx, cz, t.id, { hp: CORE_HP, name: `${t.name} 코어` }));
+      const y = w.h(cx, cz) + (A.reactor ? A.reactor.h : 0), K = 2.6;
+      core.model.position.y = y;
       core.model.scale.setScalar(K); core.pos.y = y + 6.6 * K; core.radius = 6.5;
       core.collider.off = true; core.collider2.off = true;
-      core.collider = w.col.addCapsule(new THREE.Vector3(t.base.x, y, t.base.z), new THREE.Vector3(t.base.x, y + 11, t.base.z), 3.6, "core");
+      // 진입로 방향(기지 → 경기장 가운데)과 진입로 앞 대기 자리
+      t.fwd = new THREE.Vector3(-t.base.x, 0, -t.base.z).normalize();
+      t.approach = new THREE.Vector3(cx, y + 12, cz).addScaledVector(t.fwd, 36);
+      core.collider = w.col.addCapsule(new THREE.Vector3(cx, y, cz), new THREE.Vector3(cx, y + 11, cz), 3.6, "core");
       core.collider2 = w.col.addSphere(core.pos.clone(), 6, "core");
       core.invulnerable = true; core.ai = { cool: 1 }; core.dmgBy = new Map();
       this._body(core, core.collider, core.collider2);
@@ -132,7 +145,19 @@ export class AosMode extends CombatMode {
       a.invulnerable = d.tier === "inner";
       t.towers.push(a); this.towers.push(a); this._reg(a);
     }
-    for (const t of this.teams) { this._bubble(t.core, 13); for (const a of t.towers) if (a.invulnerable) this._bubble(a, 7); }
+    // 기지 방어 포탑 (코어와 같은 보호막). 사격은 _defs 가 직접 한다 (전투 시스템 포탑 AI 는 표적 없이 쉰다)
+    for (const t of this.teams) (A.defenses ? A.defenses[t.id] : []).forEach((d, i) => {
+      const [x, z] = d.p, gy = w.h(x, z), a = c.spawnTurret(x, z, t.id, { hp: DEF_HP, name: `${t.name} 기지 방어 포탑 ${i + 1}`, range: DEF_RANGE }), K = 2.3;
+      a.model.position.y = gy + d.y; a.model.scale.setScalar(K); a.pos.y = gy + d.y + 2.7 * K; a.radius = 3.4;
+      a.collider.off = true;
+      a.collider = w.col.addCapsule(new THREE.Vector3(x, gy + d.y, z), new THREE.Vector3(x, gy + d.y + 6, z), 2.8, "turret");
+      this._body(a, a.collider);
+      a.aosDef = true; a.defK = d.k; a.dmgBy = new Map(); a.ai.think = 1e9; a.ai.target = null; a.defPick = Math.random() * 0.3; a.defCool = Math.random();
+      a.invulnerable = true;
+      t.defs.push(a); this.defs.push(a); this._reg(a);
+    });
+    for (const t of this.teams) { this._bubble(t.core, 13); for (const a of t.towers) if (a.invulnerable) this._bubble(a, 7); for (const a of t.defs) this._bubble(a, 6.5); }
+    this._makeFields();
     this.net.setup();
     // 정글 캠프 · 상자
     A.camps.forEach((d, i) => this.camps.push({ i, d, home: new THREE.Vector3(d.p[0], w.h(d.p[0], d.p[1]) + 9, d.p[1]), members: [], alive: false, t: CAMP_FIRST, aggro: null, aggroT: 0 }));
@@ -201,11 +226,132 @@ export class AosMode extends CombatMode {
     m.scale.setScalar(r); m.position.copy(a.pos); m.renderOrder = 8;
     this.s.world.scene.add(m); a.bubble = m; this.bubbles.push(m);
   }
+  // 코어 노출: 코어와 기지 방어 포탑의 보호막을 함께 걷는다
+  _openCore(t) { this._unshield(t.core); for (const a of t.defs) this._unshield(a); }
   _unshield(a) {
     if (!a.invulnerable) return;
     a.invulnerable = false;
     if (a.bubble) { this.s.world.scene.remove(a.bubble); a.bubble = null; this.s.fx.ring(a.pos, TEAM_COLOR[a.team], 14, 0.6); }
   }
+
+  // ── 침입 감지 장막: 기지 문마다 옅은 장막 + 가로 레이저 줄, 담장 위 레이저 고리. 경보 때 붉게 번쩍인다 ──
+  _makeFields() {
+    const w = this.s.world, A = this.A;
+    if (!A.gates) return;
+    this.fieldGeo = [new THREE.PlaneGeometry(34, 28), new THREE.BoxGeometry(34, 0.14, 0.14), new THREE.TorusGeometry(A.baseR - 0.2, 0.1, 4, 120)];
+    for (const t of this.teams) {
+      const base = new THREE.Color(TEAM_COLOR[t.id]), g = new THREE.Group(), y = w.h(t.base.x, t.base.z);
+      const matF = new THREE.MeshBasicMaterial({ color: base.clone(), transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      const matL = new THREE.MeshBasicMaterial({ color: base.clone().multiplyScalar(1.6), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+      for (const a of A.gates[t.id]) {
+        const cx = t.base.x + Math.cos(a) * (A.baseR - 2), cz = t.base.z + Math.sin(a) * (A.baseR - 2), ry = Math.atan2(Math.cos(a), Math.sin(a));
+        const pl = new THREE.Mesh(this.fieldGeo[0], matF); pl.position.set(cx, y + 14, cz); pl.rotation.y = ry; g.add(pl);
+        for (const hh of [2.5, 8, 13.5, 19, 24.5]) { const ln = new THREE.Mesh(this.fieldGeo[1], matL); ln.position.set(cx, y + hh, cz); ln.rotation.y = ry; g.add(ln); }
+      }
+      const rg = new THREE.Mesh(this.fieldGeo[2], matL); rg.rotation.x = Math.PI / 2; rg.position.set(t.base.x, y + 6.2, t.base.z); g.add(rg);
+      for (const m of g.children) m.renderOrder = 7;
+      w.scene.add(g);
+      this.fields.push({ t, g, matF, matL, base });
+    }
+  }
+  _fieldsFx() {
+    const tm = this.s.time;
+    for (const f of this.fields) {
+      const on = f.t.alarmT > 0 && f.t.core.alive, p = 0.5 + 0.5 * Math.sin(tm * 14);
+      if (on) { f.matL.color.setRGB(2.2, 0.35 + p * 0.9, 0.3 + p * 0.6); f.matL.opacity = 0.75 + 0.25 * p; f.matF.color.setRGB(1, 0.12, 0.1); f.matF.opacity = 0.08 + 0.12 * p; }
+      else { f.matL.color.copy(f.base).multiplyScalar(1.6); f.matL.opacity = f.t.core.alive ? 0.42 + 0.1 * Math.sin(tm * 2 + f.t.id) : 0.1; f.matF.color.copy(f.base); f.matF.opacity = f.t.core.alive ? 0.045 : 0; }
+    }
+  }
+  // 기지 원 안(높이 70 m 아래)
+  _inBaseOf(t, o) { return Math.hypot(o.pos.x - t.base.x, o.pos.z - t.base.z) < this.A.baseR + 1 && o.pos.y < 70; }
+  // 코어 진입로 정면(코어를 제대로 노릴 수 있는 쪽)인가
+  _front(t, p) {
+    const k = t.core.pos, dx = p.x - k.x, dz = p.z - k.z, d = Math.hypot(dx, dz);
+    return d < (this.A.reactor ? this.A.reactor.r : 30) || (dx * t.fwd.x + dz * t.fwd.z) / d > FRONT_COS || p.y > k.y + 22;
+  }
+  // 침입 감지 (오프라인·호스트): 적 드론이 기지 원을 넘는 순간 경보. 안에 머무는 동안은 경보가 꺼지지 않는다
+  _intrusion(dt) {
+    for (const t of this.teams) {
+      if (t.alarmT > 0) t.alarmT = Math.max(0, t.alarmT - dt);
+      if (!t.core.alive) { t.alarmT = 0; t.intruder = null; continue; }
+      let intr = null, bd = 1e9;
+      for (const h of this.heroes) {
+        if (h.team === t.id || h.targetable === false) continue;
+        const inside = h.alive && this._inBaseOf(t, h), key = t.id ? "_inR" : "_inB";
+        if (inside && !h[key]) this._trigger(t, h);
+        h[key] = inside;
+        if (inside) { const d = h.pos.distanceTo(t.core.pos); if (d < bd) { bd = d; intr = h; } }
+      }
+      t.intruder = intr;
+      if (intr) t.alarmT = Math.max(t.alarmT, 2);
+    }
+  }
+  _trigger(t, h) {
+    t.alarmT = ALARM_T; t.alarmN++;
+    this._alarmFx(t, h.pos);
+    // 가까운 아군 봇 셋이 기지 방어로 (멀면 귀환)
+    const near = this.heroes.filter((o) => o.team === t.id && o.alive && !o.isPlayer && !o.remote && o.aos && o.aos.mode !== "retreat" && o.pos.distanceTo(t.base) < 430)
+      .sort((x, y) => x.pos.distanceTo(t.base) - y.pos.distanceTo(t.base)).slice(0, 3);
+    for (const o of near) { o.aos.defendT = 16; if (o.pos.distanceTo(t.base) > 220 && !this._nearest(o, (q) => q.isHero && this._foe(o, q), 70)) this.startRecall(o); }
+  }
+  // 경보 연출 (호스트·클라이언트 모두): 지키는 팀 = 글 알림 · 사이렌 · 지도 고동, 들어간 쪽(나) = 짧은 경고
+  _alarmFx(t, pos) {
+    const now = this.s.time;
+    t.alarmFxT = now;
+    if (this.spectator) { this.mapAlerts.push({ x: t.base.x, z: t.base.z, t: 4, dur: 4, base: true, team: t.id }); return; }
+    if (this.me.team === t.id) {
+      this.mapAlerts.push({ x: t.base.x, z: t.base.z, t: 4, dur: 4, base: true, team: t.id });
+      if ((this.alerts.intr || -99) > now) return;
+      this.alerts.intr = now + 6;
+      this._hint("기지 침입 감지!", "#ff3b3b", 4, (pos || t.core.pos).clone());
+      this.s.game.sound.play("alarm");
+    } else if (this.me.alive && this._inBaseOf(t, this.me) && (this.alerts.intrMe || -99) <= now) {
+      this.alerts.intrMe = now + 10;
+      this.s.hud.toast("적 기지 경보 발령 — 방어 포탑이 깨어납니다!", "#ffb02e", 2, 20);
+      this.s.game.sound.play("warn");
+    }
+  }
+  // 기지 방어 포탑 (오프라인·호스트): 기지 안의 적 드론 > 기지 구조물을 쏜 적 드론 > (경보 중) 사거리 안 적 드론 > 기지 안 미니언
+  _defs(dt) {
+    const c = this.combat, now = this.s.time;
+    for (const a of this.defs) {
+      if (!a.alive) { a.defTarget = null; continue; }
+      const t = this.teams[a.team], boost = t.alarmT > 0, R = DEF_RANGE + (boost ? DEF_BOOST_R : 0);
+      a.ai.target = null; a.ai.think = 1e9;
+      if ((a.defPick -= dt) <= 0) {
+        a.defPick = 0.25;
+        let best = null, bs = 1e9;
+        for (const o of c.actors) {
+          if (!o.alive || !o.targetable || o.team === a.team || o.team === 2 || o.static || o.invulnerable) continue;
+          const d = o.pos.distanceTo(a.pos);
+          if (d > R) continue;
+          let sc;
+          if (o.isHero) { const inside = this._inBaseOf(t, o); if (!inside && !((o.baseAggro || -99) > now) && !boost) continue; sc = inside ? d : d + 40; }
+          else if (o.isMinion) { if (!this._inBaseOf(t, o)) continue; sc = d + 400; }
+          else continue;
+          if (sc < bs && this._defSees(a, o)) { bs = sc; best = o; }
+        }
+        a.defTarget = best;
+      }
+      const tg = a.defTarget;
+      if (!tg || !tg.alive) { a.defTarget = null; a.head.rotation.y += dt * (boost ? 2.4 : 0.5); continue; }
+      const d = tg.pos.distanceTo(a.pos);
+      _v.copy(tg.pos).addScaledVector(tg.vel, d / 150).sub(a.pos);
+      a.head.rotation.set(Math.atan2(_v.y, Math.hypot(_v.x, _v.z)), Math.atan2(-_v.x, -_v.z), 0, "YXZ");
+      if ((a.defCool -= dt) > 0) continue;
+      a.defCool = DEF_SHOT[boost ? 1 : 0] * (0.9 + Math.random() * 0.2);
+      _v.normalize();
+      const sp = 0.012; _v.x += (Math.random() - 0.5) * sp; _v.y += (Math.random() - 0.5) * sp; _v.z += (Math.random() - 0.5) * sp; _v.normalize();
+      _w.copy(a.pos).addScaledVector(_v, 3.4);
+      const col = boost ? 0xff5040 : a.team ? 0xffa040 : 0x66b8ff;
+      c.fireLaser(a, _w, _v, tg.isMinion ? DEF_MINION : DEF_DMG[boost ? 1 : 0], col, 150);
+      this.s.fx.muzzle(_w, _v, col, 2.6);
+      if (a.pos.distanceTo(this.s.camera.position) < 160) this.s.game.sound.play("elaser", c.volAt(a.pos) * 0.6, c.panAt(a.pos));
+    }
+  }
+
+  // 포탑 머리에서 표적까지 시야 (자기 받침 충돌체 밖, 표적 쪽으로 6 m 나간 점부터)
+  _defSees(a, o) { _w.copy(o.pos).sub(a.pos).normalize().multiplyScalar(6).add(a.pos); return this.s.world.col.visible(_w, o.pos, 2, o.unit || null); }
 
   // ── 숨은 상자 ──
   _makeCaches() {
@@ -393,6 +539,7 @@ export class AosMode extends CombatMode {
       if (!this._foe(a, o)) continue;
       let d = a.pos.distanceTo(o.pos);
       if (d > (o.static ? 48 : 40)) continue;
+      if (o.kind === "core" && !this._front(this.teams[o.team], a.pos)) continue;   // 코어는 진입로 정면에서만
       if (o.isHero) d *= 1.8; else if (o.static) d *= 1.2;
       if (d < bs) { bs = d; best = o; }
     }
@@ -401,7 +548,7 @@ export class AosMode extends CombatMode {
     const path = this.paths[a.lane], dir = a.team ? -1 : 1;
     let p = path[a.wp];
     while (p && Math.hypot(p.x - a.pos.x, p.z - a.pos.z) < 16) { a.wp += dir; p = path[a.wp]; }
-    if (!p) { const core = this.teams[1 - a.team].core; return a.goal2 || (a.goal2 = new THREE.Vector3()).copy(core.pos).setY(core.pos.y + 10); }
+    if (!p) { const foe = this.teams[1 - a.team], core = foe.core; return (a.goal2 || (a.goal2 = new THREE.Vector3())).copy(this._front(foe, a.pos) ? core.pos : foe.approach); }   // 라인 끝 → 진입로 앞 → 코어
     return (a.goal2 || (a.goal2 = new THREE.Vector3())).set(p.x, LANE_Y + (a.aid % 3) * 1.5, p.z);
   }
   _neutralAI(a) {
@@ -421,6 +568,16 @@ export class AosMode extends CombatMode {
       a.ai.target = null;
       if (!(D.recall > 0) && a.pos.distanceTo(t.pad) > 160 && !this._nearest(a, (o) => o.isHero && this._foe(a, o), 70)) this.startRecall(a);
       return D.recall > 0 ? g.copy(a.pos) : g.copy(t.pad).setY(10);
+    }
+    // 침입 경보: 불려 온 봇은 기지 안의 적 드론부터 (귀환 중이면 기다린다)
+    if (D.defendT > 0) {
+      D.defendT -= 0.3;
+      const x = t.intruder;
+      if (x && x.alive && this._inBaseOf(t, x)) {
+        if (x.pos.distanceTo(a.pos) < 90) return this._engage(a, x);
+        return D.recall > 0 ? g.copy(a.pos) : g.copy(x.pos).setY(Math.max(16, x.pos.y));
+      }
+      if (!(t.alarmT > 0)) D.defendT = 0;
     }
     // 가까운 적 드론은 언제나 상대한다 (도망치는 적은 멀리 쫓지 않는다)
     const near = this._nearest(a, (o) => o.isHero && this._foe(a, o), 55, (o, d) => d * (0.6 + o.hp / o.maxHp));
@@ -457,23 +614,25 @@ export class AosMode extends CombatMode {
     let front = null, fp = -1;
     for (const m of this.minions) if (m.alive && m.team === a.team && m.lane === lane) { const pr = a.team ? path.length - m.wp : m.wp; if (pr > fp) { fp = pr; front = m; } }
     const tw = foe.towers.find((x) => x.alive && x.lane === lane && !x.invulnerable) || null;
-    const core = foe.core.alive && !foe.core.invulnerable ? foe.core : null;
+    // 노출된 코어: 기지 방어 포탑부터 (진입로 어귀 → 뒤 방벽 위), 다 무너지면 코어
+    const core = foe.core.alive && !foe.core.invulnerable ? this._pickDef(foe, a) || foe.core : null;
     // 공성: 아군 미니언이 타워를 맞아 주고 있으면 타워부터
-    for (const s of [tw, core]) if (s && a.hp > a.maxHp * 0.45 && s.pos.distanceTo(a.pos) < (s === core ? CORE_RANGE : TOWER_RANGE) + 30 && this.minions.some((m) => m.alive && m.team === a.team && m.pos.distanceTo(s.pos) < (s === core ? CORE_RANGE : TOWER_RANGE))) return this._engage(a, s);
+    for (const s of [tw, core]) if (s && a.hp > a.maxHp * 0.45 && s.pos.distanceTo(a.pos) < this._sRange(s) + 30 && this.minions.some((m) => m.alive && m.team === a.team && m.pos.distanceTo(s.pos) < this._sRange(s))) return this._siege(a, s, foe);
     const minion = this._nearest(a, (o) => o.isMinion && this._foe(a, o), 60);
     if (minion) return this._engage(a, minion);
     for (const s of [tw, core]) {
       if (!s) continue;
-      const d = s.pos.distanceTo(a.pos), R = s === core ? CORE_RANGE : TOWER_RANGE;
+      const d = s.pos.distanceTo(a.pos), R = this._sRange(s);
       if (d > R + 45) continue;
       const tank = this.minions.some((m) => m.alive && m.team === a.team && m.pos.distanceTo(s.pos) < R);
       const mates = push && this.heroes.filter((o) => o !== a && o.alive && o.team === a.team && o.pos.distanceTo(s.pos) < R + 40).length >= 1;
-      if (tank || (s.ai && s.ai.target && s.ai.target !== a) || (a.hp > a.maxHp * (s === core ? 0.45 : 0.6) && mates)) return this._engage(a, s);
+      const busy = s.aosDef ? s.defTarget && s.defTarget !== a : s.ai && s.ai.target && s.ai.target !== a;
+      if (tank || busy || (a.hp > a.maxHp * (s === core ? 0.45 : 0.6) && mates)) return this._siege(a, s, foe);
       return g.copy(s.pos).sub(a.pos).setY(0).normalize().multiplyScalar(-(R + 12 - d)).add(a.pos).setY(LANE_Y + 4);   // 사거리 밖으로 물러선다
     }
     // 몰아치기 중인데 앞선 미니언이 없으면 표적 구조물 사거리 바로 밖까지 함께 간다
     if (push && (tw || core) && (!front || front.pos.distanceTo((tw || core).pos) > a.pos.distanceTo((tw || core).pos))) {
-      const s = tw || core, R = (s === core ? CORE_RANGE : TOWER_RANGE) + 14;
+      const s = tw || core, R = this._sRange(s) + 14;
       return g.copy(a.pos).sub(s.pos).setY(0).normalize().multiplyScalar(R).add(s.pos).setY(LANE_Y + 6);
     }
     if (front) return g.copy(front.pos).sub(_v.copy(front.vel).setY(0).normalize().multiplyScalar(14)).setY(LANE_Y + 3 + (a.aid % 4));
@@ -482,6 +641,15 @@ export class AosMode extends CombatMode {
     if (mine) return g.copy(mine.pos).setY(LANE_Y + 6).add(_v.copy(foe.base).sub(t.base).setY(0).normalize().multiplyScalar(30));
     return g.copy(path[a.team ? path.length - 3 : 2]).setY(LANE_Y + 4);
   }
+  // 구조물 공성 거리 (봇 판단용): 타워 · 코어 · 기지 방어 포탑
+  _sRange(s) { return s.kind === "core" ? CORE_RANGE : s.aosDef ? 64 : TOWER_RANGE; }
+  _pickDef(foe, a) {
+    let best = null, bs = 1e9;
+    for (const x of foe.defs) if (x.alive && !x.invulnerable) { const sc = x.pos.distanceTo(a.pos) + (x.defK === "rear" ? 60 : 0); if (sc < bs) { bs = sc; best = x; } }
+    return best;
+  }
+  // 코어는 진입로 정면에서만 노린다: 옆·뒤에 있으면 먼저 진입로 앞으로
+  _siege(a, s, foe) { if (s.kind === "core" && !this._front(foe, a.pos)) return a.aos.goal.copy(foe.approach); return this._engage(a, s); }
   _nearest(a, ok, R, score) {
     let best = null, bs = 1e9;
     for (const o of this.combat.actors) {
@@ -530,14 +698,15 @@ export class AosMode extends CombatMode {
     const now = this.s.time;
     if (k && k.aosTower) a.hp -= amt * (a.isMinion ? 0.15 : 0.6);             // 타워 탄은 드론에게 아프다
     if (k && k.kind === "core") a.hp -= amt * 0.4;
-    if (k && (a.aosTower || a.kind === "core") && (k.isMinion || (k.isHero && !k.isPlayer && !k.remote))) a.hp -= amt * (k.isMinion ? 2 : 1);   // 공성: 미니언·봇 탄은 구조물에 더 세다 (사람 레이저는 원래 강하다)
+    if (k && (a.aosTower || a.aosDef || a.kind === "core") && (k.isMinion || (k.isHero && !k.isPlayer && !k.remote))) a.hp -= amt * (k.isMinion ? 2 : 1);
+    if (k && k.isHero && (a.aosDef || a.kind === "core") && k.team !== a.team) k.baseAggro = now + 3;   // 기지 구조물을 쏜 적 드론은 방어 포탑이 노린다   // 공성: 미니언·봇 탄은 구조물에 더 세다 (사람 레이저는 원래 강하다)
     if (a.aos) a.aos.hurtT = now;
     if (a.aos && k && k.isHero && k.team !== a.team) {
       a.aos.dmgBy.set(k, now);
       if (this.towers.some((t) => t.alive && t.team === a.team && t.pos.distanceTo(k.pos) < TOWER_RANGE)) k.aggroT = now + 2.5;   // 타워 밑에서 아군을 쏜 적
     }
     if (a.dmgBy && k && k.isHero) a.dmgBy.set(k, now);
-    if ((a.aosTower || a.kind === "core") && k && k.aos) k.aos.towerDmg += amt;
+    if ((a.aosTower || a.aosDef || a.kind === "core") && k && k.aos) k.aos.towerDmg += amt;
     if (a.isNeutral && k && k.team !== 2) { a.camp.aggro = k; a.camp.aggroT = 6; }
   }
   _credit(victim, k) {
@@ -589,6 +758,17 @@ export class AosMode extends CombatMode {
       if (!a.isPlayer) { a.aos.mode = "lane"; a.aos.modeT = 0; }
       return;
     }
+    if (a.aosDef) {
+      if (this.winner >= 0) return;
+      const foe = this.teams[1 - a.team], cr = this._credit(a, k);
+      for (const o of this.heroes) if (o.team === foe.id) this._give(o, PTS.def);
+      if (cr) this._give(cr, PTS.towerLast);
+      if (a.bubble) { this.s.world.scene.remove(a.bubble); a.bubble = null; }
+      h.feed(`${foe.name} ▸ ${a.name} 파괴`, foe.css);
+      h.toast(a.team === me.team ? "아군 기지 방어 포탑이 무너졌습니다" : `기지 방어 포탑 파괴!  +${PTS.def}ⓟ`, a.team === me.team ? "#ff8a7a" : "#ffd24a", 1.8, 20);
+      this.s.game.sound.play(a.team === me.team ? "warn" : "bigkill", 0.7);
+      return;
+    }
     if (a.aosTower) {
       if (this.winner >= 0) return;   // 코어가 무너지며 함께 꺼진 타워
       const team = this.teams[a.team], foe = this.teams[1 - a.team], cr = this._credit(a, k);
@@ -601,14 +781,14 @@ export class AosMode extends CombatMode {
       this.s.game.sound.play(a.team === me.team ? "warn" : "bigkill");
       if (a.tier === "outer") { const inn = team.towers.find((x) => x.lane === a.lane && x.tier === "inner"); if (inn && inn.alive) this._unshield(inn); }
       else if (team.core.invulnerable) {
-        this._unshield(team.core);
+        this._openCore(team);
         this._hint(a.team === me.team ? "아군 코어 노출! 기지를 지키세요" : `${team.name} 코어 노출 — 코어를 공격하세요!`, a.team === me.team ? "#ff6b5a" : "#35ff7a", 8);
       }
       return;
     }
     if (a.kind === "core") {
       this.winner = 1 - a.team; this.endT = 3.5;
-      for (const o of this.combat.actors) if (o.team === a.team && o.alive && (o.aosTower || o.isMinion)) this.combat.kill(o, null);
+      for (const o of this.combat.actors) if (o.team === a.team && o.alive && (o.aosTower || o.aosDef || o.isMinion)) this.combat.kill(o, null);
       h.toast(a.team === me.team ? "아군 코어 파괴…" : `${a.name} 파괴! 승리!`, a.team === me.team ? "#ff6b5a" : "#35ff7a", 3, 34);
       this.s.slowMo(1.4, 0.25, 0.5);
     }
@@ -627,14 +807,14 @@ export class AosMode extends CombatMode {
     for (let i = this.mapAlerts.length - 1; i >= 0; i--) if ((this.mapAlerts[i].t -= dt) <= 0) this.mapAlerts.splice(i, 1);
     if (this.spectator) return;
     const now = this.s.time, t = this.teams[this.me.team];
-    for (const a of [t.core, ...t.towers]) {
+    for (const a of [t.core, ...t.towers, ...t.defs]) {
       const prev = a._hp0 ?? a.hp; a._hp0 = a.hp;
       if (!a.alive || a.hp >= prev - 0.5 || (a._alertT || -99) > now) continue;
       a._alertT = now + 6;
       const core = a.kind === "core";
       this.mapAlerts.push({ x: a.pos.x, z: a.pos.z, t: 4, dur: 4, core });
       if (this.hint && this.hint.dur > 4 && this.hint.t > 1.5) continue;
-      this._alert(core ? "core" : "tw", core ? "아군 코어 공격받는 중!" : `${a.name.replace(t.name, "아군")} 공격받는 중`, "#ff6b5a", core ? 8 : 10, a);
+      this._alert(core ? "core" : a.aosDef ? "def" : "tw", core ? "아군 코어 공격받는 중!" : `${a.name.replace(t.name, "아군")} 공격받는 중`, "#ff6b5a", core ? 8 : 10, a);
     }
   }
 
@@ -661,6 +841,7 @@ export class AosMode extends CombatMode {
     if (he !== null && he > this.time + 1.5) this.time = Math.min(this.duration, he);
     this._lod();
     for (const sw of this.swarms) sw.sync();
+    this._fieldsFx();
     if (this.state === "countdown" || this.cut) return;
     if (this.ruleT > 0 && this.state === "run" && (this.ruleT -= dt) <= 0) { try { localStorage.setItem("fpv-aos-rules", "1"); } catch (_) { /* 저장 불가 */ } }
     if (this.hint && (this.hint.t -= dt) <= 0) this.hint = null;
@@ -688,6 +869,7 @@ export class AosMode extends CombatMode {
     if (this.boss && this.boss.alive) { if (this.boss.camp.aggroT > 0) this.boss.camp.aggroT -= dt; }
     else if ((this.bossT -= dt) <= 0) { this.bossT = BOSS_RE; this._spawnBoss(); }
     this._towers(dt);
+    this._intrusion(dt); this._defs(dt);
     // 팀: 보스 강화 시간, 봇들의 보스 호출
     for (const t of this.teams) {
       if (t.buffT > 0 && (t.buffT -= dt) <= 0) for (const o of this.heroes) if (o.team === t.id) this._applyStats(o);
@@ -788,7 +970,7 @@ export class AosMode extends CombatMode {
   missionObjective(o) {
     const me = this.me, foe = this.teams[1 - me.team];
     if (me.hp < me.maxHp * 0.3 && !this.inBase(me)) { o.pos = _v.copy(this.teams[me.team].pad).setY(6); o.label = "기지로 귀환"; o.color = "#8cff4a"; return o; }
-    const list = [...foe.towers.filter((x) => x.alive && !x.invulnerable), ...(foe.core.alive && !foe.core.invulnerable ? [foe.core] : [])];
+    const list = [...foe.towers.filter((x) => x.alive && !x.invulnerable), ...foe.defs.filter((x) => x.alive && !x.invulnerable), ...(foe.core.alive && !foe.core.invulnerable ? [foe.core] : [])];
     let best = null, bd = 1e9;
     for (const x of list) { const d = x.pos.distanceTo(me.pos); if (d < bd) { bd = d; best = x; } }
     if (!best) return null;
@@ -802,7 +984,8 @@ export class AosMode extends CombatMode {
   snapshot() {
     const r = (x) => Math.round(x * 10) / 10, out = { v: 1, t: Math.round(this.time * 10) / 10, w: this.wave };
     out.tm = this.teams.map((t) => [t.kills, t.lost, Math.round(t.buffT)]);
-    out.st = [...this.teams.map((t) => t.core), ...this.towers].map((a) => (a.alive ? Math.round(a.hp) : -1));
+    out.st = [...this.teams.map((t) => t.core), ...this.towers, ...this.defs].map((a) => (a.alive ? Math.round(a.hp) : -1));
+    out.al = this.teams.map((t) => [Math.round(t.alarmT * 10) / 10, t.alarmN]);
     out.ca = this.caches.reduce((m, k, i) => m | (k.active ? 1 << i : 0), 0);
     const mov = (a) => [a.aid, r(a.pos.x), r(a.pos.y), r(a.pos.z), Math.round(a.hp)];
     out.mn = this.minions.filter((m) => m.alive).map((m) => [...mov(m), m.team, m.heavy ? 1 : 0]);
@@ -814,14 +997,15 @@ export class AosMode extends CombatMode {
   applySnapshot(s) {
     if (!s || s.v !== 1) return;
     s.tm.forEach((x, i) => { const t = this.teams[i]; if (t) { t.kills = x[0]; t.lost = x[1]; t.buffT = x[2]; } });
-    [...this.teams.map((t) => t.core), ...this.towers].forEach((a, i) => {
+    if (s.al) s.al.forEach((x, i) => { const t = this.teams[i]; if (t && Array.isArray(x)) { t.alarmT = +x[0] || 0; t.alarmN = x[1] | 0; } });
+    [...this.teams.map((t) => t.core), ...this.towers, ...this.defs].forEach((a, i) => {
       const v = s.st[i];
       if (v === undefined) return;
       if (v < 0) { if (a.alive) this.combat.kill(a, null); return; }
       a.hp = v;
       if (a.aosTower && a.invulnerable && !this.teams[a.team].towers.find((x) => x.lane === a.lane && x.tier === "outer").alive) this._unshield(a);
     });
-    for (const t of this.teams) if (t.core.invulnerable && Object.keys(this.paths).some((ln) => t.towers.filter((x) => x.lane === ln).every((x) => !x.alive))) this._unshield(t.core);
+    for (const t of this.teams) if (t.core.invulnerable && Object.keys(this.paths).some((ln) => t.towers.filter((x) => x.lane === ln).every((x) => !x.alive))) this._openCore(t);
     this.caches.forEach((k, i) => { k.active = !!(s.ca & (1 << i)); k.g.visible = k.active; });
     for (const row of s.pl || []) { const a = this.byId.get(row[0]); if (!a || !a.aos) continue; a.aos.pts = row[1]; UP_KEYS.forEach((k, j) => { a.aos.up[k] = row[2 + j]; }); PART_KEYS.forEach((p, j) => { a.aos.parts[p] = row[6] & (1 << j) ? 1 : 0; }); this._applyStats(a); }
     // 움직이는 액터(미니언·정글·봇)는 NetGame 의 공유 액터(대리 모델)로 그린다 — s.mn / s.nt / s.hb 는 그 연결이 없을 때의 대체 자료
@@ -839,6 +1023,8 @@ export class AosMode extends CombatMode {
     this.ng.dispose();
     for (const m of this.bubbles) sc.remove(m);
     for (const k of this.caches) sc.remove(k.g);
+    for (const f of this.fields) { sc.remove(f.g); f.matF.dispose(); f.matL.dispose(); }
+    if (this.fieldGeo) this.fieldGeo.forEach((g) => g.dispose());
     for (const sw of this.swarms || []) sw.dispose();
     if (this.bubGeo) { this.bubGeo.dispose(); this.bubMat.forEach((m) => m.dispose()); }
     if (this.cacheGeo) { this.cacheGeo.dispose(); this.cacheRing.dispose(); this.cacheMat.dispose(); this.cacheMat2.dispose(); }

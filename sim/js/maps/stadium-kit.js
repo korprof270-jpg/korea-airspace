@@ -13,7 +13,23 @@ export const DARK = 0x1a1f2b, DARK2 = 0x252c3b, STEEL = 0x4a5468, PANEL = 0x313a
 const mir = (p) => (p.length === 3 ? [-p[0], p[1], -p[2]] : [-p[0], -p[1]]);
 export const BASES = [[-360, 360], [360, -360]];          // 팀 0 청 · 팀 1 홍
 export const BASE_R = 66;                                 // 기지 원판 반경 (안에 들어오면 회복·업그레이드)
-export const PAD_R = 24;                                  // 재출격·정비 패드 반경
+export const PAD_R = 18;                                  // 재출격·정비 패드 반경 (기지 한가운데에서 경기장 쪽으로 조금 앞)
+// 코어 반응로: 기지 깊숙이(경기장 모서리 쪽) 높은 단 위. 둘레는 높은 방벽이고 경기장 쪽 한 면만 열려 짧은 진입로로 이어진다
+//  → 코어는 기지 문으로 들어와 진입로 정면에서만 제대로 노릴 수 있다. 진입로 어귀 둘 + 뒤 방벽 위 둘에 기지 방어 포탑
+export const REACTOR = { back: 38, r: 16, h: 6, wallR: 21, wallH: 26, wallT: 2.4, open: 34, lane: 10, laneH: 16, pylonH: 15 };
+export const fwdOf = (t) => { const [x, z] = BASES[t], L = Math.hypot(x, z); return [-x / L, -z / L]; };   // 기지 → 경기장 가운데 방향
+export const corePos = (t) => { const [x, z] = BASES[t], [fx, fz] = fwdOf(t); return [x - fx * REACTOR.back, z - fz * REACTOR.back]; };
+export const padPos = (t) => { const [x, z] = BASES[t], [fx, fz] = fwdOf(t); return [x + fx * 14, z + fz * 14]; };
+// 기지 방어 포탑 자리 { p:[x, z], y(받침 꼭대기 높이), k: "mouth"(진입로 어귀) | "rear"(뒤 방벽 위) }
+export function defensePos(t) {
+  const R = REACTOR, [cx, cz] = corePos(t), [fx, fz] = fwdOf(t), px = -fz, pz = fx, oa = R.open * DEG;
+  const m = R.wallR * Math.cos(oa) + R.lane, hw = R.wallR * Math.sin(oa) + R.wallT;
+  const out = [-1, 1].map((s) => ({ p: [cx + fx * m + px * s * hw, cz + fz * m + pz * s * hw], y: R.pylonH, k: "mouth" }));
+  for (const s of [-1, 1]) { const a = 125 * DEG; out.push({ p: [cx + (fx * Math.cos(a) + px * s * Math.sin(a)) * R.wallR, cz + (fz * Math.cos(a) + pz * s * Math.sin(a)) * R.wallR], y: R.wallH + 1.2, k: "rear" }); }
+  return out;
+}
+// 기지 문 방향(라인이 나가는 쪽, 기지 중심 기준 각도 rad) — 문마다 침입 감지 장막
+export const gateAngles = (t) => { const [bx, bz] = BASES[t]; return Object.values(LANES).map((pts) => { const p = t ? pts[pts.length - 2] : pts[1]; return Math.atan2(p[1] - bz, p[0] - bx); }); };
 // 라인: 청 기지 → 홍 기지 꺾은선 [x, z]
 const TOP = [[-352, 300], [-392, 170], [-402, -40], [-396, -250], [-352, -352], [-250, -396], [-40, -402], [170, -392], [300, -352]];
 export const LANES = {

@@ -39,6 +39,12 @@ export function drawAosHud(m, h) {
       g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(bx, by, bw, 3 * u);
       g.fillStyle = t.core.invulnerable ? "#9aa6bd" : k < 0.3 ? "#ff6b5a" : t.css; g.fillRect(right ? bx + bw * (1 - k) : bx, by, bw * k, 3 * u); }
     if (t.buffT > 0) h.text(`보스 강화 ${Math.ceil(t.buffT)}초`, right ? x + w - 18 * u : x + 18 * u, y + hh + 12 * u, { size: 11, align: al, color: "#ff8ae6" });
+    // 침입 경보: 아군 기지면 붉게 깜빡이는 경고, 적 기지면 작은 표시
+    if (t.alarmT > 0 && t.core.alive) {
+      const mine = t.id === me.team && !m.spectator, on = Math.sin(s.time * 12) > -0.3;
+      if (mine || m.spectator) { if (on) h.text(`⚠ ${mine ? "기지 침입" : `${t.name} 기지 경보`} · 방어 포탑 강화 ${Math.ceil(t.alarmT)}초`, right ? x + w - 18 * u : x + 18 * u, y + hh + (t.buffT > 0 ? 26 : 12) * u, { size: 11.5, align: al, color: "#ff4a3a" }); }
+      else h.text("적 기지 경보", right ? x + w - 18 * u : x + 18 * u, y + hh + (t.buffT > 0 ? 26 : 12) * u, { size: 10.5, align: al, color: "#ffb02e" });
+    }
   }
   // ── 목표 알림 ──
   if (m.hint) {
@@ -129,6 +135,12 @@ function minimap(m, h) {
   // 캠프 · 상자(가까운 것만)
   for (const cp of m.camps) { const [cx, cy] = P(cp.home.x, cp.home.z); g.beginPath(); g.arc(cx, cy, (cp.d.big ? 3.4 : 2.6) * u, 0, 7); g.fillStyle = cp.alive ? (cp.d.big ? "#ffb040" : "#b48cff") : "rgba(110,110,130,0.5)"; g.fill(); }
   for (const kc of m.caches) if (kc.active && kc.pos.distanceTo(me.pos) < 120) { const [cx, cy] = P(kc.pos.x, kc.pos.z); g.beginPath(); g.rect(cx - 2.5 * u, cy - 2.5 * u, 5 * u, 5 * u); g.fillStyle = GOLD; g.fill(); }
+  // 기지 방어 포탑 (작은 세모 · 경보 중이면 붉게)
+  for (const a of m.defs || []) {
+    const [cx, cy] = P(a.pos.x, a.pos.z), r = 2.8 * u;
+    g.beginPath(); g.moveTo(cx, cy - r); g.lineTo(cx + r, cy + r * 0.8); g.lineTo(cx - r, cy + r * 0.8); g.closePath();
+    if (a.alive) h.fill2(m.teams[a.team].alarmT > 0 ? "#ff4a3a" : TEAM_CSS[a.team], 1); else { g.lineWidth = 1 * u; g.strokeStyle = "rgba(140,150,170,0.6)"; g.stroke(); }
+  }
   // 타워
   for (const a of m.towers) {
     const [cx, cy] = P(a.pos.x, a.pos.z), r = 3.6 * u;
@@ -146,6 +158,14 @@ function minimap(m, h) {
   for (const al of m.mapAlerts || []) {
     const [cx, cy] = P(al.x, al.z), k = al.t / al.dur, ph = (m.s.time * 2.2) % 1;
     g.globalAlpha = h.opacity * Math.min(1, k * 3);
+    if (al.base) {   // 기지 침입: 기지 원 전체가 붉게 고동친다
+      const R = A.baseR * (S / 940);
+      g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fillStyle = `rgba(255,40,30,${0.25 + 0.25 * Math.sin(m.s.time * 10)})`; g.fill();
+      for (const f of [ph, (ph + 0.5) % 1]) { g.beginPath(); g.arc(cx, cy, R * (0.8 + f * 0.9), 0, 7); g.lineWidth = 2 * u; g.strokeStyle = `rgba(255,60,50,${(1 - f) * 0.95})`; g.stroke(); }
+      h.text("침입!", cx, cy - R - 6 * u, { size: 10, align: "center", base: "middle", color: "#ff6b5a", shadow: false });
+      g.globalAlpha = h.opacity;
+      continue;
+    }
     for (const f of [ph, (ph + 0.5) % 1]) { g.beginPath(); g.arc(cx, cy, (5 + f * (al.core ? 14 : 10)) * u, 0, 7); g.lineWidth = 2 * u; g.strokeStyle = `rgba(255,60,50,${(1 - f) * 0.95})`; g.stroke(); }
     g.beginPath(); g.arc(cx, cy, 3.2 * u, 0, 7); g.fillStyle = "#ff3a30"; g.fill();
     h.text("!", cx, cy - 9 * u, { size: 11, align: "center", base: "middle", color: "#ff6b5a", shadow: false });
@@ -166,9 +186,9 @@ function ruleCard(m, h) {
   const u = h.u, L = h.L, w = Math.min(520 * u, h.W - 32 * u), x = L.cx - w / 2, y = h.H * 0.33, lh = 24 * u;
   const a = m.state === "countdown" ? 1 : Math.min(1, m.ruleT);
   h.fade(a);
-  h.plate(x, y, w, 46 * u + lh * 3, { accent: "#ff3ad6", skew: 0.03 });
+  h.plate(x, y, w, 46 * u + lh * 4, { accent: "#ff3ad6", skew: 0.03 });
   h.text("기지전 — 이렇게 이깁니다", x + 18 * u, y + 20 * u, { size: 14, base: "middle", color: "#ff8ae6", shadow: false });
-  const lines = ["1. 미니언과 함께 라인을 밀어 타워를 부수세요", "2. 정글 몬스터 · 숨겨진 상자로 포인트(ⓟ)를 모으세요", "3. 기지에서 업그레이드 → 적 코어 파괴!"];
+  const lines = ["1. 미니언과 함께 라인을 밀어 타워를 부수세요", "2. 정글 몬스터 · 숨겨진 상자로 포인트(ⓟ)를 모으세요", "3. 기지에서 업그레이드 → 적 코어 파괴!", "4. 적 기지에 들어가면 경보 · 방어 포탑부터 부수세요"];
   lines.forEach((t, i) => h.text(t, x + 22 * u, y + 46 * u + i * lh, { size: 14, base: "middle", color: "#fff", shadow: false }));
   h.fade(1);
 }

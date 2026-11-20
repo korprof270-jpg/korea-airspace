@@ -1,6 +1,7 @@
 // 스토리 단계 목표: 단계마다 3~4개의 목표 중 정해진 개수(need) 이상 달성해야 클리어. "핵심" 목표는 반드시 달성
 // 목표 정의는 저장 가능한 작은 객체: { t: 종류, n: 값, req: 핵심 여부 }
 //   win      임무 성공 / 완주 / 추적 완료        rank n   n위 안
+//   team     팀 승리 (공중전 편대전: 끝날 때 팀 점수가 앞서야)
 //   crash n  추락·격추 n회 이하 (유지)           kills n  적 n기 격추
 //   boss     보스·중간 보스 격파                   truck p  아군 수송함 내구도 p% 이상
 //   core p   아군 코어 내구도 p% 이상             time p   제한 시간의 p% 안에 완료
@@ -33,8 +34,9 @@ export function easeText(s) {
 export function objText(o, st) {
   const k = st ? st.kind : "";
   switch (o.t) {
-    case "win": return k === "race" ? "완주" : k === "infil" ? "제한 시간 안에 침투" : k === "track" ? "추적 끝까지 완료" : k === "dm" ? "제한 시간까지 생존 교전" : "임무 성공";
+    case "win": return k === "race" ? "완주" : k === "infil" ? "제한 시간 안에 침투" : k === "track" ? "추적 끝까지 완료" : k === "dm" ? "편대전 승리" : "임무 성공";
     case "rank": return o.n === 1 ? "1위" : `${o.n}위 안`;
+    case "team": return "팀 승리";
     case "crash": return o.n === 0 ? (k === "race" || k === "infil" || k === "track" ? "추락 없이" : "격추당하지 않기") : (k === "race" || k === "infil" || k === "track" ? `추락 ${o.n}회 이하` : `격추당하는 횟수 ${o.n}회 이하`);
     case "kills": return `적 ${o.n}기 격추`;
     case "boss": return st && st.boss ? `${st.boss.name.replace(/\s*‘.*$/, "")} 격파` : "보스 격파";
@@ -55,7 +57,7 @@ export function defaultObjectives(st, o) {
     case "race": return [{ t: "win", req: true }, { t: "rank", n: o.need >= 3 ? 1 : 2 }, { t: "crash", n: 1 }];
     case "infil": return [{ t: "win", req: true }, { t: "time", n: 86 }, { t: "crash", n: 0 }];
     case "track": return [{ t: "win", req: true }, { t: "keep", n: o.need >= 2 ? 65 : 50 }, { t: "stars", n: o.need >= 2 ? 2 : 1 }, { t: "crash", n: 0 }];
-    case "dm": return [{ t: "rank", n: 4 - (o.need || 1), req: true }, { t: "kills", n: Math.max(3, Math.round((o.bots || 5) * 0.8)) }, { t: "crash", n: 2 }, ...(boss ? [{ t: "boss" }] : [])];
+    case "dm": return [{ t: "team", req: true }, { t: "kills", n: Math.max(3, Math.round((o.bots || 5) * 0.8)) }, { t: "crash", n: 2 }, ...(boss ? [{ t: "boss" }] : [])];
     case "escort": return [{ t: "win", req: true }, { t: "truck", n: 60 }, { t: "kills", n: 10 }, ...(boss ? [{ t: "boss" }] : [])];
     case "waves": return [{ t: "win", req: true }, { t: "core", n: 50 }, { t: "crash", n: 1 }, ...(boss ? [{ t: "boss" }] : [])];
     case "strike": case "supply": case "heist": return [{ t: "win", req: true }, { t: "time", n: 75 }, { t: "crash", n: 1 }, ...(boss ? [{ t: "boss" }] : [])];
@@ -74,6 +76,7 @@ export function metrics(mode, result) {
   m.kills = me ? me.kills : 0;
   m.hp = me ? me.hp / me.maxHp : 1;
   m.rank = mode.rank || 99;
+  m.team = mode.teamWin !== undefined ? !!mode.teamWin : m.win;   // 팀전: 진행 중에는 앞서는지, 끝나면 이겼는지
   m.boss = c ? c.bossDown || 0 : 0;
   m.truck = mode.truck ? Math.max(0, mode.truck.hp) / mode.truck.maxHp : 1;
   m.core = mode.base && mode.base.core ? Math.max(0, mode.base.core.hp) / mode.base.core.maxHp : 1;
@@ -89,6 +92,7 @@ export function judge(o, m) {
   switch (o.t) {
     case "win": return { ok: m.win, final: end };
     case "rank": return { ok: end && m.rank <= o.n && m.win !== false, final: end };
+    case "team": return { ok: m.team, final: end, keep: true };
     case "crash": { const bad = m.crash > o.n; return { ok: !bad, final: bad || end, keep: true }; }
     case "kills": return { ok: m.kills >= o.n, final: m.kills >= o.n || end };
     case "boss": return { ok: m.boss > 0, final: m.boss > 0 || end };
