@@ -1,0 +1,96 @@
+# FPV PROJECT 게임 앱 빌드: 안드로이드 APK + PC 설치 파일(Windows·Linux·macOS)
+# 결과는 각 실행의 Artifacts 와, 'game-latest' 릴리스(누구나 내려받기 가능)에 올라간다.
+name: Build game apps
+on:
+  push:
+    branches: [main, "claude/drone-3d-simulation-game-7m7yx5"]
+    paths: ["sim/**", "icons/**", "apps/**", ".github/workflows/game-apps.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: game-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: 웹 파일 묶기 + 안드로이드 프로젝트 생성
+        working-directory: apps/mobile
+        run: |
+          npm install --no-audit --no-fund
+          npm run pack-web
+          npx cap add android
+          # 가로 화면 고정 + 화면 켜짐 유지
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' $M
+          # 아이콘: 512px 게임 아이콘을 런처 아이콘 자리에 넣는다
+          for d in android/app/src/main/res/mipmap-*; do
+            for f in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
+              [ -f "$d/$f" ] && cp www/icons/icon-512.png "$d/$f"
+            done
+          done
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml
+          npx cap sync android
+      - name: APK 빌드
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          mkdir -p ../../out && cp app/build/outputs/apk/debug/app-debug.apk ../../out/FPV-PROJECT.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: FPV-PROJECT-android, path: apps/out/FPV-PROJECT.apk }
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, args: "--win nsis portable", files: "apps/desktop/dist/*.exe", name: windows }
+          - { os: ubuntu-latest, args: "--linux AppImage", files: "apps/desktop/dist/*.AppImage", name: linux }
+          - { os: macos-latest, args: "--mac dmg", files: "apps/desktop/dist/*.dmg", name: mac }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: PC 앱 빌드
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm install --no-audit --no-fund
+          npm run pack-web
+          npx electron-builder ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v4
+        with: { name: "FPV-PROJECT-${{ matrix.name }}", path: "${{ matrix.files }}" }
+
+  release:
+    needs: [android, desktop]
+    if: always() && (needs.android.result == 'success' || needs.desktop.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - run: ls -la out
+      - name: game-latest 릴리스 갱신
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: game-latest
+          name: "FPV PROJECT 최신 빌드"
+          prerelease: true
+          make_latest: false
+          body: |
+            FPV PROJECT 최신 빌드 (${{ github.sha }})
+            - 안드로이드: FPV-PROJECT.apk (설정에서 '출처를 알 수 없는 앱' 설치 허용 필요)
+            - Windows: FPV-PROJECT-Setup-*.exe (설치형) / FPV-PROJECT-Portable-*.exe (설치 없이 실행)
+            - Linux: *.AppImage / macOS: *-mac.dmg (서명 없음: 우클릭 → 열기)
+          files: out/*
+          fail_on_unmatched_files: false

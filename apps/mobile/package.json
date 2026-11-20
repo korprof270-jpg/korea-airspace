@@ -1,0 +1,14 @@
+{
+  "name": "fpv-project-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FPV PROJECT 안드로이드 앱 (Capacitor)",
+  "scripts": {
+    "pack-web": "node ../pack-web.mjs www"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.2.0",
+    "@capacitor/cli": "7.2.0",
+    "@capacitor/core": "7.2.0"
+  }
+}

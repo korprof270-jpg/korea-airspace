@@ -1,0 +1,7 @@
+{
+  "appId": "kr.fpvproject.game",
+  "appName": "FPV PROJECT",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "backgroundColor": "#0b1020" }
+}
