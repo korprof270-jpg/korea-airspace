@@ -42,7 +42,7 @@ class Game {
     this.fps = 60;
     this.ui = new UI(this);
     this.padui = new PadUI(this);
-    this.input.onPad = (kind, info, was) => this.padui.onPad(kind, info, was);
+    this.input.onPad = (kind, info, was) => { this.padui.onPad(kind, info, was); this._touchLayer(); };   // 연결·해제 때 화면 스틱 다시 판단
     this.applyQuality();
     addEventListener("resize", () => this.resize());
     document.addEventListener("visibilitychange", () => { if (document.hidden && this.state === "play") this.pause(); });
@@ -111,7 +111,8 @@ class Game {
 
   touchWanted() {
     const t = settings.touchSticks;
-    return t === "on" || (t === "auto" && matchMedia("(pointer: coarse)").matches);
+    // 자동: 터치 화면이고 게임패드·조종기가 연결되어 있지 않을 때만 화면 스틱을 보인다
+    return t === "on" || (t === "auto" && matchMedia("(pointer: coarse)").matches && !this.input.padInfo);
   }
 
   _touchLayer() {

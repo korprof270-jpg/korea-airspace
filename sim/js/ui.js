@@ -1171,7 +1171,7 @@ export class UI {
           <tr><td>${info.type === "rc" ? "오른쪽 스틱" : "십자키 / 왼쪽 스틱"} · ${kb(G.ok)} ${kb(G.back)}</td><td>메뉴 이동 · 확인 · 뒤로</td><td></td></tr></table>
           ${(settings.gamepad.btn || {})[info.id] ? `<button data-a="rebindreset">버튼 기본값으로</button>` : ""}` : ""}
         <h3>터치</h3>
-        <div class="opt"><label>화면 가상 스틱</label>${this.seg("touchSticks", [["auto", "자동"], ["on", "항상"], ["off", "끄기"]], settings.touchSticks, "set")}</div>`;
+        <div class="opt"><label>화면 가상 스틱</label>${this.seg("touchSticks", [["auto", "자동"], ["on", "항상"], ["off", "끄기"]], settings.touchSticks, "set")}<div class="hint">자동: 터치 화면에서 보이고, 게임패드·조종기를 연결하면 사라집니다. 연결을 끊으면 다시 나타납니다.</div></div>`;
     } else {
       body = `
         <div class="opt"><label>그래픽</label>${this.seg("quality", ["auto", "low", "med", "high"].map((k) => [k, QUALITY_NAMES[k]]), settings.quality, "set")}
