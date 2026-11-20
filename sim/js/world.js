@@ -51,6 +51,9 @@ class Batch {
   constructor() { this.pos = []; this.nor = []; this.col = []; this.uv = []; this.idx = []; this.count = 0; }
 }
 
+// 레이싱 게이트 충돌: 끄면 게이트 틀에 부딪히지 않고 그대로 통과한다
+const GATE_COLLIDE = false;
+
 export class World {
   constructor(def, quality = "med", renderer = null) {
     this.def = def;
@@ -537,7 +540,7 @@ export class Gate {
     m.castShadow = true;
     this.group.add(m);
     const wa = a.clone().applyQuaternion(this.q).add(this.pos), wb = b.clone().applyQuaternion(this.q).add(this.pos);
-    this.world.col.addCapsule(wa, wb, r, "gate");
+    if (GATE_COLLIDE) this.world.col.addCapsule(wa, wb, r, "gate");
   }
 
   _build(world) {
@@ -574,7 +577,7 @@ export class Gate {
           const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
           const wa = V(Math.cos(a0) * R, Math.sin(a0) * R).applyQuaternion(this.q).add(this.pos);
           const wb = V(Math.cos(a1) * R, Math.sin(a1) * R).applyQuaternion(this.q).add(this.pos);
-          world.col.addCapsule(wa, wb, 0.12, "gate");
+          if (GATE_COLLIDE) world.col.addCapsule(wa, wb, 0.12, "gate");
         }
         if (!d.pitch) {
           const drop = this.pos.y - R - groundY;
@@ -603,7 +606,7 @@ export class Gate {
         const a0 = (i / n) * Math.PI, a1 = ((i + 1) / n) * Math.PI;
         const wa = V(Math.cos(a0) * R, Math.sin(a0) * R).applyQuaternion(this.q).add(this.pos);
         const wb = V(Math.cos(a1) * R, Math.sin(a1) * R).applyQuaternion(this.q).add(this.pos);
-        world.col.addCapsule(wa, wb, 0.32, "gate");
+        if (GATE_COLLIDE) world.col.addCapsule(wa, wb, 0.32, "gate");
       }
     }
     // 진행 방향 표시(쉐브론)
