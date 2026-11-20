@@ -243,6 +243,15 @@ export class Input {
       for (const a of ["lx", "ly", "rx", "ry"]) {
         const m = axes[a] || g.axes[a];
         let v = pad.axes[m.i] || 0;
+        // 캘리브레이션: 중앙·끝 값으로 -1..1 로 다시 맞춘다. 중앙이 한쪽 끝에 붙은 축(스프링 없는 스로틀)은 끝에서 끝으로 선형
+        const cl = g.calib;
+        if (cl && cl.id === info.id && cl.c[m.i] !== undefined) {
+          const c0 = cl.c[m.i], lo = cl.lo[m.i], hi = cl.hi[m.i], span = hi - lo;
+          if (span > 0.2) {
+            if (c0 - lo < span * 0.15 || hi - c0 < span * 0.15) v = clamp(((v - lo) / span) * 2 - 1, -1, 1);
+            else v = clamp(v >= c0 ? (v - c0) / Math.max(0.05, hi - c0) : (v - c0) / Math.max(0.05, c0 - lo), -1, 1);
+          }
+        }
         if (m.inv) v = -v;
         v = Math.abs(v) < dz ? 0 : (v - Math.sign(v) * dz) / (1 - dz);
         pv[a] = v;

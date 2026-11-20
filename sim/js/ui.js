@@ -167,6 +167,7 @@ export class UI {
   update() {
     // 설정 > 입력장치: 게임패드 축 실시간 표시
     if (this.screen !== "settings" || this.tab !== "input") return;
+    if (this._cal) { const now = performance.now(); this._calibTick(Math.min(1, (now - (this._calT || now)) / 1000)); this._calT = now; }
     const inp = this.game.input, box = this.root.querySelector("#padlive");
     if (!box) return;
     const name = inp.padName || "";
@@ -731,6 +732,61 @@ export class UI {
   }
 
   // ── 설정값 변경 공통 ──
+  // ── 조종기 캘리브레이션: 중앙 → 끝 범위 → 축 지정(4방향) ──
+  a_calib() {
+    const inp = this.game.input;
+    if (!inp.padInfo) return;
+    this._calT = 0; this._cal = { step: 0, t: 0, id: inp.padInfo.id, n: inp.padAxes.length, c: [], lo: [], hi: [], axes: {} };
+    this.game.sound.play("confirm");
+  }
+  a_calibnext() { const c = this._cal; if (!c) return; if (c.step === 1) { c.step = 2; c.t = 0; } this.game.sound.play("click"); }
+  a_calibcancel() { this._cal = null; const w = this.root.querySelector("#calibwiz"); if (w) { w.innerHTML = ""; delete w.dataset.step; } }
+  a_calibreset() { delete settings.gamepad.calib; save(); this.redraw(); }
+  _calibTick(dt) {
+    const c = this._cal, inp = this.game.input, w = this.root.querySelector("#calibwiz");
+    if (!c || !w) return;
+    const ax = inp.padAxes, n = Math.min(c.n, ax.length);
+    if (!inp.padInfo || inp.padInfo.id !== c.id) { w.innerHTML = `<div class="panel calib"><b>조종기 연결이 끊겼습니다.</b> <button data-a="calibcancel">닫기</button></div>`; return; }
+    const DIRS = [["ly", 1, "왼쪽 스틱을 <b>위로</b> 끝까지"], ["lx", 1, "왼쪽 스틱을 <b>오른쪽으로</b> 끝까지"], ["ry", 1, "오른쪽 스틱을 <b>위로</b> 끝까지"], ["rx", 1, "오른쪽 스틱을 <b>오른쪽으로</b> 끝까지"]];
+    let msg = "", prog = 0;
+    if (c.step === 0) {                       // 중앙: 손을 떼고 2초
+      c.t += dt; prog = c.t / 2;
+      for (let i = 0; i < n; i++) { c.c[i] = c.c[i] === undefined ? ax[i] : c.c[i] * 0.8 + ax[i] * 0.2; c.lo[i] = Math.min(c.lo[i] ?? ax[i], ax[i]); c.hi[i] = Math.max(c.hi[i] ?? ax[i], ax[i]); }
+      msg = "1/3 · 스틱에서 손을 떼고 그대로 두세요 (스프링 없는 스로틀은 <b>맨 아래</b>로)";
+      if (c.t >= 2) { c.step = 1; c.t = 0; }
+    } else if (c.step === 1) {                // 범위: 크게 돌리기
+      c.t += dt;
+      for (let i = 0; i < n; i++) { c.lo[i] = Math.min(c.lo[i], ax[i]); c.hi[i] = Math.max(c.hi[i], ax[i]); }
+      const moved = Array.from({ length: n }, (_, i) => c.hi[i] - c.lo[i] > 1.2).filter(Boolean).length;
+      prog = Math.min(1, moved / 4);
+      msg = `2/3 · 두 스틱을 <b>끝까지</b> 크게 여러 바퀴 돌리세요 (${moved}개 축 감지). 다 됐으면 ‘다음’`;
+    } else {                                  // 축 지정: 방향마다 가장 크게 움직인 축
+      const k = c.step - 2, d = DIRS[k];
+      if (!d) {
+        const calib = { id: c.id, c: c.c.slice(0, n), lo: c.lo.slice(0, n), hi: c.hi.slice(0, n) };
+        settings.gamepad.calib = calib;
+        if (Object.keys(c.axes).length === 4) { settings.gamepad.layout = "custom"; settings.gamepad.axes = c.axes; }
+        save(); this._cal = null; this.game.sound.play("lap");
+        this.redraw(); return;
+      }
+      let best = -1, bv = 0;
+      for (let i = 0; i < n; i++) { if (Object.values(c.axes).some((m) => m.i === i)) continue; const v = ax[i] - c.c[i]; if (Math.abs(v) > Math.abs(bv)) { bv = v; best = i; } }
+      const span = best >= 0 ? Math.max(0.2, Math.max(c.hi[best] - c.c[best], c.c[best] - c.lo[best])) : 1;
+      const frac = best >= 0 ? Math.abs(bv) / span : 0;
+      prog = frac;
+      if (frac > 0.75) { c.t += dt; if (c.t > 0.5) { c.axes[d[0]] = { i: best, inv: bv < 0 }; c.step++; c.t = 0; this.game.sound.play("beep"); } } else c.t = 0;
+      msg = `3/3 · ${d[2]} 밀고 잠시 유지하세요` + (best >= 0 && frac > 0.3 ? ` (축 ${best})` : "");
+    }
+    if (w.dataset.step !== String(c.step)) {
+      w.dataset.step = String(c.step);
+      w.innerHTML = `<div class="panel calib"><div class="ct">🎯 조종기 캘리브레이션</div><div class="cm"></div><div class="cbar"><i></i></div>
+        <div class="ca">${c.step === 1 ? `<button class="primary" data-a="calibnext">다음</button>` : ""}<button data-a="calibcancel">취소</button></div></div>`;
+    }
+    const cm = w.querySelector(".cm"), bar = w.querySelector(".cbar i");
+    if (cm && cm.dataset.m !== msg) { cm.dataset.m = msg; cm.innerHTML = msg; }
+    if (bar) bar.style.width = `${Math.round(Math.min(1, prog) * 100)}%`;
+  }
+
   a_set(v, el) {
     const path = el.dataset.k;
     const cur = getPath(settings, path);
@@ -1057,6 +1113,9 @@ export class UI {
       body = `
         <h3 style="margin-top:0">게임패드 / RC 조종기 (USB·블루투스)</h3>
         <div id="padlive" class="panel" style="padding:12px 14px"></div>
+        <div class="opt"><label>캘리브레이션</label><button class="primary" data-a="calib" ${info ? "" : "disabled"}>🎯 조종기 캘리브레이션</button>${settings.gamepad.calib && info && settings.gamepad.calib.id === info.id ? ` <button data-a="calibreset">초기화</button>` : ""}
+          <div class="hint">스틱의 중앙·끝 값과 축 배치를 직접 재서 맞춥니다. RC 조종기나 오래된 게임패드처럼 끝까지 밀어도 100%가 안 나오거나 중앙이 틀어질 때 쓰세요.${settings.gamepad.calib && info && settings.gamepad.calib.id === info.id ? " <b>지금 이 조종기의 캘리브레이션이 적용되어 있습니다.</b>" : ""}</div></div>
+        <div id="calibwiz"></div>
         <div class="opt"><label>축 배치</label>${this.seg("gamepad.layout", [["auto", "자동 (종류별)"], ["custom", "직접 지정"]], settings.gamepad.layout, "set")}
           <div class="hint">자동은 Xbox·PlayStation·Switch Pro·일반 게임패드·RC 조종기를 알아보고 맞는 배치를 씁니다. 축이 엉뚱하게 움직이면 ‘직접 지정’으로 바꿔 맞추세요.</div></div>
         <p class="muted" style="font-size:13px">${custom ? "스틱을 움직였을 때 반응하는 축 번호를 아래에 지정하세요. 위·오른쪽으로 밀었을 때 값이 +가 되도록 반전을 맞춥니다." : "지금 쓰는 배치입니다 (자동). 바꾸려면 위에서 ‘직접 지정’을 고르세요."}</p>

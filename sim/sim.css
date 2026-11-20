@@ -1015,3 +1015,11 @@ kbd.pad { min-width: 1.6em; text-align: center; border-radius: 999px; background
   .pvqueue { padding: 14px; }
   .pvbar { padding-top: 8px; }
 }
+
+/* 조종기 캘리브레이션 */
+.calib { padding: 12px 14px; margin: 8px 0; border-color: #ffd24a; }
+.calib .ct { font-weight: 800; margin-bottom: 6px; }
+.calib .cm { font-size: 14px; line-height: 1.5; }
+.calib .cbar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); margin: 10px 0; overflow: hidden; }
+.calib .cbar i { display: block; height: 100%; background: #ffd24a; transition: width 0.1s; }
+.calib .ca { display: flex; gap: 8px; justify-content: flex-end; }
