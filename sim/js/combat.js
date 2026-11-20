@@ -364,7 +364,7 @@ export class Combat {
     const over = p.overT > 0;
     p.fireT -= dt; p.missileT -= dt;
     // 자동 사격: 조준선에 적이 걸리면 레이저, 락온되면 미사일을 알아서 쏜다 (조종에만 집중)
-    const auto = settings.autoFire === "on" || inp.device === "touch";   // 터치는 사격 버튼이 없으니 늘 자동
+    const auto = settings.autoFire === "on" || inp.device === "touch" || (settings.autoFire !== "off" && inp.device === "gamepad");   // 터치는 늘 자동, 패드·조종기는 끄지 않았으면 자동
     const wantFire = inp.isHeld("fire") || (auto && !!this.aim && p.heat < 0.8);
     if (wantFire && p.fireT <= 0 && !p.overheated) {
       p.fireT = 0.105 / Math.max(0.4, 1 + this.L.rate);   // 레이저 포 부품: 연사 속도
