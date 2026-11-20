@@ -60,7 +60,7 @@ export function drawAosHud(m, h) {
   if (!m.spectator) myPanel(m, h, full);
   minimap(m, h);
   // 보스·적 코어 표시
-  if (me.alive && m.boss && m.boss.alive && m.boss.pos.distanceTo(me.pos) <= 120) h.marker(m.boss.pos, s.camera, "#ff4ad6", "중앙 보스", m.boss.pos.distanceTo(me.pos));
+  if (me.alive && m.boss && m.boss.alive) h.marker(m.boss.pos, s.camera, "#ff4ad6", "중앙 보스", m.boss.pos.distanceTo(me.pos));
   // 격추 정보
   if (!me.alive && !m.spectator && me.aos.killedBy) h.text(`${me.aos.killedBy}에게 격추됨 · 기지에서 업그레이드하고 다시 나가세요`, L.cx, h.H * 0.4 + 36 * u, { size: 14, align: "center", color: "#ffb4a8" });
   // 기지 안 안내 (상점 판은 DOM)

@@ -11,8 +11,8 @@ const LOCK_T = 0.7;
 const PLATE = "rgba(12,18,32,0.7)";
 
 // 보스 등장 컷신: 위아래 검은 띠, 경고 문구, 비스듬한 이름 카드(옆에서 미끄러져 들어옴), 차오르는 체력바
-// 기체·구조물 표시 거리(m): 이보다 멀면 화면에 꺾쇠·이름·거리를 그리지 않는다 (레이더·미니맵에는 그대로)
-export const MARK_R = 120;
+// 기체·구조물 표시 거리(m, 보스 제외): 이보다 멀면 화면에 꺾쇠·이름·거리를 그리지 않는다 (레이더·미니맵에는 그대로)
+export const MARK_R = 200;
 
 export function drawBossCut(h, k) {
   const g = h.g, u = h.u, W = h.W, H = h.H, e = Math.min(1, k.t / 0.35), bar = H * 0.13 * e, a = k.a;
@@ -76,12 +76,14 @@ export function drawCombatHud(c, h, o = {}) {
     const d = a.pos.distanceTo(cam.position);
     const enemy = c.hostile(p, a) || !p.alive && (c.ffa || a.team !== p.team);
     const isLock = a === c.lock, isAim = a === c.aim;
-    if (d > MARK_R && !isLock && !isAim) continue;   // 화면 표시는 120m 이내만 (조준·락온 중인 표적은 예외)
+    if (d > MARK_R && !isLock && !isAim && !a.bossBar && a.botKind !== "boss") continue;   // 화면 표시는 200m 이내만 (조준·락온 중인 표적과 보스는 예외 — 보스는 늘 위치 표시)
     if (!enemy && !full) continue;
     const big = a.kind === "core" || a.kind === "turret" || a.botKind === "boss" || a.botKind === "gunship" || a.kind === "prop";
     const col = enemy ? (isLock && locked ? "#ff3030" : isAim ? "#ffd24a" : c.multi ? TEAM_CSS[a.team] : "rgba(255,96,96,0.95)") : "rgba(96,174,255,0.9)";
+    const isBoss = enemy && (a.bossBar || a.botKind === "boss");
     const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock || a.isPilot ? a.name : null);
-    if (!b) continue;
+    if (!b) { if (isBoss) h.marker(a.pos, cam, a.bossBar && a.bossBar.mid ? "#ffb02e" : "#ff3d4d", a.name || "보스", d); continue; }   // 화면 밖 보스: 가장자리에 방향·거리
+    if (isBoss && d > 90) h.text(`${Math.round(d)}m`, b.x, b.y + b.px + 20 * u, { size: 12, align: "center", color: "#ff8a8a" });
     if (enemy && a.rk && (d < 140 || isAim || isLock)) {   // 계급 색 마름모: 병 노랑 · 부사관 초록 · 장교 파랑 · 고위 장교 빨강
       const r = 7 * u, x = b.x - b.px - 3 * u, y = b.y - b.px - 3 * u;
       g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); h.fill2(a.rk.css, 2);
