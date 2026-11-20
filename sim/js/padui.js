@@ -15,7 +15,8 @@ export class PadUI {
     document.body.appendChild(this.toastEl);
     this.cur = null;                               // 패드로 고른 요소
     // 마우스·터치를 쓰면 패드 강조를 걷어낸다
-    addEventListener("pointerdown", () => this._clear(), true);
+    addEventListener("pointerdown", () => { this._mouse = true; this._clear(); }, true);
+    addEventListener("mousemove", (e) => { if (Math.abs(e.movementX) + Math.abs(e.movementY) > 0 && performance.now() - (this._padT || 0) > 400) this._mouse = true; }, true);
   }
 
   // 연결/해제 (input.onPad)
@@ -64,6 +65,12 @@ export class PadUI {
     const list = [];
     let n;
     while ((n = inp.takeNav())) list.push(n);
+    // 비행 중(대화 장면·일시정지 메뉴가 아닐 때)에는 스틱이 메뉴 선택을 움직이지 않는다
+    const flying = g.state === "play" && !document.querySelector(".vn");
+    if (flying) { list.length = 0; if (this.cur) this._clear(); }
+    // 패드를 쓰는 동안(그리고 비행 중에는 항상) 마우스 포인터를 숨긴다. 마우스를 실제로 움직이거나 누르면 다시 보인다
+    if (list.length) { this._mouse = false; this._padT = performance.now(); }
+    document.body.classList.toggle("nocur", flying || (!!inp.padInfo && !this._mouse && !!this._padT));
     // '아무 버튼'은 다른 메뉴 입력이 없는 프레임에만 (뒤로 → 타이틀 직후 다시 들어가지 않도록)
     for (const x of list) if (x !== "any" || list.length === 1) this._nav(x);
   }
