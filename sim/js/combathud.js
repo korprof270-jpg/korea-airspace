@@ -128,7 +128,7 @@ export function drawCombatHud(c, h, o = {}) {
   if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.banner("⚠ 미사일 접근", H * 0.72, HC.warn, 20);
   if (!p.alive) h.banner(`격추됨 — ${Math.max(0, p.respawnT || 0).toFixed(1)}초 후 재출격`, H * 0.4, HC.warn, 24);
 
-  if (h.vis("radar")) drawRadar(c, h, o.radarRange || 160);
+  if (h.vis("radar") && o.radar !== false) drawRadar(c, h, o.radarRange || 160);   // 기지전은 자체 전장 지도를 그린다
   if (s.game.input.isHeld("score")) drawBoard(c, h);
   if (c.skill && (c.skill.active || c.skill.flashT > 0 || c.skill.glitchT > 0)) skillScreen(c, h);
   if (c.skill && c.skill.banner) skillBanner(c, h);

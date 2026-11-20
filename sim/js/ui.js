@@ -614,6 +614,7 @@ export class UI {
     const s = this.sel, m = MODE_META[s.mode];
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
+    if (s.mode === "survival" && s.variant === "aos") s.map = "stadium";   // 기지전은 스타디움 전용
     const map = MAPS[s.map];
     const card = (k, v, on, inner, cls = "") => `<button class="card ${cls} ${on ? "sel" : ""}" data-a="sel" data-k="${k}" data-v="${v}">${inner}</button>`;
     // ① 맵 (모든 모드 공통)
@@ -655,8 +656,13 @@ export class UI {
         const best = records[`survival:${id}:${map.id}`];
         return card("variant", id, s.variant === id, `<div class="ic">${v.icon}</div><div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
       }).join("");
-      opts += `<div class="opt"><label>AI 드론 수</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}</div>`;
-      opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
+      if (s.variant === "aos") {
+        opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
+        opts += `<div class="opt"><label>제한 시간</label>${this.seg("aosTime", [[480, "8분"], [720, "12분"], [900, "15분"]], s.aosTime || 720)}</div>` + this._diff();
+      } else {
+        opts += `<div class="opt"><label>AI 드론 수</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}</div>`;
+        opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
+      }
     } else {
       const list = cmMissions(s.map);
       if (!list.find((x) => x.id === s.mission)) s.mission = list[0].id;
@@ -687,7 +693,7 @@ export class UI {
 
   a_sel(v, el) {
     const k = el.dataset.k;
-    this.sel[k] = ["laps", "rivals", "bots", "time", "team"].includes(k) ? +v : v;
+    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
     if (k === "bwho") this.sel.bep = null;
@@ -709,7 +715,7 @@ export class UI {
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;

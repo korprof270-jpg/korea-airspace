@@ -12,8 +12,9 @@ import empire from "./empire.js";
 import airbase from "./airbase.js";
 import ail from "./ail.js";
 import frost from "./frost.js";
+import stadium from "./stadium.js";
 
-export const MAP_LIST = [city, canyon, factory, arena, palace, snow, island, moon, orbit, empire, airbase, ail, frost];
+export const MAP_LIST = [city, canyon, factory, arena, palace, snow, island, moon, orbit, empire, airbase, ail, frost, stadium];
 import { addSubjects } from "./extra-subjects.js";
 addSubjects(MAP_LIST);
 import { applyRoutes } from "./tracking-routes.js";

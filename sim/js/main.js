@@ -7,6 +7,7 @@ import { Sound } from "./audio.js";
 import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
+import "./modes/aos.js";   // 기지전(AOS) 모드 등록
 import { UI } from "./ui.js";
 import { PadUI } from "./padui.js";
 import { PostFX } from "./post.js";
