@@ -459,9 +459,9 @@ export class Combat {
   // a 에서 대상 t 가 보이는지. 대상이 대형 유닛이면 그 유닛 자신의 몸체에는 가리지 않는다
   _vis(a, t, step = 1.2) {
     // 표적 자신의 충돌체(코어·지휘소의 구체, 포탑 몸체 등)는 시야 판정에서 뺀다 — 중심점이 자기 몸 안에 있어 '가려짐'으로 잡히던 문제
-    const c1 = t.collider, c2 = t.collider2, o1 = c1 && c1.off, o2 = c2 && c2.off;
-    if (c1) c1.off = true; if (c2) c2.off = true;
-    try { return this.w.col.visible(a, t.pos, step, t.unit || null); } finally { if (c1) c1.off = o1; if (c2) c2.off = o2; }
+    const L = t.colliders || [t.collider, t.collider2], prev = [];
+    for (const c of L) if (c) { prev.push(c.off); c.off = true; }
+    try { return this.w.col.visible(a, t.pos, step, t.unit || null); } finally { let i = 0; for (const c of L) if (c) c.off = prev[i++]; }
   }
 
   // 명중 지점에 떠오르는 피해 숫자 (가까운 연속 명중은 한 숫자로 합쳐 커진다)
