@@ -11,6 +11,9 @@ const LOCK_T = 0.7;
 const PLATE = "rgba(12,18,32,0.7)";
 
 // 보스 등장 컷신: 위아래 검은 띠, 경고 문구, 비스듬한 이름 카드(옆에서 미끄러져 들어옴), 차오르는 체력바
+// 기체·구조물 표시 거리(m): 이보다 멀면 화면에 꺾쇠·이름·거리를 그리지 않는다 (레이더·미니맵에는 그대로)
+export const MARK_R = 120;
+
 export function drawBossCut(h, k) {
   const g = h.g, u = h.u, W = h.W, H = h.H, e = Math.min(1, k.t / 0.35), bar = H * 0.13 * e, a = k.a;
   g.fillStyle = "#000"; g.fillRect(0, 0, W, bar); g.fillRect(0, H - bar, W, bar);
@@ -72,10 +75,10 @@ export function drawCombatHud(c, h, o = {}) {
     if (!a.alive || a === p || !a.targetable) continue;
     const d = a.pos.distanceTo(cam.position);
     const enemy = c.hostile(p, a) || !p.alive && (c.ffa || a.team !== p.team);
-    if (d > (enemy ? 320 : 160)) continue;
+    const isLock = a === c.lock, isAim = a === c.aim;
+    if (d > MARK_R && !isLock && !isAim) continue;   // 화면 표시는 120m 이내만 (조준·락온 중인 표적은 예외)
     if (!enemy && !full) continue;
     const big = a.kind === "core" || a.kind === "turret" || a.botKind === "boss" || a.botKind === "gunship" || a.kind === "prop";
-    const isLock = a === c.lock, isAim = a === c.aim;
     const col = enemy ? (isLock && locked ? "#ff3030" : isAim ? "#ffd24a" : c.multi ? TEAM_CSS[a.team] : "rgba(255,96,96,0.95)") : "rgba(96,174,255,0.9)";
     const b = h.bracket(a.pos, cam, a.radius * 1.15, col, d < 90 || big || isAim || isLock || a.isPilot ? a.name : null);
     if (!b) continue;

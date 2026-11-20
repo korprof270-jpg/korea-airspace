@@ -515,7 +515,7 @@ export class ChallengeMode extends CombatMode {
     const me = this.me, cam = this.s.camera;
     if (!me.alive) return;
     if (this.cargo.carried(me)) h.marker(_v.copy(this.pad.pos).setY(this.pad.pos.y + 3), cam, "#35ff7a", "착륙장", this.pad.pos.distanceTo(me.pos));
-    else for (const cr of this.cargo.crates) if (cr.state === "idle") h.marker(cr.pos, cam, "#38e8ff", "코어", cr.pos.distanceTo(me.pos));
+    else { const cr = this.cargo.crates.filter((q) => q.state === "idle").sort((a, b) => a.pos.distanceTo(me.pos) - b.pos.distanceTo(me.pos))[0]; if (cr) h.marker(cr.pos, cam, "#38e8ff", "코어", cr.pos.distanceTo(me.pos)); }   // 가장 가까운 코어 하나만
   }
 
   // ── 7. 초거대로봇: 부위(팔·어깨포·다리)를 부수며 동체를 노린다. 주기적으로 호위기를 쏟아낸다 ──
