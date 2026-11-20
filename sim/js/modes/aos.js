@@ -14,7 +14,9 @@
 //    코어와 같은 보호막 — 코어가 노출되어야 부술 수 있다. 공격 순서는 방어 포탑 → 코어가 정석
 //  · 침입 감지: 기지 문마다 감지 장막, 담장 위 레이저. 적 드론이 기지 원을 넘으면 그 팀에 경보(“기지 침입 감지!” · 지도 붉은 고동 · 사이렌)
 //    경보 동안(12초, 적이 안에 있으면 계속) 방어 포탑이 깨어나 빨리 쏘고 사거리가 늘며, 가까운 아군 봇 셋이 기지로 돌아온다
-//  · 승리: 적 코어 파괴. 시간이 끝나면 부순 타워 수 → 코어 체력 → 격추 수 순으로 판정
+//  · 승리 (셋 중 하나): ① 적 코어(본진) 파괴 — 즉시 승리  ② 팀 전장 점수가 목표(기본 60 · 40/60/80)에 먼저 닿으면 즉시 승리
+//    ③ 시간 종료 — 전장 점수가 높은 팀 (같으면 부순 타워 수 → 코어 체력 → 무승부)
+//  · 팀 전장 점수(SCORE): 드론 격추 +1 · 라인 타워 파괴 +5 · 기지 방어 포탑 +3 · 중앙 보스 +5 · 정글 캠프 정리 +1 (ⓟ 와는 별개)
 //
 // ── 네트워크 (js/net/README.md 의 NetGame 사용, 동기화 세부는 aos-net.js) ──
 //  this.ng = new NetGame(this, cfg.net)   cfg.net 이 없으면 오프라인(봇과 혼자). cfg.pvp 가 있으면 PVP 메뉴에서 온 경기
@@ -56,6 +58,11 @@ export const PARTS = {
 };
 export const PART_KEYS = Object.keys(PARTS);
 export const PTS = { passive: 2, minion: 14, minionShare: 5, camp: 28, elite: 70, boss: 150, kill: 120, assist: 50, tower: 150, towerLast: 60, cache: 60, def: 80 };
+// 팀 전장 점수 (승리 조건 ②③) — 이긴 쪽 팀에 더한다
+export const SCORE = { kill: 1, tower: 5, def: 3, boss: 5, camp: 1 };
+export const GOALS = [40, 60, 80], GOAL_DEF = 60;
+export const WIN_WHY = { core: "본진 파괴", score: "목표 점수 달성", time: "시간 종료 — 점수 우세", tie: "시간 종료 — 타워·코어 우세", draw: "시간 종료 — 무승부" };
+const WHY_CODE = ["", "core", "score", "time", "tie", "draw"];
 const WAVE_T = 30, FIRST_WAVE = 6, WAVE_N = 4, CAMP_FIRST = 20, CAMP_RE = 60, BOSS_FIRST = 100, BOSS_RE = 180, CACHE_RE = 90, CACHE_FIRST = 40;
 const TOWER_HP = { outer: 900, inner: 1100 }, TOWER_RANGE = 72, CORE_HP = 6400 /* 4× — 코어 공성은 긴 싸움 */, CORE_RANGE = 64;
 const HERO_HP = 150, MINION_HP = 75, HEAVY_HP = 200, LANE_Y = 13;
@@ -81,8 +88,10 @@ export class AosMode extends CombatMode {
     this.pvp = !!(cfg.net || cfg.pvp);
     if (this.pvp) this.title = "PVP · 기지전";
     this.size = clamp(cfg.teamSize || 5, 1, 5);
+    this.goal = Math.round(clamp(+(cfg.goal || (cfg.pvp && cfg.pvp.goal)) || GOAL_DEF, 10, 300));   // 목표 전장 점수 (호스트 값이 호스트 필드로 덮어쓴다)
+    this.why = "";                                        // 끝난 까닭: WIN_WHY 의 키
     this.netNeutrals = [];
-    this.teams = AOS_TEAM.map((name, id) => ({ id, name, css: TEAM_CSS[id], kills: 0, lost: 0, buffT: 0, core: null, towers: [], defs: [], alarmT: 0, alarmN: 0, intruder: null, pad: new THREE.Vector3(), base: new THREE.Vector3(), bossCallT: 0, callEval: 10 + id * 3, pushT: 0, pushLane: null, pushEval: 90 + id * 7 }));
+    this.teams = AOS_TEAM.map((name, id) => ({ id, name, css: TEAM_CSS[id], score: 0, kills: 0, lost: 0, buffT: 0, core: null, towers: [], defs: [], alarmT: 0, alarmN: 0, intruder: null, pad: new THREE.Vector3(), base: new THREE.Vector3(), bossCallT: 0, callEval: 10 + id * 3, pushT: 0, pushLane: null, pushEval: 90 + id * 7 }));
     this.towers = []; this.defs = []; this.fields = []; this.heroes = []; this.minions = []; this.camps = []; this.caches = []; this.bubbles = [];
     this.boss = null; this.bossT = BOSS_FIRST; this.waveT = FIRST_WAVE; this.wave = 0; this.campT = CAMP_FIRST;
     this.endT = -1; this.winner = -1; this.alerts = {}; this.mapAlerts = []; this.hint = null; this.nid = 1; this.byId = new Map();
@@ -605,7 +614,7 @@ export class AosMode extends CombatMode {
       }
     }
     if ((D.jungleT -= 0.3) <= 0) {
-      D.jungleT = (D.role === "roam" ? 45 : 110) + Math.random() * 40;
+      D.jungleT = (D.role === "roam" ? 35 : 80) + Math.random() * 35;   // 캠프도 팀 전장 점수(+1)라 자주 들른다
       const cp = this.camps.filter((x) => x.alive && (x.d.side === a.team || D.role === "roam")).sort((x, y) => x.home.distanceTo(a.pos) - y.home.distanceTo(a.pos))[0];
       if (cp && cp.home.distanceTo(a.pos) < 320) { D.mode = "jungle"; D.camp = cp; D.modeT = 40; return g.copy(cp.home); }
     }
@@ -733,12 +742,14 @@ export class AosMode extends CombatMode {
         for (const o of this.heroes) if (o.team === k.team) this._give(o, PTS.boss);
         t.buffT = BUFF_T; for (const o of this.heroes) if (o.team === k.team) this._applyStats(o);
         this.bossT = BOSS_RE;
+        this._score(k.team, SCORE.boss, "중앙 보스");
         h.feed(`${t.name} ▸ 중앙 보스 처치`, t.css);
         h.toast(k.team === me.team ? `보스 처치! 아군 60초 강화 (피해 +25% · 회복)  +${PTS.boss}ⓟ` : `${t.name}이 보스를 처치했습니다 — 60초 강화`, k.team === me.team ? "#ff4ad6" : "#ff8a7a", 2.4, 22);
         this.s.game.sound.play("bigkill");
         return;
       }
       const cr = this._credit(a, k), pts = a.elite ? PTS.elite : PTS.camp;
+      if (a.camp && a.camp.members && !a.camp.members.some((m) => m !== a && m.alive)) { const tm = cr ? cr.team : k.team; if (tm === 0 || tm === 1) this._score(tm, SCORE.camp, "정글 캠프"); }
       if (cr) { this._give(cr, pts); for (const o of this.heroes) if (o !== cr && o.alive && o.team === cr.team && o.pos.distanceTo(a.pos) < 80) this._give(o, pts / 2); }
       if (cr === me) h.toast(`${a.name}  +${pts}ⓟ`, "#c8a0ff", 1, 18);
       return;
@@ -747,7 +758,7 @@ export class AosMode extends CombatMode {
       a.respawnT = this.respawnTime();
       const cr = this._credit(a, k), t = cr ? this.teams[cr.team] : k && k.team < 2 ? this.teams[k.team] : null;
       a.aos.killedBy = k ? k.name : cr ? cr.name : null;
-      if (t) t.kills++;
+      if (t) { t.kills++; this._score(t.id, SCORE.kill, "격추"); }
       if (cr) {
         this._give(cr, PTS.kill); cr.aos.hk++;
         for (const [o, tm] of a.aos.dmgBy) if (o !== cr && o.team === cr.team && tm > this.s.time - 10) { this._give(o, PTS.assist); o.aos.assists++; if (o === me) h.toast(`도움  +${PTS.assist}ⓟ`, "#9fd8ff", 1, 18); }
@@ -763,6 +774,7 @@ export class AosMode extends CombatMode {
       const foe = this.teams[1 - a.team], cr = this._credit(a, k);
       for (const o of this.heroes) if (o.team === foe.id) this._give(o, PTS.def);
       if (cr) this._give(cr, PTS.towerLast);
+      this._score(foe.id, SCORE.def, "방어 포탑");
       if (a.bubble) { this.s.world.scene.remove(a.bubble); a.bubble = null; }
       h.feed(`${foe.name} ▸ ${a.name} 파괴`, foe.css);
       h.toast(a.team === me.team ? "아군 기지 방어 포탑이 무너졌습니다" : `기지 방어 포탑 파괴!  +${PTS.def}ⓟ`, a.team === me.team ? "#ff8a7a" : "#ffd24a", 1.8, 20);
@@ -773,6 +785,7 @@ export class AosMode extends CombatMode {
       if (this.winner >= 0) return;   // 코어가 무너지며 함께 꺼진 타워
       const team = this.teams[a.team], foe = this.teams[1 - a.team], cr = this._credit(a, k);
       team.lost++;
+      this._score(foe.id, SCORE.tower, "타워");
       for (const o of this.heroes) if (o.team === foe.id) this._give(o, PTS.tower);
       if (cr) this._give(cr, PTS.towerLast);
       if (a.bubble) { this.s.world.scene.remove(a.bubble); a.bubble = null; }
@@ -787,11 +800,26 @@ export class AosMode extends CombatMode {
       return;
     }
     if (a.kind === "core") {
-      this.winner = 1 - a.team; this.endT = 3.5;
+      this.winner = 1 - a.team; this.endT = 3.5; this.why = "core";
       for (const o of this.combat.actors) if (o.team === a.team && o.alive && (o.aosTower || o.aosDef || o.isMinion)) this.combat.kill(o, null);
       h.toast(a.team === me.team ? "아군 코어 파괴…" : `${a.name} 파괴! 승리!`, a.team === me.team ? "#ff6b5a" : "#35ff7a", 3, 34);
       this.s.slowMo(1.4, 0.25, 0.5);
     }
+  }
+
+  // 팀 전장 점수 (호스트·오프라인만 센다 → 호스트 필드 "a" 로 클라이언트에). 목표에 먼저 닿으면 즉시 승리
+  _score(team, n, what) {
+    if (!this.authority || this.winner >= 0 || this.state === "done") return;
+    const t = this.teams[team];
+    if (!t) return;
+    t.score += n;
+    if (t.score < this.goal) return;
+    t.score = Math.max(t.score, this.goal);
+    this.winner = team; this.why = "score"; this.endT = 3;
+    const mine = team === this.me.team;
+    this.s.hud.toast(this.spectator ? `${t.name} 목표 점수 ${this.goal} 달성!` : mine ? `목표 점수 ${this.goal} 달성! 승리!` : `${t.name}이 목표 점수 ${this.goal}에 닿았습니다…`, mine || this.spectator ? "#35ff7a" : "#ff6b5a", 3, 32);
+    this.s.slowMo(1.2, 0.35, 0.5);
+    void what;
   }
 
   _alert(key, txt, col, every, at) {
@@ -853,7 +881,7 @@ export class AosMode extends CombatMode {
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (this.time >= this.duration && this.endT < 0) {
       if (this.authority) { this.winner = this._timeWinner(); this._end(); }
-      else if (this.time >= this.duration + 4) { this.winner = this._timeWinner(); this._end(); }   // 호스트 소식이 끊겼을 때
+      else if (this.time >= this.duration + 4) { this.winner = this._timeWinner(); this._end(); }   // (클라이언트는 보통 호스트의 승자·까닭을 받아 끝낸다)   // 호스트 소식이 끊겼을 때
     }
   }
   _world(dt) {
@@ -877,14 +905,17 @@ export class AosMode extends CombatMode {
       if ((t.callEval -= dt) <= 0) {
         t.callEval = 15;
         const alive = this.heroes.filter((o) => o.team === t.id && o.alive && !o.isPlayer && o.hp > o.maxHp * 0.6).length;
-        if (this.boss && this.boss.alive && alive >= Math.min(3, this.size) && Math.random() < (this.cfg.difficulty === "hard" ? 0.6 : 0.4)) t.bossCallT = 40;
+        // 보스는 팀 전장 점수 +5 · 강화: 점수에서 밀리면 더 적극적으로
+        const behind = t.score < this.teams[1 - t.id].score ? 0.15 : 0;
+        if (this.boss && this.boss.alive && alive >= Math.min(3, this.size) && Math.random() < (this.cfg.difficulty === "hard" ? 0.7 : 0.55) + behind) t.bossCallT = 40;
       }
       // 한 라인 몰아치기: 보스 강화 중이거나, 살아 있는 수가 앞서거나, 가끔 무작위로 — 가장 약한 적 타워가 있는 라인에 모인다
       if (t.pushT > 0) t.pushT -= dt;
       if ((t.pushEval -= dt) <= 0) {
         const n = (id) => this.heroes.filter((o) => o.team === id && o.alive && o.targetable !== false).length, foe = this.teams[1 - t.id], open = !foe.core.invulnerable;
         t.pushEval = (open ? 20 : 40) + Math.random() * 30;
-        if (t.buffT > 10 || n(t.id) - n(foe.id) >= 2 || Math.random() < (open ? 0.7 : 0.35)) {
+        const race = this.goal - Math.max(t.score, foe.score) <= 15;   // 누가 목표 점수에 가까우면 타워(+5)를 노려 몰아친다
+        if (t.buffT > 10 || n(t.id) - n(foe.id) >= 2 || Math.random() < (open || race ? 0.7 : 0.4)) {
           const score = (ln) => { const ws = foe.towers.filter((x) => x.lane === ln && x.alive); return ws.length * 2 + ws.reduce((q, x) => q + x.hp / x.maxHp, 0) + Math.random() * 0.8; };
           t.pushLane = Object.keys(this.paths).sort((x, y) => score(x) - score(y))[0]; t.pushT = 45;
         }
@@ -938,14 +969,19 @@ export class AosMode extends CombatMode {
     if (this.inBase(this.me) || (b.flipped && b.onGround) || this.state !== "run") return super.onReset();
     this.startRecall(this.me);
   }
+  // 시간 종료: 전장 점수 → 부순 타워 수 → 코어 체력 → 무승부 (this.why 도 정한다)
   _timeWinner() {
     const [a, b] = this.teams;
+    if (a.score !== b.score) { this.why = "time"; return a.score > b.score ? 0 : 1; }
+    this.why = "tie";
     if (a.lost !== b.lost) return a.lost < b.lost ? 0 : 1;
     const ha = a.core.hp / a.core.maxHp, hb = b.core.hp / b.core.maxHp;
     if (Math.abs(ha - hb) > 0.001) return ha > hb ? 0 : 1;
-    if (a.kills !== b.kills) return a.kills > b.kills ? 0 : 1;
+    this.why = "draw";
     return -1;
   }
+  whyCode() { return Math.max(0, WHY_CODE.indexOf(this.why)); }
+  setWhy(n) { this.why = WHY_CODE[n | 0] || this.why; }
 
   _end() {
     if (this.state === "done") return;
@@ -955,11 +991,16 @@ export class AosMode extends CombatMode {
     const sc = Math.round(me.aos.earned), rec = this.spectator || this.pvp ? false : submitRecord(this.recKey, sc);
     if (this.P && this.P.client && this.cfg.net) this.P.client.matchOver(this.P.mid);
     const [A, B] = this.teams;
+    if (!this.why) this.why = draw ? "draw" : "time";
+    const why = WIN_WHY[this.why] || "", wt = this.teams[this.winner];
+    const how = draw ? why : this.spectator ? `${wt.name} 승리 · ${why}` : why;
     this.finish({
-      title: draw ? "무승부" : win ? "승리!" : "패배", sub: `기지전 · ${this.s.map.name} · ${fmtTime(this.time)}`, win: draw ? undefined : win, record: rec, stars: win ? 3 : draw ? 1 : 0,
+      title: draw ? "무승부" : this.spectator ? `${wt.name} 승리` : win ? "승리!" : "패배", sub: `${how} · 기지전 · ${fmtTime(Math.min(this.time, this.duration))}`, win: draw ? undefined : win, record: rec, stars: win ? 3 : draw ? 1 : 0,
       board: { cols: ["격추·피격·도움", "구조물", "ⓟ", "강화"], rows },
       pvp: this.P && this.cfg.net ? { auto: !!this.P.auto, code: this.P.code } : undefined,
       lines: [
+        { label: "승리 조건", value: how },
+        { label: "전장 점수", value: `청 ${A.score} : ${B.score} 홍 (목표 ${this.goal})` },
         { label: "팀 격추", value: `청 ${A.kills} : ${B.kills} 홍` }, { label: "부순 타워", value: `청 ${B.lost} : ${A.lost} 홍` },
         { label: "코어 체력", value: `청 ${Math.round(100 * A.core.hp / A.core.maxHp)}% · 홍 ${Math.round(100 * B.core.hp / B.core.maxHp)}%` },
         { label: "내 전장 포인트", value: `${sc}ⓟ` }, { label: "최고 기록", value: `${records[this.recKey] || sc}ⓟ` },
@@ -983,7 +1024,8 @@ export class AosMode extends CombatMode {
   // ── 네트워크: 스냅숏 ──
   snapshot() {
     const r = (x) => Math.round(x * 10) / 10, out = { v: 1, t: Math.round(this.time * 10) / 10, w: this.wave };
-    out.tm = this.teams.map((t) => [t.kills, t.lost, Math.round(t.buffT)]);
+    out.tm = this.teams.map((t) => [t.kills, t.lost, Math.round(t.buffT), t.score]);
+    out.g = [this.goal, this.winner, this.whyCode()];
     out.st = [...this.teams.map((t) => t.core), ...this.towers, ...this.defs].map((a) => (a.alive ? Math.round(a.hp) : -1));
     out.al = this.teams.map((t) => [Math.round(t.alarmT * 10) / 10, t.alarmN]);
     out.ca = this.caches.reduce((m, k, i) => m | (k.active ? 1 << i : 0), 0);
@@ -996,7 +1038,8 @@ export class AosMode extends CombatMode {
   }
   applySnapshot(s) {
     if (!s || s.v !== 1) return;
-    s.tm.forEach((x, i) => { const t = this.teams[i]; if (t) { t.kills = x[0]; t.lost = x[1]; t.buffT = x[2]; } });
+    s.tm.forEach((x, i) => { const t = this.teams[i]; if (t) { t.kills = x[0]; t.lost = x[1]; t.buffT = x[2]; t.score = x[3] | 0; } });
+    if (Array.isArray(s.g)) { this.goal = s.g[0] || this.goal; this.winner = s.g[1] ?? -1; this.setWhy(s.g[2]); }
     if (s.al) s.al.forEach((x, i) => { const t = this.teams[i]; if (t && Array.isArray(x)) { t.alarmT = +x[0] || 0; t.alarmN = x[1] | 0; } });
     [...this.teams.map((t) => t.core), ...this.towers, ...this.defs].forEach((a, i) => {
       const v = s.st[i];
@@ -1045,5 +1088,5 @@ function densify(pts, step) {
 }
 
 registerMode("aos", AosMode);
-registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "두 팀이 세 라인을 밀어 상대 코어를 부숩니다. 미니언·타워·정글·보스, 경기 내 업그레이드", session: "aos",
-  teams: true, teamCounts: [2], maps: ["stadium"], time: [480, 720, 900], random: false });
+registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "세 라인을 밀어 상대 본진을 부수거나, 목표 전장 점수에 먼저 닿거나, 시간 종료 때 점수가 앞서면 승리. 미니언·타워·정글·보스, 경기 내 업그레이드", session: "aos",
+  teams: true, teamCounts: [2], maps: ["stadium"], time: [480, 720, 900], goal: GOALS, goalDef: GOAL_DEF, random: false });

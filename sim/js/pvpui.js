@@ -1,7 +1,7 @@
 // PvP 메뉴 화면 (UI 에 섞어 넣는 메서드): 허브 · 랜덤 매칭 대기 · 방 목록 · 방 대기실
 // 보기(view): hub | queue | browse | room. 방·로비가 바뀌면 [data-live] 영역만 다시 그린다 (입력 칸은 그대로)
 import { MAPS, MAP_LIST } from "./maps/index.js";
-import { PvpClient, PVP_MODES, BOT_DIFF, TIMES, TEAM_LABEL, MAX_PLAYERS } from "./pvp.js";
+import { PvpClient, PVP_MODES, BOT_DIFF, TIMES, TEAM_LABEL, MAX_PLAYERS, goalsFor } from "./pvp.js";
 import { TEAM_CSS } from "./combat.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -131,6 +131,7 @@ export const PvpUI = {
         <div class="opt"><label>모드</label>${seg("o", Object.entries(PVP_MODES).map(([id, d]) => [id, d.name]), cfg.o)}</div>
         <div class="opt"><label>맵</label>${H ? `<select data-pvsel="m" aria-label="맵">${mapOpts}</select>` : `<b>${esc(MAPS[cfg.m].name)}</b>`}</div>
         <div class="opt"><label>제한 시간</label>${seg("t", times, cfg.t)}</div>
+        ${goalsFor(cfg.o) ? `<div class="opt"><label>목표 점수</label>${seg("gs", goalsFor(cfg.o).map((n) => [n, `${n}점`]), cfg.gs)}<div class="hint">승리: ① 적 본진 파괴 ② 팀 전장 점수 목표 먼저 달성 ③ 시간 종료 때 점수 우세 · 격추 +1 · 타워 +5 · 방어 포탑 +3 · 보스 +5 · 정글 캠프 +1</div></div>` : ""}
         ${def.teams && (def.teamCounts || [2]).length > 1 ? `<div class="opt"><label>팀 수</label>${seg("tn", def.teamCounts.map((n) => [n, `${n}팀`]), cfg.tn)}</div>` : ""}
         <div class="opt"><label>봇 채우기</label>${seg("bf", [[1, "켜기"], [0, "끄기"]], cfg.bf)}<div class="hint">빈자리를 보통 난이도 컴퓨터로 채웁니다 (6명까지)</div></div>
       </div>`;
@@ -138,7 +139,7 @@ export const PvpUI = {
     const bar = H ? `<button class="primary" data-a="pvstart"${cfg.go ? " disabled" : ""}>${cfg.go ? "경기 진행 중" : "시작 →"}</button>`
       : `<button class="${me && me.ready ? "ghost on" : "primary"}" data-a="pvready">${me && me.ready ? "준비 취소" : "준비 완료"}</button>`;
     return `${msg}<div class="pvroomhd">
-        <div><small>${cfg.au ? "랜덤 매칭" : c.offline ? "오프라인 연습" : "커스텀 방"}</small><h3>${esc(cfg.n)}</h3><span class="muted">${esc(def.name)} · ${esc(MAPS[cfg.m].name)} · ${Math.round(cfg.t / 60)}분${cfg.go ? " · 경기 진행 중" : ""}</span></div>
+        <div><small>${cfg.au ? "랜덤 매칭" : c.offline ? "오프라인 연습" : "커스텀 방"}</small><h3>${esc(cfg.n)}</h3><span class="muted">${esc(def.name)} · ${esc(MAPS[cfg.m].name)} · ${Math.round(cfg.t / 60)}분${goalsFor(cfg.o) && cfg.gs ? ` · 목표 ${cfg.gs}점` : ""}${cfg.go ? " · 경기 진행 중" : ""}</span></div>
         ${c.offline ? "" : `<div class="pvcode" title="이 코드를 알려 주면 들어올 수 있습니다"><small>방 코드</small><b>${esc(cfg.c)}</b></div>`}
       </div>
       <div class="pvteams n${teams}">${cols.join("")}</div>

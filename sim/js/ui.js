@@ -665,6 +665,7 @@ export class UI {
       }).join("");
       if (s.variant === "aos") {
         opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
+        opts += `<div class="opt"><label>목표 점수</label>${this.seg("aosGoal", [[40, "40"], [60, "60"], [80, "80"]], s.aosGoal || 60)}<div class="hint">승리 조건 (셋 중 하나): ① 적 본진(코어) 파괴 ② 팀 전장 점수 목표 먼저 달성 ③ 시간 종료 때 점수 우세.<br>전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 중앙 보스 +5 · 정글 캠프 +1</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("aosTime", [[480, "8분"], [720, "12분"], [900, "15분"]], s.aosTime || 720)}</div>` + this._diff();
       } else {
         opts += `<div class="opt"><label>${s.variant === "tdm" ? "적 편대 수" : "AI 드론 수"}</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}${s.variant === "tdm" ? `<div class="hint">아군 AI 편대는 적보다 둘 적게(최소 1기) 나와 나를 따라 싸웁니다.</div>` : ""}</div>`;
@@ -700,7 +701,7 @@ export class UI {
 
   a_sel(v, el) {
     const k = el.dataset.k;
-    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime"].includes(k) ? +v : v;
+    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
     if (k === "bwho") this.sel.bep = null;
@@ -722,7 +723,7 @@ export class UI {
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;

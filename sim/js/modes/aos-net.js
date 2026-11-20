@@ -5,7 +5,7 @@
 //   · 정글 감시자   defineKind "nt"  [x, y, z, 체력, 정예<<1, 사격 수]
 //   · 보스          defineActorKind "boss" (보간되는 대리 액터)
 //   · 봇            shareActor "bot" (NetGame 기본)
-//   · 호스트 값     "a" [승자, 격추0, 격추1, 잃은 타워0, 잃은 타워1, 강화0, 강화1, 상자 비트, 캠프 비트]
+//   · 호스트 값     "a" [승자, 격추0, 격추1, 잃은 타워0, 잃은 타워1, 강화0, 강화1, 상자 비트, 캠프 비트, 전장 점수0, 전장 점수1, 목표 점수, 끝난 까닭 번호]
 //                   "p" { id: [ⓟ, 화력, 장갑, 기동, 스킬, 부품 비트, 격추, 도움, 구조물 피해] }  (봇·사람 모두)
 //                   "tf" [[구조물 번호, 표적 id], ...]  (타워·코어·방어 포탑이 지금 쏘는 표적 — 클라이언트는 피해 없는 탄으로 보여 준다)
 //                   "al" [[경보 남은 초 ×10, 경보 횟수], [..]]  (팀별 침입 경보 — 횟수가 늘면 클라이언트도 경보 연출)
@@ -73,7 +73,7 @@ export class AosNet {
   _fields() {
     const m = this.m, ng = this.ng, [A, B] = m.teams;
     ng.setHostField("a", [m.winner, A.kills, B.kills, A.lost, B.lost, Math.round(A.buffT), Math.round(B.buffT),
-      m.caches.reduce((s, k, i) => s | (k.active ? 1 << i : 0), 0), m.camps.reduce((s, c, i) => s | (c.alive ? 1 << i : 0), 0)]);
+      m.caches.reduce((s, k, i) => s | (k.active ? 1 << i : 0), 0), m.camps.reduce((s, c, i) => s | (c.alive ? 1 << i : 0), 0), A.score, B.score, m.goal, m.whyCode()]);
     const p = {};
     for (const a of m.heroes) {
       const id = ng.idOf(a);
@@ -103,7 +103,8 @@ export class AosNet {
         for (const [t, b] of [[A, a[5]], [B, a[6]]]) { if (b > 0 && !(t.buffT > 0)) m.s.hud.toast(t.id === me.team ? "보스 처치! 아군 60초 강화" : `${t.name}이 보스를 처치했습니다`, t.id === me.team ? "#ff4ad6" : "#ff8a7a", 2.2, 22); t.buffT = +b || 0; }
         m.caches.forEach((k, i) => { const on = !!(a[7] & (1 << i)); k.active = on; k.g.visible = on; });
         m.camps.forEach((c, i) => { c.alive = !!(a[8] & (1 << i)); });
-        if (a[0] >= 0 && m.winner < 0) { m.winner = a[0]; m.endT = 2.5; }
+        if (a.length >= 13) { A.score = Math.max(0, a[9] | 0); B.score = Math.max(0, a[10] | 0); if (a[11] >= 10 && a[11] <= 300) m.goal = a[11] | 0; m.setWhy(a[12]); }
+        if (m.winner < 0 && m.endT < 0 && (a[0] >= 0 || (a.length >= 13 && a[12] > 0))) { m.winner = a[0] >= 0 ? a[0] | 0 : -1; m.endT = 2.5; }   // 무승부(-1)도 까닭이 오면 끝낸다
       }
     }
     for (const t of m.teams) if (t.buffT > 0) t.buffT = Math.max(0, t.buffT - dt);

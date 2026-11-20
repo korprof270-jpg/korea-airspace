@@ -31,6 +31,9 @@ const rcode = (n = 4) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (
 const rint = () => crypto.getRandomValues(new Uint32Array(1))[0] >>> 1;
 const mapsFor = (o) => { const d = PVP_MODES[o]; const L = MAP_LIST.map((m) => m.id); return d && Array.isArray(d.maps) ? d.maps.filter((id) => MAPS[id]) : L; };
 const timesFor = (o) => { const d = PVP_MODES[o]; return d && Array.isArray(d.time) ? d.time : TIMES.map((t) => t[0]); };
+// 목표 점수가 있는 모드(기지전 등: def.goal = [40, 60, 80], def.goalDef)
+export const goalsFor = (o) => { const d = PVP_MODES[o]; return d && Array.isArray(d.goal) ? d.goal : null; };
+const goalFix = (o, v) => { const L = goalsFor(o); return !L ? 0 : L.includes(v) ? v : PVP_MODES[o].goalDef || L[Math.floor(L.length / 2)]; };
 
 // 받은 방 설정 검사 (다른 사람이 보낸 값은 모두 믿지 않는다)
 function validCfg(o) {
@@ -40,7 +43,7 @@ function validCfg(o) {
   const tn = Math.round(num(o.tn, 2, 2, 4));
   const arr = (a, n) => (Array.isArray(a) ? a.slice(0, n) : []);
   return {
-    c, n: cleanName(o.n) || `방 ${c}`, m: o.m, o: o.o, t: Math.round(num(o.t, 180, 60, 1800)), tn, bf: o.bf ? 1 : 0,
+    c, n: cleanName(o.n) || `방 ${c}`, m: o.m, o: o.o, t: Math.round(num(o.t, 180, 60, 1800)), tn, bf: o.bf ? 1 : 0, gs: Math.round(num(o.gs, 0, 0, 300)),
     cb: arr(o.cb, MAX_PLAYERS).filter((e) => Array.isArray(e) && sid(e[0])).map((e) => [sid(e[0]), Math.round(num(e[1], 0, 0, 3)), BOT_DIFF[e[2]] ? e[2] : "normal"]),
     st: Math.round(num(o.st, 0, 0, 1e6)), go: o.go ? 1 : 0, sd: Math.round(num(o.sd, 1, 0, 2 ** 31)),
     as: arr(o.as, 32).filter((e) => Array.isArray(e) && sid(e[0])).map((e) => [sid(e[0]), Math.round(num(e[1], 0, 0, 3))]),
@@ -237,7 +240,7 @@ export class PvpClient {
   _defaultCfg(opt) {
     const a = opt.auto, cr = opt.create || {};
     const o = a ? a.o : this._lastMode || "ffa", maps = mapsFor(o);
-    return { c: this.code, n: a ? "랜덤 매칭" : cr.n || `${this.name}의 방`, m: a ? a.m : maps.includes(this._lastMap) ? this._lastMap : maps[0], o, t: a ? 180 : timesFor(o)[1] || timesFor(o)[0], tn: 2,
+    return { c: this.code, n: a ? "랜덤 매칭" : cr.n || `${this.name}의 방`, m: a ? a.m : maps.includes(this._lastMap) ? this._lastMap : maps[0], o, t: a ? 180 : timesFor(o)[1] || timesFor(o)[0], tn: 2, gs: goalFix(o, 0),
       bf: a ? 1 : 0, cb: [], st: 0, go: 0, sd: 1, as: [], kk: [], ep: 0, au: a ? 1 : 0, ap: a ? a.ap : [] };
   }
 
@@ -299,8 +302,9 @@ export class PvpClient {
   setCfg(k, v) {
     this._host((c) => {
       if (k === "m" && mapsFor(c.o).includes(v)) { c.m = v; this._lastMap = v; }
-      else if (k === "o" && PVP_MODES[v]) { c.o = v; this._lastMode = v; const ms = mapsFor(v); if (!ms.includes(c.m)) c.m = ms[0]; const ts = timesFor(v); if (!ts.includes(c.t)) c.t = ts[0]; const tc = PVP_MODES[v].teamCounts || [2]; if (!tc.includes(c.tn)) c.tn = tc[0]; }
+      else if (k === "o" && PVP_MODES[v]) { c.o = v; this._lastMode = v; const ms = mapsFor(v); if (!ms.includes(c.m)) c.m = ms[0]; const ts = timesFor(v); if (!ts.includes(c.t)) c.t = ts[0]; const tc = PVP_MODES[v].teamCounts || [2]; if (!tc.includes(c.tn)) c.tn = tc[0]; c.gs = goalFix(v, c.gs); }
       else if (k === "t" && timesFor(c.o).includes(+v)) c.t = +v;
+      else if (k === "gs" && (goalsFor(c.o) || []).includes(+v)) c.gs = +v;
       else if (k === "tn" && (PVP_MODES[c.o].teamCounts || [2]).includes(+v)) c.tn = +v;
       else if (k === "bf") c.bf = +v ? 1 : 0;
     });
@@ -365,7 +369,7 @@ export class PvpClient {
     }
     const cfg = {
       mode: def.session, map: c.m, time: c.t, difficulty: "normal",
-      pvp: { variant: c.o, teams: def.teams ? c.tn : 0, team, name: this.name, bots: c.cb.map((e) => e.slice()), fill: c.bf ? FILL_TO : 0, seed: c.sd, elapsed, code: c.c, auto: !!c.au, players: Math.min(MAX_PLAYERS, ps.length || 1), client: this, mid },
+      pvp: { variant: c.o, teams: def.teams ? c.tn : 0, team, name: this.name, bots: c.cb.map((e) => e.slice()), fill: c.bf ? FILL_TO : 0, goal: goalFix(c.o, c.gs) || undefined, seed: c.sd, elapsed, code: c.c, auto: !!c.au, players: Math.min(MAX_PLAYERS, ps.length || 1), client: this, mid },
       net: this.offline ? null : { room: this.room, me, mid, host: this.isHost, client: this },
     };
     this.game.startSession(cfg);

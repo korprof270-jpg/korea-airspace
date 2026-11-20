@@ -16,13 +16,16 @@ export function drawAosHud(m, h) {
   if (h.lvl === "off") return;
   const full = h.lvl === "full", left = Math.max(0, m.duration - m.time);
   h.timer(fmtTime(left), left < 60 ? "#ff6b5a" : "#fff", "#ff3ad6");
-  // ── 위: 팀 점수 (격추 · 남은 타워) ──
+  // 타이머 밑: 목표 전장 점수 (먼저 닿는 팀이 승리)
+  { const near = Math.max(...m.teams.map((t) => t.score)) >= m.goal - 10;
+    h.text(`목표 점수 ${m.goal} · 먼저 닿으면 승리`, L.cx, L.subY + 4 * u, { size: 12.5, align: "center", base: "middle", color: near ? "#ffd24a" : "#cfd8e6" }); }
+  // ── 위: 팀 전장 점수 (큰 숫자) · 격추 · 남은 타워 ──
   for (const t of m.teams) {
     const right = t.id === 1, w = 196 * u, hh = 40 * u, x = right ? L.cx + 94 * u : L.cx - 94 * u - w, y = L.t;
     h.plate(x, y, w, hh, { accent: t.css, side: right ? "right" : "left", skew: 0.16 });
     const tx = right ? x + w - 18 * u : x + 18 * u, al = right ? "right" : "left";
-    h.text(t.name + (t.id === me.team && !m.spectator ? " (아군)" : ""), tx, y + 14 * u, { size: 11, align: al, base: "middle", color: t.css, shadow: false });
-    h.text(`⚔ ${t.kills}`, right ? x + 30 * u : x + w - 30 * u, y + 21 * u, { size: 22, align: right ? "left" : "right", base: "middle", mono: true, shadow: false });
+    h.text(t.name + (t.id === me.team && !m.spectator ? " (아군)" : "") + `  ⚔${t.kills}`, tx, y + 14 * u, { size: 11, align: al, base: "middle", color: t.css, shadow: false });
+    h.text(`${t.score}`, right ? x + 30 * u : x + w - 30 * u, y + 20 * u, { size: 24, align: right ? "left" : "right", base: "middle", mono: true, color: t.score >= m.goal - 10 ? GOLD : "#fff", shadow: false });
     // 타워 칸: 라인별 바깥·안쪽, 무너지면 빈칸 / 코어 마름모
     const order = ["top", "mid", "bot"];
     order.forEach((ln, i) => ["outer", "inner"].forEach((tier, j) => {
@@ -49,7 +52,7 @@ export function drawAosHud(m, h) {
   // ── 목표 알림 ──
   if (m.hint) {
     const k = m.hint, a = Math.min(1, k.t * 2, (k.dur - k.t) * 6 + 0.4), pul = 1 + Math.sin(s.time * 8) * 0.04;
-    h.fade(a); g.save(); g.translate(L.cx, L.t + 66 * u); g.scale(pul, pul);
+    h.fade(a); g.save(); g.translate(L.cx, L.subY + 30 * u); g.scale(pul, pul);
     h.text(k.txt, 0, 0, { size: 17, align: "center", base: "middle", color: k.col });
     g.restore(); h.fade(1);
     if (k.pos && me.alive) h.marker(k.pos, s.camera, k.col, "", k.pos.distanceTo(me.pos));
@@ -186,10 +189,11 @@ function ruleCard(m, h) {
   const u = h.u, L = h.L, w = Math.min(520 * u, h.W - 32 * u), x = L.cx - w / 2, y = h.H * 0.33, lh = 24 * u;
   const a = m.state === "countdown" ? 1 : Math.min(1, m.ruleT);
   h.fade(a);
-  h.plate(x, y, w, 46 * u + lh * 4, { accent: "#ff3ad6", skew: 0.03 });
+  const lines = [["승리 조건 (셋 중 하나)", "#ffd24a"], ["① 적 본진(코어) 파괴 — 즉시 승리", "#fff"], [`② 팀 전장 점수 ${m.goal}점 먼저 달성 — 즉시 승리`, "#fff"], ["③ 시간 종료 — 전장 점수가 높은 팀 승리", "#fff"],
+    ["전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 보스 +5 · 정글 캠프 +1", "#9fe8ff"], ["ⓟ(정글·상자·미니언)로 기지에서 업그레이드 · 적 기지는 방어 포탑부터", "#b4c2d4"]];
+  h.plate(x, y, w, 40 * u + lh * lines.length, { accent: "#ff3ad6", skew: 0.03 });
   h.text("기지전 — 이렇게 이깁니다", x + 18 * u, y + 20 * u, { size: 14, base: "middle", color: "#ff8ae6", shadow: false });
-  const lines = ["1. 미니언과 함께 라인을 밀어 타워를 부수세요", "2. 정글 몬스터 · 숨겨진 상자로 포인트(ⓟ)를 모으세요", "3. 기지에서 업그레이드 → 적 코어 파괴!", "4. 적 기지에 들어가면 경보 · 방어 포탑부터 부수세요"];
-  lines.forEach((t, i) => h.text(t, x + 22 * u, y + 46 * u + i * lh, { size: 14, base: "middle", color: "#fff", shadow: false }));
+  lines.forEach(([t, c], i) => h.text(t, x + 22 * u, y + 44 * u + i * lh, { size: i >= 4 ? 12 : 14, base: "middle", color: c, shadow: false }));
   h.fade(1);
 }
 
