@@ -584,7 +584,6 @@ table.score tr.me td { color: var(--gold); font-weight: 700; }
 .vn-box.narr { background: linear-gradient(180deg, rgba(6, 9, 16, 0.82), rgba(4, 6, 12, 0.9)); }
 .vn-box.narr .vn-text { color: #cfd8e6; font-style: italic; }
 .vn-box.radio { border-color: rgba(159, 179, 200, 0.4); }
-.vn-box.radio .vn-text::before { content: "📡 "; font-style: normal; }
 .vn-name { position: absolute; top: -17px; left: 24px; padding: 5px 16px 6px; border-radius: 10px; background: var(--nc, #9fb3c8); color: #08101c; font-weight: 900; font-size: 15px; opacity: 0; transform: translateY(4px); transition: opacity 0.2s, transform 0.2s; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4); }
 .vn-name.on { opacity: 1; transform: none; }
 .vn-text { font-size: clamp(15px, 2.1vw, 19px); line-height: 1.7; min-height: 3.4em; white-space: pre-wrap; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
@@ -733,6 +732,8 @@ h3 small { font-weight: 600; color: var(--muted); font-size: 11.5px; margin-left
 @media (max-aspect-ratio: 1/1) { .vn-ch.art { height: calc(150vh * var(--sc)); bottom: calc(88vh - 150vh * var(--sc)); } .vn-ch.art.l, .vn-ch.art.r { left: 50%; right: auto; translate: none; } }
 
 /* 타이틀 키 아트: 인물 단체 입간판 (로고 아래, 화면 아래쪽에 붙여서) */
+.vn-cg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.6s; }
+.vn-cg video.on { opacity: 1; }
 .titlescreen .tcast { position: absolute; left: 0; right: 0; bottom: 0; height: 74vh; z-index: 1; pointer-events: none; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }
 .titlescreen .tcast img { height: 100%; width: auto; max-width: none; object-fit: contain; object-position: bottom; animation: tcastIn 1.4s cubic-bezier(.2, .8, .2, 1) both; filter: drop-shadow(0 0 24px rgba(0, 0, 0, 0.55)); }
 .titlescreen .tcast::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 32%; background: linear-gradient(180deg, transparent, rgba(5, 8, 18, 0.85)); }

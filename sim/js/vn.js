@@ -12,6 +12,8 @@ import { portrait, HAS_PORTRAIT, hasArt, artScale } from "./portraits.js";
 import { CAST, story, chapterDone } from "./story.js";
 
 const IMG = "img/story/";
+// "@cg 키" 중 움직이는 영상(img/story/vid/키.mp4)이 있는 것 — PixAI 이미지→영상으로 만든 5초 반복 영상
+const CG_VIDEO = new Set(["noeul", "moonsky", "eia", "titan"]);
 // 단계 작전 변경 = 장면별 조각을 순서대로 합친 것
 function remod(sid) {
   const parts = records[`hsmodp:${sid}`] || {}, vals = Object.values(parts);
@@ -67,7 +69,7 @@ export class VN {
     this.opts = opts;
     clearSceneMods(opts.key);   // 다시 보는 장면이면 그 장면이 남긴 작전 변경부터 지운다
     this.stack = [{ list: lines, i: 0 }];
-    this.slots = [null, null]; this.last = null; this.auto = false; this.ff = false; this.log = [];
+    this.slots = [null, null]; this.last = null; this.bgKey = null; this.lineNo = 0; this.auto = false; this.ff = false; this.log = [];
     this.voiced = null; this.hover = -1;
     this.bgm = "calm"; this.bgmSet = undefined; this.bgmNow = undefined;   // 대본이 배경을 정하지 않아도 평온한 곡으로 시작
     const el = (this.el = document.createElement("div"));
@@ -154,8 +156,21 @@ export class VN {
     if (c === "bg") this._bg(a);
     else if (c === "cg") {
       const cg = this.$(".vn-cg");
+      const ov = cg.querySelector("video"); if (ov) ov.remove();
       if (a === "-") { cg.classList.remove("on"); this.el.classList.remove("cgmode"); }
-      else { cg.style.backgroundImage = `url(${IMG}${a}.jpg)`; cg.classList.remove("on"); void cg.offsetWidth; cg.classList.add("on"); this.el.classList.add("cgmode"); }
+      else {
+        cg.style.backgroundImage = `url(${IMG}${a}.jpg)`; cg.classList.remove("on"); void cg.offsetWidth; cg.classList.add("on"); this.el.classList.add("cgmode");
+        // 움직이는 일러스트가 있으면 그림 위에 겹쳐 반복 재생 (못 틀면 그림이 그대로 남는다)
+        if (CG_VIDEO.has(a) && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          const v = document.createElement("video");
+          v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
+          v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
+          v.addEventListener("playing", () => v.classList.add("on"), { once: true });
+          v.src = `${IMG}vid/${a}.mp4`;
+          cg.prepend(v);
+          const pr = v.play(); if (pr) pr.catch(() => v.remove());
+        }
+      }
     }
     else if (c === "sfx") { if (!this.ff) try { this.game.sound.play(a); } catch (e) { /* 소리 없음 */ } }
     else if (c === "bgm") { this.bgmSet = a === "auto" ? this.bgm : a === "-" || MOODS[a] ? a : undefined; }
@@ -169,6 +184,8 @@ export class VN {
     a.className = `vn-img ${this.bgFlip ? "b" : "a"} ${ROOMS[k] || ""}`;
     a.style.backgroundImage = ROOMS[k] ? "" : `url(${IMG}${k}.jpg)`;
     a.classList.add("on"); b.classList.remove("on");
+    if (k !== this.bgKey) { this.slots = [null, null]; this._chars(null); }   // 장소가 바뀌면 서 있던 인물은 퇴장 (다음 대사부터 다시 등장)
+    this.bgKey = k;
     if (BG_MOOD[k]) { this.bgm = BG_MOOD[k]; this.bgmSet = undefined; }   // 배경이 바뀌면 그 배경의 기본 분위기 (바로 뒤 @bgm 이 덮어쓴다)
   }
   // 쌓인 음악 지시를 대사가 나올 때 한 번에 반영 (배경과 @bgm 이 연달아 와도 곡이 한 번만 바뀐다)
@@ -197,7 +214,15 @@ export class VN {
       const img = this.$(`.vn-ch.${side}`), sl = this.slots[i];
       if (!sl) { img.classList.remove("on"); return; }
       const src = portrait(sl.who, sl.expr);
-      if (img.dataset.src !== src) { img.src = src; img.dataset.src = src; }
+      if (img.dataset.src !== src) {
+        // 다른 인물로 바뀔 때는 새 그림을 다 받을 때까지 숨긴다 (예전 인물 그림이 잠깐 보이지 않게)
+        const swap = img.dataset.who !== sl.who;
+        img.dataset.src = src; img.dataset.who = sl.who;
+        if (swap) { img.classList.remove("on", "pop"); img.style.visibility = "hidden"; }
+        img.src = src;
+        const show = () => { if (img.dataset.src === src) img.style.visibility = ""; };
+        if (img.complete && img.naturalWidth) show(); else if (img.decode) img.decode().then(show, show); else img.onload = img.onerror = show;
+      }
       if (sl.fresh) { sl.fresh = false; img.classList.remove("on", "pop"); void img.offsetWidth; }
       img.classList.add("on");
       img.classList.toggle("dim", active !== i);
@@ -217,9 +242,12 @@ export class VN {
     // 화자가 바뀌면 인물마다 음높이가 다른 짧은 소리 (빨리 넘기기 중에는 생략)
     if (who && who !== this.voiced && !this.ff) { const [snd, p] = voiceOf(who); this._cue(snd, 0.9, p); }
     this.voiced = who || null;
+    this.lineNo = (this.lineNo || 0) + 1;
+    // 오래(10줄 넘게) 말하지 않은 인물은 내보낸다 — 대화와 상관없는 인물이 계속 서 있지 않게
+    this.slots = this.slots.map((sl) => (sl && sl.who !== who && this.lineNo - (sl.at || 0) > 10 ? null : sl));
     if (who) {
       const i = this._place(who);
-      if (i >= 0) { this.slots[i].expr = expr || "normal"; active = i; }
+      if (i >= 0) { this.slots[i].expr = expr || "normal"; this.slots[i].at = this.lineNo; active = i; }
       this.last = who;
       name.textContent = who === "나" ? "나 (새벽)" : who;
       name.style.setProperty("--nc", CAST[who] || (who === "나" ? "#ffd24a" : "#9fb3c8"));
