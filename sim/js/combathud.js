@@ -489,6 +489,7 @@ function drawRadar(c, h, range) {
     g.lineWidth = 1.5 * u; g.strokeStyle = INK; g.stroke();
   };
   for (const pk of c.pickups) if (pk.active) dot(pk.pos, "rgba(255,225,74,0.9)", 2 * u, 1);
+  if (c.swarm) c.swarm.radar(dot, u, range);   // 드론 함대전: 모의 함대 드론은 흐린 점
   for (const a of c.actors) {
     if (!a.alive || a === p || !a.targetable) continue;
     const enemy = c.ffa || a.team !== p.team;

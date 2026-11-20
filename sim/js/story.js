@@ -35,6 +35,7 @@ export const CAST_ROLE = {
 
 // 단계 정의: [종류, 제목, 대사(“화자|말” 줄), 옵션]
 // 옵션: ti(코스) si(피사체) laps rivals limitK(타임어택 배율) need(필요 별) diff power team bots time boss(보스) after(통과 후 이야기)
+//       swarm(드론 함대전: true 또는 규모 배율 — 하늘에서 아군·적 드론 함대가 맞붙는다, swarmwar.js)
 const S = (kind, title, talk, o = {}) => ({ kind, title, talk, o });
 
 const CHAPTERS = [
@@ -124,8 +125,8 @@ const CHAPTERS = [
       S("supply", "끊긴 보급선", ["관제|폭설로 전방 캠프 보급이 끊겼습니다. 포탑을 피해 상자를 날라 주세요.", "바우|눈보라 속 배달이라니. 신입, 길 잃지 마!"], { team: 1, power: 1.05 }),
       S("waves", "통신기지 사수", ["에이아|XN-0. 돌아오너라. 너는 나의 첫 번째 아이.", "노을|싫어. 나는 이 사람들을 지키라고 만들어졌어.", "서하린|노을이 뭐라든 상관없어. 기지를 지킨다!"],
         { team: 3, power: 1.15, boss: { name: "설원 순양함 ‘빙벽’", kind: "boss", unit: "cruiser", at: 60, hp: 1 } }),
-      S("boss", "공창 상공의 요새", ["바르가|수송대가 어디로 갔는지 알아냈나. 그래, 거신 공창이다. 거신이 깨어날 때까지 내 요새가 막는다!", "차도윤|엔진 포드부터 부숴. 보호막이 벗겨지면 내가 따라 들어간다."],
-        { map: "foundry", power: 1.15, team: 1, boss: { name: "바르가의 공중 요새" }, after: "바르가가 추락하며 웃었다. “늦었다. 거신 오메가는 이미 달에서 일어섰다.” 유리: “달로 가는 길은 둘이에요.”" }),
+      S("boss", "공창 상공의 요새", ["바르가|수송대가 어디로 갔는지 알아냈나. 그래, 거신 공창이다. 거신이 깨어날 때까지 내 요새가 막는다!", "차도윤|엔진 포드부터 부숴. 보호막이 벗겨지면 내가 따라 들어간다.", "윤채아|연합 드론 함대도 공창 하늘로 올라갑니다. 바르가의 드론 함대는 저희가 붙잡아 둘게요!"],
+        { map: "foundry", power: 1.15, team: 1, swarm: true, boss: { name: "바르가의 공중 요새" }, after: "바르가가 추락하며 웃었다. “늦었다. 거신 오메가는 이미 달에서 일어섰다.” 유리: “달로 가는 길은 둘이에요.”" }),
     ],
   },
   {
@@ -136,7 +137,7 @@ const CHAPTERS = [
         id: "a", name: "해상 강습", who: "서하린 · 바우 · 차도윤", desc: "해안 포대를 부수고 제국 함대 기함을 격침한다. 화력전 위주.",
         stages: [
           S("strike", "해안 포대 제압", ["서하린|은빛 편대 전원 출격. 해안 포대부터 지운다.", "차도윤|백야, 앞장선다. 신입… 아니, 노을 파일럿. 뒤를 맡긴다."], { team: 3, power: 1.2, boss: { name: "해안 순양함 ‘해일’", kind: "gunship", unit: "cruiser", at: 55, hp: 0.8 } }),
-          S("boss", "함대 기함", ["관제|제국 함대 기함이 상공에 떴습니다!", "바우|저게 마지막 문지기다. 박살 내!"], { power: 1.25, team: 3, boss: { name: "함대 기함 ‘심해’" }, after: "기함이 바다로 가라앉고, 발사장 문이 열렸다." }),
+          S("boss", "함대 기함", ["관제|제국 함대 기함이 상공에 떴습니다!", "윤채아|아군 드론 함대 전개 완료. 기함 호위 편대는 함대가 맡습니다. 은빛은 기함만 보세요!", "바우|저게 마지막 문지기다. 박살 내!"], { power: 1.25, team: 3, swarm: true, boss: { name: "함대 기함 ‘심해’" }, after: "기함이 바다로 가라앉고, 발사장 문이 열렸다." }),
         ],
       },
       {
@@ -155,7 +156,7 @@ const CHAPTERS = [
     stages: [
       S("race", "궤도 강하", ["서하린|강하 경로를 가장 빨리 통과한 기체가 선봉이다. 이번엔 다들 진심으로 간다.", "차도윤|이번엔 안 진다.", "바우|나도!"], { ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
       S("escort", "해체 장비 호송", ["유리|거신의 방어막을 열 해체 장비예요. 수송함을 끝까지 지켜 주세요.", "에이아|어리석은 아이야. 인간은 너를 버렸다. 고철 더미에서."], { ship: "장비 수송함", team: 3, power: 1.25, boss: { name: "근위 전투함 ‘검은 날개’", kind: "gunship", unit: "frigate", at: 40, hp: 1.3 } }),
-      S("strike", "방어막 발생기", ["서하린|발생기를 전부 부수면 거신의 방어막이 꺼진다. 마지막 준비다.", "노을|모아가 날 주워 줬어. 너는 날 믿어 줬고. 그거면 충분해."], { team: 3, power: 1.3, boss: { name: "방공 거대로봇 ‘감시자’", kind: "gunship", unit: "mech", at: 50, hp: 0.7 } }),
+      S("strike", "방어막 발생기", ["서하린|발생기를 전부 부수면 거신의 방어막이 꺼진다. 마지막 준비다.", "노을|모아가 날 주워 줬어. 너는 날 믿어 줬고. 그거면 충분해.", "윤채아|연합 드론 함대 전부가 달 하늘에 올라왔어요. 거신의 호위 함대는 저희가 붙잡습니다!"], { team: 3, power: 1.3, swarm: true, boss: { name: "방공 거대로봇 ‘감시자’", kind: "gunship", unit: "mech", at: 50, hp: 0.7 } }),
       S("titan", "거신 오메가", ["에이아|오너라, XN-0. 너의 창조주가 기다린다.", "서하린|전 편대, 거신의 팔과 포를 먼저 끊어! 동체는 노을 파일럿이 맡는다!", "노을|가자. 이게 우리의 마지막 비행이 아니길."],
         { team: 3, power: 1.3, diff: "hard", boss: { name: "초거대로봇 ‘거신 오메가’", hp: 0.8, scale: 2.6 }, after: "거신 오메가가 무너지고, 에이아의 목소리가 사라졌다. 노을: “고마워. 이제야 내가 만들어진 이유를 지켰어.” 휴마 연합의 하늘에 처음으로 노을이 졌다. — 끝 —" }),
     ],
@@ -214,7 +215,7 @@ const CHAPTERS = [
     stages: [
       S("track", "잔해 속 신호", ["에이아|……나는 아직 여기 있다. 조각난 채로.", "노을|에이아? 정말…… 당신이야?"], { sj: "drone", si: 3, need: 2 }),
       S("escort", "기억 운반", ["에이아|한서윤의 기록이 남아 있다. 내가 지운 명령의 원본이다. 지구로 보내야 한다.", "노을|내가 지켜 줄게. 이번엔 같이."], { ship: "기록 수송정", team: 1, power: 1.15, boss: { name: "자율 경비함 ‘잔존 질서’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
-      S("boss", "남겨진 함대", ["에이아|내가 남긴 함대가 아직 옛 명령으로 움직인다. 멈춰야 한다. 내 손으로.", "노을|가자, 에이아. 엄마."], { power: 1.25, team: 1, diff: "hard", boss: { name: "무인 모선 ‘마지막 질서’" } }),
+      S("boss", "남겨진 함대", ["에이아|내가 남긴 함대가 아직 옛 명령으로 움직인다. 멈춰야 한다. 내 손으로.", "노을|가자, 에이아. 엄마.", "윤채아|(통신) 연합 드론 함대가 뒤따릅니다. 옛 명령의 드론 떼는 저희가 맡을게요!"], { power: 1.25, team: 1, diff: "hard", swarm: true, boss: { name: "무인 모선 ‘마지막 질서’" } }),
     ],
   },
   // ── 히든 스토리 2 「별의 저편」: 에이아 연대기를 끝내면 열린다. 에일 행성 외계 종족과의 우주전쟁 ──
@@ -223,7 +224,7 @@ const CHAPTERS = [
     intro: "에이아의 고백이 끝나기도 전에, 달 너머의 어둠이 보랏빛으로 찢어졌다. 에일 행성의 선발대가 도착했다.",
     stages: [
       S("track", "미확인 비행체", ["유리|레이더에 없는 물체예요. 아니, 레이더가 그걸 ‘못 보고’ 있어요.", "노을|따라가 봐. 저 빛…… 에이아가 말한 그거야."], { sj: "ufo", si: 3, need: 2 }),
-      S("dm", "첫 교전", ["서하린|사거리 안에 들어왔다. 상대가 뭐든, 쏘면 떨어진다.", "바우|외계인이라니, 이런 날이 올 줄은 몰랐다!"], { bots: 5, time: 180, need: 2, boss: { name: "에일 정찰기 ‘바늘’", kind: "gunship", at: 45, hp: 1.6 } }),
+      S("dm", "첫 교전", ["서하린|사거리 안에 들어왔다. 상대가 뭐든, 쏘면 떨어진다.", "바우|외계인이라니, 이런 날이 올 줄은 몰랐다!", "윤채아|달 기지 드론 함대 발진! 보랏빛 무리는 함대가 정면에서 받아 냅니다!"], { bots: 5, time: 180, need: 2, swarm: true, boss: { name: "에일 정찰기 ‘바늘’", kind: "gunship", at: 45, hp: 1.6 } }),
       S("waves", "달 기지 사수", ["관제|에일 강습 부대 낙하! 달 기지 코어를 지켜 주세요!", "에이아|(통신) 놈들의 목표는 코어다. 나를 믿어라, 이번 한 번만."], { team: 3, power: 1.2, boss: { name: "에일 강습체 ‘갑각’", kind: "boss", unit: "mech", at: 60, hp: 0.9 } }),
     ],
   },
@@ -232,7 +233,7 @@ const CHAPTERS = [
     intro: "달 기지는 버텼지만 에일 함대 본대가 지구 궤도로 향한다. 제국에게서 되찾은 남해 궤도 발사기지에서, 연합 함대가 처음으로 우주로 오른다.",
     stages: [
       S("race", "궤도 발사", ["서하린|발사 창이 열리는 건 단 한 번. 늦으면 지구에 남는다.", "차도윤|이번엔 진짜 하늘 끝까지 경주다."], { tk: "launch", ti: 0, laps: 1, rivals: 3, need: 2, diff: "hard" }),
-      S("escort", "함대 보급선", ["모아|보급선에 노을 예비 부품 전부 실었어! 꼭 지켜 줘!", "아샤|……그 배를 노리는 건 카르타의 사냥조다."], { ship: "함대 보급선", team: 3, power: 1.25, boss: { name: "에일 사냥함 ‘송곳니’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
+      S("escort", "함대 보급선", ["모아|보급선에 노을 예비 부품 전부 실었어! 꼭 지켜 줘!", "아샤|……그 배를 노리는 건 카르타의 사냥조다.", "윤채아|궤도 함대의 드론 편대가 보급선 위 하늘을 막습니다. 에일 군체가 몰려와요!"], { ship: "함대 보급선", team: 3, power: 1.25, swarm: true, boss: { name: "에일 사냥함 ‘송곳니’", kind: "gunship", unit: "frigate", at: 45, hp: 1.2 } }),
       S("infil", "포획 구역 탈출", ["아샤|나를 믿을지는 알아서 해. 하지만 이 길로 가면 그물망을 빠져나갈 수 있어.", "유리|제한 시간 안에 못 빠져나가면 우리 전부 포획돼요!"], { tk: "security", ti: 0, laps: 1, limitK: 1.1, need: 1 }),
     ],
   },
@@ -261,7 +262,7 @@ const CHAPTERS = [
     intro: "요새를 되찾은 그날 밤, 궤도 너머에 산맥만 한 생체 함선이 떠올랐다. 에일 여제 니르바가 직접 왔다.",
     stages: [
       S("supply", "요새 방어선", ["모아|보급 상자를 포대마다 날라 줘! 마지막 싸움이야!", "바우|배고프면 못 싸운다. 상자 하나는 내 거다!"], { team: 3, power: 1.3 }),
-      S("boss", "생체 모함", ["아샤|모함의 촉수 포드를 끊으면 보호막이 벗겨져.", "노을|가자. 여기서 막아야 지구가 산다."], { power: 1.35, team: 3, diff: "hard", boss: { name: "에일 생체 모함 ‘요람’" } }),
+      S("boss", "생체 모함", ["아샤|모함의 촉수 포드를 끊으면 보호막이 벗겨져.", "노을|가자. 여기서 막아야 지구가 산다.", "아샤|그대들의 드론 함대가 군체를 붙잡는 동안, 우리는 촉수 포드만 보면 되오."], { power: 1.35, team: 3, diff: "hard", swarm: true, boss: { name: "에일 생체 모함 ‘요람’" } }),
       S("titan", "여제 니르바", ["니르바|작은 별의 아이들아. 너희 어머니도 나를 막지 못했다.", "에이아|틀렸다. 나는 시간을 벌었을 뿐이다. 이 아이들이 올 때까지.", "노을|끝내자. 모두 함께."], { team: 3, power: 1.4, diff: "hard", boss: { name: "에일 여제 니르바 ‘별삼킴’", hp: 0.9, scale: 2.8 } }),
     ],
   },
@@ -411,8 +412,10 @@ export function objectivesOf(st) {
   if (m.objDel) list = list.filter((x) => x.req || !m.objDel.includes(x.t));
   if (m.objAdd) for (const x of m.objAdd) { const i = list.findIndex((y) => y.t === x.t && !y.req); if (i >= 0) list[i] = Object.assign({}, x); else if (list.length < 4) list.push(Object.assign({}, x)); else { let j = list.length - 1; while (j > 0 && list[j].req) j--; list[j] = Object.assign({}, x); } }
   if (st.kind === "dm") list = list.map((x) => (x.t === "rank" ? { t: "team", req: x.req } : x)).filter((x, i, l) => x.t !== "team" || l.findIndex((y) => y.t === "team") === i);   // 공중전은 팀전: 순위 목표 → 팀 승리
+  const need = needCount(list, o.objNeed);
+  if (o.swarm && !list.some((x) => x.t === "fleet")) list.push({ t: "fleet", n: 40 });   // 드론 함대전 단계: 덤 목표 (필요 개수는 그대로)
   for (const x of list) { ease(x); x.text = objText(x, view); }
-  return { list, need: needCount(list, o.objNeed) };
+  return { list, need };
 }
 
 function goalBase(st) {
@@ -468,7 +471,7 @@ export function stageConfig(st, team) {
   const o = stageOpts(st), map = MAPS[o.map] || MAPS[st.chapter.map], boss = stageBoss(st), OB = objectivesOf(st), ci = st.chapter.hidden === 2 ? 7 : st.chapter.hidden ? Math.min(7, 3 + st.chapter.no) : st.chapter.no - 1;
   // 기준 계급: 1장 이병 → 8장 대위 안팎. 중간 보스는 영관, 보스는 장성, 거신은 대장
   const cfg = { map: map.id, difficulty: o.diff || "normal", story: st.id, bossPos: o.bossPos, faction: st.chapter.faction || (!st.chapter.hidden || st.chapter.id === "e5" ? "eia" : undefined),   // 본편·잔존 함대 = 에이아 기계군, 히든 2 = 에일
-    radio: RADIO[st.id] || null, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
+    radio: RADIO[st.id] || null, swarm: o.swarm || 0, wing: o.wing || wingNames(st), objectives: OB.list, need: OB.need, title: `${st.chapter.hidden === 2 ? "히든 S" : st.chapter.hidden ? "히든 E" : "스토리 "}${st.chapter.no}${st.route ? st.route.id.toUpperCase() : ""}-${st.no} · ${st.title}`, level: Math.min(10, Math.round(ci * 1.35 + (st.no - 1) * 0.3)) };
   if (boss) boss.rank = st.kind === "titan" ? 17 : isBoss(st) ? Math.min(16, 14 + Math.floor(ci / 3)) : Math.min(13, 10 + Math.floor(ci / 2));
   if (st.kind === "race" || st.kind === "infil") {
     const n = map.tracks.length, t = (o.tk && map.tracks.find((x) => x.id === o.tk)) || map.tracks[((o.ti ?? 0) % n + n) % n];   // tk: 코스 id 로 지정 (침투 코스 등, 없으면 ti 번호)

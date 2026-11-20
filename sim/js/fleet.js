@@ -21,7 +21,7 @@ export function fleetWanted(mode) {
   if (cfg.net || cfg.online || !c || c.ffa) return false;
   if (!mode.s.map.combat || w.size < 150 || (w.ceiling || 999) < 110) return false;
   if (cfg.mode === "challenge") return (cfg.team ?? 0) >= 2 || (cfg.power || 1) >= 1.2 || cfg.mission === "boss" || cfg.mission === "titan";
-  if (cfg.mode === "survival") return cfg.variant === "base" || cfg.variant === "conq" || (cfg.variant === "tdm" && (cfg.bots || 0) >= 8);
+  if (cfg.mode === "survival") return cfg.variant === "base" || cfg.variant === "conq" || cfg.variant === "fleet" || (cfg.variant === "tdm" && (cfg.bots || 0) >= 8);
   return cfg.mode === "conquest";
 }
 

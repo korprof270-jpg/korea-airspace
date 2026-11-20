@@ -30,7 +30,7 @@ const MODE_META = {
   freestyle: { name: "프리스타일", en: "FREESTYLE", icon: "🌀", c: "#b44cff", desc: "플립·롤·다이브·틈새 통과를 이어 콤보 점수를 쌓습니다.",
     long: "파워 루프, 배럴 롤, 다이브, 다리 밑과 건물 틈 통과를 끊기지 않게 이어 콤보 배율을 올리세요.", tags: ["통과 지점 190곳+", "콤보 최대 ×5", "자유 비행"] },
   survival: { name: "서바이벌", en: "SURVIVAL", icon: "⚔️", c: "#ff3d5a", desc: "레이저·미사일·아이템으로 AI 드론과 싸우는 점수제 전투입니다.",
-    long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·4팀 점령전", "아이템 6종", "5초 재출격"] },
+    long: "레이저와 유도 미사일, 실드·부스터·EMP 아이템으로 AI 드론과 점수를 겨룹니다. 격추되면 5초 뒤 다시 출격합니다.", tags: ["데스매치·4팀 점령전·함대전", "아이템 6종", "5초 재출격"] },
   challenge: { name: "스토리", en: "STORY", icon: "📖", c: "#3dd68c", desc: "챕터마다 이어지는 이야기를 따라 임무를 하나씩 깨 나갑니다.",
     long: "입단 시험부터 마지막 결전까지. 맵마다 이어지는 이야기를 따라 레이싱·추적·호위·방어·보스전을 한 단계씩 깨 나가세요.", tags: ["단계별 잠금 해제", "윙맨 편대", "별 3개 평가"] },
 };
@@ -53,7 +53,7 @@ const SUB = {
   trick: { name: "트릭 연습", en: "TRICKS", c: "#ff5ad6", img: "3-freestyle", desc: "롤·플립·스핀·루프를 시범으로 보고 스틱 타이밍대로 따라 해 봅니다." },
   free: { name: "자유 비행", en: "FREE FLIGHT", c: "#21d4fd", img: "8-snow", desc: "원하는 맵을 시간 제한 없이 마음껏 날아다니며 연습합니다." },
   race: { img: "1-race" }, tracking: { img: "5-tracking" }, freestyle: { img: "3-freestyle" }, survival: { img: "2-combat" },
-  pve: { name: "PVE", en: "PVE · AI 대전", c: "#ff3d5a", img: "2-combat", desc: "AI 드론과 싸우는 서바이벌. 데스매치·4팀 점령전, 격납고 파츠 능력치가 그대로 적용됩니다." },
+  pve: { name: "PVE", en: "PVE · AI 대전", c: "#ff3d5a", img: "2-combat", desc: "AI 드론과 싸우는 서바이벌. 데스매치·4팀 점령전·드론 함대전, 격납고 파츠 능력치가 그대로 적용됩니다." },
   pvp: { name: "PVP", en: "PVP · 대인전", c: "#21d4fd", img: "9-empire", desc: "다른 플레이어와 실시간 대전. 배틀넷 랜덤 매칭 또는 커스텀 방. 파츠 능력치 미적용 · 스킬 피해 60%." },
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
@@ -667,6 +667,9 @@ export class UI {
         opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
         opts += `<div class="opt"><label>목표 점수</label>${this.seg("aosGoal", [[40, "40"], [60, "60"], [80, "80"]], s.aosGoal || 60)}<div class="hint">승리 조건 (셋 중 하나): ① 적 본진(코어) 파괴 ② 팀 전장 점수 목표 먼저 달성 ③ 시간 종료 때 점수 우세.<br>전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 중앙 보스 +5 · 정글 캠프 +1</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("aosTime", [[480, "8분"], [720, "12분"], [900, "15분"]], s.aosTime || 720)}</div>` + this._diff();
+      } else if (s.variant === "fleet") {
+        opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
+        opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else {
         opts += `<div class="opt"><label>${s.variant === "tdm" ? "적 편대 수" : "AI 드론 수"}</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}${s.variant === "tdm" ? `<div class="hint">아군 AI 편대는 적보다 둘 적게(최소 1기) 나와 나를 따라 싸웁니다.</div>` : ""}</div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
@@ -701,7 +704,7 @@ export class UI {
 
   a_sel(v, el) {
     const k = el.dataset.k;
-    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal"].includes(k) ? +v : v;
+    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
     if (k === "bwho") this.sel.bep = null;
@@ -723,7 +726,7 @@ export class UI {
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
@@ -1140,7 +1143,7 @@ export class UI {
         ${this.pct("fx.flash", "색 번쩍임", 0, 1, 0.05, "피격·명중·부스트 때 화면 색 효과의 세기. 번쩍임에 민감하면 낮추세요")}
         ${this.toggle("fx.rumble", "진동", "게임패드·모바일 기기의 진동 (지원 기기만)")}
         ${this.toggle("fx.cockpit", "조종석 효과", "1인칭 시점에서 캐노피 틀(기동에 따라 쏠림)·유리 반사·속도선·G 포스 시야 흐림·피격 불티·폭발 열기·경고등을 보여 줍니다")}
-        ${this.toggle("fx.fleet", "대규모 전투 함대", "대규모 전투(스토리 대형 임무·거점 공략전·점령전 등)에서 하늘 높이 아군·적 기함이 서로 포격전을 벌입니다. 느린 기기에서는 끄세요")}
+        ${this.toggle("fx.fleet", "대규모 전투 함대", "대규모 전투(스토리 대형 임무·거점 공략전·점령전 등)에서 하늘 높이 아군·적 기함이 서로 포격전을 벌이고, 일부 스토리 결전에서는 양쪽 드론 함대가 하늘에서 맞붙습니다. 느린 기기에서는 끄세요 (서바이벌 함대전은 그대로)")}
         ${this.toggle("fx.reduceMotion", "움직임 줄이기", "격파 때의 순간 멈춤·슬로모션과 보스 등장 카메라 회전을 끄고, 화면 흔들림을 크게 줄입니다. 멀미가 나면 켜세요")}`;
     } else if (t === "input") {
       const inp = this.game.input, info = inp.padInfo, custom = settings.gamepad.layout === "custom";

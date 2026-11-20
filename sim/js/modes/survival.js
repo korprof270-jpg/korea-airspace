@@ -1,5 +1,6 @@
-// 서바이벌(점수제 전투): 데스매치(개인전) / 팀 데스매치(편대전 — 스토리 공중전도 이것) / 거점 공략전 (화물 운반전은 스토리 전용)
+// 서바이벌(점수제 전투): 데스매치(개인전) / 팀 데스매치(편대전 — 스토리 공중전도 이것) / 함대전 / 거점 공략전 (화물 운반전은 스토리 전용)
 //  팀 데스매치: 나 + 아군 편대(cfg.allies 기, 이름은 cfg.wing) 대 적 편대(cfg.bots 기 + 보스 cfg.boss + 지상 전차). 끝날 때 팀 점수가 높은 쪽 승리
+//  함대전: 아군 드론 함대와 함께 적 드론 함대와 맞붙는다(swarmwar.js). 적 함대 전력(남은 드론 + 증원)을 0으로 만들거나, 시간이 끝날 때 전력이 앞서면 승리
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
 import { submitRecord, records, fmtTime } from "../config.js";
@@ -9,6 +10,7 @@ import { rankStats, clampRank } from "../ranks.js";
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
   tdm: { name: "팀 데스매치", icon: "⚔️", desc: "아군 편대와 함께 적 편대와 맞붙는 팀전. 제한 시간이 끝날 때 팀 점수(격추·피해)가 높은 쪽이 이깁니다" },
+  fleet: { name: "함대전", icon: "🛸", desc: "하늘을 메운 아군 드론 함대와 함께 적 드론 함대와 맞붙는 대규모 공중전. 증원까지 모두 꺾어 적 함대 전력을 0으로 만들거나, 시간이 끝날 때 함대 전력이 앞서면 승리" },
   aos: { name: "기지전 (AOS)", icon: "🏯", desc: "드론 리그 스타디움 5:5 팀전. 상대 본진 파괴 · 목표 전장 점수 달성 · 시간 종료 때 점수 우세 — 셋 중 하나로 승리. 미니언·타워·정글·보스, 경기 내 업그레이드" },
   conq: { name: "점령전", icon: "🚩", desc: "4개 팀이 지역 거점을 땅따먹기처럼 차지하는 팀전. 상대 본부를 부수면 그 팀은 탈락, 격추·점령·본부 파괴로 점수를 쌓아 순위를 겨룹니다" },
   base: { name: "거점 공략전", icon: "🏰", desc: "숨은 적 거점 5곳을 찾아 부수는 팀전", hidden: true },
@@ -25,6 +27,7 @@ export class SurvivalMode extends CombatMode {
     this.variant = VARIANTS[cfg.variant] ? cfg.variant : "dm";
     this.duration = cfg.time || 180;
     this.title = `서바이벌 · ${VARIANTS[this.variant].name}`;
+    if (this.variant === "fleet") { this.duration = cfg.time || 300; if (!cfg.faction) cfg.faction = "eia"; }   // 함대전: 적은 에이아 기계 함대
     this.team = [0, 0];
     this.recKey = `survival:${this.variant}:${session.map.id}`;
     this.delivered = [0, 0];
@@ -63,6 +66,12 @@ export class SurvivalMode extends CombatMode {
     start.y = w.h(start.x, start.z) + 0.3;
     this.placePlayer(start, Math.atan2(-dir.x, -dir.z));
     const allies = Math.floor((n - 1) / 2), enemies = n - allies;
+
+    if (v === "fleet") {   // 함대전: 두 드론 함대는 첫 갱신 때 swarmwar.js 가 띄운다. 맵에는 아이템과 지상 대공 로봇 하나
+      c.scatterPickups(10);
+      c.units.spawn("aa", { pos: c.randomPoint(3, 5, 0.6) });
+      return;
+    }
 
     if (v === "tdm") {
       // 아군 편대: 이름 있는 동료(에이스)가 나를 따라 날다 적을 만나면 교전. 적 편대: 데스매치와 같은 구성 + 지상 전차
@@ -199,7 +208,11 @@ export class SurvivalMode extends CombatMode {
     return best ? best.pos : null;
   }
   // 팀전 승패 (목표 판정): 진행 중엔 앞서는지, 끝나면 이겼는지. 개인전은 없음
-  get teamWin() { return this.variant === "dm" ? undefined : this.state === "done" ? this.won === true : this.team[0] > this.team[1]; }
+  get teamWin() {
+    if (this.variant === "dm") return undefined;
+    if (this.state === "done") return this.won === true;
+    return this.variant === "fleet" && this.swarm ? this.swarm.strength(0) > this.swarm.strength(1) : this.team[0] > this.team[1];
+  }
 
   _onKill(a, k) {
     const h = this.s.hud, me = this.me;
@@ -238,6 +251,11 @@ export class SurvivalMode extends CombatMode {
       const at = live.length ? live[0].pos : this.variant === "tdm" ? _v.copy(this.me.pos).lerp(this.basePos[1], 0.5) : this.basePos ? this.basePos[1] : c.randomPoint(20, 30);
       this.bossA = this.spawnBoss({ ...bc, pos: c.randomPoint(18, 28, 0, at.x, at.z, 30) });
     }
+    const sw = this.swarm;
+    if (this.variant === "fleet" && sw && this.endT < 0) {   // 함대전: 어느 한쪽 함대 전력이 바닥나면 끝
+      if (sw.strength(1) <= 0) { this.fleetEnd = 1; this.endT = 2.5; this.s.hud.toast(`${sw.eName} 전멸!`, "#35ff7a", 2.2, 30); }
+      else if (sw.strength(0) <= 0) { this.fleetEnd = 0; this.endT = 2.5; this.s.hud.toast("아군 함대 전멸…", "#ff6b5a", 2.2, 30); }
+    }
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (this.time >= this.duration) this._end();
   }
@@ -248,6 +266,7 @@ export class SurvivalMode extends CombatMode {
     const TN = this.variant === "tdm" ? TDM_NAME : TEAM_NAME;
     const rows = c.board().sort((x, y) => (this.variant === "tdm" ? x.team - y.team : 0) || y.score - x.score).map((a) => ({ name: a.name + (this.variant === "dm" ? "" : ` · ${TN[a.team]}`), me: a === me, vals: [Math.round(a.score), a.kills, a.deaths] }));
     const board = { cols: ["점수", "격추", "피격추"], rows };
+    if (this.variant === "fleet") return this._endFleet(rec, board);
     if (this.variant === "dm") {
       const rank = (this.rank = 1 + c.board().filter((a) => a !== me && a.score > me.score).length);
       this.finish({
@@ -265,6 +284,20 @@ export class SurvivalMode extends CombatMode {
         lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
       });
     }
+  }
+
+  // 함대전 결과: 함대 전력 · 함대 격추 · 내 격추
+  _endFleet(rec, board) {
+    const sw = this.swarm, me = this.me, sc = Math.round(me.score);
+    const a = sw ? Math.round(sw.strength(0) * 100) : 0, b = sw ? Math.round(sw.strength(1) * 100) : 0;
+    const win = this.fleetEnd !== undefined ? this.fleetEnd === 1 : a > b, draw = this.fleetEnd === undefined && a === b;
+    this.won = win;
+    this.finish({
+      title: win ? "승리!" : draw ? "무승부" : "패배", sub: `${VARIANTS.fleet.name} · 함대 전력 아군 ${a}% : 적 ${b}%`,
+      win, record: rec, stars: win ? (a >= 60 ? 3 : 2) : a > b * 0.7 ? 1 : 0, board,
+      lines: [{ label: "함대 전력 (아군 : 적)", value: `${a}% : ${b}%` }, { label: "함대 격추 (아군 : 적)", value: sw ? `${sw.kills[0]} : ${sw.kills[1]}` : "-" },
+        { label: "내 격추", value: `${me.kills}` }, { label: "내 점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey] || sc}` }],
+    });
   }
 
   // 임무 목표: 거점 / 화물 / 착륙장
@@ -308,6 +341,10 @@ export class SurvivalMode extends CombatMode {
         h.text(`격추 ${me.kills}`, x + pw - 14 * u, y + 46 * u, { size: 13, align: "right", base: "middle", color: "#ffd24a", shadow: false });
         if (board[0] && board[0] !== me) h.text(`1위 ${board[0].name} ${Math.round(board[0].score)}`, x + 6 * u, y + ph + 18 * u, { size: 12, color: "#b4c2d4" });
       }
+    } else if (this.variant === "fleet") {
+      // 함대전: 위 가운데 함대 전력 막대는 swarmwar.js 가 그린다
+      if (full) h.text(`격추 ${me.kills}`, x + 14 * u, y + 46 * u, { size: 13, base: "middle", color: "#ffd24a", shadow: false });
+      if (full && this.swarm) h.text(`함대 격추 ${this.swarm.kills[0]}`, x + pw - 14 * u, y + 46 * u, { size: 12, align: "right", base: "middle", color: "#8cc4ff", shadow: false });
     } else {
       // 팀 점수: 시계 양옆
       const tw = 78 * u, th = 32 * u, ty = L.t + 4 * u;

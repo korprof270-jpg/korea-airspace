@@ -4,6 +4,7 @@ import { Mode } from "./base.js";
 import { Combat, TEAM_COLOR } from "../combat.js";
 import { settings } from "../config.js";
 import { Fleet, fleetWanted } from "../fleet.js";
+import { SwarmWar, swarmWanted } from "../swarmwar.js";
 
 const _v = new THREE.Vector3();
 
@@ -83,10 +84,12 @@ export class CombatMode extends Mode {
     if (this.state !== "countdown") this.combat.update(dt);
     this._fleetTick(dt, this.state === "run");
   }
-  // 대규모 전투의 기함 함대 (fleet.js): 처음 갱신할 때 만든다(모드 설정이 끝난 뒤). 컷신·카운트다운에는 순항만
+  // 대규모 전투의 기함 함대 (fleet.js)와 드론 함대전 (swarmwar.js): 처음 갱신할 때 만든다(모드 설정이 끝난 뒤). 컷신·카운트다운에는 순항만
   _fleetTick(dt, live) {
     if (this.fleet === undefined) this.fleet = fleetWanted(this) ? new Fleet(this) : null;
     if (this.fleet) this.fleet.update(dt, live && !this.cut);
+    if (this.swarm === undefined) this.swarm = swarmWanted(this) ? new SwarmWar(this) : null;
+    if (this.swarm) this.swarm.update(dt, live && !this.cut);
   }
   // 컷신 동안에도 유닛은 제자리 동작(걷기·포탑)을 이어 가되 쏘지는 않는다
   _cutUnits(dt) { this.combat.units.update(dt); this._fleetTick(dt, false); this.s.world.update(0); }
@@ -96,7 +99,7 @@ export class CombatMode extends Mode {
     super.finish(result);
   }
 
-  dispose() { if (this.cargo) this.cargo.dispose(); if (this.fleet) this.fleet.dispose(); this.combat.dispose(); }
+  dispose() { if (this.cargo) this.cargo.dispose(); if (this.fleet) this.fleet.dispose(); if (this.swarm) this.swarm.dispose(); this.combat.dispose(); }
 
   // HUD 목표: 조준·락온 중인 적이 우선, 없으면 임무 목표(각 모드의 missionObjective)
   hudObjective() {

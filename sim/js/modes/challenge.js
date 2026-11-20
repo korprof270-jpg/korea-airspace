@@ -76,7 +76,7 @@ export class ChallengeMode extends CombatMode {
     else if (k && (a.kind === "bot" || a.kind === "turret")) h.feed(`${k.name} ▸ ${a.name}`, "#cfd8e3");
   }
 
-  enemies() { return this.combat.actors.filter((a) => a.alive && a.team === 1 && a.kind === "bot"); }
+  enemies() { return this.combat.actors.filter((a) => a.alive && a.team === 1 && a.kind === "bot" && !a.swarm); }   // 함대전 드론(swarmwar.js)은 임무 적 수에 넣지 않는다
 
   // 바깥에서 들어오는 자리: 지킬 대상(at)에서 dist 쯤 떨어지고, 맵 안이며, 플레이어와도 멀어 갑자기 눈앞에 나타나지 않는 곳.
   // pref(라디안)를 주면 그 방향 근처를 먼저 본다

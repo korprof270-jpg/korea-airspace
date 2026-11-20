@@ -4,8 +4,8 @@ import * as THREE from "../../vendor/three.module.min.js";
 
 const _m = new THREE.Matrix4(), _s = new THREE.Vector3(), _c = new THREE.Color(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
-// parts: [geo, matrix|null, color][] → 정점 색이 든 하나의 지오메트리
-function merge(parts) {
+// parts: [geo, matrix|null, color][] → 정점 색이 든 하나의 지오메트리 (함대전 swarmwar.js 도 쓴다)
+export function merge(parts) {
   let n = 0;
   for (const [g] of parts) n += g.index ? g.index.count : g.attributes.position.count;
   const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), v = new THREE.Vector3(), nm = new THREE.Matrix3(), c = new THREE.Color();
@@ -27,7 +27,7 @@ function merge(parts) {
   out.setAttribute("color", new THREE.BufferAttribute(col, 3));
   return out;
 }
-const T = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
+export const T = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
 
 // 모양: 미니언(작은 쿼드 드론) / 정글 감시자(가시 돋친 팔면체 + 고리)
 const SHAPES = {

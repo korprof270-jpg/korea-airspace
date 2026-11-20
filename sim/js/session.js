@@ -116,6 +116,7 @@ export class Session {
     this.feel.draw(h);
     if (!this.mode.cut) h.drawFlight(this, this.game.dt);   // 보스 컷신 중에는 비행 계기를 숨긴다
     this.mode.hud(h);
+    if (this.mode.swarm) this.mode.swarm.hud(h);   // 드론 함대전: 함대 전력 막대 + 무전
     this._radio(h);
     this._objHud(h);
     h.drawToasts(this.game.dt);

@@ -6,7 +6,7 @@
 //   boss     보스·중간 보스 격파                   truck p  아군 수송함 내구도 p% 이상
 //   core p   아군 코어 내구도 p% 이상             time p   제한 시간의 p% 안에 완료
 //   stars n  평가 별 n개 이상                     keep p   적정 거리 유지 p% 이상 (트래킹)
-//   hp p     끝날 때 기체 내구도 p% 이상
+//   hp p     끝날 때 기체 내구도 p% 이상           fleet p  아군 드론 함대 전력 p% 이상 유지 (함대전 단계)
 
 // 목표 완화: 모든 달성 기준을 원래의 약 70% 수준으로
 //  격추 수·내구도·유지율은 0.7배, 순위·추락 허용은 한 칸 넉넉히, 시간 목표는 남겨야 하는 여유를 0.7배로
@@ -46,6 +46,7 @@ export function objText(o, st) {
     case "stars": return `평가 별 ${o.n}개 이상`;
     case "keep": return `적정 거리 유지 ${o.n}% 이상`;
     case "hp": return `기체 내구도 ${o.n}% 이상 유지`;
+    case "fleet": return `아군 함대 전력 ${o.n}% 이상 유지`;
     default: return o.text || "목표";
   }
 }
@@ -82,6 +83,7 @@ export function metrics(mode, result) {
   m.core = mode.base && mode.base.core ? Math.max(0, mode.base.core.hp) / mode.base.core.maxHp : 1;
   const lim = mode.tlim || mode.limit || mode.duration || 0;
   m.timeFrac = lim ? m.time / lim : 0;
+  m.fleet = mode.swarm ? mode.swarm.strength(0) : 1;   // 드론 함대전(swarmwar.js): 아군 함대 전력
   m.keep = mode.keepRatio !== undefined ? mode.keepRatio : mode.keepT !== undefined ? mode.keepT / Math.max(1, m.time) : 0;
   return m;
 }
@@ -102,6 +104,7 @@ export function judge(o, m) {
     case "stars": return { ok: m.stars >= o.n, final: end };
     case "keep": return { ok: m.keep * 100 >= o.n, final: end, keep: true };
     case "hp": return { ok: m.hp * 100 >= o.n, final: end, keep: true };
+    case "fleet": return { ok: m.fleet * 100 >= o.n, final: end || m.fleet * 100 < o.n, keep: true };
     default: return { ok: false, final: end };
   }
 }
