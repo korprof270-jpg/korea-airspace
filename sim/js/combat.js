@@ -186,6 +186,7 @@ export class Combat {
       ai: { think: 0, target: null, burst: 0, cool: 1 + Math.random(), yaw: 0, pitch: 0, range: o.range || 80, skill: this.diff.bot },
     });
     a.pos.set(x, y + 2.7, z);
+    collider.owner = a;   // 받침에 맞은 탄도 포탑 피해로
     return a;
   }
 
@@ -205,6 +206,7 @@ export class Combat {
     const c2 = this.w.col.addSphere(new THREE.Vector3(x, y + 6.6, z), 2.3, "core");
     const a = this._actor({ name: o.name || "코어", kind: "core", team, model: g, static: true, radius: 3, hp: o.hp || 700, maxHp: o.hp || 700, collider: c1, collider2: c2, orb, rings });
     a.pos.set(x, y + 6.6, z);
+    c1.owner = a; c2.owner = a;   // 기둥·받침에 맞은 탄도 이 코어(지휘소)의 피해로
     return a;
   }
 
@@ -455,7 +457,12 @@ export class Combat {
     return r && r !== o && r.alive && r.targetable ? r : null;
   }
   // a 에서 대상 t 가 보이는지. 대상이 대형 유닛이면 그 유닛 자신의 몸체에는 가리지 않는다
-  _vis(a, t, step = 1.2) { return this.w.col.visible(a, t.pos, step, t.unit || null); }
+  _vis(a, t, step = 1.2) {
+    // 표적 자신의 충돌체(코어·지휘소의 구체, 포탑 몸체 등)는 시야 판정에서 뺀다 — 중심점이 자기 몸 안에 있어 '가려짐'으로 잡히던 문제
+    const c1 = t.collider, c2 = t.collider2, o1 = c1 && c1.off, o2 = c2 && c2.off;
+    if (c1) c1.off = true; if (c2) c2.off = true;
+    try { return this.w.col.visible(a, t.pos, step, t.unit || null); } finally { if (c1) c1.off = o1; if (c2) c2.off = o2; }
+  }
 
   // 명중 지점에 떠오르는 피해 숫자 (가까운 연속 명중은 한 숫자로 합쳐 커진다)
   _pop(pos, amt, kind) {
