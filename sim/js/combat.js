@@ -65,8 +65,9 @@ export class Combat {
     this._sk = 0;                                // > 0: 지금 스킬이 피해를 주는 중 (스킬 탄·미사일은 skl 표시로 이어 받는다)
     this._net = false;                           // 네트워크로 받은 피해를 적용하는 중
     this.lockNeed = 0.7 * Math.max(0.35, 1 + this.L.lock);
-    this.aimRange = 170 * Math.max(0.5, 1 + this.L.range);   // 센서 부품: 조준 보조·락온 거리
-    this.lockRange = this.aimRange * 1.15;   // 미사일 락온(공격) 범위: 조준 보조보다 15% 넓게
+    const sense = 170 * Math.max(0.5, 1 + this.L.range);   // 센서 부품: 조준 보조·락온 거리
+    this.aimRange = sense * 1.1;     // 레이저 조준점(조준 보조) 범위 10% 확대
+    this.lockRange = sense * 1.15;   // 미사일 락온(공격) 범위 15% 확대
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
     this.actors = []; this.shots = []; this.missiles = []; this.pickups = [];
     this.id = 1;
@@ -377,7 +378,7 @@ export class Combat {
       p.fireT = 0.105 / Math.max(0.4, 1 + this.L.rate);   // 레이저 포 부품: 연사 속도
       _d.copy(pl.aimDir);
       // 조준 보정: 조준선 근처의 적에게는 예상 위치로 살짝 끌어당김
-      const t = this._aimTarget(0.075, this.aimRange);
+      const t = this._aimTarget(0.075 * 1.1, this.aimRange);
       if (t && this._vis(pl.aimPos, t)) {
         this._lead(pl.aimPos, t, LASER_SPEED, _a).sub(pl.aimPos).normalize();
         _d.lerp(_a, 0.8).normalize();
@@ -405,7 +406,7 @@ export class Combat {
       if ((p.dryT = (p.dryT || 0) - dt) <= 0) { p.dryT = 0.3; this.feel.emit("dry"); }
     }
     // 조준선에 걸린 적 (HUD 색·조준 효과용)
-    const on = this._aimTarget(0.06, this.aimRange);
+    const on = this._aimTarget(0.06 * 1.1, this.aimRange);
     this.aim = on && this._vis(pl.aimPos, on) ? on : null;
     // 락온
     const cand = this._aimTarget(0.17 * 1.15, this.lockRange);
