@@ -621,11 +621,12 @@ export class UI {
     const s = this.sel, m = MODE_META[s.mode];
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
-    if (s.mode === "survival" && s.variant === "aos") s.map = "stadium";   // 기지전은 스타디움 전용
+    if (s.mode === "survival" && s.variant === "aos" && s.map !== "stadium") { s.mapPrev = s.map; s.map = "stadium"; }   // 기지전은 스타디움 전용 (원래 맵은 기억)
+    else if (s.mode === "survival" && s.map === "stadium") s.map = MAPS[s.mapPrev] && s.mapPrev !== "stadium" ? s.mapPrev : MAP_LIST[0].id;   // 경기장 맵은 기지전 전용: 다른 서바이벌 방식에서는 원래 맵으로
     const map = MAPS[s.map];
     const card = (k, v, on, inner, cls = "") => `<button class="card ${cls} ${on ? "sel" : ""}" data-a="sel" data-k="${k}" data-v="${v}">${inner}</button>`;
     // ① 맵 (모든 모드 공통)
-    const maps = MAP_LIST.map((mp) => {
+    const maps = MAP_LIST.filter((mp) => !(s.mode === "survival" && s.variant !== "aos" && mp.id === "stadium")).map((mp) => {
       const extra = s.mode === "challenge" ? `<div class="tag">임무 ${cmMissions(mp.id).length}</div>` : "";
       return card("map", mp.id, s.map === mp.id, `${this._thumb("map", mp.id)}${extra}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div>`, "mapcard");
     }).join("");
@@ -704,6 +705,8 @@ export class UI {
 
   a_sel(v, el) {
     const k = el.dataset.k;
+    // 기지전에서 다른 방식으로 바꾸면, 기지전 때문에 바뀌었던 경기장 맵을 원래 맵으로 되돌린다
+    if (k === "variant" && this.sel.variant === "aos" && v !== "aos" && this.sel.map === "stadium") this.sel.map = MAPS[this.sel.mapPrev] && this.sel.mapPrev !== "stadium" ? this.sel.mapPrev : MAP_LIST[0].id;
     this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
