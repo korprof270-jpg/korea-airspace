@@ -1,5 +1,6 @@
 // 후처리 파이프라인: 장면(HDR + 깊이) → 블룸(절반 해상도 이하) → 최종 패스(외곽선 + 블룸 합성 + 톤매핑) → FXAA
 // 전체 해상도 패스는 최종 패스와 FXAA 두 번뿐이다. 외곽선은 깊이 버퍼만으로 실루엣과 꺾인 모서리를 찾는다
+// 접지 음영(AO)·대기 산란은 절반 해상도 패스에서 계산하고, 최종 패스가 깊이를 비교하며(양방향) 올려 합친다 → 경계에 번짐 없음
 import * as THREE from "../vendor/three.module.min.js";
 import { FullScreenQuad } from "../vendor/pp/postprocessing/Pass.js";
 import { UnrealBloomPass } from "../vendor/pp/postprocessing/UnrealBloomPass.js";
@@ -29,13 +30,67 @@ export const LOOK = {
 };
 
 const VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }";
+// 음영 세기(x)와 산란 세기(y): 깊이 dc·거리 zc 인 화면 점 uv 에서. texel 은 언제나 전체 해상도 기준이라 반경이 해상도와 무관하다
+const LOOK_GLSL = /* glsl */ `
+vec2 lookAt( vec2 uv, float dc, float zc ) {
+  // 접지·구석 음영: 마주 보는 두 점보다 가운데가 움푹하면(깊이의 2차 차분) 어둡게. 평면에서는 0 이라 바닥에 얼룩이 생기지 않는다
+  float rad = clamp( aoP.x / zc, 2.0, 48.0 ), occ = 0.0;
+  for ( int i = 0; i < 4; i++ ) {
+    float a = 0.3927 + float( i ) * 0.7854;
+    vec2 dir = vec2( cos( a ), sin( a ) ) * texel;
+    for ( int k = 1; k <= 2; k++ ) {
+      vec2 o = dir * rad * float( k ) * 0.5;
+      float da = texture2D( tDepth, uv + o ).x, db = texture2D( tDepth, uv - o ).x;
+      float za = cam.x / ( 1.0 - da + cam.w ), zb = cam.x / ( 1.0 - db + cam.w );
+      float conc = ( 2.0 * dc - da - db ) * zc * zc / cam.x * 0.5;       // 움푹한 정도(m)
+      float keep = step( abs( zc - za ), aoP.y * 3.0 ) * step( abs( zc - zb ), aoP.y * 3.0 );
+      occ += clamp( conc / ( aoP.y * 0.22 * float( k ) ), 0.0, 1.0 ) * keep;
+    }
+  }
+  occ = min( occ / 8.0 * 2.2, 1.0 ) * look.x * ( 1.0 - smoothstep( 90.0, 260.0, zc ) );
+  // 대기 산란: 해 쪽으로 볼수록, 멀수록 햇빛이 번진다
+  vec3 vd = normalize( camRot * vec3( ( uv * 2.0 - 1.0 ) * tanXY, -1.0 ) );
+  float sd = max( dot( vd, sunDir ), 0.0 );
+  return vec2( occ, ( pow( sd, 5.0 ) * 0.6 + pow( sd, 32.0 ) * 0.8 ) * ( 1.0 - exp( -zc / sunCol.a ) ) * look.y );
+}`;
+const UNI = /* glsl */ `
+uniform highp sampler2D tDepth; uniform vec2 texel; uniform vec4 cam; uniform vec4 look; uniform vec3 aoP; uniform mat3 camRot; uniform vec2 tanXY; uniform vec3 sunDir; uniform vec4 sunCol;
+varying vec2 vUv;`;
+// 절반 해상도 패스: (음영, 산란, 이 점의 거리) — 하늘은 음영·산란 0
+// 절반 해상도 픽셀 i 는 전체 해상도 픽셀 2i 의 중심을 정확히 읽는다 (텍셀 경계를 읽으면 깊이가 엇갈려 줄무늬가 생긴다)
+const HALF_FRAG = /* glsl */ `
+${UNI}
+${LOOK_GLSL}
+void main() {
+  vec2 uv = ( floor( gl_FragCoord.xy ) * 2.0 + 0.5 ) * texel;
+  float dc = texture2D( tDepth, uv ).x;
+  float zc = cam.x / ( 1.0 - dc + cam.w );
+  gl_FragColor = dc < 0.99999 ? vec4( lookAt( uv, dc, zc ), zc, 1.0 ) : vec4( 0.0, 0.0, 6.0e4, 1.0 );
+}`;
 const FRAG = /* glsl */ `
-uniform sampler2D tColor; uniform highp sampler2D tDepth; uniform sampler2D tBloom;
-uniform vec2 texel; uniform vec4 cam; uniform vec4 line; uniform vec3 fade; uniform vec3 ink; uniform float exposure, inkMul;
-uniform vec4 look; uniform vec3 aoP; uniform vec3 aoTint; uniform mat3 camRot; uniform vec2 tanXY; uniform vec3 sunDir; uniform vec4 sunCol;
-varying vec2 vUv;
+${UNI}
+uniform sampler2D tColor; uniform sampler2D tBloom; uniform highp sampler2D tLook; uniform vec4 lookRes;
+uniform vec4 line; uniform vec3 fade; uniform vec3 ink; uniform float exposure, inkMul; uniform vec3 aoTint;
 ${TONEMAP_GLSL}
+${LOOK_GLSL}
 vec3 toSRGB( vec3 c ) { return mix( c * 12.92, 1.055 * pow( max( c, 0.0 ), vec3( 0.41666 ) ) - 0.055, step( 0.0031308, c ) ); }
+#ifdef LOOK_HALF
+// 깊이 인식 업샘플: 쌍선형 한 번으로 읽고, 섞인 거리가 이 픽셀과 맞으면 그대로 쓴다(대부분의 픽셀).
+// 안 맞으면(물체 경계) 둘레 2×2 중 거리가 가장 가까운 값 → 음영이 경계 너머로 번지지 않는다
+vec2 lookUp( float zc ) {
+  vec2 p = ( gl_FragCoord.xy - 0.5 ) * 0.5;   // 절반 해상도 텍셀 좌표 (짝수 픽셀은 절반 해상도 값과 정확히 일치)
+  vec4 s = texture2D( tLook, ( p + 0.5 ) * lookRes.zw );
+  if ( abs( s.z - zc ) < 0.03 * zc + 0.05 ) return s.xy;
+  ivec2 b = ivec2( floor( p ) ), m = ivec2( lookRes.xy ) - 1;
+  vec2 best = vec2( 0.0 ); float bd = 1.0e9;
+  for ( int i = 0; i < 4; i++ ) {
+    vec4 t = texelFetch( tLook, clamp( b + ivec2( i - ( i / 2 ) * 2, i / 2 ), ivec2( 0 ), m ), 0 );
+    float dz = abs( t.z - zc );
+    if ( dz < bd ) { bd = dz; best = t.xy; }
+  }
+  return best;
+}
+#endif
 void main() {
   vec3 c = texture2D( tColor, vUv ).rgb;
   #ifdef LOOKFX
@@ -43,26 +98,13 @@ void main() {
     float dc = texture2D( tDepth, vUv ).x;
     if ( dc < 0.99999 ) {
       float zc = cam.x / ( 1.0 - dc + cam.w );
-      // 접지·구석 음영: 마주 보는 두 점보다 가운데가 움푹하면(깊이의 2차 차분) 어둡게. 평면에서는 0 이라 바닥에 얼룩이 생기지 않는다
-      float rad = clamp( aoP.x / zc, 2.0, 48.0 ), occ = 0.0;
-      for ( int i = 0; i < 4; i++ ) {
-        float a = 0.3927 + float( i ) * 0.7854;
-        vec2 dir = vec2( cos( a ), sin( a ) ) * texel;
-        for ( int k = 1; k <= 2; k++ ) {
-          vec2 o = dir * rad * float( k ) * 0.5;
-          float da = texture2D( tDepth, vUv + o ).x, db = texture2D( tDepth, vUv - o ).x;
-          float za = cam.x / ( 1.0 - da + cam.w ), zb = cam.x / ( 1.0 - db + cam.w );
-          float conc = ( 2.0 * dc - da - db ) * zc * zc / cam.x * 0.5;       // 움푹한 정도(m)
-          float keep = step( abs( zc - za ), aoP.y * 3.0 ) * step( abs( zc - zb ), aoP.y * 3.0 );
-          occ += clamp( conc / ( aoP.y * 0.22 * float( k ) ), 0.0, 1.0 ) * keep;
-        }
-      }
-      occ = min( occ / 8.0 * 2.2, 1.0 ) * look.x * ( 1.0 - smoothstep( 90.0, 260.0, zc ) );
-      c = mix( c, c * aoTint, occ );
-      // 대기 산란: 해 쪽으로 볼수록, 멀수록 햇빛이 번진다
-      vec3 vd = normalize( camRot * vec3( ( vUv * 2.0 - 1.0 ) * tanXY, -1.0 ) );
-      float sd = max( dot( vd, sunDir ), 0.0 );
-      c += sunCol.rgb * ( pow( sd, 5.0 ) * 0.6 + pow( sd, 32.0 ) * 0.8 ) * ( 1.0 - exp( -zc / sunCol.a ) ) * look.y;
+      #ifdef LOOK_HALF
+        vec2 lk = lookUp( zc );
+      #else
+        vec2 lk = lookAt( vUv, dc, zc );
+      #endif
+      c = mix( c, c * aoTint, lk.x );
+      c += sunCol.rgb * lk.y;
     }
   }
   #endif
@@ -95,14 +137,21 @@ void main() {
 export class PostFX {
   constructor(renderer, w, h) {
     this.renderer = renderer;
+    // 절반 해상도 음영 버퍼는 반정밀도 부동소수 렌더 타깃이 필요하다. 없으면 예전처럼 최종 패스에서 전체 해상도로 계산
+    const ex = renderer.extensions;
+    this.half = !!(ex && (ex.has("EXT_color_buffer_half_float") || ex.has("EXT_color_buffer_float")));
+    if (this.half) {
+      this.lookRT = new THREE.WebGLRenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
+    }
     this.sceneRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(w, h) });
     this.ldrRT = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.6, 0.9);
     this.bloom.blendToInput = false;
     this.final = new THREE.ShaderMaterial({
-      defines: { OUTLINE: "", LOOKFX: "" }, toneMapped: false, depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FRAG,
+      defines: this.half ? { OUTLINE: "", LOOKFX: "", LOOK_HALF: "" } : { OUTLINE: "", LOOKFX: "" }, toneMapped: false, depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         tColor: { value: this.sceneRT.texture }, tDepth: { value: this.sceneRT.depthTexture }, tBloom: { value: this.bloom.bloomTexture },
+        tLook: { value: this.lookRT ? this.lookRT.texture : null }, lookRes: { value: new THREE.Vector4() },
         texel: { value: new THREE.Vector2(1 / w, 1 / h) }, cam: { value: new THREE.Vector4() }, line: { value: new THREE.Vector4() },
         look: { value: new THREE.Vector4() }, aoP: { value: new THREE.Vector3() }, aoTint: { value: new THREE.Color(0x4a4f78) }, camRot: { value: new THREE.Matrix3() }, tanXY: { value: new THREE.Vector2(1, 1) },
         sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Vector4(0, 0, 0, 300) },
@@ -113,6 +162,9 @@ export class PostFX {
       toneMapped: false, depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FXAAShader.fragmentShader,
       uniforms: { tDiffuse: { value: this.ldrRT.texture }, resolution: { value: new THREE.Vector2(1 / w, 1 / h) } },
     });
+    // 절반 해상도 음영 패스: 최종 패스와 같은 유니폼 객체를 나눠 쓴다
+    if (this.half) this.halfMat = new THREE.ShaderMaterial({ toneMapped: false, depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: HALF_FRAG, uniforms: this.final.uniforms });
+    this._lookRes(w, h);
     this.quad = new FullScreenQuad(this.final);
     this.h = h;
     this.outline = true;
@@ -126,7 +178,15 @@ export class PostFX {
     f.needsUpdate = true;
   }
 
+  _lookRes(w, h) {
+    if (!this.half) return;
+    const lw = Math.ceil(w / 2), lh = Math.ceil(h / 2);
+    this.lookRT.setSize(lw, lh);
+    this.final.uniforms.lookRes.value.set(lw, lh, 1 / lw, 1 / lh);
+  }
+
   setSize(w, h) {
+    this._lookRes(w, h);
     this.sceneRT.setSize(w, h); this.ldrRT.setSize(w, h); this.bloom.setSize(w, h);
     this.final.uniforms.texel.value.set(1 / w, 1 / h);
     this.fxaa.uniforms.resolution.value.set(1 / w, 1 / h);
@@ -161,6 +221,11 @@ export class PostFX {
     u.tanXY.value.set(1 / pe[0], 1 / pe[5]);
     if (lk.sunDir) { u.sunDir.value.copy(lk.sunDir); const sc = lk.sunColor; u.sunCol.value.set(sc.r, sc.g, sc.b, lk.haze ?? 320); }
 
+    if (this.half && "LOOKFX" in f.defines) {
+      this.quad.material = this.halfMat;
+      r.setRenderTarget(this.lookRT);
+      this.quad.render(r);
+    }
     this.quad.material = f;
     r.setRenderTarget(this.ldrRT);
     this.quad.render(r);
@@ -171,6 +236,7 @@ export class PostFX {
 
   dispose() {
     this.sceneRT.depthTexture.dispose(); this.sceneRT.dispose(); this.ldrRT.dispose();
+    if (this.half) { this.lookRT.dispose(); this.halfMat.dispose(); }
     this.bloom.dispose(); this.final.dispose(); this.fxaa.dispose();
   }
 }

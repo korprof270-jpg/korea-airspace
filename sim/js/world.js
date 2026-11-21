@@ -48,8 +48,21 @@ const blobG = (k) => tmpl("blob" + k, () => {
 });
 
 class Batch {
-  constructor() { this.pos = []; this.nor = []; this.col = []; this.uv = []; this.idx = []; this.count = 0; }
+  constructor(key) { this.key = key; this.pos = []; this.nor = []; this.col = []; this.uv = []; this.idx = []; this.count = 0; }
 }
+
+// ── 그림자 전용 덩어리 ──
+// 그림자 깊이 패스는 재질과 상관없이 같은 깊이 셰이더로 그리므로, 그림자를 드리우는 정적 삼각형을 재질 구분 없이
+// 위치만 모아 SHADOW_CELL 칸마다 메시 하나로 만든다. 경계 구가 작아 그림자 카메라(플레이어 주변 ±72~90m) 밖의 칸은 three.js 가 건너뛴다.
+// 화면 패스에서는 그리지 않는다: 재질을 평소엔 visible=false 로 두고, 장면 맨 끝의 훅이 화면용 목록을 다 모은 뒤(그림자 패스 직전) 켠다
+const SHADOW_CELL = 90;
+const TERRAIN_TILES = 4;   // 지형 화면용 조각 수 (T×T)
+class ShadowBatch {
+  constructor() { this.pos = []; this.idx = []; this.count = 0; }
+}
+const _bb = new THREE.Box3();
+const castsShadow = (key) => { const k = key.split(":")[0]; return k !== "glow" && k !== "pool" && k !== "shaft" && k !== "glass" && k !== "shell"; };
+let _wp = new Float32Array(3 * 4096), _remap = new Int32Array(4096);
 
 // 레이싱 게이트 충돌: 끄면 게이트 틀에 부딪히지 않고 그대로 통과한다
 const GATE_COLLIDE = false;
@@ -63,7 +76,9 @@ export class World {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
     this.col = new CollisionWorld();
-    this.batches = new Map();
+    this.batches = new Map();         // 재질키 → Batch (화면용)
+    this.shadowCell = SHADOW_CELL;
+    this.shadowBatches = new Map();   // "ix,iz" → ShadowBatch (그림자 전용)
     this.size = def.size || 300;      // 맵 반경(절반 크기)
     this.ceiling = def.ceiling || 160;
     this.gates = [];
@@ -256,8 +271,9 @@ export class World {
   _add(matKey, geo, matrix, color, uvs, grad) {
     const bb = geo.boundingBox || (geo.computeBoundingBox(), geo.boundingBox), y0 = bb.min.y, yr = Math.max(1e-6, bb.max.y - bb.min.y);
     let b = this.batches.get(matKey);
-    if (!b) this.batches.set(matKey, (b = new Batch()));
+    if (!b) this.batches.set(matKey, (b = new Batch(matKey)));
     const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
+    if (_wp.length < P.count * 3) _wp = new Float32Array(P.count * 3 * 2);
     _n3.getNormalMatrix(matrix);
     _c.set(color);
     const base = b.count;
@@ -265,6 +281,7 @@ export class World {
       const ly = P.getY(i);
       _v.fromBufferAttribute(P, i).applyMatrix4(matrix);
       b.pos.push(_v.x, _v.y, _v.z);
+      _wp[i * 3] = _v.x; _wp[i * 3 + 1] = _v.y; _wp[i * 3 + 2] = _v.z;
       _v.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize();
       b.nor.push(_v.x, _v.y, _v.z);
       const k = grad ? grad[0] + (grad[1] - grad[0]) * ((ly - y0) / yr) : 1;
@@ -283,13 +300,49 @@ export class World {
     if (I) for (let i = 0; i < I.count; i++) b.idx.push(base + I.getX(i));
     else for (let i = 0; i < P.count; i++) b.idx.push(base + i);
     b.count += P.count;
+    if (this.shadowR && castsShadow(matKey)) this._addShadow(_wp, P.count, I, _bb.copy(bb).applyMatrix4(matrix));
+  }
+
+  // 그림자 전용 덩어리에 위치만 넣는다. 한 칸 안에 드는 부품은 통째로, 칸 경계에 걸치는 부품(긴 벽·지형)은 삼각형 무게중심으로 나눈다
+  _addShadow(wp, n, I, box) {
+    const cs = this.shadowCell, S = this.shadowBatches;
+    const ix0 = Math.floor(box.min.x / cs), iz0 = Math.floor(box.min.z / cs), ix1 = Math.floor(box.max.x / cs), iz1 = Math.floor(box.max.z / cs);
+    const sb = (k) => { let b = S.get(k); if (!b) S.set(k, (b = new ShadowBatch())); return b; };
+    if (ix0 === ix1 && iz0 === iz1) {
+      const b = sb(ix0 + "," + iz0), base = b.count;
+      for (let i = 0; i < n * 3; i++) b.pos.push(wp[i]);
+      if (I) for (let i = 0; i < I.count; i++) b.idx.push(base + I.getX(i));
+      else for (let i = 0; i < n; i++) b.idx.push(base + i);
+      b.count += n;
+      return;
+    }
+    if (_remap.length < n) _remap = new Int32Array(n * 2);
+    const cells = new Map(), nt = (I ? I.count : n) / 3;
+    for (let t = 0; t < nt; t++) {
+      const a = I ? I.getX(t * 3) : t * 3, c = I ? I.getX(t * 3 + 1) : t * 3 + 1, d = I ? I.getX(t * 3 + 2) : t * 3 + 2;
+      const k = Math.floor((wp[a * 3] + wp[c * 3] + wp[d * 3]) / 3 / cs) + "," + Math.floor((wp[a * 3 + 2] + wp[c * 3 + 2] + wp[d * 3 + 2]) / 3 / cs);
+      let e = cells.get(k);
+      if (!e) { cells.set(k, (e = [])); }
+      e.push(a, c, d);
+    }
+    for (const [k, tri] of cells) {
+      const b = sb(k);
+      _remap.fill(-1, 0, n);
+      for (const vi of tri) {
+        let r = _remap[vi];
+        if (r < 0) { r = _remap[vi] = b.count++; b.pos.push(wp[vi * 3], wp[vi * 3 + 1], wp[vi * 3 + 2]); }
+        b.idx.push(r);
+      }
+    }
   }
 
   _finalize() {
     const mc = new Map();   // 같은 재질 키(구역만 다른 덩어리)는 재질 하나를 함께 쓴다
-    for (const [key, b] of this.batches) {
-      const g = new THREE.BufferGeometry();
+    for (const b of this.batches.values()) {
+      const key = b.key, g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+      g.computeBoundingSphere();
+      g.boundingSphere.radius += 0.5;   // 바람에 흔들리는 잎 정점 여유
       g.setAttribute("normal", new THREE.Float32BufferAttribute(b.nor, 3));
       g.setAttribute("color", new THREE.Float32BufferAttribute(b.col, 3));
       g.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
@@ -298,19 +351,51 @@ export class World {
       const mesh = new THREE.Mesh(g, mat);
       const kind = key.split(":")[0];
       const fxk = kind === "glow" || kind === "pool" || kind === "shaft";
-      mesh.castShadow = !fxk && kind !== "glass" && kind !== "shell";
+      mesh.castShadow = !this.shadowR && castsShadow(key);   // 그림자는 아래 그림자 전용 덩어리가 맡는다
       mesh.receiveShadow = !fxk;
       if (kind === "glass") mesh.renderOrder = 5;
       if (kind === "pool") mesh.renderOrder = 2;
       if (kind === "shaft") mesh.renderOrder = 6;
-      mesh.frustumCulled = false;
+      mesh.userData.lod = false;
       this.scene.add(mesh);
       this.disposables.push(g); if (fresh) this.disposables.push(mat);
     }
     this.batches.clear();
+    this._finalizeShadow();
     // 지형과 수면이 함께 있으면 물가 거품을 그릴 수 있게 높이를 넘긴다
     if (this.waterMesh && this.heightField) this.disposables.push(linkWaterShore(this.waterMesh, this.heightField, this.waterY));
     this._toonify();
+  }
+
+  _finalizeShadow() {
+    if (!this.shadowBatches.size) return;
+    const mat = (this.shadowMat = new THREE.MeshBasicMaterial({ visible: false }));
+    mat.userData.shadowOnly = true;
+    for (const b of this.shadowBatches.values()) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+      g.setIndex(b.idx);
+      g.computeBoundingSphere();
+      g.boundingSphere.radius += 0.5;
+      const m = new THREE.Mesh(g, mat);
+      m.castShadow = true; m.receiveShadow = false;
+      m.userData.lod = false; m.userData.toonDone = true; m.userData.shadowOnly = true;
+      m.raycast = () => {};
+      this.scene.add(m);
+      this.disposables.push(g);
+    }
+    this.shadowBatches.clear();
+    // 화면용 목록을 모으는 동안엔 꺼 두고, 장면 맨 끝 훅에서 켠다 (WebGLRenderer: 목록 수집 → 그림자 패스 → 그리기 순서)
+    // 훅은 THREE.LOD 로 만든다: 목록 수집 중 LOD.update(camera) 가 불리는 것을 이용
+    const hook = new THREE.LOD();
+    hook.layers.enableAll();
+    hook.update = () => { mat.visible = true; };
+    hook.userData.toonDone = true;
+    this.scene.add(hook);
+    this.shadowHook = hook;
+    const prev = this.scene.onBeforeRender;
+    this.scene.onBeforeRender = (...a) => { mat.visible = false; prev.apply(this.scene, a); };
+    this.disposables.push(mat);
   }
 
   dispose() {
@@ -447,9 +532,31 @@ export class World {
     }
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     const mat = makeTerrainMaterial(o);
-    const m = new THREE.Mesh(g, mat);
-    m.receiveShadow = true; m.castShadow = true;
-    this.scene.add(m);
+    // 그림자는 칸별 그림자 전용 덩어리로 (지형 전체 삼각형을 매 프레임 그림자 패스에 넣지 않게)
+    if (this.shadowR) { g.computeBoundingBox(); this._addShadow(P.array, P.count, g.index, _bb.copy(g.boundingBox)); }
+    // 화면용은 T×T 조각으로 나눠 화면 밖 조각을 건너뛴다. 조각들은 정점 버퍼를 함께 쓰고 인덱스만 따로 가진다(이음매 법선·색이 그대로)
+    const T = TERRAIN_TILES, I = g.index.array, row = seg + 1;
+    for (let ty = 0; ty < T; ty++) for (let tx = 0; tx < T; tx++) {
+      const x0 = Math.floor((tx * seg) / T), x1 = Math.floor(((tx + 1) * seg) / T), y0 = Math.floor((ty * seg) / T), y1 = Math.floor(((ty + 1) * seg) / T);
+      const idx = new (I.constructor)((x1 - x0) * (y1 - y0) * 6);
+      let n = 0;
+      _bb.makeEmpty();
+      for (let iy = y0; iy < y1; iy++) {
+        for (let ix = x0; ix < x1; ix++) { const q = (iy * seg + ix) * 6; for (let k = 0; k < 6; k++) idx[n++] = I[q + k]; }
+        for (let ix = x0; ix <= x1; ix++) _bb.expandByPoint(_v.fromBufferAttribute(P, iy * row + ix));
+      }
+      for (let ix = x0; ix <= x1; ix++) _bb.expandByPoint(_v.fromBufferAttribute(P, y1 * row + ix));
+      const tg = new THREE.BufferGeometry();
+      for (const k of ["position", "normal", "color", "uv"]) tg.setAttribute(k, g.attributes[k]);
+      tg.setIndex(new THREE.BufferAttribute(idx, 1));
+      tg.boundingBox = _bb.clone();
+      tg.boundingSphere = _bb.getBoundingSphere(new THREE.Sphere());
+      const m = new THREE.Mesh(tg, mat);
+      m.receiveShadow = true; m.castShadow = !this.shadowR;
+      m.userData.lod = false;
+      this.scene.add(m);
+      this.disposables.push(tg);
+    }
     this.disposables.push(g, mat);
     this.col.setTerrain((x, z) => hf.at(x, z));
     this.heightField = hf;
