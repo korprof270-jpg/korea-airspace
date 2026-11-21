@@ -91,6 +91,7 @@ export const DIFFICULTY = {
 export const DEFAULTS = {
   stickMode: 2,
   flightMode: "ANGLE",
+  perfHud: false,          // 성능 표시(F3)
   gravityFeel: 0.35,       // 중력 반영 0~1: 중력 세기(최대 1.4배)와 기울일 때 고도 처짐
   hoverThrottle: true,      // 스로틀 스틱 중앙 = 호버 (스프링 복귀 스틱·키보드용)
   invertPitch: false,

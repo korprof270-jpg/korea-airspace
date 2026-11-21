@@ -11,6 +11,7 @@ import { Session } from "./session.js";
 // import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌·PVP 메뉴에서 뺌 (다시 켜려면 이 줄과 survival.js 의 hidden 을 되돌린다)
 import { UI } from "./ui.js";
 import { PadUI } from "./padui.js";
+import { Perf } from "./perf.js";
 import { PostFX } from "./post.js";
 import { MenuScene, Thumbs } from "./menu3d.js";
 import { complete as completeStage } from "./story.js";
@@ -43,6 +44,7 @@ class Game {
     this.fps = 60;
     this.ui = new UI(this);
     this.padui = new PadUI(this);
+    this.perf = new Perf(this);   // 성능 표시·측정 (F3)
     this.input.onPad = (kind, info, was) => { this.padui.onPad(kind, info, was); this._touchLayer(); };   // 연결·해제 때 화면 스틱 다시 판단
     this.applyQuality();
     addEventListener("resize", () => this.resize());
@@ -106,8 +108,11 @@ class Game {
   // 장면 그리기 (후처리 경유)
   draw(scene, camera, bloom = MENU_BLOOM, exposure = 1) {
     this.renderer.toneMappingExposure = exposure;
-    if (!this.composer) { this.renderer.render(scene, camera); return; }
-    this.composer.render(scene, camera, bloom, exposure);
+    const pf = this.perf;
+    if (pf) pf.gpuBegin();
+    if (!this.composer) this.renderer.render(scene, camera);
+    else this.composer.render(scene, camera, bloom, exposure);
+    if (pf) pf.gpuEnd();
   }
 
   touchWanted() {
@@ -195,7 +200,7 @@ class Game {
   // 느림(> 22ms ≈ 45fps 미만): 해상도 15% 낮춤 → 해상도가 바닥(60%)이면 단계 하나 내림
   // 빠름(< 17.5ms, 세 번 연속): 해상도를 10%씩 되돌림. 단계를 올리는 것은 다음 비행부터(맵 세부 묘사가 단계에 따라 만들어지므로)
   _autoQuality(dtMs) {
-    if (!this.autoQ || document.hidden) return;
+    if (!this.autoQ || document.hidden || this._benching) return;   // 성능 측정 중에는 자동 조절을 멈춘다
     const a = this._aq || (this._aq = { skip: 2000, sum: 0, n: 0, ema: 16.7, good: 0 });
     if (!(dtMs > 0) || dtMs > 250) return;             // 탭 전환·멈춤 등은 제외
     if (a.skip > 0) { a.skip -= dtMs; return; }
@@ -234,11 +239,15 @@ class Game {
     this.last = t;
     this.dt = dt;
     this.fps += (1 / dt - this.fps) * 0.05;
-    const s = this.session;
+    const s = this.session, pf = this.perf;
+    pf.frameStart();
     if (s && (this.state === "play" || this.state === "result")) {
       if (this.state === "play" && this.input.take("pause")) { this.pause(); return; }
+      let t0 = performance.now();
       s.update(dt);
+      const t1 = performance.now(); pf.mark("upd", t1 - t0);
       s.render();
+      pf.mark("ren", performance.now() - t1);
       if (this.state === "play") this._autoQuality(t - this._lastT);
     } else if (s && this.state === "pause" && s.cfg.net) {
       // 온라인 경기: 일시정지 메뉴가 떠 있어도 세계는 계속 돈다 (기체는 제자리 비행)
@@ -261,6 +270,7 @@ class Game {
     }
     this.ui.update(dt);
     this.padui.update();
+    pf.frameEnd(t, t - this._lastT);
   }
 }
 
