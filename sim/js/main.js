@@ -84,7 +84,7 @@ class Game {
   // 픽셀 비율 = 단계별 상한 × 자동 해상도 배율
   _pixelRatio() {
     const q = this.q, dpr = window.devicePixelRatio || 1, coarse = matchMedia("(pointer: coarse)").matches;
-    const cap = q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.25 : 1.5) : Math.min(dpr, 2);
+    const cap = q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.5 : 1.75) : Math.min(dpr, 2);   // 먼 곳을 덜 그리는 만큼 해상도를 올림
     const pr = Math.max(0.5, cap * (this.dprScale || 1));
     if (Math.abs(this.renderer.getPixelRatio() - pr) > 0.01) { this.renderer.setPixelRatio(pr); this.resize(); }
   }

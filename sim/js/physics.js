@@ -105,7 +105,9 @@ export class DroneBody {
     const sp = this.spec;
     const mass = sp.mass + this.extraMass;
     const maxThrust = sp.twr * sp.mass * G * this.boost;
-    const hover = clamp((mass * G) / maxThrust, 0.05, 0.95);
+    // 중력 반영(설정 0~100%): 높을수록 중력이 세지고(최대 1.4배) 기울일 때 추력 자동 보정이 줄어 실제 기체처럼 고도가 처진다
+    const gf = clamp(cfg.gravityFeel ?? 0.35, 0, 1), Ge = (this.Ge = G * (1 + 0.4 * gf));
+    const hover = clamp((mass * Ge) / maxThrust, 0.05, 0.95);
     const rates = cfg.rates;
     const cmd = _cmd;
     let thr = 0;
@@ -154,7 +156,7 @@ export class DroneBody {
         else {
           thr = manualThr; this.altTarget = null;
           // 호버 보조가 켜져 있으면 기울인 만큼 추력을 보태 고도가 급히 떨어지지 않게 한다
-          if (cfg.hoverThrottle) { _up.set(0, 1, 0).applyQuaternion(this.quat); if (_up.y > 0.3) thr = Math.min(1, thr / Math.max(_up.y, 0.5)); }
+          if (cfg.hoverThrottle) { _up.set(0, 1, 0).applyQuaternion(this.quat); if (_up.y > 0.3) thr = Math.min(1, thr / (1 - (1 - Math.max(_up.y, 0.5)) * (1 - gf))); }
         }
         this.holdPos = null;
       } else { // LOITER (GPS): 스틱 = 수평 속도, 놓으면 위치 고정
@@ -214,7 +216,7 @@ export class DroneBody {
     const sv = _vb.length();
     _vb.set(-kF * _vb.x * sv, -kT * _vb.y * sv, -kF * _vb.z * sv).applyQuaternion(this.quat);
     _f.add(_vb);
-    _f.y -= mass * G;
+    _f.y -= mass * Ge;
 
     this.accel.copy(_f).multiplyScalar(1 / mass);
     this.vel.addScaledVector(this.accel, dt);
@@ -270,10 +272,10 @@ export class DroneBody {
       const s = (Math.abs(t) - 0.08) / 0.92 * Math.sign(t);
       vzDes = s * (s > 0 ? 9 : 6);
     }
-    const az = clamp((vzDes - this.vel.y) * 4.5, -G * 0.85, G * 2.2);
+    const Ge = this.Ge || G, az = clamp((vzDes - this.vel.y) * 4.5, -Ge * 0.85, Ge * 2.2);
     _up.set(0, 1, 0).applyQuaternion(this.quat);
     const tilt = Math.max(_up.y, 0.35);
-    return clamp((mass * (G + az)) / (maxThrust * tilt), 0, 1);
+    return clamp((mass * (Ge + az)) / (maxThrust * tilt), 0, 1);
   }
 }
 
