@@ -72,6 +72,23 @@ const UI_SND = { back: "back", ovclose: "back", quit: "back", start: "confirm", 
 const PAD_ACTS = [["fire", "레이저"], ["missile", "미사일"], ["skill", "스킬 발동"], ["dodge", "고속 회피"], ["item", "아이템 사용"], ["itemNext", "아이템 교체"],
   ["camera", "시점 전환"], ["modeNext", "비행 모드"], ["reset", "리셋"], ["pause", "일시정지"], ["hud", "HUD 표시 전환"]];
 
+// 패드가 안 잡힐 때 원인 구분용: 브라우저가 실제로 보고하는 내용
+function padDiag() {
+  const out = [];
+  if (!window.isSecureContext) out.push("보안 연결(https)이 아님 → 패드 사용 불가");
+  let inFrame = false; try { inFrame = window.top !== window; } catch (_) { inFrame = true; }
+  if (inFrame) out.push("다른 페이지 안에 끼워진 화면");
+  try { const pp = document.permissionsPolicy || document.featurePolicy; if (pp && pp.allowsFeature && !pp.allowsFeature("gamepad")) out.push("이 페이지에서 패드 기능이 막혀 있음(권한 정책)"); } catch (_) { /* 미지원 */ }
+  if (!navigator.getGamepads) out.push("이 브라우저는 게임패드 기능을 지원하지 않음");
+  else {
+    try {
+      const list = Array.from(navigator.getGamepads() || []).filter(Boolean);
+      out.push(list.length ? `브라우저가 본 장치 ${list.length}개: ${list.map((p) => `${p.id} (축 ${p.axes.length}·버튼 ${p.buttons.length}${p.connected ? "" : "·끊김"})`).join(", ")}` : "브라우저가 본 패드 0개 — 패드 버튼을 눌러도 계속 0개면 기기·브라우저가 패드를 넘겨주지 않는 것");
+    } catch (e) { out.push("패드 목록 읽기 실패: " + (e && e.name || "오류")); }
+  }
+  return out.join(" · ");
+}
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -177,11 +194,12 @@ export class UI {
     const inp = this.game.input, box = this.root.querySelector("#padlive");
     if (!box) return;
     const name = inp.padName || "";
-    if (box.dataset.name !== name || box.dataset.n !== String(inp.padAxes.length)) {
-      box.dataset.name = name; box.dataset.n = String(inp.padAxes.length);
+    const diag = name ? "" : padDiag();
+    if (box.dataset.name !== name || box.dataset.n !== String(inp.padAxes.length) || box.dataset.diag !== diag) {
+      box.dataset.name = name; box.dataset.n = String(inp.padAxes.length); box.dataset.diag = diag;
       box.innerHTML = name
         ? `<div style="font-size:13px;font-weight:700">🎮 ${esc(inp.padInfo ? inp.padInfo.name : "게임패드")} 연결됨</div><div class="muted" style="font-size:12px">${esc(name)}</div><div class="axes">${inp.padAxes.map((_, i) => `<div class="axis">축 ${i}<div class="b"><i data-ax="${i}"></i></div></div>`).join("")}</div>`
-        : `<div class="muted">연결된 게임패드/조종기가 없습니다. USB·블루투스로 연결한 뒤 아무 버튼이나 눌러 보세요.</div>`;
+        : `<div class="muted">연결된 게임패드/조종기가 없습니다. USB·블루투스로 연결한 뒤 아무 버튼이나 눌러 보세요.</div><div class="muted" style="font-size:11.5px;margin-top:6px">진단: ${esc(diag)}</div>`;
     }
     box.querySelectorAll("[data-ax]").forEach((el) => { el.style.left = `${(inp.padAxes[+el.dataset.ax] * 0.5 + 0.5) * 100}%`; });
   }
