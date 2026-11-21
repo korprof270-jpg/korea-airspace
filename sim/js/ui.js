@@ -1125,6 +1125,7 @@ export class UI {
           <div class="hint">${sm.desc}. 키보드는 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> = 왼쪽 스틱, 방향키 = 오른쪽 스틱입니다.</div></div>
         <div class="opt"><label>비행 모드</label>${this.seg("flightMode", FLIGHT_MODES.map((m) => [m, FLIGHT_MODE_INFO[m].label]), settings.flightMode, "set")}
           <div class="hint"><b>${FLIGHT_MODE_INFO[settings.flightMode].ko}</b> — ${FLIGHT_MODE_INFO[settings.flightMode].desc}. 비행 중 <kbd>1</kbd>~<kbd>5</kbd> 또는 <kbd>M</kbd> 으로 전환.</div></div>
+        ${this.pct("gravityFeel", "중력 반영", 0, 1, 0.05, "높일수록 중력이 세지고, 기울여 전진할 때 고도가 처져 스로틀을 더 올려야 합니다(실제 비행에 가깝게). 0%는 예전처럼 쉬운 조작")}
         ${this.toggle("hoverThrottle", "스로틀 중앙 = 호버", "켜면 스틱 중앙에서 제자리 비행 추력이 됩니다(키보드·게임패드용). 스로틀이 고정되는 실제 RC 조종기는 끄세요.")}
         ${this.toggle("invertPitch", "피치 반전")}
         <div class="opt"><label>자동 사격</label>${this.seg("autoFire", [["off", "끄기"], ["touch", "터치·패드일 때"], ["on", "항상"]], settings.autoFire, "set")}

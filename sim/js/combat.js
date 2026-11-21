@@ -66,6 +66,7 @@ export class Combat {
     this._net = false;                           // 네트워크로 받은 피해를 적용하는 중
     this.lockNeed = 0.7 * Math.max(0.35, 1 + this.L.lock);
     this.aimRange = 170 * Math.max(0.5, 1 + this.L.range);   // 센서 부품: 조준 보조·락온 거리
+    this.lockRange = this.aimRange * 1.15;   // 미사일 락온(공격) 범위: 조준 보조보다 15% 넓게
     this.diff = DIFFICULTY[session.cfg.difficulty || settings.difficulty] || DIFFICULTY.normal;
     this.actors = []; this.shots = []; this.missiles = []; this.pickups = [];
     this.id = 1;
@@ -330,7 +331,11 @@ export class Combat {
     glow.position.z = -0.9; mesh.add(glow); mesh.userData.glow = glow; mesh.userData.col = mcol;
     mesh.position.copy(origin);
     this.w.scene.add(mesh);
-    this.missiles.push({ pos: origin.clone(), vel: dir.clone().multiplyScalar(45).add(a.vel), target, life: 5.5, owner: a, dmg, mesh, speed: 50, lost: 0, skl: this._sk > 0 });
+    // 유도하지 않는다: 쏘는 순간 표적이 갈 자리(예측 지점)를 향해 방향을 잡고, 그 궤도로 곧게 날아간다
+    const fly = dir.clone().normalize();
+    if (target && target.alive) { this._lead(origin, target, 62, _c).sub(origin); if (_c.lengthSq() > 1) fly.copy(_c.normalize()); }
+    const v0 = 45 + Math.max(0, a.vel.dot(fly));
+    this.missiles.push({ pos: origin.clone(), vel: fly.clone().multiplyScalar(v0), target, life: 5.5, owner: a, dmg, mesh, speed: v0, lost: 1, skl: this._sk > 0 });
     if (this.h.onMissile) this.h.onMissile(a, target);
     this.snd.play("missile", a.isPlayer ? (quiet ? 0.45 : 1) : this.volAt(origin), a.isPlayer ? 0 : this.panAt(origin), quiet ? 1.3 : 1);
     if (a.isPlayer && !quiet) this.feel.emit("missile");
@@ -403,7 +408,7 @@ export class Combat {
     const on = this._aimTarget(0.06, this.aimRange);
     this.aim = on && this._vis(pl.aimPos, on) ? on : null;
     // 락온
-    const cand = this._aimTarget(0.17, this.aimRange);
+    const cand = this._aimTarget(0.17 * 1.15, this.lockRange);
     if (cand && cand === this.lock && this._vis(pl.aimPos, cand)) {
       const was = this.lockT < 0.7;
       this.lockT += dt;
@@ -444,7 +449,7 @@ export class Combat {
     dir.normalize();
     b.vel.addScaledVector(dir, DODGE.push);
     // 나를 노리던 가까운 미사일은 표적을 잃는다
-    for (const m of this.missiles) if (m.target === p && m.pos.distanceTo(p.pos) < 90) { m.target = null; m.lost = 1; }
+    for (const m of this.missiles) if (m.target === p) { m.target = null; m.lost = 1; m.dodged = p; }
     this.snd.play("whoosh", 1); this.snd.play("boost", 0.6);
     this.fx.ring(p.pos, 0x7fe6ff, 4, 0.35);
     this.feel.emit("item", 1, "dodge");
@@ -756,6 +761,10 @@ export class Combat {
       m.speed = Math.min(atMe ? 58 : 80, m.speed + (atMe ? 22 : 36) * dt);
       _a.copy(m.vel).normalize();
       const t = m.target;
+      if (t && t.alive && t.isPlayer && m.target) {   // 나를 향해 오는 미사일: 경고만 (유도는 없음)
+        const d = m.pos.distanceTo(t.pos);
+        if (_b.copy(t.pos).sub(m.pos).dot(_a) > 0) { this.warn = Math.max(this.warn, 0.3); if (d < wd) wd = d; }
+      }
       if (t && t.alive && m.lost < 0.35) {
         this._lead(m.pos, t, m.speed, _b).sub(m.pos);
         const d = _b.length();
@@ -779,7 +788,7 @@ export class Combat {
       this.w.col.skip = null;
       let boom = m.life <= 0 || !!hc, direct = null;
       for (const o of this.actors) {
-        if (!o.alive || !o.targetable || !this.hostile(m.owner, o)) continue;
+        if (!o.alive || !o.targetable || !this.hostile(m.owner, o) || o === m.dodged) continue;
         if (o.pos.distanceTo(m.pos) < (m.owner.isPlayer ? o.radius * hb(o) : o.radius) + 1.6) { boom = true; direct = o; break; }
       }
       if (!direct && hc && hc.owner) { const tgt = this._bodyTarget(hc.owner); if (tgt && this.hostile(m.owner, tgt)) direct = tgt; }   // 선체·몸통에 직격
@@ -789,7 +798,7 @@ export class Combat {
         this._blast(m.pos, 1.3);
         if (direct && m.owner && m.owner.isPlayer && (this.ffa || m.owner.team !== direct.team)) this._mHit = true;
         this._sk += m.skl ? 1 : 0;
-        try { if (direct) this.damage(direct, m.dmg, m.owner, m.pos); this.splash(m.pos, 7, m.dmg * 0.5, m.owner, direct); } finally { this._sk -= m.skl ? 1 : 0; }
+        try { if (direct) this.damage(direct, m.dmg, m.owner, m.pos); this.splash(m.pos, m.owner && m.owner.isPlayer ? 8 : 7, m.dmg * 0.5, m.owner, direct); } finally { this._sk -= m.skl ? 1 : 0; }
         this.w.scene.remove(m.mesh); m.mesh.userData.glow.material.dispose();
         this.missiles.splice(i, 1);
       }

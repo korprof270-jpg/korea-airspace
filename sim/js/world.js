@@ -54,6 +54,8 @@ class Batch {
 // 레이싱 게이트 충돌: 끄면 게이트 틀에 부딪히지 않고 그대로 통과한다
 const GATE_COLLIDE = false;
 
+const _lodV = new THREE.Vector3();
+
 export class World {
   constructor(def, quality = "med", renderer = null) {
     this.def = def;
@@ -86,6 +88,46 @@ export class World {
     sc.add = (...objs) => { this._toonDirty = true; return add(...objs); };
     def.build(this);
     this._finalize();
+    this._lodInit();
+  }
+
+  // ── 거리별 상세도 ──
+  // 맵에 깔린 작은 소품(반경 몇 m 짜리)은 가까이(약 100m 안)에서만 그리고, 중간 크기 구조물은 더 멀리까지, 큰 지형·건물은 항상 그린다.
+  // 숨길 때는 visible 대신 레이어를 끈다(다른 코드가 visible 을 따로 다뤄도 충돌하지 않게). 그림자도 같이 빠진다
+  _lodInit() {
+    const q = this.quality, far = { low: [85, 200], med: [115, 300], high: [150, 420] }[q] || [115, 300];
+    this.lodFar = far;
+    this.lodList = [];
+    const maxAniso = this.renderer ? Math.min(q === "low" ? 1 : q === "med" ? 4 : 8, this.renderer.capabilities.getMaxAnisotropy()) : 1;
+    const texSeen = new Set();
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse((o) => {
+      // 비스듬히 보이는 바닥·벽 무늬가 뭉개지지 않게 이방성 필터
+      const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      for (const m of mats) for (const k of ["map", "normalMap", "roughnessMap", "emissiveMap"]) { const t = m[k]; if (t && !texSeen.has(t) && maxAniso > 1) { texSeen.add(t); t.anisotropy = maxAniso; t.needsUpdate = true; } }
+      if (!o.isMesh || o.userData.lod === false || !o.visible) return;
+      let sph;
+      if (o.isInstancedMesh) { if (!o.boundingSphere) o.computeBoundingSphere(); sph = o.boundingSphere; }
+      else { const g = o.geometry; if (!g) return; if (!g.boundingSphere) g.computeBoundingSphere(); sph = g.boundingSphere; }
+      if (!sph || !isFinite(sph.radius)) return;
+      const sc = o.matrixWorld.getMaxScaleOnAxis(), r = sph.radius * sc;
+      const lim = r < 5 ? far[0] : r < 14 ? far[1] : 0;
+      if (!lim) return;
+      this.lodList.push({ o, c: sph.center, r, lim2: (lim + r) * (lim + r), off: false });
+    });
+    this._lodI = 0;
+  }
+  _lodTick(cam) {
+    const L = this.lodList;
+    if (!L || !L.length) return;
+    const p = cam.position, n = Math.min(L.length, 400);   // 한 프레임에 일부씩 (전체를 몇 프레임에 걸쳐 한 바퀴)
+    for (let k = 0; k < n; k++) {
+      const e = L[this._lodI = (this._lodI + 1) % L.length], o = e.o;
+      _lodV.copy(e.c).applyMatrix4(o.matrixWorld);
+      const d2 = _lodV.distanceToSquared(p);
+      const hide = e.off ? d2 > e.lim2 * 0.85 : d2 > e.lim2 * 1.0;   // 경계에서 깜박이지 않게 약간의 여유
+      if (hide !== e.off) { e.off = hide; if (hide) o.layers.disable(0); else o.layers.enable(0); }
+    }
   }
 
   h(x, z) { return this.col.height(x, z); }
@@ -114,7 +156,7 @@ export class World {
     this.sun = sun;
     if (this.quality !== "low" && !e.noShadow) {
       sun.castShadow = true;
-      const s = sun.shadow, hi = this.quality === "high", R = hi ? 110 : 85;
+      const s = sun.shadow, hi = this.quality === "high", R = hi ? 90 : 72;   // 가까운 곳 그림자를 더 선명하게 (먼 곳은 거리별 상세도로 덜 그린다)
       s.mapSize.set(hi ? 4096 : 2048, hi ? 4096 : 2048);
       s.camera.left = -R; s.camera.right = R; s.camera.top = R; s.camera.bottom = -R;
       s.camera.near = 10; s.camera.far = 600;
@@ -125,6 +167,7 @@ export class World {
 
   // 그림자·하늘을 카메라에 맞춰 이동 (그림자 떨림을 줄이려 텍셀 단위로 스냅)
   follow(cam, focus) {
+    this._lodTick(cam);
     let fx = focus.x, fy = focus.y, fz = focus.z;
     if (this.shadowR) { const t = (this.shadowR * 2) / this.shadowRes * 4; fx = Math.round(fx / t) * t; fy = Math.round(fy / t) * t; fz = Math.round(fz / t) * t; }
     this.sun.target.position.set(fx, fy, fz);
@@ -211,13 +254,13 @@ export class World {
   // 템플릿 지오메트리를 변환해 재질 배치에 추가
   // uvs: 박스 면별 UV 배율 [sx,sy,sz]/타일 또는 [su, sv]. grad: [아래, 위] 밝기(높이 그라디언트·접지 음영)
   _add(matKey, geo, matrix, color, uvs, grad) {
+    const bb = geo.boundingBox || (geo.computeBoundingBox(), geo.boundingBox), y0 = bb.min.y, yr = Math.max(1e-6, bb.max.y - bb.min.y);
     let b = this.batches.get(matKey);
     if (!b) this.batches.set(matKey, (b = new Batch()));
     const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
     _n3.getNormalMatrix(matrix);
     _c.set(color);
     const base = b.count;
-    const bb = geo.boundingBox || (geo.computeBoundingBox(), geo.boundingBox), y0 = bb.min.y, yr = Math.max(1e-6, bb.max.y - bb.min.y);
     for (let i = 0; i < P.count; i++) {
       const ly = P.getY(i);
       _v.fromBufferAttribute(P, i).applyMatrix4(matrix);
@@ -243,6 +286,7 @@ export class World {
   }
 
   _finalize() {
+    const mc = new Map();   // 같은 재질 키(구역만 다른 덩어리)는 재질 하나를 함께 쓴다
     for (const [key, b] of this.batches) {
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
@@ -250,7 +294,7 @@ export class World {
       g.setAttribute("color", new THREE.Float32BufferAttribute(b.col, 3));
       g.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
       g.setIndex(b.idx);
-      const mat = this._material(key);
+      const fresh = !mc.has(key), mat = fresh ? mc.set(key, this._material(key)).get(key) : mc.get(key);
       const mesh = new THREE.Mesh(g, mat);
       const kind = key.split(":")[0];
       const fxk = kind === "glow" || kind === "pool" || kind === "shaft";
@@ -261,7 +305,7 @@ export class World {
       if (kind === "shaft") mesh.renderOrder = 6;
       mesh.frustumCulled = false;
       this.scene.add(mesh);
-      this.disposables.push(g, mat);
+      this.disposables.push(g); if (fresh) this.disposables.push(mat);
     }
     this.batches.clear();
     // 지형과 수면이 함께 있으면 물가 거품을 그릴 수 있게 높이를 넘긴다

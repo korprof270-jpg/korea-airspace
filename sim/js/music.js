@@ -75,13 +75,16 @@ for (const m of Object.values(MOODS)) {
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
+const LOOKAHEAD = 1.5;   // 초: 미리 예약하는 길이
+
 export class Music {
   constructor(sound) {
     this.sound = sound;
     this.theme = null; this.want = "menu";
     this.step = 0; this.next = 0;
     this.amb = [];
-    setInterval(() => this._tick(), 80);
+    // 음악 예약: 게임 프레임이 무거워 타이머가 늦게 와도 끊기지 않도록 약 1.5초 앞까지 미리 예약한다
+    setInterval(() => this._tick(), 100);
   }
 
   setTheme(id) { this.want = THEMES[id] ? id : "menu"; }
@@ -186,8 +189,9 @@ export class Music {
     if (settings.musicVolume <= 0.01 || settings.mute || !tgt) { if (this.theme) { this._fadeOut(tgt ? 0.2 : 0.8); this.theme = null; } return; }
     if (tgt !== this.theme) this._start(tgt);
     const now = s.ctx.currentTime;
-    if (this.next < now - 0.5) this.next = now + 0.05;
-    while (this.next < now + 0.25) { this._play(this.step, this.next); this.step++; this.next += this.spb; }
+    if (this.next < now - 1.5) this.next = now + 0.05;          // 아주 오래 멈췄을 때(탭 숨김 등)만 건너뛴다
+    else if (this.next < now) this.next = now + 0.02;            // 조금 늦었으면 박자를 잃지 않고 바로 이어서
+    while (this.next < now + LOOKAHEAD) { this._play(this.step, this.next); this.step++; this.next += this.spb; }
   }
 
   _play(step, t0) {
