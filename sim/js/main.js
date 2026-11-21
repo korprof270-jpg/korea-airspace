@@ -1,5 +1,6 @@
 // 부트스트랩: 렌더러·입력·사운드·UI 를 만들고 메뉴 ↔ 게임 상태를 관리
 import "./rotate.js";
+import "./nativepad.js";   // 안드로이드 앱: 앱이 넘겨주는 패드 입력을 Gamepad API 로
 import * as THREE from "../vendor/three.module.min.js";
 import { settings, save, QUALITY_NAMES } from "./config.js";
 import { Input } from "./input.js";

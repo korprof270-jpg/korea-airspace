@@ -27,6 +27,9 @@ jobs:
           npm install --no-audit --no-fund
           npm run pack-web
           npx cap add android
+          # 게임패드 다리: 웹뷰가 Gamepad API 를 지원하지 않아 앱이 패드 입력을 직접 넘겨준다
+          MA=$(find android/app/src/main/java -name MainActivity.java | head -1)
+          cp native/MainActivity.java "$MA"
           # 가로 화면 고정 + 화면 켜짐 유지
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' $M
