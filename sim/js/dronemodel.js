@@ -273,6 +273,7 @@ export function buildDrone(look, scale = 1, opts = {}) {
     for (const f of partTicks) f(dt, time);
   };
   root.userData.tail = tail;
+  if (!opts.parts) root.userData.anim = props.map((p) => p.hub);   // 따로 움직이는 노드 (mergemodel.js 가 나머지 부품을 합친다)
   root.userData.dispose = () => {
     root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     for (const m of [frameMat, accentMat, darkMat, propMat, discMat, ledMat, lensMat, ...extraMats]) m.dispose();

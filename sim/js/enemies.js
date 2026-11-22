@@ -636,6 +636,7 @@ export function buildJet(color) {
   const fl = cyl(g, 0.3, 0.05, 1.4, fire, 0, 0, 2.9, 8); fl.rotation.x = -Math.PI / 2;
   g.scale.setScalar(1.25);
   g.userData.tick = (dt, thr, t) => { fl.scale.set(1, 0.7 + thr * 0.9 + Math.sin(t * 60) * 0.1, 1); };
+  g.userData.anim = [fl];
   g.userData.dispose = () => {};
   return g;
 }

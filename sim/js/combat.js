@@ -1,6 +1,7 @@
 // 전투 시스템: 액터(플레이어·AI 드론·포탑·코어·호송 차량), 레이저·미사일, 아이템, 피해·격추, 전투 HUD
 import * as THREE from "../vendor/three.module.min.js";
 import { buildDrone, botLook } from "./dronemodel.js";
+import { mergeStatic } from "./mergemodel.js";
 import { DIFFICULTY, settings, clamp } from "./config.js";
 import { Units, buildJet } from "./enemies.js";
 import { factionModel } from "./factions.js";
@@ -144,6 +145,7 @@ export class Combat {
     if (enemy && this.s.cfg.faction === "ail") Object.assign(look, { frame: kind === "gunship" || kind === "boss" ? "hexa" : "tri", canopy: "pod", skin: "solid", frameColor: "#1c0d33", propColor: "#c060ff", ledColor: "#e0b0ff", ledMode: "blink" });
     const fm = enemy && this.s.cfg.faction ? factionModel(this.s.cfg.faction, kind, rk ? rk.color : 0xff2d3d) : null;   // 진영 외형 (기계 병기 / 외계 생명체)
     const model = fm || (K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff }));   // 4팀전: 고리는 팀 색, 포인트는 계급 색
+    mergeStatic(model);   // 부품을 재질별로 합쳐 그리기 호출을 줄인다 (움직이는 부품은 그대로)
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
     const a = this._actor({
