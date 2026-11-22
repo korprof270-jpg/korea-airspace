@@ -190,7 +190,7 @@ function ruleCard(m, h) {
   const a = m.state === "countdown" ? 1 : Math.min(1, m.ruleT);
   h.fade(a);
   const lines = [["승리 조건 (셋 중 하나)", "#ffd24a"], ["① 적 본진(코어) 파괴 — 즉시 승리", "#fff"], [`② 팀 전장 점수 ${m.goal}점 먼저 달성 — 즉시 승리`, "#fff"], ["③ 시간 종료 — 전장 점수가 높은 팀 승리", "#fff"],
-    ["전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 보스 +5 · 정글 캠프 +1", "#9fe8ff"], ["ⓟ(정글·상자·미니언)로 기지에서 업그레이드 · 적 기지는 방어 포탑부터", "#b4c2d4"]];
+    ["전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 보스 +5 · 감시자 캠프 +2", "#9fe8ff"], ["ⓟ(감시자·상자·미니언)로 기지에서 업그레이드 · 적 기지는 방어 포탑부터", "#b4c2d4"]];
   h.plate(x, y, w, 40 * u + lh * lines.length, { accent: "#ff3ad6", skew: 0.03 });
   h.text("기지전 — 이렇게 이깁니다", x + 18 * u, y + 20 * u, { size: 14, base: "middle", color: "#ff8ae6", shadow: false });
   lines.forEach(([t, c], i) => h.text(t, x + 22 * u, y + 44 * u + i * lh, { size: i >= 4 ? 12 : 14, base: "middle", color: c, shadow: false }));
