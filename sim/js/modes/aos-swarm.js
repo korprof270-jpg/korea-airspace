@@ -1,4 +1,4 @@
-// 기지전: 미니언·정글 몬스터를 인스턴싱으로 한꺼번에 그린다 (수십 대가 날아도 그리기 호출 2~3회)
+// 기지전: 미니드론·정글 몬스터를 인스턴싱으로 한꺼번에 그린다 (수십 대가 날아도 그리기 호출 2~3회)
 // 전투 시스템에는 빈 Object3D(대리 모델)를 넘기고, 매 프레임 그 위치·자세·크기를 인스턴스 행렬로 옮긴다
 import * as THREE from "../../vendor/three.module.min.js";
 
@@ -29,7 +29,7 @@ export function merge(parts) {
 }
 export const T = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
 
-// 모양: 미니언(작은 쿼드 드론) / 정글 감시자(가시 돋친 팔면체 + 고리)
+// 모양: 미니드론(작은 쿼드 드론) / 정글 감시자(가시 돋친 팔면체 + 고리)
 const SHAPES = {
   minion() {
     const body = [], glow = [];

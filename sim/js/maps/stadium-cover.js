@@ -1,6 +1,6 @@
 // 드론 리그 스타디움 — 엄폐물: 라인 옆 에너지 방벽(마디마다 틈) · 라인 가장자리 장갑 격벽 · 타워 곁 엄폐 블록 · 정글 캠프를 감싸는 벽(네 갈래 길목)
 //  · 시야를 끊는 높은 기둥 · 라인을 가로지르는 고가 다리. 배치는 청 쪽 반만 만들고 원점 대칭(x, z → -x, -z)으로 홍 쪽에 똑같이 둔다
-//  · 라인 중심(미니언 길) · 타워 · 빛 고리 · 캠프 자리 · 숨은 상자 · 기지 · 보스 구덩이 · 센터 서킷 고리 길은 비워 둔다 (fits)
+//  · 라인 중심(미니드론 길) · 타워 · 빛 고리 · 캠프 자리 · 숨은 상자 · 기지 · 보스 구덩이 · 센터 서킷 고리 길은 비워 둔다 (fits)
 //  조각: { k, x, z, ry(도, 길이 방향 = 로컬 +z), L(길이), T(두께), H(높이), y0(바닥에서 띄운 높이), team(0 청 쪽 · 1 홍 쪽) }
 import { BASES, BASE_R, LANES, TOWERS, CAMPS, CACHES, PIT, RING_R, along, laneLength, laneDist, laneHoops, DEG,
   CYAN, MAG, AMB, VIO, TB, TR, DARK, DARK2, STEEL, PANEL } from "./stadium-kit.js";
