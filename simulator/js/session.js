@@ -120,47 +120,83 @@
     if (SIM.ui && SIM.ui.ACT_go) SIM.ui.ACT_go("hw");
   }
 
-  // ----- 완료 -----
+  // ----- 종료: 교육생은 기록을 관리자 저장소로 보내고 끝 (결과는 보여주지 않는다) -----
+  const PEND = "drone-sim-pending";
   S.finish = function () {
     if (!S.running) return;
-    const errs = SIM.hardwareCheck().filter((i) => i.lvl === "bad").length, pre = SIM.prearm(0);
-    $("#finish-card").innerHTML = '<h2>정비를 마치고 기록할까요?</h2><p class="muted">' + esc(S.name) + " · " + dateStr(new Date()) + '</p><p class="bigtime">' + fmt(elapsed()) + '</p><p class="muted">기록하면 결과는 엑셀 파일로만 확인할 수 있습니다.</p><div class="btns">' +
-      '<button type="button" class="btn primary" data-act="sessionConfirm">완료 기록 · 엑셀 저장</button><button type="button" class="btn ghost" data-act="sessionCancel">계속 작업하기</button></div>';
+    $("#finish-card").innerHTML = '<h2>실습을 종료할까요?</h2><p class="muted">' + esc(S.name) + " · " + dateStr(new Date()) + '</p><p class="bigtime">' + fmt(elapsed()) + '</p><p class="muted">종료하면 기록이 관리자에게 자동으로 전송됩니다.</p><div class="btns">' +
+      '<button type="button" class="btn primary" data-act="sessionConfirm">종료</button><button type="button" class="btn ghost" data-act="sessionCancel">계속 작업하기</button></div>';
     $("#finish").hidden = false;
   };
+  async function sendPending() { // 전송하지 못한 기록을 다시 보낸다
+    const pend = load(PEND, []); if (!pend.length) return 0;
+    const left = []; for (const r of pend) if (!(await shareRecord(r))) left.push(r);
+    save(PEND, left); return left.length;
+  }
   async function confirmFinish() {
     const end = new Date(), sec = Math.round(elapsed()), startD = new Date(S.startAt);
     const issues = issueList(), errs = issues.filter((i) => i.level === "오류").length, pre = SIM.prearm(0);
     const rec = { issues, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), date: dateStr(end), name: S.name, seconds: sec, time: fmt(sec), start: timeStr(startD), end: timeStr(end), errors: errs, prearm: pre.length ? "불가 (" + pre.length + "건)" : "통과" };
     S.running = false; S.final = sec; persist();
     const recs = load(REC, []); recs.push(rec); save(REC, recs);
-    const shared = await shareRecord(rec);
-    const rows = await recordsOf(rec.date);
-    S.lastFile = workbook(rec.date, rows);
-    const how = await offerFile(S.lastFile);
-    renderResult(rec, rows, shared, how);
+    const sent = await shareRecord(rec);
+    if (!sent) { const pend = load(PEND, []); pend.push(rec); save(PEND, pend); }
+    $("#finish-card").innerHTML = "<h2>" + (sent ? "수고하셨습니다" : "기록을 아직 보내지 못했습니다") + "</h2><p>" + esc(rec.name) + " · " + rec.date + " · 소요 시간 <b>" + rec.time + "</b></p><p class=\"muted\">" +
+      (sent ? "기록이 관리자에게 전송되었습니다." : "이 기기에 보관해 두었다가 다음에 페이지를 열 때 다시 보냅니다. 관리자에게 알려 주세요.") + '</p><div class="btns">' + (sent ? "" : '<button type="button" class="btn" data-act="sessionRetry">다시 보내기</button>') + '<button type="button" class="btn primary" data-act="sessionNew">처음 화면으로</button></div>';
   }
-  function renderResult(rec, rows, shared, how) {
-    const msg = how === "saved" ? S.lastFile.filename + " 파일을 저장했습니다." : how === "declined" ? "파일 저장을 취소했습니다. 아래 버튼으로 다시 저장할 수 있습니다." : "이 화면에서는 파일을 저장할 수 없습니다.";
-    $("#finish-card").innerHTML = "<h2>기록되었습니다</h2><p>" + esc(rec.name) + " · " + rec.date + " · 소요 시간 <b>" + rec.time + '</b></p><p class="muted">' + esc(msg) + (shared ? " 공유 기록에도 저장했습니다." : "") + '</p><h4>' + rec.date + ' 기록</h4><div class="tblwrap"><table class="tbl"><thead><tr>' + COLS.filter(([k]) => ["name", "time", "start", "end"].includes(k)).map(([, n]) => "<th>" + n + "</th>").join("") + "</tr></thead><tbody>" +
-      rows.map((r) => "<tr>" + COLS.filter(([k]) => ["name", "time", "start", "end"].includes(k)).map(([k]) => "<td>" + esc(r[k]) + "</td>").join("") + "</tr>").join("") + '</tbody></table></div><div class="btns"><button type="button" class="btn" data-act="sessionSaveAgain">엑셀 다시 저장</button><button type="button" class="btn primary" data-act="sessionNew">새 교육생 시작</button></div>';
+
+  // ----- 관리자: 기록 보기와 엑셀 내려받기 (이 페이지의 소유자·편집자에게만 보임) -----
+  async function allRecords() {
+    const db = await getDb(); let out = [];
+    if (db) { try { const snap = await db.collection("records").get(); snap.docs.forEach((d) => (out = out.concat((d.data() || {}).runs || []))); } catch (e) { return null; } }
+    const seen = new Set(); return out.filter((r) => r && !seen.has(r.id) && seen.add(r.id)).sort((a, b) => (a.date + a.end < b.date + b.end ? 1 : -1));
+  }
+  let adminRows = [], adminDate = "";
+  async function openAdmin() {
+    $("#finish").hidden = false; $("#finish-card").innerHTML = "<h2>기록 관리</h2><p class=\"muted\">불러오는 중…</p>";
+    const rows = await allRecords();
+    if (!rows) { $("#finish-card").innerHTML = '<h2>기록 관리</h2><p class="note bad">기록을 읽을 권한이 없습니다.</p><div class="btns"><button type="button" class="btn" data-act="sessionCancel">닫기</button></div>'; return; }
+    adminRows = rows; const dates = [...new Set(rows.map((r) => r.date))]; adminDate = adminDate && dates.includes(adminDate) ? adminDate : dates[0] || "";
+    renderAdmin(dates);
+  }
+  function renderAdmin(dates) {
+    const day = adminRows.filter((r) => r.date === adminDate);
+    let h = '<h2>기록 관리</h2><div class="btns">' + (dates.length ? '<select id="admin-date" data-adm="date">' + dates.map((d) => '<option value="' + d + '"' + (d === adminDate ? " selected" : "") + ">" + d + " (" + adminRows.filter((r) => r.date === d).length + "명)</option>").join("") + "</select>" : "") +
+      '<button type="button" class="btn primary" data-act="adminExcel"' + (day.length ? "" : " disabled") + '>이 날짜 엑셀 저장</button><button type="button" class="btn ghost" data-act="sessionCancel">닫기</button></div>';
+    if (!day.length) h += '<p class="muted">아직 기록이 없습니다.</p>';
+    for (const r of day) {
+      const bad = (r.issues || []).filter((i) => i.level === "오류"), warn = (r.issues || []).filter((i) => i.level !== "오류");
+      h += '<details class="admrec"><summary><b>' + esc(r.name) + "</b><span>" + r.time + "</span><span>" + r.start + "–" + r.end + '</span><span class="chip ' + (bad.length ? "bad" : "ok") + '">오류 ' + bad.length + "</span>" + (warn.length ? '<span class="chip warn">주의 ' + warn.length + "</span>" : "") + "</summary>" +
+        ((r.issues || []).length ? '<table class="tbl"><thead><tr><th>구분</th><th>항목</th><th>무엇이 문제인가</th><th>발생하는 문제</th></tr></thead><tbody>' + r.issues.map((i) => "<tr><td>" + esc(i.area) + "</td><td>" + esc(i.item) + "</td><td>" + esc(i.detail) + "</td><td>" + esc(i.effect) + "</td></tr>").join("") + "</tbody></table>" : '<p class="muted">문제 없음</p>') + "</details>";
+    }
+    $("#finish-card").innerHTML = h;
+  }
+  async function setupAdmin() {
+    if (!window.claude || !window.claude.use) return;
+    const user = await window.claude.use("user").catch(() => null); if (!user) return;
+    const isAdmin = (await user.isOwner().catch(() => false)) || (await user.canEdit().catch(() => false));
+    if (isAdmin) $("#admin-btn").hidden = false;
   }
 
   // ----- 버튼 -----
+  document.body.addEventListener("change", (e) => { if (e.target.dataset.adm === "date") { adminDate = e.target.value; renderAdmin([...new Set(adminRows.map((r) => r.date))]); } });
   document.body.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const a = b.dataset.act;
     if (a === "sessionStart") start();
     else if (a === "sessionRename") showIntro("name");
     else if (a === "sessionCancel") $("#finish").hidden = true;
-    else if (a === "sessionConfirm") { b.disabled = true; b.textContent = "기록 중…"; confirmFinish(); }
-    else if (a === "sessionSaveAgain" && S.lastFile) { const how = await offerFile(S.lastFile); if (how !== "saved") SIM.toast("파일을 저장하지 못했습니다.", "bad"); }
+    else if (a === "sessionConfirm") { b.disabled = true; b.textContent = "전송 중…"; confirmFinish(); }
+    else if (a === "sessionRetry") { b.disabled = true; const left = await sendPending(); SIM.toast(left ? "아직 보내지 못했습니다." : "기록을 보냈습니다.", left ? "bad" : "ok"); if (!left) b.remove(); else b.disabled = false; }
     else if (a === "sessionNew") { $("#finish").hidden = true; S.name = ""; S.running = false; S.final = 0; persist(); showIntro("name"); }
+    else if (a === "adminOpen") openAdmin();
+    else if (a === "adminExcel") { const day = adminRows.filter((r) => r.date === adminDate); const how = await offerFile(workbook(adminDate, day)); if (how === "failed") SIM.toast("이 화면에서는 파일을 저장할 수 없습니다.", "bad"); }
   });
 
   // ----- 타이머 -----
   setInterval(() => { const t = $("#timer"); if (t) t.textContent = fmt(elapsed()); }, 250);
   $("#trainee").textContent = S.name || "";
+  setupAdmin(); sendPending();
   if (S.running && S.name) $("#intro").hidden = true; // 새로고침해도 진행 중이던 시간은 이어진다
   else if (S.name) showIntro("ready");
   else showIntro("name");

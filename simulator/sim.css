@@ -273,3 +273,11 @@ body:not(.dock) .navgroup { display: none; }
 .txb.pwr { padding: 8px 14px; border-radius: 99px; }
 .txb.pwr.on { border-color: #2fbf71; color: #9ff0c2; }
 @media (max-width: 560px) { .tx12-mid { grid-template-columns: 52px 1fr 60px; } .gimbal { width: 70px; height: 70px; } .lcd { font-size: 10px; } }
+
+/* 관리자 기록 */
+.admrec { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.admrec summary { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; cursor: pointer; font-size: 13px; }
+.admrec summary span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.admrec .tbl { margin-top: 8px; font-size: 12px; }
+#admin-date { padding: 5px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-2); }
+.modal-card { width: min(760px, 100%); }
