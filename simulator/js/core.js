@@ -260,7 +260,7 @@
   // ---------- 나사: 부품마다 구멍 수와 맞는 크기 ----------
   SIM.SCREW_SIZES = ["2.0", "2.5", "3.0"];
   SIM.SCREW_REQ = { motor: "2.0", bottom: "2.0", top: "2.0", arm: "2.5", skid: "2.5", prop: "3.0" };
-  SIM.SCREW_HOLES = { motor: 4, bottom: 4, top: 4, arm: 2, skid: 4, prop: 2 };
+  SIM.SCREW_HOLES = {}; // 나사·렌치 기능은 제거됨 (구멍 없음 → 항상 체결된 것으로 본다)
   SIM.screwCount = (id) => { let n = 0; for (const k in SIM.state.screws) if (k.split(":")[0] === id && SIM.state.screws[k]) n++; return n; };
   // 구멍보다 큰 나사는 들어가지 않고, 작은 나사는 들어가지만 헐겁다
   SIM.putScrew = (hole, size) => {
@@ -306,18 +306,18 @@
     st.install[id] = null;
     if (part.type === "motor") w.motorWires[pos] = { 1: "", 2: "", 3: "" };
     if (part.type === "esc") { w.plug["esc" + pos] = ""; w.escPwr[pos] = ""; w.motorWires[pos] = { 1: "", 2: "", 3: "" }; w.escTelem[pos] = ""; if (!SIM.cableReady("escTelem")) w.plug.escTelem = ""; }
-    if (id === "fc") for (const k in w.plug) w.plug[k] = "";
-    if (id === "pm") { w.plug.pm = ""; w.pmOut = ""; if (w.batt === "pm") w.batt = ""; }
+    // FC 포트 케이블(PMU·GPS·수신기·텔레메트리·부저·안전 스위치)은 부품을 옮겨도 꽂힌 채로 둔다
+    if (id === "fc") for (const k in w.plug) if (/^esc/.test(k)) w.plug[k] = ""; // ESC 쪽 선은 붐대에 고정되어 있어 FC를 떼면 빠진다
+    if (id === "pm") { w.pmOut = ""; if (w.batt === "pm") w.batt = ""; }
     if (id === "battery") w.batt = "";
-    if (id === "gps") w.plug.gps = w.plug.compass = "";
-    if (w.plug[id] !== undefined && id !== "pm" && id !== "gps") w.plug[id] = "";
     SIM.emit();
   };
   SIM.select = (id) => { SIM.selected = id; SIM.emit(); };
   SIM.rotate = (id) => { SIM.state.rot[id] = (SIM.state.rot[id] + 1) % 4; SIM.emit(); };
 
   SIM.flipProp = (id) => { SIM.state.flip[id] = !SIM.state.flip[id]; SIM.emit(); };
-  SIM.cableReady = (c) => { const cb = SIM.CABLES[c]; if (c === "escTelem" && !SIM.has("frameBot")) return false; return SIM.has("fc") && (cb.any ? cb.need.some((n) => SIM.has(n)) : cb.need.every((n) => SIM.has(n))); };
+  // FC 포트 케이블은 FC·부품이 작업대에 있어도 미리 꽂을 수 있다 (ESC 신호선·통신선 하네스만 장착된 ESC가 있어야 함)
+  SIM.cableReady = (c) => { const cb = SIM.CABLES[c]; if (c === "escTelem") return SIM.has("frameBot") && cb.need.some((n) => SIM.has(n)); return cb.need.every((n) => (n.includes("@") ? SIM.has(n) : true)); };
   SIM.setPlug = (cable, port) => {
     const w = SIM.state.wiring;
     if (port && !SIM.PORTS[SIM.CABLES[cable].conn].includes(port)) return;
@@ -626,8 +626,6 @@
     () => { SIM.state.rot.fc = pick([1, 2, 3]); return { desc: "FC가 돌아간 방향으로 장착되어 있는데 AHRS_ORIENTATION 보정이 없습니다.", present: () => Math.abs(Math.sin(SIM.mountErr() / 2)) > 0.01 }; },
     () => { const i = SIM.state.install; i.rx = "bot:C"; i.fc = "deck:L"; return { desc: "FC가 상판 중앙이 아닌 상판 왼쪽에 장착되어 있습니다.", present: () => SIM.fcOffCenter() }; },
     () => { const i = SIM.state.install, t = i.telem; i.telem = "bot:C"; i.gps = t; return { desc: "GPS·나침반 모듈이 마스트가 아닌 상판 위에 직접 장착되어 있습니다 (자기 간섭).", present: () => SIM.gpsOffMast() }; },
-    () => { const a = pick(SIM.POS_IDS), m = SIM.partAt("motor@" + a); delete SIM.state.screws[m.id + ":0"]; delete SIM.state.screws[m.id + ":2"]; return { desc: SIM.POS[a].name + " 모터 나사 2개가 빠져 있습니다.", present: () => !SIM.fastened(SIM.partAt("motor@" + a).id) }; },
-    () => { const a = pick(SIM.POS_IDS), pr = SIM.partAt("prop@" + a); SIM.state.screws[pr.id + ":0"] = "2.5t"; return { desc: SIM.POS[a].name + " 프로펠러 브라켓에 M2.5 나사가 체결되어 헐겁습니다.", present: () => !SIM.fastened(SIM.partAt("prop@" + a).id) }; },
     () => { SIM.state.rot.gps = 2; return { desc: "GPS·나침반 모듈이 뒤를 향해 장착되어 있습니다.", present: () => Math.abs(Math.sin(SIM.headingErr() / 2)) > 0.01 }; },
     () => { SIM.state.wiring.plug.rx = "SBUS OUT"; return { desc: "수신기 신호선이 RC IN이 아닌 SBUS OUT 포트에 꽂혀 있습니다.", present: () => !SIM.rxOk() }; },
     () => { SIM.state.wiring.rxRevFc = true; return { desc: "수신기 3선 커넥터가 FC 쪽에서 반대로 꽂혀 있습니다.", present: () => !SIM.rxOk() }; },
