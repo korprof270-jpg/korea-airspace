@@ -218,7 +218,7 @@ export class Music {
     // 녹음 곡이 있으면 그것을 튼다 (보스가 있으면 보스 곡). 아직 불러오는 중이거나 없으면 합성 음악
     const ftgt = this.boss && !tgt.startsWith("m:") && tgt !== "menu" ? "boss" : tgt;
     const url = BGM[ftgt] ? `audio/bgm/${BGM[ftgt]}.mp3` : null, fb = url ? this._loadFile(url) : false;
-    if (fb) { if (this.fileId !== ftgt) this._startFile(ftgt, fb, tgt); this._intensity(s.ctx.currentTime, tgt === "menu" || tgt.startsWith("m:")); return; }
+    if (fb) { if (this.fileId !== ftgt) this._startFile(ftgt, fb, tgt); else this._loopFile(); this._intensity(s.ctx.currentTime, tgt === "menu" || tgt.startsWith("m:")); return; }
     // 녹음 곡이 정해진 곳에서는 예전 합성 음악을 틀지 않는다: 불러오는 동안(또는 불러오지 못하면) 조용히 기다린다
     if (url) {
       if (this.theme) { this._fadeOut(0.4); this.theme = null; }
@@ -249,18 +249,32 @@ export class Music {
     if (this.theme) { this._fadeOut(0.6); this.theme = null; }   // 합성 음악은 줄여서 끈다
     this._stopFile(0.6);
     const g = ctx.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.9, now + 0.1, 0.5);
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const src = ctx.createBufferSource(); src.buffer = buf;
     src.connect(g); g.connect(this.tone);   // 긴장도 음색 필터를 거친다
     src.start(now + 0.05);
     this.fileSrc = src; this.fileG = g; this.fileId = id; this._fromFile = true; this.theme = null;
+    this.fileBuf = buf; this.fileEnd = now + 0.05 + buf.duration;
     void tgt;
+  }
+  // 곡 끝이 다가오면 처음(조용한 도입부)으로 툭 돌아가지 않고, 도입부를 건너뛴 중반부터 겹쳐 이어 간다 (흐름이 끊기지 않게)
+  _loopFile() {
+    if (!this.fileSrc || !this.fileBuf) return;
+    const ctx = this.sound.ctx, now = ctx.currentTime, XF = 3;
+    if (now < this.fileEnd - XF - 0.3) return;
+    const buf = this.fileBuf, off = Math.min(buf.duration * 0.3, Math.max(0, buf.duration - 20));
+    const old = this.fileSrc, og = this.fileG;
+    const g = ctx.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.9, now + XF);
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g); g.connect(this.tone); src.start(now, off);
+    og.gain.cancelScheduledValues(now); og.gain.setValueAtTime(og.gain.value, now); og.gain.linearRampToValueAtTime(0, now + XF);
+    setTimeout(() => { try { old.stop(); } catch (_) { /* 이미 멈춤 */ } og.disconnect(); }, XF * 1000 + 400);
+    this.fileSrc = src; this.fileG = g; this.fileEnd = now + (buf.duration - off);
   }
   _stopFile(tc) {
     if (!this.fileSrc) return;
     const ctx = this.sound.ctx, now = ctx.currentTime, src = this.fileSrc, g = this.fileG;
     g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.setTargetAtTime(0, now, tc);
     setTimeout(() => { try { src.stop(); } catch (_) { /* 이미 멈춤 */ } g.disconnect(); }, tc * 6000 + 300);
-    this.fileSrc = null; this.fileG = null; this.fileId = null;
+    this.fileSrc = null; this.fileG = null; this.fileId = null; this.fileBuf = null;
   }
 
   // 긴장도 → 레이어 음량 [A, B]
