@@ -12,6 +12,7 @@ const PHASES = [
   { id: "half", name: "해상도 절반" },
   { id: "noshadow", name: "그림자 끔" },
   { id: "near", name: "시야 거리 절반" },
+  { id: "base", name: "기본(다시)", again: true },   // 처음과 비교해 발열·절전으로 점점 느려지는지 확인
 ];
 const WARM = 1.0, MEASURE = 4.0;   // 단계마다 안정화 후 측정(초)
 
@@ -189,7 +190,7 @@ export class Perf {
   }
   _makeReport(res) {
     const e = this._env(), f = (v, d = 1) => (v == null ? "-" : v.toFixed(d));
-    const base = res.find((r) => r.ph.id === "base");
+    const base = res.find((r) => r.ph.id === "base" && !r.ph.again);
     const lines = [`[FPV 성능 측정] ${e.map} · ${e.mode} · 품질 ${e.tier}(${e.set}) · ${e.w}×${e.h} ×${e.pr.toFixed(2)}`,
       `기기: ${navigator.hardwareConcurrency || "?"}코어 · 메모리 ${navigator.deviceMemory || "?"}GB · ${matchMedia("(pointer: coarse)").matches ? "터치" : "마우스"} · GPU ${this.gpuName || "?"}`,
       `브라우저: ${navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 110)}`];
@@ -204,9 +205,14 @@ export class Perf {
   }
   // 단계별로 얼마나 빨라졌는지로 병목을 고른다
   _diagnose(res) {
-    const by = (id) => (res.find((r) => r.ph.id === id) || {}).st;
-    const b = by("base");
-    if (!b) return "측정값 부족";
+    const by = (id) => (res.find((r) => r.ph.id === id && !r.ph.again) || {}).st;
+    const b1 = by("base"), b2 = (res.find((r) => r.ph.again) || {}).st;
+    if (!b1) return "측정값 부족";
+    const drift = b2 ? b2.ms / b1.ms : 1;
+    // 기준: 처음·마지막 기본의 평균 (중간 단계 비교를 발열 흐름에 덜 휘둘리게)
+    const b = b2 ? Object.assign({}, b1, { ms: (b1.ms + b2.ms) / 2, p95: Math.max(b1.p95, b2.p95), hitch: b1.hitch + b2.hitch }) : b1;
+    if (drift > 1.25 || drift < 0.8) return `측정 중 기기 속도가 크게 바뀜(처음 ${b1.ms.toFixed(1)}ms → 마지막 ${b2.ms.toFixed(1)}ms) — 발열·절전·화면 갱신 제한 의심. 단계별 비교는 부정확하니, 기기를 식히고 '자동'이나 '보통' 품질로 다시 측정해 주세요`;
+    if (b.upd + (b1.ren || 0) < b.ms * 0.25 && b.ms > 20) return `한 화면 처리(계산+그리기 ${(b.upd + b1.ren).toFixed(1)}ms)는 가벼운데 화면 간격이 ${b.ms.toFixed(1)}ms — 그래픽 부하보다 기기 쪽 제한(앱 안 브라우저 30fps 제한·절전·발열) 가능성이 큼`;
     if (b.ms < 18 && b.p95 < 25) return "충분히 부드러움 (60fps 근처) — 품질을 더 올릴 여유가 있음";
     const g = (id) => { const s = by(id); return s ? 1 - s.ms / b.ms : 0; };
     const cand = [["화면 해상도(픽셀 수)", g("half")], ["후처리(음영·외곽선·빛 번짐)", g("nopost")], ["그림자", g("noshadow")], ["먼 곳 물체(시야 거리)", g("near")]].sort((x, y) => y[1] - x[1]);
