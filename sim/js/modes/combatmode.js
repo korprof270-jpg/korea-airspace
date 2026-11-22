@@ -5,6 +5,9 @@ import { Combat, TEAM_COLOR } from "../combat.js";
 import { settings } from "../config.js";
 import { Fleet, fleetWanted } from "../fleet.js";
 import { SwarmWar, swarmWanted } from "../swarmwar.js";
+import { Ambience, ambienceWanted } from "../ambience.js";
+import { Chatter, installRadio } from "../radio.js";
+import { Drama } from "../drama.js";
 
 const _v = new THREE.Vector3();
 
@@ -12,10 +15,15 @@ export class CombatMode extends Mode {
   constructor(session, cfg) {
     super(session, cfg);
     this.respawnDelay = Infinity; // 재출격은 전투 시스템이 처리
+    if (!cfg.net) installRadio(session);   // session.radioSay(who, line, opts): 동적 무전 (radio.js)
   }
 
+  // 전투 사건(onKill·onDamage)을 모드의 처리기에 넘기기 전에 분위기·무전·반전 사건에도 알린다 (combat.js 는 그대로)
   initCombat(handlers = {}) {
-    this.combat = new Combat(this.s, handlers);
+    const h = Object.assign({}, handlers), k0 = handlers.onKill, d0 = handlers.onDamage;
+    h.onKill = (a, k) => { const r = k0 ? k0(a, k) : undefined; this._evKill(a, k); return r; };
+    h.onDamage = (a, amt, k) => { const r = d0 ? d0(a, amt, k) : undefined; if (this.chatter) this.chatter.onDamage(a, amt, k); return r; };
+    this.combat = new Combat(this.s, h);
     this.me = this.combat.addPlayer(0);
     return this.combat;
   }
@@ -78,10 +86,31 @@ export class CombatMode extends Mode {
 
 
   update(dt) {
+    this._extrasTick(dt);
     if (this.cut) return this._cutStep(dt);
     super.update(dt);
     if (this.state !== "countdown") this.combat.update(dt);
     this._fleetTick(dt, this.state === "run");
+  }
+  // 전장 분위기(ambience.js) · 동료 무전(radio.js) · 반전 사건(drama.js): 처음 갱신할 때 만든다. 온라인 경기에서는 무전·사건 없음
+  _extrasTick(dt) {
+    if (this.ambience === undefined) {
+      const net = !!this.cfg.net;
+      this.ambience = ambienceWanted(this) ? new Ambience(this) : null;
+      this.chatter = !net && (this.cfg.story || this.cfg.wing) ? new Chatter(this) : null;
+      this.drama = !net && this.combat && this.me && ["challenge", "survival", "conquest"].includes(this.cfg.mode) ? new Drama(this) : null;
+    }
+    if (this.ambience) this.ambience.update(dt);
+    if (this.s._radioTick) this.s._radioTick(dt);
+    if (this.chatter) this.chatter.update(dt);
+    if (this.drama) this.drama.update(dt);
+  }
+  _evKill(a, k) {
+    if (this.chatter) this.chatter.onKill(a, k);
+    // 적이 떨어진 자리에 불타는 잔해 (드론·지상 유닛 본체. 내 기체·아군은 제외)
+    if (this.ambience && a !== this.me && a.team !== (this.me ? this.me.team : 0) && (a.kind === "bot" || (a.unit && a.unit.root === a))) {
+      this.ambience.wreck(a.pos, a.bossBar ? 3 : a.botKind === "gunship" || a.unit ? 2 : 1);
+    }
   }
   // 대규모 전투의 기함 함대 (fleet.js)와 드론 함대전 (swarmwar.js): 처음 갱신할 때 만든다(모드 설정이 끝난 뒤). 컷신·카운트다운에는 순항만
   _fleetTick(dt, live) {
@@ -90,6 +119,8 @@ export class CombatMode extends Mode {
     if (this.swarm === undefined) this.swarm = swarmWanted(this) ? new SwarmWar(this) : null;
     if (this.swarm) this.swarm.update(dt, live && !this.cut);
   }
+  // 임무 막바지인지 (동료 무전 "거의 다 왔어"). 각 모드가 덮어쓴다
+  nearEnd() { return false; }
   // 컷신 동안에도 유닛은 제자리 동작(걷기·포탑)을 이어 가되 쏘지는 않는다
   _cutUnits(dt) { this.combat.units.update(dt); this._fleetTick(dt, false); this.s.world.update(0); }
 
@@ -98,7 +129,7 @@ export class CombatMode extends Mode {
     super.finish(result);
   }
 
-  dispose() { if (this.cargo) this.cargo.dispose(); if (this.fleet) this.fleet.dispose(); if (this.swarm) this.swarm.dispose(); this.combat.dispose(); }
+  dispose() { if (this.ambience) this.ambience.dispose(); if (this.cargo) this.cargo.dispose(); if (this.fleet) this.fleet.dispose(); if (this.swarm) this.swarm.dispose(); this.combat.dispose(); }
 
   // HUD 목표: 조준·락온 중인 적이 우선, 없으면 임무 목표(각 모드의 missionObjective)
   hudObjective() {

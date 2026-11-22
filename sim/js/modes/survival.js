@@ -260,6 +260,9 @@ export class SurvivalMode extends CombatMode {
     if (this.time >= this.duration) this._end();
   }
 
+  // 임무 막바지: 남은 시간 25초 (동료 무전용)
+  nearEnd() { return this.endT < 0 && this.duration - this.time < 25 && this.duration - this.time > 3; }
+
   _end() {
     const c = this.combat, me = this.me, sc = Math.round(me.score);
     const rec = submitRecord(this.recKey, sc);
