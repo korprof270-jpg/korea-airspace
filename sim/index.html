@@ -44,6 +44,25 @@
   <div id="fatal" hidden></div>
 
   <script>
+    // 웹 주소 이전: 옛 주소(korprof270-jpg.github.io)로 들어오면 저장 기록을 들고 새 주소(fpvproject.github.io)로 옮긴다
+    (function () {
+      var NEW = "fpvproject.github.io", RE = /^(fpv|haneulgil|hgfpv)/, SKIP = /^hgfpv-mapthumb/;
+      try {
+        if (location.hostname === "korprof270-jpg.github.io") {
+          var d = {};
+          for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (RE.test(k) && !SKIP.test(k)) d[k] = localStorage.getItem(k); }
+          var j = JSON.stringify(d), h = Object.keys(d).length && j.length < 1500000 ? "#mig=" + encodeURIComponent(btoa(unescape(encodeURIComponent(j)))) : "";
+          location.replace("https://" + NEW + "/" + location.search + h);
+          return;
+        }
+        if (location.hostname === NEW && location.hash.indexOf("#mig=") === 0) {
+          var m = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(location.hash.slice(5))))));
+          var has = false; for (var q = 0; q < localStorage.length; q++) if (RE.test(localStorage.key(q)) && !SKIP.test(localStorage.key(q))) has = true;
+          if (!has) for (var key in m) localStorage.setItem(key, m[key]);   // 새 주소에 기록이 없을 때만 옮긴다
+          history.replaceState(null, "", location.pathname + location.search);
+        }
+      } catch (e) { if (location.hostname === "korprof270-jpg.github.io") location.replace("https://" + NEW + "/"); }
+    })();
     // 설치형 앱(PWA)·오프라인 실행용 서비스 워커 (지도 앱과 같은 것을 사용)
     if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
   </script>
