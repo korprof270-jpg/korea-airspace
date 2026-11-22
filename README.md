@@ -34,6 +34,16 @@
 - **테스트**: 시동 전 점검(PreArm), 모터 테스트(A~D), 자세 센서(HUD), 비행 테스트(Stabilize/AltHold/Loiter/RTL/Land, 라디오·배터리 페일세이프), 고장 진단 훈련
 - 틀리게 조립하거나 설정하면 그 결과(전복, 제자리 회전, 흐름, 추락)가 비행 물리에 그대로 나타납니다. 실제 기체의 수치를 근사한 교육용 모델이며 실기체 튜닝 값으로 쓰면 안 됩니다.
 
+## 웹 배포 (GitHub Pages)
+1. 저장소 **Settings → Pages → Build and deployment → Source** 를 **GitHub Actions** 로 바꿉니다.
+2. 변경 사항이 `main` 브랜치에 들어가면 `.github/workflows/pages.yml` 이 자동으로 배포합니다 (Actions 탭에서 **Run workflow** 로 직접 실행도 가능).
+3. 주소
+   - 드론 정비 시뮬레이터: `https://<GitHub 사용자명>.github.io/korea-airspace/simulator/`
+   - 드론 공역 지도: `https://<GitHub 사용자명>.github.io/korea-airspace/`
+4. 관리자 기록을 받으려면 [docs/관리자-기록-구글시트.md](docs/관리자-기록-구글시트.md) 대로 Google 시트를 연결하고 `simulator/js/config.js` 에 주소를 넣습니다.
+
+정적 파일만 있으므로 Netlify·Cloudflare Pages 등에 저장소 폴더를 그대로 올려도 됩니다.
+
 ## 데이터 출처 — 반드시 읽어주세요
 | 모드 | 공역 데이터 | 주소 검색 |
 |---|---|---|

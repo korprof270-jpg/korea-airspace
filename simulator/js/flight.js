@@ -351,7 +351,7 @@
     MT.cur = null;
     return "";
   };
-  MT.runAll = function (pct, dur) { const e = MT.run([], pct, dur); if (e) return e; MT.cur = { l: "ALL", pct, t: dur }; MT.targets = allTargets(pct); return ""; };
+  MT.runAll = function (pct, dur) { const e = MT.run([], pct, dur); if (e) return e; MT.cur = { l: "ALL", pct, t: dur }; MT.targets = allTargets(pct); for (const l of "ABCD") { const tg = targetFor(l), ph = tg.id && SIM.motorPhysical(tg.id); MT.results[l] = { num: tg.num, pos: tg.id && ph.canSpin ? tg.id : null, dir: ph ? ph.dir : null, prop: ph ? ph.prop : null, thrust: ph ? ph.thrust : 0 }; } if (SIM.onMotorTest) SIM.onMotorTest(); return ""; };
   function targetFor(letter) {
     const f = SIM.frame(), num = f.order["ABCD".indexOf(letter)];
     for (const id of SIM.POS_IDS) if (SIM.motorNumForPos(id) === num) return { id, num };

@@ -364,6 +364,8 @@
     h += '<label class="row" for="mt-dur"><span><b>시간 (초)</b></span><input id="mt-dur" type="number" min="1" max="10" value="' + ui.mt.dur + '" data-change="mtDur"></label>';
     h += '<div class="btns">' + ["A", "B", "C", "D"].map((l) => btn("mt", "Test motor " + l, "", l)).join("") + "</div>";
     h += '<div class="btns">' + btn("mtSeq", "Test all in Sequence") + btn("mtAll", "Test all motors") + btn("mtStop", "Stop", "ghost") + "</div>";
+    const res = SIM.motorTest.results, posKo = (p) => (p ? SIM.POS[p].name : "돌지 않음");
+    h += '<h4>테스트 결과 (돌아간 모터)</h4><table class="tbl"><thead><tr><th>테스트</th><th>돌아간 위치</th><th>회전 방향</th></tr></thead><tbody>' + ["A", "B", "C", "D"].map((l) => { const r = res[l]; return "<tr><td>" + l + "</td><td>" + (r ? posKo(r.pos) : "—") + "</td><td>" + (r && r.pos ? (r.dir === "cw" ? "↻ 시계 (CW)" : "↺ 반시계 (CCW)") : "—") + "</td></tr>"; }).join("") + "</tbody></table>";
     return h + '<div class="btns">' + safetyBtn() + "</div>" + escTelemHtml();
   }
   const escTelemHtml = () => '<h4>ESC 텔레메트리</h4><table class="tbl"><thead><tr><th>ESC</th><th>RPM</th><th>전류</th><th>온도</th><th>전압</th></tr></thead><tbody>' + [1, 2, 3, 4].map((n) => '<tr><td>' + n + '</td><td id="et-r' + n + '" class="mono">—</td><td id="et-a' + n + '" class="mono">—</td><td id="et-t' + n + '" class="mono">—</td><td id="et-v' + n + '" class="mono">—</td></tr>').join("") + "</tbody></table>";
@@ -662,6 +664,7 @@
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
     SIM.scene.onPick = (id) => { ui.wire = null; SIM.select(id && id !== SIM.selected ? id : null); };
     SIM.scene.onTx = () => { ui.txView = true; render(); };
+    SIM.onMotorTest = () => { if (ui.tab === "test" && ui.page.test === "motor") render(); };
     // 조종기 창의 스틱(짐벌)을 직접 끌어 움직인다 (왼쪽: 요·스로틀, 오른쪽: 롤·피치 — Mode 2 기준 실제 스틱 위치)
     let gd = null;
     document.body.addEventListener("pointerdown", (e) => { const gEl = e.target.closest("#txview .gimbal"); if (!gEl) return; const all = [...document.querySelectorAll("#txview .gimbal")]; gd = { side: all.indexOf(gEl), el: gEl, id: e.pointerId }; gEl.setPointerCapture(e.pointerId); moveG(e); e.preventDefault(); });

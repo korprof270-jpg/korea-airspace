@@ -65,9 +65,10 @@
   SIM.part = (id) => parts.find((p) => p.id === id);
 
   // 기체 위 장착 자리. 부품 모양만 맞으면 어느 자리에든 붙일 수 있다 (맞는 자리인지는 직접 판단).
-  SIM.SLOTS = { "frame:base": "조립 거치대", "frame:top": "하판 위 (상판 자리)", "frame:skid": "하판 아래 (스키드 자리)", "frame:canopy": "상판 위 (케이스 자리)", "deck:C": "상판 중앙", "deck:L": "상판 왼쪽", "deck:R": "상판 오른쪽", "deck:RL": "상판 왼쪽 뒤", "deck:RR": "상판 오른쪽 뒤", mast: "상판 뒤 마스트", "bot:C": "하판 중앙", under: "하판 아래" };
+  SIM.SLOTS = { "frame:base": "조립 거치대", "frame:top": "하판 위 (상판 자리)", "frame:skid": "하판 아래 (스키드 자리)", "frame:canopy": "상판 위 (케이스 자리)", "deck:C": "상판 중앙", "deck:L": "상판 왼쪽", "deck:R": "상판 오른쪽", "deck:RL": "상판 왼쪽 뒤", "deck:RR": "상판 오른쪽 뒤", mast: "상판 뒤 마스트", "bot:C": "하판 중앙", "bot:L": "하판 왼쪽", "bot:R": "하판 오른쪽", under: "하판 아래" };
   const DECK = ["deck:C", "deck:L", "deck:R", "deck:RL", "deck:RR"];
-  SIM.ACCEPT = { fc: [...DECK, "bot:C"], gps: ["mast", ...DECK], pm: ["bot:C", ...DECK], battery: ["under"], bottom: ["frame:base"], top: ["frame:top"], skid: ["frame:skid"], canopy: ["frame:canopy"], rx: [...DECK, "bot:C"], telem: [...DECK, "bot:C"], buzzer: [...DECK, "bot:C"], switch: [...DECK, "bot:C"] };
+  const BOT = ["bot:C", "bot:L", "bot:R"];
+  SIM.ACCEPT = { fc: [...DECK, ...BOT], gps: ["mast", ...DECK], pm: [...BOT, ...DECK], battery: ["under"], bottom: ["frame:base"], top: ["frame:top"], skid: ["frame:skid"], canopy: ["frame:canopy"], rx: [...DECK, ...BOT], telem: [...DECK, ...BOT], buzzer: [...DECK, ...BOT], switch: [...DECK, ...BOT] };
   SIM.slotName = (s) => {
     const [t, pos] = s.split("@");
     if (pos) return SIM.POS[pos].name + (t === "prop" ? " 모터 축" : t === "motor" ? " 모터 마운트" : t === "arm" ? " 붐대 자리" : " 붐대 위");

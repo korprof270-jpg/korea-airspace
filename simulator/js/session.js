@@ -23,7 +23,13 @@
     const user = await window.claude.use("user").catch(() => null); if (!user) return null;
     const id = await user.id().catch(() => null); return id ? db.doc("records/" + id) : null;
   }
+  // 웹 배포: 관리자 Google 시트(Apps Script 웹 앱)로 보낸다. 응답을 읽을 수 없는 방식이라 보낸 것으로 간주
+  async function postToSheet(rec) {
+    const url = window.SIM_CONFIG && window.SIM_CONFIG.recordUrl; if (!url) return false;
+    try { await fetch(url, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(rec) }); return true; } catch (e) { return false; }
+  }
   async function shareRecord(rec) {
+    if (!(window.claude && window.claude.use)) return postToSheet(rec);
     try { const d = await myDoc(); if (!d) return false; const snap = await d.get(); const runs = ((snap.data() || {}).runs || []).slice(-200); await d.set({ runs: runs.concat(rec) }); return true; } catch (e) { return false; }
   }
   async function recordsOf(date) {

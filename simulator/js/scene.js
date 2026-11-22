@@ -189,7 +189,7 @@
     } else if (part.type === "esc") {
       g.add(roundBox(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0, 0.004));
       const el = nameplate("ESC", 0.018, 0.009, "#e2b322", "#1a1a1a"); el.position.set(0, 0.0083, -0.006); g.add(el);
-      ["A", "B", "C"].forEach((p, k) => { const pd = box(0.005, 0.0016, 0.006, M.copper, (k - 1) * 0.007, 0.0088, 0.019); g.add(pd); o.pads[p] = new T.Vector3((k - 1) * 0.007, 0.0096, 0.019); target(g, mesh(new T.BoxGeometry(0.0068, 0.006, 0.009), HIT, (k - 1) * 0.007, 0.0096, 0.019), { kind: "escPad", part: part.id, pad: p, label: "ESC 단자 " + p }); });
+      ["A", "B", "C"].forEach((p, k) => { const pd = box(0.005, 0.0016, 0.006, M.copper, (k - 1) * 0.007, 0.0088, 0.019); g.add(pd); o.pads[p] = new T.Vector3((k - 1) * 0.007, 0.0096, 0.019); target(g, mesh(new T.BoxGeometry(0.0068, 0.006, 0.009), HIT, (k - 1) * 0.007, 0.0096, 0.019), { kind: "escPad", part: part.id, pad: p, label: "ESC 단자 " + p }).userData.tip = { part: part.id, key: "pad" + p }; });
       lead(o, "pwr", [-0.006, 0.004, -0.024], [-0.01, 0.004, -0.034], LEAD.r, 0.0018);
       { const k2 = new T.CatmullRomCurve3([new T.Vector3(-0.003, 0.004, -0.024), new T.Vector3(-0.006, 0.006, -0.029), new T.Vector3(-0.008, 0.004, -0.034)]); const t2 = new T.Mesh(new T.TubeGeometry(k2, 8, 0.0018, 5), LEAD.k); g.add(t2); }
       g.add(box(0.008, 0.0055, 0.0075, M.yellow, -0.009, 0.004, -0.0375)); // XT60M
@@ -327,7 +327,7 @@
   // PDB 패드 위치 (기체 기준 x, z)
   const PADS = { batt: { plus: [-0.014, 0.088], minus: [0.014, 0.088] } };
   for (const id of SIM.POS_IDS) { const p = SIM.POS[id], dx = p.x * S2, dz = p.z * S2; PADS[id] = { plus: [dx * 0.088 - dz * 0.027, dz * 0.088 + dx * 0.027], minus: [dx * 0.088 + dz * 0.027, dz * 0.088 - dx * 0.027] }; }
-  const HARNESS = [-0.048, 0.0015, -0.03];
+  const HARNESS = [0, 0.0015, -0.09]; // 하판 앞쪽 끝 (하판 왼쪽·오른쪽 자리를 비워 둔다)
   const PDB_MAIN = new T.Vector3(0, 0.005, 0.112); // 주전원 XT60F (하판 뒤쪽 끝)
   const armDir = (pid) => { const p = SIM.POS[pid]; return [p.x * S2, p.z * S2]; };
   // XT60F 위치: 붐대 양옆 (i=0 → 오른쪽 옆, 1 → 왼쪽 옆)
@@ -408,15 +408,15 @@
   // 케이스(덮개): 상판 위를 덮는 유선형 셸, 위에 GPS 마스트가 지나는 구멍
   function buildCanopy(o) {
     const g = o.group, shell = new T.MeshPhysicalMaterial({ color: 0xeef1f2, roughness: 0.28, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.12, side: T.DoubleSide });
-    const dome = new T.Mesh(new T.SphereGeometry(0.5, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), shell); dome.scale.set(0.24, 0.095, 0.29); dome.castShadow = dome.receiveShadow = true; g.add(dome);
-    const skirt = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 0.008, 48, 1, true), shell); skirt.scale.set(0.24, 1, 0.29); skirt.position.y = 0.004; g.add(skirt);
-    const stripe = new T.Mesh(new T.TorusGeometry(0.5, 0.012, 8, 64), mat(0xc8382e, { roughness: 0.35 })); stripe.rotation.x = Math.PI / 2; stripe.scale.set(0.242, 0.292, 1); stripe.position.y = 0.006; g.add(stripe);
-    const vis = new T.Mesh(new T.SphereGeometry(0.5, 32, 12, -0.6, 1.2, 0.95, 0.45), mat(0x15181b, { roughness: 0.15, metalness: 0.4 })); vis.scale.set(0.245, 0.097, 0.295); vis.rotation.y = Math.PI; g.add(vis); // 앞쪽 검은 창
+    const dome = new T.Mesh(new T.SphereGeometry(0.5, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), shell); dome.scale.set(0.21, 0.095, 0.26); dome.castShadow = dome.receiveShadow = true; g.add(dome);
+    const skirt = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 0.008, 48, 1, true), shell); skirt.scale.set(0.21, 1, 0.26); skirt.position.y = 0.004; g.add(skirt);
+    const stripe = new T.Mesh(new T.TorusGeometry(0.5, 0.012, 8, 64), mat(0xc8382e, { roughness: 0.35 })); stripe.rotation.x = Math.PI / 2; stripe.scale.set(0.212, 0.262, 1); stripe.position.y = 0.006; g.add(stripe);
+    const vis = new T.Mesh(new T.SphereGeometry(0.5, 32, 12, -0.6, 1.2, 0.95, 0.45), mat(0x15181b, { roughness: 0.15, metalness: 0.4 })); vis.scale.set(0.215, 0.097, 0.265); vis.rotation.y = Math.PI; g.add(vis); // 앞쪽 검은 창
     g.add(cyl(0.012, 0.004, M.dark, 0, 0.046, 0.09, 24)); // GPS 마스트 구멍 링
   }
 
   // ---------- 장착 자리 (기체 기준 위치·방향) ----------
-  const DECKPOS = { "deck:C": [0, 0.04, -0.012], "deck:L": [-0.077, 0.04, -0.035], "deck:R": [0.077, 0.04, -0.035], "deck:RL": [-0.074, 0.04, 0.058], "deck:RR": [0.074, 0.04, 0.058], mast: [0, 0.043, 0.09], "bot:C": [0, 0.0015, 0.004], under: [0, -0.047, 0] };
+  const DECKPOS = { "deck:C": [0, 0.04, -0.012], "deck:L": [-0.077, 0.04, -0.035], "deck:R": [0.077, 0.04, -0.035], "deck:RL": [-0.074, 0.04, 0.058], "deck:RR": [0.074, 0.04, 0.058], mast: [0, 0.043, 0.09], "bot:C": [0, 0.0015, 0.004], "bot:L": [-0.078, 0.0015, 0], "bot:R": [0.078, 0.0015, 0], under: [0, -0.047, 0] };
   function slotXform(slot, part) {
     const [t, pos] = slot.split("@"), st = SIM.state;
     if (pos) {
@@ -465,7 +465,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     const g = o.group, s = g.scale.x;
     return v.clone().multiplyScalar(s).applyQuaternion(g.userData.tq).add(g.userData.tp);
   }
-  const tipPos = (id, key) => toDrone(objs[id], objs[id].tips[key]);
+  const tipPos = (id, key) => toDrone(objs[id], /^pad[ABC]$/.test(key) ? objs[id].pads[key[3]] : objs[id].tips[key]);
   const padPos = (key, sgn) => new T.Vector3(PADS[key][sgn][0], 0.002, PADS[key][sgn][1]);
   const fcPortPos = (port) => toDrone(objs.fc, new T.Vector3(...(FC_PORT[port] || [0, 0.014, 0])));
   let curMeta = null; // 지금 그리는 선이 무엇인지 (누르면 정보창)
@@ -650,7 +650,8 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       const m = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
       for (let i = 0; i < 12; i++) { const a = i * 2.4, r = 0.03 + (i % 6) * 0.02; const st = new T.Mesh(new T.BoxGeometry(0.003, 0.03, 0.003), m); st.raycast = () => {}; st.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); st.userData.ph = i / 12; g.add(st); }
       air[id] = { g, m };
-      for (const d of ["cw", "ccw"]) { const ar = spinArrow(d); ar.scale.setScalar(3.2); ar.position.set(SIM.POS[id].x * ARM_R * S2, 0.13, SIM.POS[id].z * ARM_R * S2); ar.visible = false; ar.raycast = () => {}; ar.renderOrder = 15; ar.material.depthTest = false; drone.add(ar); air[id][d] = ar; }
+      for (const d of ["cw", "ccw"]) { const ar = spinArrow(d); ar.scale.setScalar(3.2); ar.position.set(SIM.POS[id].x * ARM_R * S2, 0.13, SIM.POS[id].z * ARM_R * S2); ar.visible = false; ar.raycast = () => {}; ar.renderOrder = 15; ar.material.depthTest = false; drone.add(ar); air[id][d] = ar;
+        const lb = textSprite(d === "cw" ? ["↻ CW", "시계 방향"] : ["↺ CCW", "반시계 방향"], "#ffd45e"); lb.scale.set(0.09, 0.045, 1); lb.position.set(SIM.POS[id].x * ARM_R * S2, 0.17, SIM.POS[id].z * ARM_R * S2); lb.visible = false; lb.raycast = () => {}; drone.add(lb); air[id][d + "L"] = lb; }
     }
     selBox = new T.BoxHelper(drone, 0xffb020); selBox.visible = false; scene.add(selBox);
     snapRing = new T.Mesh(new T.TorusGeometry(0.05, 0.004, 8, 40), new T.MeshBasicMaterial({ color: 0xffd45e, depthTest: false, transparent: true, opacity: 0.9 }));
@@ -743,6 +744,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     if (k === "harness") w.plug.escTelem = "";
     else if (k === "rxEnd") w.rxEnd = "";
     else if (/^ph\d$/.test(k)) w.motorWires[pos][k[2]] = "";
+    else if (/^pad[ABC]$/.test(k)) { const m = w.motorWires[pos]; for (const n of [1, 2, 3]) if (m[n] === k[3]) m[n] = ""; } // ESC 단자에서 시작: 그 단자에 꽂힌 모터선을 뺀다
     else if (k === "pwr") w.escPwr[pos] = "";
     else if (k === "tel") w.escTelem[pos] = "";
     else if (k === "out") w.pmOut = "";
@@ -767,6 +769,16 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     for (const m of o.ports) { m.getWorldPosition(wp); const sp = toScreen(wp); const d = Math.hypot(sp.x - mx, sp.y - my); if (sp.vis && d < bd) { bd = d; best = m.userData.target; } }
     return best;
   }
+  // 모터선 ↔ ESC 단자: 같은 붐대에서 화면상 가장 가까운 상대 끝에 붙는다
+  function nearestPhase(cx, cy) {
+    const tip = sc.pick, pos = (SIM.state.install[tip.part] || "").split("@")[1]; if (!pos) return null;
+    const r = renderer.domElement.getBoundingClientRect(), mx = cx - r.left, my = cy - r.top, wp = new T.Vector3();
+    let best = null, bd = 46;
+    const consider = (o, local, tg) => { wp.copy(local); o.group.localToWorld(wp); const sp = toScreen(wp), d = Math.hypot(sp.x - mx, sp.y - my); if (sp.vis && d < bd) { bd = d; best = tg; } };
+    if (/^ph/.test(tip.key)) { const e2 = SIM.partAt("esc@" + pos); if (e2) for (const p of ["A", "B", "C"]) consider(objs[e2.id], objs[e2.id].pads[p], { kind: "escPad", part: e2.id, pad: p, label: "ESC 단자 " + p }); }
+    else { const m2 = SIM.partAt("motor@" + pos); if (m2) for (const k of [1, 2, 3]) consider(objs[m2.id], objs[m2.id].tips["ph" + k], { kind: "motorPh", part: m2.id, k, label: "모터선 " + "①②③"[k - 1] }); }
+    return best;
+  }
   sc.disconnectTip = (tip) => { disconnect(tip); SIM.emit(); };
   // 카메라를 부드럽게 옮긴다: FC 확대 → 포트를 꽂거나 취소하면 원래 시점으로
   function zoomFc() {
@@ -788,7 +800,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     const say = (m) => SIM.toast(m, "bad");
     const ok = (t) => { if (SIM.sfx) SIM.sfx(t || "plug"); };
     if (tg.kind === "escPad") {
-      if (part.type !== "motor") return say("이 선은 ESC 단자에 연결하지 않습니다.");
+      if (part.type !== "motor") return say(part.type === "esc" ? "단자끼리는 연결하지 않습니다. 모터선 끝에 놓으세요." : "이 선은 ESC 단자에 연결하지 않습니다.");
       const escPos = SIM.state.install[tg.part].split("@")[1];
       if (escPos !== pos) return say("선이 닿지 않습니다.");
       w.motorWires[pos][tip.key[2]] = tg.pad; ok("plug");
@@ -797,6 +809,10 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       else if (part.type === "battery") w.batt = "pdb";
       else return say("커넥터가 맞지 않습니다.");
       ok("xt");
+    } else if (tg.kind === "motorPh") { // ESC 단자를 끌어 모터선 끝에 연결
+      if (!(part.type === "esc" && /^pad/.test(tip.key))) return say("커넥터가 맞지 않습니다.");
+      const mPos = SIM.state.install[tg.part].split("@")[1]; if (mPos !== pos) return say("선이 닿지 않습니다.");
+      w.motorWires[pos][tg.k] = tip.key[3]; ok("plug");
     } else if (tg.kind === "xt") {
       if (!(part.type === "esc" && tip.key === "pwr")) return say("커넥터가 맞지 않습니다.");
       if (tg.pos !== pos) return say("선이 닿지 않습니다.");
@@ -825,6 +841,8 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
   function drawLiveWire(worldPoint, tg) {
     if (!sc.pick) return;
     if (tg && tg.kind === "fcPort") worldPoint = drone.localToWorld(fcPortPos(tg.port));
+    if (tg && tg.kind === "escPad") worldPoint = objs[tg.part].group.localToWorld(objs[tg.part].pads[tg.pad].clone());
+    if (tg && tg.kind === "motorPh") worldPoint = objs[tg.part].group.localToWorld(objs[tg.part].tips["ph" + tg.k].clone());
     if (!worldPoint) return;
     if (liveWire) { liveWire.geometry.dispose(); drone.remove(liveWire); }
     const a = tipPos(sc.pick.part, sc.pick.key), b = drone.worldToLocal(worldPoint.clone()), lift = Math.max(a.y, b.y) + 0.01;
@@ -850,6 +868,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
         if (best) return best;
       }
       const see = sc.xray || !!sc.pick;
+      if (sc.pick && /^(ph\d|pad[ABC])$/.test(sc.pick.key)) { const np = nearestPhase(e.clientX, e.clientY); if (np) return { target: np, point: null }; }
       if (sc.pick && sc.fcZoom && tipCableOf(sc.pick)) { const np = nearestPort(e.clientX, e.clientY); if (np) return { target: np, point: null }; } // 확대했을 때만 가장 가까운 포트로
       let soft = null; // 넉넉한 클릭 영역(작은 부품·선): 바로 뒤에 단자·선 끝이 있으면 그쪽을 고른다
       const hard = (h, res) => res; // 선 끝·단자·포트는 넓은 클릭 영역(부품 상자·선·판)에 가려지지 않는다
@@ -1070,7 +1089,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       if (pr) { objs[pr.id].spinner.rotateOnAxis(yAxis, rate); objs[pr.id].disc.material.opacity = Math.min(0.3, u * 0.6); }
       if (pr) objs[pr.id].group.visible = !(SIM.flight.active && SIM.flight.lost[id]);
       const A = air[id], flow = pr && u > 0.03 ? ph.thrust : 0;
-      const showSpin = u > 0.03 && m && !SIM.flight.active; A.cw.visible = showSpin && ph.dir === "cw"; A.ccw.visible = showSpin && ph.dir === "ccw";
+      const showSpin = u > 0.03 && m && !SIM.flight.active; A.cw.visible = A.cwL.visible = showSpin && ph.dir === "cw"; A.ccw.visible = A.ccwL.visible = showSpin && ph.dir === "ccw";
       if (showSpin) A[ph.dir].rotation.z += (ph.dir === "ccw" ? 1 : -1) * dt * 3; // 추력 방향과 반대로 공기가 흐른다
       A.m.opacity = flow ? Math.min(0.55, 0.2 + u) * Math.min(1, Math.abs(flow) + 0.3) : 0;
       if (flow) { airT += dt * (0.6 + 2 * u) * 0.25; A.g.children.forEach((c) => { const t = (c.userData.ph + airT) % 1; c.position.y = flow > 0 ? -0.01 - t * 0.14 : 0.02 + t * 0.14; }); }
