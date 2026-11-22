@@ -399,6 +399,7 @@
     const row = { fc: -0.42, pm: -0.3, battery: -0.17, gps: 0.0, rx: 0.12, telem: 0.22, buzzer: 0.31, switch: 0.39 };
     return { p: [row[part.type], 0, 0.41], ry: 0 };
   }
+const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태로 수신기에 전원을 넣으세요.", released: "바인드 버튼에서 손을 뗐습니다.", "": "수신기 바인드 대기 중 (LED 빠르게 깜빡임)" };
   const xfQuat = (x) => new T.Quaternion().setFromEuler(new T.Euler(x.rx || 0, x.ry, 0, "YXZ"));
 
   // ---------- 배선 그리기 ----------
@@ -918,7 +919,7 @@
       if (h.hole) { if (SIM.state.screws[h.hole]) { const err = SIM.takeScrew(h.hole); if (err) SIM.toast(err, "bad"); } else if (sc.onPick) sc.onPick(h.hole.split(":")[0]); return; }
       if (h.tip) return startPick(h.tip);
       if (h.wire) { if (sc.onWire) sc.onWire(h.wire, e.clientX, e.clientY); return; }
-      if (h.bind) { if (!SIM.state.install.rx) { if (sc.onPick) sc.onPick("rx"); return; } const err = SIM.bindRx(); if (err) SIM.toast(err, "bad"); else SIM.toast("바인딩 중… LED 빠르게 깜빡임"); return; }
+      if (h.bind) { if (!SIM.state.install.rx) { if (sc.onPick) sc.onPick("rx"); return; } const r = SIM.bindRx(); SIM.toast(BIND_MSG[r] !== undefined ? BIND_MSG[r] : r, BIND_MSG[r] !== undefined ? "" : "bad"); return; }
       if (sc.onPick) sc.onPick(h.part || null);
     };
     canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);

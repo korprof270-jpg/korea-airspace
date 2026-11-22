@@ -198,12 +198,12 @@
       },
       params,
       cal: { accel: false, compass: false, radio: false, esc: false },
-      rxBound: false,
-      txm: { name: "MODEL01", mode: 2, rf: "OFF", proto: "FrSky X", failsafe: "Not set", mix: { 1: "Thr", 2: "Ail", 3: "Ele", 4: "Rud", 5: "", 6: "", 7: "", 8: "" } },
+      rxBound: false, txCal: false, needReboot: false, bindHeld: false,
+      txm: { name: "MODEL01", mode: 2, rf: "OFF", proto: "FrSky X", failsafe: "Not set", mix: { 1: "Thr", 2: "Ail", 3: "Ele", 4: "Rud", 5: "", 6: "", 7: "", 8: "" }, inv: {} },
     };
   }
 
-  const KEY = "drone-maint-sim-v7";
+  const KEY = "drone-maint-sim-v8";
   function load() {
     const s = defaults();
     try {
@@ -213,7 +213,7 @@
         Object.assign(s.rot, raw.rot); Object.assign(s.flip, raw.flip); Object.assign(s.bench, raw.bench || {}); Object.assign(s.screws, raw.screws || {});
         for (const k in s.wiring) if (raw.wiring && raw.wiring[k] !== undefined) s.wiring[k] = typeof s.wiring[k] === "object" ? Object.assign(s.wiring[k], raw.wiring[k]) : raw.wiring[k];
         Object.assign(s.params, raw.params);
-        Object.assign(s.cal, raw.cal); s.rxBound = !!raw.rxBound; if (raw.txm) { Object.assign(s.txm, raw.txm); s.txm.mix = Object.assign({}, s.txm.mix, raw.txm.mix || {}); }
+        Object.assign(s.cal, raw.cal); s.rxBound = !!raw.rxBound; s.txCal = !!raw.txCal; s.needReboot = !!raw.needReboot; if (raw.txm) { Object.assign(s.txm, raw.txm); s.txm.mix = Object.assign({}, s.txm.mix, raw.txm.mix || {}); s.txm.inv = Object.assign({}, raw.txm.inv || {}); }
       }
     } catch (e) {}
     return s;
@@ -328,8 +328,10 @@
     const d = D[k]; v = +v;
     if (!d || isNaN(v)) return;
     if (d.min !== undefined) v = Math.min(d.max, Math.max(d.min, v));
+    if ((k === "FRAME_CLASS" || k === "FRAME_TYPE") && SIM.state.params[k] !== v) SIM.state.needReboot = true; // 프레임 변경은 재부팅해야 적용
     SIM.state.params[k] = v; SIM.emit();
   };
+  SIM.reboot = () => { if (!SIM.power().fcBatt) return "FC 전원이 없습니다."; SIM.state.needReboot = false; SIM.emit(); return ""; };
 
   // ---------- 전원·신호 경로 ----------
   SIM.power = () => {
@@ -358,15 +360,20 @@
   // 수신기 바인드 버튼: 조종기가 바인드 모드이고 통신 방식이 맞으면 바인딩된다
   SIM.bindRx = () => {
     if (!SIM.has("rx")) return "수신기가 장착되지 않았습니다.";
-    if (!SIM.rxPowered()) return "수신기 LED가 꺼져 있습니다. 전원이 들어오지 않습니다.";
-    SIM.binding = Date.now();
-    const ok = SIM.txBinding && SIM.tx && SIM.tx.on && SIM.state.txm.rf === "MULTI" && SIM.state.txm.proto === SIM.RX_PROTO;
-    setTimeout(() => {
-      SIM.binding = 0;
-      if (ok && SIM.rxPowered()) { SIM.state.rxBound = true; SIM.txBinding = false; SIM.toast("바인딩 완료", "ok"); }
-      SIM.emit();
-    }, 2000);
+    if (!SIM.rxPowered()) { SIM.state.bindHeld = !SIM.state.bindHeld; return SIM.state.bindHeld ? "held" : "released"; } // 전원 없이 누르고 있다가 전원을 넣는 방식
+    SIM.binding = Date.now(); SIM.bindUntil = Date.now() + 10000; // 수신기 바인드 대기 (LED 빠르게 깜빡임)
     return "";
+  };
+  // 매 프레임: 바인드 대기 중 조종기가 맞는 방식으로 바인드하면 연결, 전원을 넣는 순간 버튼을 누르고 있었으면 바인드 대기, 전원이 끊기면 FC 재부팅
+  SIM.bindPoll = () => {
+    const now = Date.now(), powered = SIM.rxPowered(), fc = SIM.power().fcBatt;
+    if (powered && !SIM._rxWas && SIM.state.bindHeld) { SIM.state.bindHeld = false; SIM.binding = now; SIM.bindUntil = now + 10000; }
+    if (SIM._fcWas && !fc && SIM.state.needReboot) { SIM.state.needReboot = false; }
+    SIM._rxWas = powered; SIM._fcWas = fc;
+    if (!SIM.bindUntil) return;
+    if (!powered || now > SIM.bindUntil) { SIM.binding = 0; SIM.bindUntil = 0; SIM.emit(); return; }
+    const ok = SIM.txBinding && SIM.tx && SIM.tx.on && SIM.state.txm.rf === "MULTI" && SIM.state.txm.proto === SIM.RX_PROTO;
+    if (ok && now - SIM.binding > 1500) { SIM.state.rxBound = true; SIM.txBinding = false; SIM.binding = 0; SIM.bindUntil = 0; SIM.toast("바인딩 완료", "ok"); SIM.emit(); }
   };
   // LED: 전원만 들어오면 빨강, 조종기와 연결되면 초록, 바인딩 중 깜빡임, 조종기를 끄면 다시 빨강
   SIM.rxLed = () => (!SIM.rxPowered() ? "off" : SIM.binding ? "fast" : SIM.txLink() ? "green" : "red");
@@ -520,7 +527,9 @@
     if (!c.compass) add("나침반 교정", "교정하지 않았습니다.", "시동 불가, 방위 오차");
     if (!c.radio) add("라디오 교정", "교정하지 않았습니다.", "시동 불가 (PreArm: RC not calibrated)");
     if (!c.esc) add("ESC 교정", "교정하지 않았습니다.", "모터마다 회전수가 달라 한쪽으로 흐름");
-    for (let i = 1; i <= 4; i++) if (p["RC" + i + "_REVERSED"]) add("RC" + i + " 반전", "RC" + i + "_REVERSED=1", "스틱과 반대로 움직여 조종 불능");
+    for (const d of SIM.rcDirections()) if (!d.ok) add(d.name + " 방향", "스틱을 " + d.move + " FC에서 반대로 인식합니다 (조종기 출력 반전 " + (d.inv ? "ON" : "OFF") + ", RC" + d.ch + "_REVERSED=" + (d.rev ? 1 : 0) + ").", "스틱과 반대로 움직여 조종 불능");
+    if (!SIM.state.txCal) add("조종기 스틱 캘리브레이션", "TX12 SYS 메뉴의 Calibration을 하지 않았습니다.", "스틱 중립·끝점이 틀어져 조종량 부족, 중립에서 기체가 흐름");
+    if (SIM.state.needReboot) add("FC 재부팅", "교정·프레임 설정 변경 후 재부팅하지 않았습니다.", "시동 불가");
     if (!p.FS_THR_ENABLE) add("라디오 페일세이프", "FS_THR_ENABLE=0 (꺼짐)", "송신기 신호가 끊기면 추락");
     if (!p.BATT_MONITOR) add("배터리 모니터", "BATT_MONITOR=0 (꺼짐)", "전압을 알 수 없어 배터리 페일세이프 동작 안 함");
     if (!(p.BATT_LOW_VOLT > 0 && p.BATT_FS_LOW_ACT)) add("배터리 페일세이프", "저전압 기준 또는 동작이 설정되지 않았습니다.", "배터리 방전 시 추락 위험");
@@ -536,6 +545,14 @@
     if (!SIM.escTelemOk("FR") && SIM.state.wiring.escTelem.FR === "harness") add("ESC 텔레메트리 시리얼", "하네스 포트의 SERIALx_PROTOCOL이 16이 아닙니다.", "ESC 회전수·온도를 받지 못함");
     return out;
   };
+  // 채널 방향: 조종기 원래 출력은 스틱 오른쪽·위(앞)로 PWM 증가. ArduPilot은 피치만 앞으로 밀 때 PWM 감소여야 한다
+  SIM.rcDirections = () => {
+    const p = SIM.state.params, tm = SIM.state.txm;
+    return [["롤", p.RCMAP_ROLL, 1, "오른쪽으로 밀면"], ["피치", p.RCMAP_PITCH, -1, "앞으로 밀면"], ["스로틀", p.RCMAP_THROTTLE, 1, "올리면"], ["요", p.RCMAP_YAW, 1, "오른쪽으로 밀면"]].map(([name, ch, want, move]) => {
+      const inv = !!tm.inv[ch], rev = !!p["RC" + ch + "_REVERSED"];
+      return { name, ch, inv, rev, move, ok: (inv ? -1 : 1) * (rev ? -1 : 1) === want };
+    });
+  };
   // 시동 전 점검 (FC가 스스로 알아낼 수 있는 것만)
   SIM.prearm = (mode) => {
     const st = SIM.state, p = st.params, pw = SIM.power(), f = [];
@@ -544,6 +561,7 @@
     if (p.FRAME_CLASS !== 1) f.push("PreArm: Check frame class and type (FRAME_CLASS가 Quad가 아님)");
     if (![33, 34, 35, 36].every((fn) => [1, 2, 3, 4, 5, 6, 7, 8].some((n) => p["SERVO" + n + "_FUNCTION"] === fn))) f.push("PreArm: Check SERVOx_FUNCTION (모터 출력 4개가 모두 지정되지 않음)");
     if (!SIM.safetyOff()) f.push("PreArm: Hardware safety switch (안전 스위치가 해제되지 않음)");
+    if (st.needReboot) f.push(st.cal.compass ? "PreArm: Compass calibrated requires reboot / 설정 변경 후 재부팅 필요" : "PreArm: Reboot required (설정 변경 후 재부팅 필요)");
     if (p.ARMING_CHECK) {
       if (!st.cal.accel) f.push("PreArm: 3D Accel calibration needed");
       if (!st.cal.compass) f.push("PreArm: Compass not calibrated");
@@ -587,7 +605,7 @@
     Object.assign(p, { COMPASS_OFS_X: -42, COMPASS_OFS_Y: 118, COMPASS_OFS_Z: 63 });
     for (const k in D) if (/^(ATC_|MOT_|ANGLE|PILOT|RTL)/.test(k)) p[k] = D[k].d;
     st.cal = { accel: true, compass: true, radio: true, esc: true };
-    st.txm = { name: "QUAD", mode: 2, rf: "MULTI", proto: SIM.RX_PROTO, failsafe: "No pulses", mix: { 1: "Ail", 2: "Ele", 3: "Thr", 4: "Rud", 5: "SC", 6: "", 7: "", 8: "" } }; st.rxBound = true;
+    st.txm = { name: "QUAD", mode: 2, rf: "MULTI", proto: SIM.RX_PROTO, failsafe: "No pulses", mix: { 1: "Ail", 2: "Ele", 3: "Thr", 4: "Rud", 5: "SC", 6: "", 7: "", 8: "" }, inv: { 2: true } }; st.rxBound = true; st.txCal = true; st.needReboot = false;
     SIM.emit();
   };
   SIM.fastenAll = () => { for (const p of SIM.PARTS) { const n = SIM.SCREW_HOLES[p.type]; if (n && SIM.state.install[p.id]) for (let i = 0; i < n; i++) SIM.state.screws[p.id + ":" + i] = SIM.SCREW_REQ[p.type] + "t"; } };
@@ -618,7 +636,7 @@
     () => { const w = SIM.state.wiring; w.plug.gps = w.plug.telem === "TELEM2" ? "TELEM1" : "TELEM2"; return { desc: "GPS 케이블이 TELEM 포트에 꽂혀 있습니다.", present: () => !SIM.gpsOk() }; },
     () => { SIM.state.wiring.plug.switch = "ADC 3.3V"; return { desc: "안전 스위치 케이블이 SWITCH가 아닌 ADC 3.3V 포트에 꽂혀 있습니다.", present: () => SIM.state.params.BRD_SAFETYENABLE === 1 && !SIM.switchOk() }; },
     () => { SIM.state.wiring.plug.pm = "SERIAL 4/5"; return { desc: "PMU 케이블이 SERIAL 4/5 포트에 꽂혀 있습니다.", present: () => SIM.state.wiring.plug.pm !== "POWER" }; },
-    () => { SIM.state.params.RC2_REVERSED = 1; return { desc: "RC2(피치) 채널이 반전되어 있습니다 (RC2_REVERSED=1).", present: () => SIM.state.params.RC2_REVERSED === 1 }; },
+    () => { SIM.state.params.RC2_REVERSED = 1; return { desc: "피치 채널이 조종기 출력 반전과 RC2_REVERSED로 이중 반전되어 있습니다.", present: () => !SIM.rcDirections()[1].ok }; },
     () => { SIM.state.params.FS_THR_ENABLE = 0; return { desc: "라디오 페일세이프가 꺼져 있습니다 (FS_THR_ENABLE=0).", present: () => SIM.state.params.FS_THR_ENABLE === 0 }; },
     () => { const p = SIM.state.params; p.SERVO1_FUNCTION = 34; p.SERVO2_FUNCTION = 33; return { desc: "SERVO1_FUNCTION과 SERVO2_FUNCTION이 서로 바뀌어 있습니다.", present: () => SIM.POS_IDS.some((x) => SIM.motorNumForPos(x) !== SIM.expected()[x].num) }; },
     () => { SIM.state.params.FRAME_TYPE = 0; return { desc: "FRAME_TYPE이 Plus로 설정되어 있습니다 (기체는 X형).", present: () => SIM.state.params.FRAME_TYPE === 0 }; },

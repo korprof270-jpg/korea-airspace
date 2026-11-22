@@ -15,8 +15,10 @@
   const SW3 = [-1, 0, 1];
   function srcValue(src) {
     const m = MODE_MAP[SIM.state.txm.mode] || MODE_MAP[2];
-    if (src === "Ele") return -tx[m.Ele]; // 앞으로 밀면 PWM이 내려가도록 (ArduPilot 기준)
-    if (m[src]) return tx[m[src]];
+    if (m[src]) { // 스틱: 조종기 캘리브레이션을 안 하면 중립이 틀어지고 끝까지 가지 않는다
+      const ax = m[src], v = tx[ax];
+      return SIM.state.txCal ? v : Math.max(-1, Math.min(1, v * 0.82 + { lx: 0.07, ly: -0.06, rx: 0.08, ry: -0.05 }[ax]));
+    }
     if (src === "SA") return tx.sa ? 1 : -1;
     if (src === "SB") return SW3[tx.sb || 0];
     if (src === "SC") return SW3[tx.sw];
@@ -28,7 +30,7 @@
     const pwm = [0, 1500, 1500, 900, 1500, 1500, 1500, 1500, 1500], tm = SIM.state.txm;
     if (!SIM.rxOk()) return { present: false, pwm };
     if (SIM.txLink()) {
-      for (let ch = 1; ch <= 8; ch++) { const src = tm.mix[ch]; pwm[ch] = src ? Math.round(1500 + OFFS[ch] + srcValue(src) * 476) : 1500; }
+      for (let ch = 1; ch <= 8; ch++) { const src = tm.mix[ch]; pwm[ch] = src ? Math.round(1500 + OFFS[ch] + (tm.inv[ch] ? -1 : 1) * srcValue(src) * 476) : 1500; }
       SIM._lastPwm = pwm.slice();
       return { present: true, pwm };
     }
@@ -392,6 +394,7 @@
   // ---------- 프레임 갱신 ----------
   SIM.tick = function (dt) {
     dt = Math.min(dt, 0.05);
+    SIM.bindPoll();
     keyStep(dt);
     if (F.active) {
       const n = Math.max(1, Math.ceil(dt / 0.004)), h = dt / n;

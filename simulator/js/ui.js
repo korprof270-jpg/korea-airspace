@@ -171,15 +171,17 @@
   const TX_NAMES = ["MODEL01", "QUAD", "DRONE", "TRAINER"];
   function txRows() {
     const m = SIM.state.txm, multi = m.rf === "MULTI";
-    if (tx12.scr === "mdl" && tx12.page === 0) return { title: "MODEL SETUP 1/2", rows: [
+    if (tx12.scr === "mdl" && tx12.page === 0) return { title: "MODEL SETUP 1/3", rows: [
       { k: "Name", v: m.name, opts: TX_NAMES, set: (v) => (m.name = v) },
       { k: "Internal RF", v: m.rf, opts: ["OFF", "MULTI"], set: (v) => (m.rf = v) },
       { k: "Protocol", v: multi ? m.proto : "---", opts: multi ? SIM.TX_PROTOS : null, set: (v) => (m.proto = v) },
       { k: "Receiver", v: multi ? (SIM.txBinding ? "[Bind]" : "Bind") : "---", act: multi ? "bind" : null },
       { k: "Failsafe", v: m.failsafe, opts: ["Not set", "Hold", "Custom", "No pulses"], set: (v) => (m.failsafe = v) },
     ] };
-    if (tx12.scr === "mdl") return { title: "MIXES 2/2", rows: [1, 2, 3, 4, 5, 6, 7, 8].map((ch) => ({ k: "CH" + ch, v: m.mix[ch] || "---", opts: SIM.TX_SOURCES.map((x) => x || "---"), set: (v) => (m.mix[ch] = v === "---" ? "" : v) })) };
-    if (tx12.scr === "sys") return { title: "RADIO SETUP", rows: [{ k: "Stick mode", v: "Mode " + m.mode, opts: ["Mode 1", "Mode 2", "Mode 3", "Mode 4"], set: (v) => (m.mode = +v.slice(-1)) }] };
+    if (tx12.scr === "mdl" && tx12.page === 2) return { title: "OUTPUTS 3/3", rows: [1, 2, 3, 4, 5, 6, 7, 8].map((ch) => ({ k: "CH" + ch, v: m.inv[ch] ? "INV" : "---", opts: ["---", "INV"], set: (v) => (m.inv[ch] = v === "INV") })) };
+    if (tx12.scr === "mdl") return { title: "MIXES 2/3", rows: [1, 2, 3, 4, 5, 6, 7, 8].map((ch) => ({ k: "CH" + ch, v: m.mix[ch] || "---", opts: SIM.TX_SOURCES.map((x) => x || "---"), set: (v) => (m.mix[ch] = v === "---" ? "" : v) })) };
+    if (tx12.scr === "sys" && tx12.cal) return { title: "CALIBRATION", rows: tx12.cal === 1 ? [{ k: "스틱을 가운데에 두고", v: "" }, { k: "[ENT] 누르기", v: "" }] : [{ k: "스틱을 끝까지 돌리고", v: "" }, { k: "[ENT] 누르기", v: calLeft() }], cal: true };
+    if (tx12.scr === "sys") return { title: "RADIO SETUP", rows: [{ k: "Stick mode", v: "Mode " + m.mode, opts: ["Mode 1", "Mode 2", "Mode 3", "Mode 4"], set: (v) => (m.mode = +v.slice(-1)) }, { k: "Calibration", v: SIM.state.txCal ? "OK" : "[Start]", act: "cal" }] };
     if (tx12.scr === "tel") { const link = SIM.txLink(); return { title: "TELEMETRY", rows: [{ k: "RSSI", v: link ? "92 dB" : "---" }, { k: "RxBt", v: link && SIM.power().fcBatt ? "5.1V" : "---" }] }; }
     return null;
   }
@@ -210,9 +212,16 @@
     if (k === "sd") { t.sd = t.sd ? 0 : 1; return render(); }
     if (!t.on) return;
     if (k === "sys" || k === "mdl" || k === "tel") { tx12.scr = k; tx12.page = 0; tx12.row = 0; tx12.edit = false; return render(); }
-    if (k === "rtn") { if (tx12.edit) tx12.edit = false; else { tx12.scr = "main"; SIM.txBinding = false; } return render(); }
-    if (k === "page") { if (tx12.scr === "mdl") { tx12.page = (tx12.page + 1) % 2; tx12.row = 0; tx12.edit = false; } return render(); }
+    if (k === "rtn") { if (tx12.cal) tx12.cal = 0; else if (tx12.edit) tx12.edit = false; else { tx12.scr = "main"; SIM.txBinding = false; } return render(); }
+    if (k === "page") { if (tx12.scr === "mdl") { tx12.page = (tx12.page + 1) % 3; tx12.row = 0; tx12.edit = false; } return render(); }
     const r = txRows(); if (!r) return;
+    if (r.cal) { // 스틱 캘리브레이션: 가운데 → 끝까지 → 완료
+      if (k !== "enter") return;
+      const t2 = SIM.tx;
+      if (tx12.cal === 1) { tx12.cal = 2; tx12.ext = { lx: [0, 0], ly: [0, 0], rx: [0, 0], ry: [0, 0] }; }
+      else if (calLeft() === "") { tx12.cal = 0; SIM.state.txCal = true; SIM.emit(); SIM.toast("조종기 캘리브레이션 완료", "ok"); }
+      return render();
+    }
     const row = r.rows[tx12.row];
     if (k === "up" || k === "down") {
       const d = k === "up" ? -1 : 1;
@@ -222,10 +231,13 @@
     }
     if (k === "enter") {
       if (row.act === "bind") { SIM.txBinding = !SIM.txBinding; render(); return; }
+      if (row.act === "cal") { tx12.cal = 1; tx12.row = 0; render(); return; }
       if (row.opts) tx12.edit = !tx12.edit;
       return render();
     }
   }
+  // 캘리브레이션 중 아직 끝까지 움직이지 않은 축
+  function calLeft() { const e = tx12.ext; if (!e) return ""; const left = Object.keys(e).filter((a) => e[a][0] > -0.95 || e[a][1] < 0.95); return left.length ? "남은 축 " + left.length : ""; }
   // 바인드 모드 신호음
   let actx = null, lastBeep = 0;
   function beep() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = 2300; g.gain.value = 0.06; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09); } catch (e) {} }
@@ -280,10 +292,7 @@
     const pw = SIM.power();
     let h = "<p>상태 " + calChip(SIM.state.cal.esc) + "</p>";
     h += "<ol class=\"steps\"><li>프로펠러를 모두 분리합니다.</li><li>송신기 스로틀을 최대로 올리고 배터리를 연결합니다.</li><li>ESC 비프음이 나면 스로틀을 최저로 내립니다.</li><li>긴 비프음이 끝나면 배터리를 분리합니다.</li></ol>";
-    const props = SIM.POS_IDS.some((id) => SIM.has("prop@" + id));
     h += '<div class="btns">' + btn("escCal", "ESC 교정 실행", "primary") + "</div>";
-    if (!pw.main)
-    if (props)
     return h;
   }
   function pgModes() {
@@ -296,14 +305,12 @@
     let h = "<h4>라디오 (스로틀) 페일세이프</h4>" + prow("FS_THR_ENABLE") + prow("FS_THR_VALUE");
     h += '<p>현재 스로틀 PWM <code id="fs-pwm">----</code> <span id="fs-state" class="chip"></span></p>';
     h += "<h4>배터리 페일세이프</h4>" + prow("BATT_LOW_VOLT") + prow("BATT_FS_LOW_ACT");
-    if (!P().BATT_MONITOR)
     return h;
   }
   function pgBattery() {
     const pw = SIM.power();
     let h = prow("BATT_MONITOR") + prow("BATT_CAPACITY");
     h += '<p>측정 전압 <code id="batt-v">--</code></p>';
-    if (P().BATT_MONITOR && !pw.battSense)
     return h;
   }
   function pgServo() {
@@ -389,7 +396,7 @@
     $("#step-prev").hidden = si === 0; $("#step-prev span").textContent = si > 0 ? STEP_NAME[STEPS[si - 1]] : "";
     const last = si === STEPS.length - 1;
     $("#step-next span").textContent = last ? "완료" : STEP_NAME[STEPS[si + 1]]; $("#step-next").classList.toggle("done", last);
-    $("#panel").hidden = !ui.open || tab === "hw"; $("#panel-title").textContent = STEP_NAME[tab];
+    $("#panel").hidden = !ui.open || tab === "hw"; $("#panel-title").textContent = STEP_NAME[tab]; $("#reboot-btn").hidden = tab !== "sw";
     if (SIM.selected) ui.wire = null;
     const pop = $("#pop"), showPop = (!!SIM.selected || !!ui.wire) && !F.active && SIM.scene.env === "bench" && !ui.fcView;
     pop.hidden = !showPop; if (showPop) pop.innerHTML = ui.wire ? "<h3>배선</h3><p class=\"where\">" + esc(ui.wire.label) + '</p><div class="btns">' + btn("wireCut", "분리") + btn("wireClose", "닫기", "ghost") + "</div>" : popHtml(SIM.selected);
@@ -450,7 +457,8 @@
     wireCut: () => { const m = ui.wire; ui.wire = null; if (m) SIM.scene.disconnectTip(m.tip); else render(); },
     wireClose: () => { ui.wire = null; render(); },
     rxFlip: (a) => { SIM.state.wiring[a] = !SIM.state.wiring[a]; SIM.emit(); },
-    bind: () => { const e = SIM.bindRx(); SIM.toast(e || "바인딩 중… LED 빠르게 깜빡임", e ? "bad" : ""); },
+    bind: () => { const r = SIM.bindRx(), M = { held: "바인드 버튼을 누르고 있습니다. 이 상태로 수신기에 전원을 넣으세요.", released: "바인드 버튼에서 손을 뗐습니다.", "": "수신기 바인드 대기 중 (LED 빠르게 깜빡임)" }; SIM.toast(M[r] !== undefined ? M[r] : r, M[r] !== undefined ? "" : "bad"); },
+    reboot: () => { const e = SIM.reboot(); SIM.toast(e || "FC 재부팅 완료", e ? "bad" : "ok"); },
     focusPart: (a) => { SIM.select(a); SIM.scene.focus(a); },
     select: (a) => SIM.select(a && SIM.selected !== a ? a : null),
     install: (a) => { const e = SIM.install(SIM.selected, a); if (e) SIM.toast(e, "bad"); },
@@ -481,7 +489,7 @@
       SIM.emit();
     },
     compassStart: () => { ui.compass = { seen: new Set() }; render(); },
-    compassAuto: () => { SIM.scene.tumble = 7; },
+    compassAuto: () => { SIM.scene.tumble = 60; },
     compassCancel: () => { ui.compass = null; SIM.scene.tumble = 0; SIM.scene.setPose("level"); render(); },
     radioStart: () => { if (!SIM.rxOk()) return SIM.toast("수신기 신호가 없습니다.", "bad"); ui.radio = { min: [0, 9999, 9999, 9999, 9999], max: [0, 0, 0, 0, 0] }; render(); },
     radioCancel: () => { ui.radio = null; render(); },
@@ -607,7 +615,7 @@
       if (pct >= 100) {
         ui.compass = null; SIM.scene.tumble = 0; SIM.scene.setPose("level");
         const p = P(); p.COMPASS_OFS_X = Math.round(-80 + Math.random() * 160); p.COMPASS_OFS_Y = Math.round(40 + Math.random() * 120); p.COMPASS_OFS_Z = Math.round(-60 + Math.random() * 160);
-        SIM.state.cal.compass = true; SIM.toast("나침반 교정 완료 · 오프셋 저장됨", "ok"); SIM.emit();
+        SIM.state.cal.compass = true; SIM.state.needReboot = true; SIM.toast("나침반 교정 완료 · 재부팅하세요 (Please reboot the autopilot)", "ok"); SIM.emit();
       }
     } else if (page === "test/flight" && F.active) {
       txt("f-mode", SIM.MODES[F.mode] + (F.fsRadio ? " (FS)" : "")); txt("f-arm", F.crashed ? "전복" : F.armed ? "ARMED" : "DISARMED");
@@ -618,6 +626,7 @@
       for (let n = 1; n <= 4; n++) { const d = et[n]; txt("et-r" + n, d ? String(d.rpm) : "—"); txt("et-a" + n, d ? d.amps.toFixed(1) + " A" : "—"); txt("et-t" + n, d ? d.temp + " °C" : "—"); txt("et-v" + n, d ? d.volt.toFixed(1) + " V" : "—"); }
     }
     if (SIM.txBinding && SIM.tx.on && performance.now() - lastBeep > 700) { lastBeep = performance.now(); beep(); }
+    if (tx12.cal === 2 && tx12.ext) { const t = SIM.tx, e = tx12.ext; for (const a of ["lx", "ly", "rx", "ry"]) { e[a][0] = Math.min(e[a][0], t[a]); e[a][1] = Math.max(e[a][1], t[a]); } const lr = document.querySelector("#txview .lcd-row:last-child span:last-child"); if (lr) lr.textContent = calLeft() || "OK → [ENT]"; }
     if (ui.txView && !$("#txview").hidden) { const gs = document.querySelectorAll("#txview .gimbal i"), t = SIM.tx; if (gs.length === 2) { gs[0].style.left = 50 + t.lx * 40 + "%"; gs[0].style.top = 50 - t.ly * 40 + "%"; gs[1].style.left = 50 + t.rx * 40 + "%"; gs[1].style.top = 50 - t.ry * 40 + "%"; } }
     const pop = $("#pop");
     if (!pop.hidden && ui.wire) { const st = pop.parentElement.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(st.width - pop.offsetWidth - 8, ui.wireAt[0] - st.left + 12)) + "px"; pop.style.top = Math.max(8, Math.min(st.height - pop.offsetHeight - 8, ui.wireAt[1] - st.top - 20)) + "px"; }
@@ -639,6 +648,12 @@
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
     SIM.scene.onPick = (id) => { ui.wire = null; SIM.select(id && id !== SIM.selected ? id : null); };
     SIM.scene.onTx = () => { ui.txView = true; render(); };
+    // 조종기 창의 스틱(짐벌)을 직접 끌어 움직인다 (왼쪽: 요·스로틀, 오른쪽: 롤·피치 — Mode 2 기준 실제 스틱 위치)
+    let gd = null;
+    document.body.addEventListener("pointerdown", (e) => { const gEl = e.target.closest("#txview .gimbal"); if (!gEl) return; const all = [...document.querySelectorAll("#txview .gimbal")]; gd = { side: all.indexOf(gEl), el: gEl, id: e.pointerId }; gEl.setPointerCapture(e.pointerId); moveG(e); e.preventDefault(); });
+    const moveG = (e) => { if (!gd) return; const r = gd.el.getBoundingClientRect(), x = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1)), y = Math.max(-1, Math.min(1, -(((e.clientY - r.top) / r.height) * 2 - 1))); if (gd.side === 0) { SIM.tx.lx = x; SIM.tx.ly = y; } else { SIM.tx.rx = x; SIM.tx.ry = y; } };
+    document.body.addEventListener("pointermove", (e) => { if (gd && e.pointerId === gd.id) moveG(e); });
+    document.body.addEventListener("pointerup", (e) => { if (!gd || e.pointerId !== gd.id) return; if (gd.side === 1) { SIM.tx.rx = 0; SIM.tx.ry = 0; } else SIM.tx.lx = 0; gd = null; });
     SIM.scene.onWire = (meta, x, y) => { ui.wire = meta; ui.wireAt = [x, y]; if (SIM.selected) SIM.select(null); else render(); };
     SIM.scene.onFcCable = (c) => { ui.fcView = true; ui.cable = SIM.cableReady(c) ? c : null; render(); };
     // 끌기·연결 중 커서 옆 이름표
