@@ -764,7 +764,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
   function finishPick(tg) {
     const tip = sc.pick, w = SIM.state.wiring, part = SIM.part(tip.part);
     const pos = (SIM.state.install[tip.part] || "").split("@")[1];
-    const say = (m) => { SIM.toast(m, "bad"); if (SIM.sfx) SIM.sfx("err"); };
+    const say = (m) => SIM.toast(m, "bad");
     const ok = (t) => { if (SIM.sfx) SIM.sfx(t || "plug"); };
     if (tg.kind === "escPad") {
       if (part.type !== "motor") return say("이 선은 ESC 단자에 연결하지 않습니다.");
@@ -950,7 +950,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       const d = sc.drag; sc.drag = null; snapRing.visible = false;
       if (sc.onHover) sc.onHover("");
       canvas.style.cursor = "grab";
-      if (d.slot) { const err = SIM.install(d.id, d.slot); if (err) { SIM.toast(err, "bad"); SIM.sfx && SIM.sfx("err"); } else SIM.sfx && SIM.sfx("mount"); }
+      if (d.slot) { const err = SIM.install(d.id, d.slot); if (err) SIM.toast(err, "bad"); else SIM.sfx && SIM.sfx("mount"); }
       else { const t = objs[d.id].group.userData.tp; SIM.placeOnBench(d.id, +t.x.toFixed(3), +t.z.toFixed(3)); }
     }
     const up = (e) => {
