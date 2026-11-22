@@ -55,11 +55,13 @@ export class Mode {
     if (this.state === "run") this.time += dt;
     // 추락 → 잠시 후 재배치
     if (pl.crashed && pl.crashTimer > this.respawnDelay) this.onReset();
-    // 구역 이탈
-    const R = s.world.size + 40;
-    if (Math.abs(b.pos.x) > R || Math.abs(b.pos.z) > R || b.pos.y > s.world.ceiling + 40 || b.pos.y < s.world.h(b.pos.x, b.pos.z) - 5) {
-      this.onOutOfBounds();
-    }
+    // 구역 경계: 경고·폭파 없이 보이지 않는 벽처럼 막는다 (바깥으로 향하던 속도만 없앤다)
+    const R = s.world.size + 40, top = s.world.ceiling + 40, v = b.vel;
+    if (b.pos.x > R) { b.pos.x = R; if (v.x > 0) v.x = 0; } else if (b.pos.x < -R) { b.pos.x = -R; if (v.x < 0) v.x = 0; }
+    if (b.pos.z > R) { b.pos.z = R; if (v.z > 0) v.z = 0; } else if (b.pos.z < -R) { b.pos.z = -R; if (v.z < 0) v.z = 0; }
+    if (b.pos.y > top) { b.pos.y = top; if (v.y > 0) v.y = 0; }
+    const gy = s.world.h(b.pos.x, b.pos.z);
+    if (b.pos.y < gy - 5) { b.pos.y = gy + 1; if (v.y < 0) v.y = 0; }   // 지형 속으로 빠졌을 때는 조용히 위로
   }
 
   onOutOfBounds() {

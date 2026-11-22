@@ -76,7 +76,6 @@ export class CombatMode extends Mode {
     pl.respawn(_v, b.heading);
   }
 
-  onOutOfBounds() { if (this.me.alive) { this.s.hud.toast("비행 구역 이탈", "#ff6b5a"); this.combat.damage(this.me, 9999, null); } }
 
   update(dt) {
     if (this.cut) return this._cutStep(dt);

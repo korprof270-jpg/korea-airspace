@@ -1,6 +1,9 @@
 // 설정·기록 저장 (localStorage) 과 기체/조종 프리셋
 const KEY = "haneulgil-fpv-v1";
 
+// 게임 버전: 업데이트할 때마다 올린다 (첫 화면 왼쪽 아래에 표시)
+export const VERSION = "V1.00";
+
 export const FLIGHT_MODES = ["ACRO", "HORIZON", "ANGLE", "ALTHOLD", "LOITER"];
 export const FLIGHT_MODE_INFO = {
   ACRO: { label: "ACRO", ko: "아크로 (수동)", desc: "자동 수평 없음. 스틱 = 회전 속도. 플립·롤 등 모든 기동 가능" },
