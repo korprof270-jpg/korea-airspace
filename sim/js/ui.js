@@ -6,6 +6,12 @@ import {
 import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS, skinSwatch } from "./dronemodel.js";
 import { VARIANTS } from "./modes/survival.js";
+// 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
+const SV_TYPES = {
+  tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
+  assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "전반 공격 5분 · 후반 수비 5분. 구역마다 침투·격파·점령·침투 저지 임무, 승수가 같으면 총점으로 최종 승부" },
+  aos: { name: "기지전 (AOS)", icon: "🏯", variant: "aos", size: "매우 큰 맵", fit: (mp) => mp.size >= 400, desc: "라인·타워·정글·보스가 있는 5:5 팀전. 상대 본진 파괴 · 목표 점수 달성 · 시간 종료 때 점수 우세 중 하나로 승리" },
+};
 import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
 import { story, progress, unlocked, stageStars, goalText, stageConfig, usesTeam, KIND } from "./story.js";
@@ -657,12 +663,18 @@ export class UI {
     const s = this.sel, m = MODE_META[s.mode];
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
-    if (s.mode === "survival" && s.variant === "aos" && s.map !== "stadium") { s.mapPrev = s.map; s.map = "stadium"; }   // 기지전은 스타디움 전용 (원래 맵은 기억)
-    else if (s.mode === "survival" && s.map === "stadium") s.map = MAPS[s.mapPrev] && s.mapPrev !== "stadium" ? s.mapPrev : MAP_LIST[0].id;   // 경기장 맵은 기지전 전용: 다른 서바이벌 방식에서는 원래 맵으로
+    // 서바이벌: ① 미션 종류 → ② 그 종류에 맞는 크기의 맵만
+    const svT = s.mode === "survival" ? SV_TYPES[s.svType] || SV_TYPES[(s.svType = "assault")] : null;
+    if (svT) {
+      s.variant = svT.variant;
+      const ok = MAP_LIST.filter((mp) => mp.combat && svT.fit(mp));
+      if (!ok.find((mp) => mp.id === s.map)) s.map = (ok.find((mp) => mp.id === s["svMap_" + s.svType]) || ok[0]).id;
+      s["svMap_" + s.svType] = s.map;
+    }
     const map = MAPS[s.map];
     const card = (k, v, on, inner, cls = "") => `<button class="card ${cls} ${on ? "sel" : ""}" data-a="sel" data-k="${k}" data-v="${v}">${inner}</button>`;
     // ① 맵 (모든 모드 공통)
-    const maps = MAP_LIST.filter((mp) => !(s.mode === "survival" && s.variant !== "aos" && mp.id === "stadium")).map((mp) => {
+    const maps = MAP_LIST.filter((mp) => !svT || (mp.combat && svT.fit(mp))).map((mp) => {
       const extra = s.mode === "challenge" ? `<div class="tag">임무 ${cmMissions(mp.id).length}</div>` : "";
       return card("map", mp.id, s.map === mp.id, `${this._thumb("map", mp.id)}${extra}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div>`, "mapcard");
     }).join("");
@@ -694,11 +706,10 @@ export class UI {
         + card("fs", "free", s.fs === "free", `<div class="ic">🕊</div><div class="nm">자유 비행</div><div class="ds">시간 제한 없이 맵을 돌아다니며 연습합니다. Esc 로 끝냅니다.</div>`);
       opts += `<p class="hint2">플립·롤·스핀·다이브·근접 비행·갭 통과를 끊기지 않게 이어 콤보 배율을 올리세요. ACRO 모드에서 모든 묘기를 할 수 있습니다.</p>`;
     } else if (s.mode === "survival") {
-      if (!VARIANTS[s.variant] || VARIANTS[s.variant].hidden) s.variant = "assault";
-      t2 = "방식 선택"; p2 = VARIANTS[s.variant].name;
-      step2 = Object.entries(VARIANTS).filter(([, v]) => !v.hidden).map(([id, v]) => {
-        const best = records[`survival:${id}:${map.id}`];
-        return card("variant", id, s.variant === id, `<div class="ic">${v.icon}</div><div class="tag">${best ? "최고 " + best + "점" : ""}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
+      t2 = "미션 종류"; p2 = svT.name;
+      step2 = Object.entries(SV_TYPES).map(([id, v]) => {
+        const n = MAP_LIST.filter((mp) => mp.combat && v.fit(mp)).length;
+        return card("svType", id, s.svType === id, `<div class="ic">${v.icon}</div><div class="tag">${v.size} · 맵 ${n}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
       }).join("");
       if (s.variant === "aos") {
         opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
@@ -707,6 +718,8 @@ export class UI {
       } else if (s.variant === "fleet") {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
+      } else if (s.variant === "tdm") {
+        opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
         opts += `<p class="hint2">전반 공격 5분 → 공수 교대 → 후반 수비 5분. 승수가 같으면 총점(침투·격파·격추)으로 최종 승부 · 적 수와 난이도는 실력에 맞춰 자동 조절됩니다.</p>`;
       }
@@ -723,7 +736,9 @@ export class UI {
     opts += `<div class="opt"><label>시점</label>${this.seg("camera", Object.entries(CAMERA_NAMES), settings.camera, "set")}</div>`;
     opts += `<div class="opt"><label>기체</label><button class="ghost" data-a="go" data-v="hangar">🛠 ${esc(DRONE_CLASSES[settings.drone.cls].name)} — 정비소에서 바꾸기</button></div>`;
     const summary = [map.name, p2].filter(Boolean).join(" · ");
-    const body = this._step(1, "맵 선택", map.name, `<div class="grid maps">${maps}</div>`)
+    const body = svT
+      ? this._step(1, t2, p2, `<div class="grid wide">${step2}</div>`) + this._step(2, `맵 선택 · ${svT.size}`, map.name, `<div class="grid maps">${maps}</div>`) + this._step(3, "옵션", "", opts)
+      : this._step(1, "맵 선택", map.name, `<div class="grid maps">${maps}</div>`)
       + this._step(2, t2, p2, `<div class="grid wide">${step2}</div>`)
       + this._step(3, "옵션", "", opts);
     return `<div class="screen split" style="--c:${m.c}">
@@ -750,7 +765,7 @@ export class UI {
     this._persist();
     this.redraw();
     // 고른 다음 단계가 보이게 내린다 (맵 → 2단계, 2단계 → 옵션)
-    const next = k === "map" || k === "chapter" || k === "course" ? 2 : ["track", "subject", "fs", "variant", "mission", "stage", "lesson"].includes(k) ? 3 : 0;
+    const next = k === "svType" ? 2 : k === "map" && this.sel.mode === "survival" ? 3 : k === "map" || k === "chapter" || k === "course" ? 2 : ["track", "subject", "fs", "variant", "mission", "stage", "lesson"].includes(k) ? 3 : 0;
     const stepEl = next && this.root.querySelector(`[data-step="${next}"]`);
     if (stepEl) stepEl.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
@@ -765,7 +780,7 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "tdm" || s.variant === "assault" ? 8 : 6, time: s.variant === "assault" ? 300 : 480, difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;

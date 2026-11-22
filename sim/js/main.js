@@ -8,7 +8,7 @@ import { Sound } from "./audio.js";
 import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
-// import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌·PVP 메뉴에서 뺌 (다시 켜려면 이 줄과 survival.js 의 hidden 을 되돌린다)
+import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌 · 매우 큰 맵
 import { UI } from "./ui.js";
 import { PadUI } from "./padui.js";
 import { Perf } from "./perf.js";
