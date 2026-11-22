@@ -450,7 +450,7 @@ export class AosMode extends CombatMode {
 
   // ── 미니드론 ──
   _wave() {
-    const heavy = this.wave % 2 === 1 ? (this.time > 360 ? 2 : 1) : 0;   // 둘째 웨이브마다 중형 미니드론 (6분 뒤엔 둘)
+    const heavy = this.wave % 2 === 1 ? (this.time > 360 ? 2 : 1) : 0;   // 둘째 웨이브마다 중형 드론 (6분 뒤엔 둘)
     this.wave++;
     if (this.minions.filter((m) => m.alive).length > 150) return;
     const online = this.ng.online;
@@ -459,7 +459,7 @@ export class AosMode extends CombatMode {
       for (const lane of Object.keys(this.paths)) {
         const path = this.paths[lane], st = t.id ? path[path.length - 1] : path[0], nx = t.id ? path[path.length - 2] : path[1];
         _w.copy(nx).sub(st).setY(0).normalize();
-        const extra = this.teams[1 - t.id].towers.filter((x) => x.lane === lane && !x.alive).length;   // 상대 타워를 부순 라인은 중형 미니드론이 더 나온다
+        const extra = this.teams[1 - t.id].towers.filter((x) => x.lane === lane && !x.alive).length;   // 상대 타워를 부순 라인은 중형 드론이 더 나온다
         const n = online ? 3 : WAVE_N;
         for (let i = 0; i < n + (online ? Math.min(1, heavy + extra) : heavy + extra); i++) {
           if (!this.net.canSpawnMinion()) break;
@@ -471,7 +471,7 @@ export class AosMode extends CombatMode {
           m.hp = m.maxHp = big ? HEAVY_HP : MINION_HP;
           m.K = big ? this._heavyK : KINDS.minion;
           m.model.scale.setScalar(SW.minion.scale * (big ? 1.6 : 1)); m.radius = big ? 1.3 : 0.85;
-          m.name = big ? "중형 미니드론" : "미니드론";
+          m.name = big ? "중형 드론" : "미니드론";
           this.net.shareMinion(m);
         }
       }
