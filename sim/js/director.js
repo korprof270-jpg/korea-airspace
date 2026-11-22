@@ -172,6 +172,10 @@ export class Director {
     if (m.state !== "run" || m.cut) return;
     if (this.si < 0) this._stage(0);
     this.stageT += dt;
+    if (this.stormT > 0 && (this.stormT -= dt) <= 0) this.weather.storm(true, 55);
+    if (this.sideQ && this.sideQ.length && this.stageT >= this.sideT && this.pause <= 0 && !this.objs.some((o) => o.state === "run" && !o.primary)) {
+      this._add(this.sideQ.shift(), false); this.sideT = this.stageT + 40;
+    }
     const left = m.duration - m.time;
     if (!this.allOut && left <= this.finalT && !this.victory) this._allOut();
     for (const o of this.objs) if (o.state === "run") { o.t += dt; o.upd(dt); if (o.state === "run" && o.limit && o.t >= o.limit) o.timeout ? o.timeout() : this._end(o, false); }
@@ -195,10 +199,11 @@ export class Director {
     this._banner(i === 0 ? `작전 개시 — 제1 구역 · ${sc.label}` : moved ? `전선 이동 — 제${st.sec + 1} 구역 · ${sc.label}` : `제${st.sec + 1} 구역 2차 공세`, i === 0 ? "#8cc4ff" : "#35ff7a");
     this.s.game.sound.play(i === 0 ? "go" : "lap");
     for (const t of st.objs) this._add(t, true);
-    for (const t of st.side) this._add(t, false);
+    // 보조 목표는 단계 시작과 동시에 몰아치지 않게: 주 목표에 익숙해질 시간(약 35초) 뒤 하나씩
+    this.sideQ = st.side.slice(); this.sideT = i === 0 ? 45 : 35;
     this.say(i === 0 ? `작전 개시. 제1 구역 ${sc.label} — ${st.name}부터 시작합니다.` : moved ? `전선이 제${st.sec + 1} 구역으로 이동합니다. ${sc.label}, 대비하세요.` : `같은 구역에 적 2차 공세! ${st.name}!`, 3);
     // 날씨 · 지형 변화 계획
-    if (i === 1) this.weather.storm(true, 55);
+    if (i === 1) this.stormT = 25;   // 폭풍은 단계 시작 25초 뒤에 (새 목표와 겹치지 않게)
     if (st.objs.includes("titan") || (i === this.plan.length - 1 && !this.nightDone)) { this.nightDone = true; this.weather.night(true); }
     // 원래 편성 드론도 새 구역을 거점으로
     for (const a of this.c.actors) if (a.kind === "bot" && a.alive && a.ai && (this.ffa || a.team === 1) && a.squad !== "p") a.ai.home = sc.c;
@@ -212,7 +217,12 @@ export class Director {
       this._add("clear", true);
       return;
     }
-    if ((this.pause += dt) < 3.5) return;
+    if (this.pause === 0) {   // 구역 확보 직후: 잠깐 숨 돌릴 시간 (보조 목표 정리 · 증원 멈춤)
+      for (const o of this.objs) if (o.state === "run" && o.stage === this.si && !o.keep) this._end(o, null);
+      this.sideQ = [];
+      this.s.hud.toast("목표 달성 — 정비 시간", "#8cc4ff", 1.8, 22);
+    }
+    if ((this.pause += dt) < (this.allOut ? 3.5 : 12)) return;
     // 구역 확보 → 다음 단계. 보조 목표는 남은 것을 정리한다
     for (const o of this.objs) if (o.state === "run" && o.stage === this.si && !o.keep) this._end(o, null);
     const cur = this.plan[this.si], nxt = this.plan[this.si + 1];
@@ -534,8 +544,9 @@ export class Director {
   }
   // 주기적인 적 투입: 구역 성격에 맞는 구성. 위협 단계가 높을수록 자주
   _spawner(dt) {
+    if (this.pause > 0 && !this.allOut) return;   // 단계 사이 정비 시간에는 증원 없음
     if ((this.spawnT -= dt) > 0) return;
-    this.spawnT = this.allOut ? 4 : Math.max(5, 15 - this.tier * 2.2);
+    this.spawnT = this.allOut ? 5 : Math.max(8, 19 - this.tier * 2.2);
     if (!this.canSpawn(1)) return;
     const sc = this.secs[this.secI], kind = pick(MIX[sc.kind]);
     let p = null;
