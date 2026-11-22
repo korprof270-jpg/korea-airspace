@@ -23,6 +23,10 @@ import { complete as completeLesson } from "./training.js";
 const TIERS = ["low", "med", "high"];
 const MENU_BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.92 };
 
+// 기기 화면 갱신 제한(ms) 기억: 품질을 낮춰도 빨라지지 않던 속도
+function qcapLoad() { try { const v = +localStorage.getItem("fpv.qcap"); return v > 0 && v < 100 ? v : 0; } catch (_) { return 0; } }
+function qcapSave(v) { try { localStorage.setItem("fpv.qcap", String(Math.round(v * 10) / 10)); } catch (_) { /* 저장 불가 환경 */ } }
+
 class Game {
   constructor() {
     const glc = document.getElementById("gl");
@@ -45,6 +49,7 @@ class Game {
     this.ui = new UI(this);
     this.padui = new PadUI(this);
     this.perf = new Perf(this);   // 성능 표시·측정 (F3)
+    this._capAvg = qcapLoad();   // 지난번에 알아낸 이 기기의 화면 갱신 제한(ms)
     this.input.onPad = (kind, info, was) => { this.padui.onPad(kind, info, was); this._touchLayer(); };   // 연결·해제 때 화면 스틱 다시 판단
     this.applyQuality();
     addEventListener("resize", () => this.resize());
@@ -209,15 +214,34 @@ class Game {
     if (a.sum < 1500) return;
     const avg = a.sum / a.n;
     a.sum = 0; a.n = 0;
-    if (avg > 22) {
+    // 방금 낮춘 효과 확인: 낮췄는데도 10% 넘게 빨라지지 않았다면 기기가 화면 갱신을 묶어 둔 것(예: 30fps 제한·절전)이지
+    // 그래픽이 무거운 게 아니다 → 원래대로 되돌리고, 이 기기에서는 그 속도를 기준으로 삼아 더 낮추지 않는다
+    const tr = this._trial;
+    if (tr) {
+      this._trial = null;
+      if (avg > tr.prev * 0.9) {
+        this.dprScale = tr.dpr;
+        if (this._autoTier !== tr.tier) { this._autoTier = tr.tier; this.applyQuality(); } else this._pixelRatio();
+        this._capAvg = Math.max(this._capAvg || 0, tr.prev); qcapSave(this._capAvg);
+        a.skip = 600; return;
+      }
+    }
+    const capped = this._capAvg && avg < this._capAvg * 1.25;   // 기기 제한 속도 근처면 '느림'이 아니다
+    if (avg > 22 && !capped) {
       a.good = 0; this._fastRuns = 0;
+      this._trial = { prev: avg, dpr: this.dprScale, tier: this._autoTier || this.q };
+      if (this._capAvg) this._tierUpFail = true;
       if (this.dprScale > 0.62) { this.dprScale = Math.max(0.6, this.dprScale * 0.85); this._pixelRatio(); a.skip = 600; return; }
       const i = TIERS.indexOf(this.q);
       if (i > 0) {
         this._autoTier = TIERS[i - 1]; this.dprScale = 0.85;
         this.applyQuality();
         if (this.state === "play") this.hud.toast(`성능에 맞춰 그래픽을 '${QUALITY_NAMES[this.q]}'(으)로 낮췄습니다`, "#ffd24a", 2.4, 16);
-      }
+      } else this._trial = null;
+    } else if (capped && this.state === "play") {
+      // 제한 속도로 묶인 기기: 그래픽을 낮춰도 소용없으니, 비행이 끝날 때 품질을 한 단계 올려 볼 수 있게 센다
+      if (this.dprScale < 1) { this.dprScale = Math.min(1, this.dprScale / 0.85); this._pixelRatio(); a.skip = 600; }
+      else this._fastRuns = (this._fastRuns || 0) + 1;
     } else if (avg < 17.5) {
       if (++a.good >= 3 && this.dprScale < 1) { this.dprScale = Math.min(1, this.dprScale * 1.1); this._pixelRatio(); a.good = 0; a.skip = 600; }
       else if (a.good >= 3 && this.state === "play") { this._fastRuns = (this._fastRuns || 0) + 1; a.good = 0; }
@@ -227,6 +251,7 @@ class Game {
   // 새 비행을 시작할 때: 지난 비행 내내 여유가 있었으면(해상도 100% + 빠른 구간이 충분) 단계 하나 올려 본다
   _autoTierUp() {
     if (!this.autoQ || !this._fastRuns || this._fastRuns < 8) return;
+    if (this._capAvg && this._tierUpFail) return;   // 제한 기기에서 올렸다가 느려진 적이 있으면 그만
     const i = TIERS.indexOf(this._autoTier);
     if (i >= 0 && i < TIERS.length - 1 && this.dprScale >= 1) { this._autoTier = TIERS[i + 1]; this.applyQuality(); }
     this._fastRuns = 0;
