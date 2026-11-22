@@ -1,7 +1,7 @@
 // 기지전 온라인 동기화 (netgame.js 의 NetGame 위에서) — 호스트가 월드를 시뮬레이션하고, 클라이언트는 받아 그린다
 //  호스트 → 프레즌스(약 15 Hz, 4 KiB 이하):
 //   · 구조물 22개   defineKind "st"  [체력, 생존]                       (코어 2 · 타워 12 · 기지 방어 포탑 8. 클라이언트는 자기 쪽에 세운 같은 구조물에 반영. 맞히면 호스트로 보고)
-//   · 미니언        defineKind "mn"  [x, y, z, 체력, 팀|중형<<1, 사격 수] (온라인은 동시에 최대 30기)
+//   · 미니드론        defineKind "mn"  [x, y, z, 체력, 팀|중형<<1, 사격 수] (온라인은 동시에 최대 30기)
 //   · 정글 감시자   defineKind "nt"  [x, y, z, 체력, 정예<<1, 사격 수]
 //   · 보스          defineActorKind "boss" (보간되는 대리 액터)
 //   · 봇            shareActor "bot" (NetGame 기본)
@@ -143,7 +143,7 @@ export class AosNet {
     }
     const bs = ng.actorById("boss");
     m.boss = bs || null;
-    // 대리 미니언·감시자 보간
+    // 대리 미니드론·감시자 보간
     for (const o of [...m.minions, ...m.netNeutrals]) if (o.alive && o.tgt) { o.pos.lerp(o.tgt, Math.min(1, dt * 9)); o.model.position.copy(o.pos); }
     // 타워·코어 사격 연출 (피해 없음)
     if ((this.tfT -= dt) <= 0) {
@@ -184,7 +184,7 @@ export class AosNet {
   _proxy(kind, id, d, owner) {
     const m = this.m, sw = kind === "mn" ? m.swarms[0] : m.swarms[1], f = d[4] | 0, big = !!(f & 2), team = kind === "mn" ? f & 1 : 2;
     const hp = kind === "mn" ? (big ? 200 : 75) : big ? 420 : 110;
-    const a = this.ng.makeProxy(id, { owner, team, name: kind === "mn" ? (big ? "중형 미니언" : "미니언") : big ? "정예 비행 감시자" : "비행 감시자", radius: kind === "mn" ? (big ? 1.3 : 0.85) : big ? 2.2 : 1.2, model: sw.proxy(), hp: +d[3] || hp, maxHp: hp });
+    const a = this.ng.makeProxy(id, { owner, team, name: kind === "mn" ? (big ? "중형 미니드론" : "미니드론") : big ? "정예 비행 감시자" : "비행 감시자", radius: kind === "mn" ? (big ? 1.3 : 0.85) : big ? 2.2 : 1.2, model: sw.proxy(), hp: +d[3] || hp, maxHp: hp });
     a.isMinion = kind === "mn"; a.isNeutral = kind === "nt"; a.heavy = big;
     a.model.scale.setScalar(sw.scale * (big ? (kind === "mn" ? 1.6 : 1.9) : 1));
     a.tgt = new THREE.Vector3(+d[0] || 0, +d[1] || 0, +d[2] || 0); a.pos.copy(a.tgt); a.alive = +d[3] > 0; a.model.visible = a.alive; a.model.position.copy(a.pos);

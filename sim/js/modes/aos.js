@@ -2,15 +2,15 @@
 //
 // ── 규칙 (한눈에) ──
 //  · 두 팀(청·홍, 팀당 1~5기: 사람 + 봇). 기지마다 코어 1개, 라인(위·가운데·아래)마다 팀당 타워 2개(바깥·안쪽)
-//  · 타워는 사거리 안의 적을 쏜다: 미니언 먼저, 타워 밑에서 아군 드론을 공격한 적 드론은 바로 노린다
+//  · 타워는 사거리 안의 적을 쏜다: 미니드론 먼저, 타워 밑에서 아군 드론을 공격한 적 드론은 바로 노린다
 //  · 안쪽 타워는 같은 라인의 바깥 타워가 무너져야, 코어는 어느 한 라인의 타워 둘이 모두 무너져야 공격할 수 있다 (그 전에는 보호막)
-//  · 30초마다 양쪽 기지에서 미니언이 라인마다 날아 나가 서로 싸우며 타워를 민다
+//  · 30초마다 양쪽 기지에서 미니드론이 라인마다 날아 나가 서로 싸우며 타워를 민다
 //  · 감시자 캠프(60초마다 부활)와 가운데 보스(3분마다 부활): 잡으면 포인트, 보스는 팀 전체에 60초 강화(피해 +25% · 초당 회복)
 //  · 숨은 상자: 구조물 속(떠 있는 판 밑·터널 안·LED 탑 꼭대기·아치 속)에서 경기 동안만 쓰는 부품 획득
-//  · 전장 포인트(ⓟ): 미니언·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 원 안에서 왼쪽 위 포인트 판(또는 아이템 키)으로 업그레이드 창을 열어 화력·장갑·기동·스킬을 Lv5 까지 강화
+//  · 전장 포인트(ⓟ): 미니드론·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 원 안에서 왼쪽 위 포인트 판(또는 아이템 키)으로 업그레이드 창을 열어 화력·장갑·기동·스킬을 Lv5 까지 강화
 //  · 코어 체력은 다른 모드의 4배(6400) · 공격받는 아군 타워·코어는 전장 지도에 붉은 경보로 뜬다
 //  · 코어 반응로: 코어는 기지 맨 안쪽 높은 단 위, 둘레는 높은 방벽이고 경기장 쪽 진입로로만 열려 있다 (진입로 정면에서 노려야 맞는다)
-//  · 기지 방어 포탑 넷(진입로 어귀 둘 · 뒤 방벽 위 둘): 기지 안에 들어온 적 드론(그리고 기지 구조물을 쏜 적 드론)을 강하게 쏜다. 미니언은 드론이 없을 때만
+//  · 기지 방어 포탑 넷(진입로 어귀 둘 · 뒤 방벽 위 둘): 기지 안에 들어온 적 드론(그리고 기지 구조물을 쏜 적 드론)을 강하게 쏜다. 미니드론은 드론이 없을 때만
 //    코어와 같은 보호막 — 코어가 노출되어야 부술 수 있다. 공격 순서는 방어 포탑 → 코어가 정석
 //  · 침입 감지: 기지 문마다 감지 장막, 담장 위 레이저. 적 드론이 기지 원을 넘으면 그 팀에 경보(“기지 침입 감지!” · 지도 붉은 고동 · 사이렌)
 //    경보 동안(12초, 적이 안에 있으면 계속) 방어 포탑이 깨어나 빨리 쏘고 사거리가 늘며, 가까운 아군 봇 셋이 기지로 돌아온다
@@ -20,11 +20,11 @@
 //
 // ── 네트워크 (js/net/README.md 의 NetGame 사용, 동기화 세부는 aos-net.js) ──
 //  this.ng = new NetGame(this, cfg.net)   cfg.net 이 없으면 오프라인(봇과 혼자). cfg.pvp 가 있으면 PVP 메뉴에서 온 경기
-//  this.authority = ng.owner   true = 월드(타워·코어·미니언·정글·보스·상자·봇·팀 포인트)를 직접 시뮬레이션하는 쪽 (오프라인·호스트)
+//  this.authority = ng.owner   true = 월드(타워·코어·미니드론·정글·보스·상자·봇·팀 포인트)를 직접 시뮬레이션하는 쪽 (오프라인·호스트)
 //                              false = 클라이언트: 월드 결정(생성·AI·점수)은 하지 않고 호스트 프레즌스로 받은 상태를 그린다
 //  클라이언트가 월드 오브젝트를 맞히면 NetGame 이 누적 피해로 호스트에 보고 → 호스트의 combat.damage 로 적용 (reportHit 은 같은 일을 하는 직접 진입점)
 //  업그레이드: wantBuy(key) — 업그레이드 창(AosShop)에서만 부른다. 오프라인·호스트는 바로, 클라이언트는 프레즌스 필드 "buy" 로 요청하고 호스트가 기지 안인지 확인해 반영
-//  snapshot()/applySnapshot(s): 디버그·저장용 전체 상태(구조물·팀·상자·미니언·정글·봇·ⓟ). 온라인 경로는 aos-net.js 의 작은 필드들을 쓴다
+//  snapshot()/applySnapshot(s): 디버그·저장용 전체 상태(구조물·팀·상자·미니드론·정글·봇·ⓟ). 온라인 경로는 aos-net.js 의 작은 필드들을 쓴다
 //  PvP 규칙: cfg.net 이거나 cfg.pvp 이면 격납고 파츠 능력치 끔(baseStats) · 스킬 피해 60%(skillK). 경기 내 부품·강화는 그대로
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode } from "./combatmode.js";
@@ -75,7 +75,7 @@ const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 // 인스턴싱으로 그리는 액터 종류 (전투 시스템의 KINDS 에 덧붙인다: 모델은 대리 Object3D)
 const SW = {};
-KINDS.minion = { hp: MINION_HP, radius: 0.85, scale: 1, speed: 15, accel: 13, dmg: 3.2, rate: 3, range: 22, missiles: 0, score: 0, name: "미니언", model: () => SW.minion.proxy() };
+KINDS.minion = { hp: MINION_HP, radius: 0.85, scale: 1, speed: 15, accel: 13, dmg: 3.2, rate: 3, range: 22, missiles: 0, score: 0, name: "미니드론", model: () => SW.minion.proxy() };
 KINDS.sentinel = { hp: 90, radius: 1.2, scale: 1, speed: 13, accel: 12, dmg: 4.5, rate: 3, range: 26, missiles: 0, score: 0, name: "비행 감시자", model: () => SW.sentinel.proxy() };
 
 export class AosMode extends CombatMode {
@@ -322,7 +322,7 @@ export class AosMode extends CombatMode {
       this.s.game.sound.play("warn");
     }
   }
-  // 기지 방어 포탑 (오프라인·호스트): 기지 안의 적 드론 > 기지 구조물을 쏜 적 드론 > (경보 중) 사거리 안 적 드론 > 기지 안 미니언
+  // 기지 방어 포탑 (오프라인·호스트): 기지 안의 적 드론 > 기지 구조물을 쏜 적 드론 > (경보 중) 사거리 안 적 드론 > 기지 안 미니드론
   _defs(dt) {
     const c = this.combat, now = this.s.time;
     for (const a of this.defs) {
@@ -448,9 +448,9 @@ export class AosMode extends CombatMode {
   }
   respawnTime() { return clamp(5 + (this.time / 60) * 1.1, 5, 18); }
 
-  // ── 미니언 ──
+  // ── 미니드론 ──
   _wave() {
-    const heavy = this.wave % 2 === 1 ? (this.time > 360 ? 2 : 1) : 0;   // 둘째 웨이브마다 중형 미니언 (6분 뒤엔 둘)
+    const heavy = this.wave % 2 === 1 ? (this.time > 360 ? 2 : 1) : 0;   // 둘째 웨이브마다 중형 미니드론 (6분 뒤엔 둘)
     this.wave++;
     if (this.minions.filter((m) => m.alive).length > 150) return;
     const online = this.ng.online;
@@ -459,7 +459,7 @@ export class AosMode extends CombatMode {
       for (const lane of Object.keys(this.paths)) {
         const path = this.paths[lane], st = t.id ? path[path.length - 1] : path[0], nx = t.id ? path[path.length - 2] : path[1];
         _w.copy(nx).sub(st).setY(0).normalize();
-        const extra = this.teams[1 - t.id].towers.filter((x) => x.lane === lane && !x.alive).length;   // 상대 타워를 부순 라인은 중형 미니언이 더 나온다
+        const extra = this.teams[1 - t.id].towers.filter((x) => x.lane === lane && !x.alive).length;   // 상대 타워를 부순 라인은 중형 미니드론이 더 나온다
         const n = online ? 3 : WAVE_N;
         for (let i = 0; i < n + (online ? Math.min(1, heavy + extra) : heavy + extra); i++) {
           if (!this.net.canSpawnMinion()) break;
@@ -471,7 +471,7 @@ export class AosMode extends CombatMode {
           m.hp = m.maxHp = big ? HEAVY_HP : MINION_HP;
           m.K = big ? this._heavyK : KINDS.minion;
           m.model.scale.setScalar(SW.minion.scale * (big ? 1.6 : 1)); m.radius = big ? 1.3 : 0.85;
-          m.name = big ? "중형 미니언" : "미니언";
+          m.name = big ? "중형 미니드론" : "미니드론";
           this.net.shareMinion(m);
         }
       }
@@ -662,14 +662,14 @@ export class AosMode extends CombatMode {
       const cp = this.camps.filter((x) => x.alive && (x.d.side === a.team || D.role === "roam")).sort((x, y) => x.home.distanceTo(a.pos) - y.home.distanceTo(a.pos))[0];
       if (cp && cp.home.distanceTo(a.pos) < 320) { D.mode = "jungle"; D.camp = cp; D.modeT = 40; return g.copy(cp.home); }
     }
-    // 라인: 가장 앞선 아군 미니언 뒤를 따라가며 적 미니언·타워를 친다
+    // 라인: 가장 앞선 아군 미니드론 뒤를 따라가며 적 미니드론·타워를 친다
     const push = t.pushT > 0 && D.mode === "lane", lane = push ? t.pushLane : D.lane, path = this.paths[lane];
     let front = null, fp = -1;
     for (const m of this.minions) if (m.alive && m.team === a.team && m.lane === lane) { const pr = a.team ? path.length - m.wp : m.wp; if (pr > fp) { fp = pr; front = m; } }
     const tw = foe.towers.find((x) => x.alive && x.lane === lane && !x.invulnerable) || null;
     // 노출된 코어: 기지 방어 포탑부터 (진입로 어귀 → 뒤 방벽 위), 다 무너지면 코어
     const core = foe.core.alive && !foe.core.invulnerable ? this._pickDef(foe, a) || foe.core : null;
-    // 공성: 아군 미니언이 타워를 맞아 주고 있으면 타워부터
+    // 공성: 아군 미니드론이 타워를 맞아 주고 있으면 타워부터
     for (const s of [tw, core]) if (s && a.hp > a.maxHp * 0.45 && s.pos.distanceTo(a.pos) < this._sRange(s) + 30 && this.minions.some((m) => m.alive && m.team === a.team && m.pos.distanceTo(s.pos) < this._sRange(s))) return this._siege(a, s, foe);
     const minion = this._nearest(a, (o) => o.isMinion && this._foe(a, o), 60);
     if (minion) return this._engage(a, minion);
@@ -683,13 +683,13 @@ export class AosMode extends CombatMode {
       if (tank || busy || (a.hp > a.maxHp * (s === core ? 0.45 : 0.6) && mates)) return this._siege(a, s, foe);
       return g.copy(s.pos).sub(a.pos).setY(0).normalize().multiplyScalar(-(R + 12 - d)).add(a.pos).setY(LANE_Y + 4);   // 사거리 밖으로 물러선다
     }
-    // 몰아치기 중인데 앞선 미니언이 없으면 표적 구조물 사거리 바로 밖까지 함께 간다
+    // 몰아치기 중인데 앞선 미니드론이 없으면 표적 구조물 사거리 바로 밖까지 함께 간다
     if (push && (tw || core) && (!front || front.pos.distanceTo((tw || core).pos) > a.pos.distanceTo((tw || core).pos))) {
       const s = tw || core, R = this._sRange(s) + 14;
       return g.copy(a.pos).sub(s.pos).setY(0).normalize().multiplyScalar(R).add(s.pos).setY(LANE_Y + 6);
     }
     if (front) return g.copy(front.pos).sub(_v.copy(front.vel).setY(0).normalize().multiplyScalar(14)).setY(LANE_Y + 3 + (a.aid % 4));
-    // 아군 미니언이 없으면 내 라인의 가장 앞 아군 타워 곁에서 기다린다
+    // 아군 미니드론이 없으면 내 라인의 가장 앞 아군 타워 곁에서 기다린다
     const mine = t.towers.filter((x) => x.alive && x.lane === lane).sort((x, y) => (x.tier === "outer" ? -1 : 1))[0];
     if (mine) return g.copy(mine.pos).setY(LANE_Y + 6).add(_v.copy(foe.base).sub(t.base).setY(0).normalize().multiplyScalar(30));
     return g.copy(path[a.team ? path.length - 3 : 2]).setY(LANE_Y + 4);
@@ -735,7 +735,7 @@ export class AosMode extends CombatMode {
     for (const t of this.teams) {
       const k = t.core;
       if (!k.alive || (k.ai.cool -= dt) > 0) continue;
-      const tg = this._nearest(k, (o) => o.alive && o.targetable && o.team !== k.team && o.team !== 2 && !o.static && !o.isMinion, CORE_RANGE);   // 코어는 적 드론만 쏜다 (미니언은 타워 몫)
+      const tg = this._nearest(k, (o) => o.alive && o.targetable && o.team !== k.team && o.team !== 2 && !o.static && !o.isMinion, CORE_RANGE);   // 코어는 적 드론만 쏜다 (미니드론은 타워 몫)
       k.coreTarget = tg;
       if (!tg) { k.ai.cool = 0.4; continue; }
       k.ai.cool = 0.45;
@@ -752,7 +752,7 @@ export class AosMode extends CombatMode {
     if (k && k.aosTower) a.hp -= amt * (a.isMinion ? 0.15 : 0.6);             // 타워 탄은 드론에게 아프다
     if (k && k.kind === "core") a.hp -= amt * 0.4;
     if (k && (a.aosTower || a.aosDef || a.kind === "core") && (k.isMinion || (k.isHero && !k.isPlayer && !k.remote))) a.hp -= amt * (k.isMinion ? 2 : 1);
-    if (k && k.isHero && (a.aosDef || a.kind === "core") && k.team !== a.team) k.baseAggro = now + 3;   // 기지 구조물을 쏜 적 드론은 방어 포탑이 노린다   // 공성: 미니언·봇 탄은 구조물에 더 세다 (사람 레이저는 원래 강하다)
+    if (k && k.isHero && (a.aosDef || a.kind === "core") && k.team !== a.team) k.baseAggro = now + 3;   // 기지 구조물을 쏜 적 드론은 방어 포탑이 노린다   // 공성: 미니드론·봇 탄은 구조물에 더 세다 (사람 레이저는 원래 강하다)
     if (a.aos) a.aos.hurtT = now;
     if (a.aos && k && k.isHero && k.team !== a.team) {
       a.aos.dmgBy.set(k, now);
@@ -1104,7 +1104,7 @@ export class AosMode extends CombatMode {
     for (const t of this.teams) if (t.core.invulnerable && Object.keys(this.paths).some((ln) => t.towers.filter((x) => x.lane === ln).every((x) => !x.alive))) this._openCore(t);
     this.caches.forEach((k, i) => { k.active = !!(s.ca & (1 << i)); k.g.visible = k.active; });
     for (const row of s.pl || []) { const a = this.byId.get(row[0]); if (!a || !a.aos) continue; a.aos.pts = row[1]; UP_KEYS.forEach((k, j) => { a.aos.up[k] = row[2 + j]; }); PART_KEYS.forEach((p, j) => { a.aos.parts[p] = row[6] & (1 << j) ? 1 : 0; }); this._applyStats(a); }
-    // 움직이는 액터(미니언·정글·봇)는 NetGame 의 공유 액터(대리 모델)로 그린다 — s.mn / s.nt / s.hb 는 그 연결이 없을 때의 대체 자료
+    // 움직이는 액터(미니드론·정글·봇)는 NetGame 의 공유 액터(대리 모델)로 그린다 — s.mn / s.nt / s.hb 는 그 연결이 없을 때의 대체 자료
   }
   reportHit(targetId, dmg, byId) {
     const a = this.byId.get(targetId), by = this.byId.get(byId) || null;
@@ -1141,5 +1141,5 @@ function densify(pts, step) {
 }
 
 registerMode("aos", AosMode);
-registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "세 라인을 밀어 상대 본진을 부수거나, 목표 전장 점수에 먼저 닿거나, 시간 종료 때 점수가 앞서면 승리. 미니언·타워·감시자·보스, 경기 내 업그레이드", session: "aos",
+registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "세 라인을 밀어 상대 본진을 부수거나, 목표 전장 점수에 먼저 닿거나, 시간 종료 때 점수가 앞서면 승리. 미니드론·타워·감시자·보스, 경기 내 업그레이드", session: "aos",
   teams: true, teamCounts: [2], maps: ["stadium"], time: [480, 720, 900], goal: GOALS, goalDef: GOAL_DEF, random: false });
