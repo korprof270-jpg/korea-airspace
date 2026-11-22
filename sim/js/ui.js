@@ -47,7 +47,7 @@ const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
   game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
-  survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve", "pvp"], back: "game", hidden: true },
+  survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve"], back: "game", hidden: true },   // PVP 메뉴 제외
 };
 const SUB = {
   training: { img: "7-training" },
@@ -350,8 +350,8 @@ export class UI {
     </div>`;
   }
   a_sub(v) {
-    if (v === "survival") { this._group = "survival"; return this.show("group"); }   // 서바이벌: PVE / PVP 갈림
-    if (v === "pvp") return this._pvOpen("hub");
+    if (v === "survival") v = "pve";   // PVP 는 당분간 뺐다: 서바이벌은 바로 AI 대전 설정으로
+    if (v === "pvp") return;   // PVP 는 당분간 막아 둠
     if (v === "pve") v = "survival";
     if (v === "free") { this.sel.mode = "freestyle"; this.sel.fs = "free"; }
     else if (v === "trick" || v === "training") { this.sel.mode = "training"; this.sel.course = v === "trick" ? "trick" : null; this.sel.lesson = null; }
@@ -708,8 +708,7 @@ export class UI {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else {
-        opts += `<div class="opt"><label>${s.variant === "tdm" ? "적 편대 수" : "AI 드론 수"}</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}${s.variant === "tdm" ? `<div class="hint">아군 AI 편대는 적보다 둘 적게(최소 1기) 나와 나를 따라 싸웁니다.</div>` : ""}</div>`;
-        opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"], [600, "10분"]], s.time)}</div>` + this._diff();
+        opts += `<p class="hint2">제한 시간 5분 · 적 드론 수와 난이도는 조종 실력에 맞춰 자동으로 조절됩니다.</p>`;
       }
     } else {
       const list = cmMissions(s.map);
@@ -759,13 +758,14 @@ export class UI {
   a_start() {
     const s = this.sel;
     // AI 와 겨루는 모드는 출격 전에 난이도 화면을 겹쳐 띄운다
-    if (((s.mode === "race" && s.rivals > 0) || s.mode === "survival") && !this._diffOk) return this._openDiff(true);
+    if (s.mode === "race" && s.rivals > 0 && !this._diffOk) return this._openDiff(true);   // 서바이벌은 난이도 자동 조절이라 묻지 않는다
     this._diffOk = false;
     const cfg = { mode: s.mode, map: s.map, difficulty: settings.difficulty };
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.bots, time: s.time }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    // 서바이벌: 5분 고정 · 적 수 고정 · 실력에 따라 자동 난이도
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "tdm" ? 8 : 6, time: 300, difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;

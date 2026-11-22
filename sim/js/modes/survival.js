@@ -3,7 +3,7 @@
 //  함대전: 아군 드론 함대와 함께 적 드론 함대와 맞붙는다(swarmwar.js). 적 함대 전력(남은 드론 + 증원)을 0으로 만들거나, 시간이 끝날 때 전력이 앞서면 승리
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode, CargoSys } from "./combatmode.js";
-import { submitRecord, records, fmtTime } from "../config.js";
+import { submitRecord, records, fmtTime, DIFFICULTY, clamp } from "../config.js";
 import { drawCombatHud } from "../combathud.js";
 import { rankStats, clampRank } from "../ranks.js";
 import { Director, directorWanted } from "../director.js";
@@ -139,7 +139,7 @@ export class SurvivalMode extends CombatMode {
         ops.push(b);
         // 거점마다 수비대: 전차·대공 로봇이 번갈아, 세 번째 거점 상공에는 전투함
         b.guards = [c.units.spawn(ops.length % 2 ? "tank" : "aa", { pos: p.clone() })];
-        if (ops.length === 3) b.guards.push(c.units.spawn("frigate", { pos: new THREE.Vector3(p.x, 0, p.z) }));
+        if (ops.length === 3) b.guards.push(c.units.spawn("frigate", { pos: new THREE.Vector3(p.x, 0, p.z), near: true }));
         for (const a of [b.core, ...b.turrets, ...b.guards.flatMap((r) => [r, ...r.unit.parts])]) this._hide(a, true);
       }
     }
@@ -264,6 +264,7 @@ export class SurvivalMode extends CombatMode {
     }
     if (this.outposts) this._outposts();
     if (this.director) this.director.update(dt);
+    if (this.cfg.dda) this._dda(dt);
     const bc = this.cfg.boss;
     if (bc && !this.bossA && !this.cut && this.time >= (bc.at ?? 60)) {
       const live = this.outposts ? this.outposts.filter((b) => b.core.alive) : [], c = this.combat;
@@ -277,6 +278,30 @@ export class SurvivalMode extends CombatMode {
     }
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (this.time >= this.duration) this._end();
+  }
+
+  // 자동 난이도: 20초마다 조종자의 격추·피격추·받은 피해를 보고 적의 실력·화력·동시 투입 수를 조금씩 맞춘다 (0.6 ~ 1.5)
+  _dda(dt) {
+    const c = this.combat, me = this.me; if (!c || !me) return;
+    const D = this.ddaS || (this.ddaS = { k: 0.9, t: 0, kills: me.kills, deaths: me.deaths, hurt: 0, hp: me.hp, cap0: this.director ? this.director.cap : 0 });
+    if (me.alive && me.hp < D.hp) D.hurt += D.hp - me.hp;
+    D.hp = me.hp;
+    if (!D.applied) { D.applied = true; this._ddaApply(D); }
+    if ((D.t += dt) < 20) return;
+    D.t = 0;
+    const kills = me.kills - D.kills, deaths = me.deaths - D.deaths, hurt = D.hurt / (me.maxHp || 100);
+    D.kills = me.kills; D.deaths = me.deaths; D.hurt = 0;
+    // 20초에 1.5기 격추가 '보통' 기준. 죽거나 크게 다치면 쉬워지고, 다치지 않고 잘 잡으면 어려워진다
+    const perf = (kills - 1.5) * 0.5 - deaths * 1.4 - Math.max(0, hurt - 0.5) * 0.6 + (me.alive ? (me.hp / me.maxHp - 0.5) * 0.4 : 0);
+    D.k = clamp(D.k + clamp(perf * 0.08, -0.18, 0.1), 0.6, 1.5);
+    this._ddaApply(D);
+  }
+  _ddaApply(D) {
+    const c = this.combat, k = D.k, B = DIFFICULTY.normal, old = c.diff.bot;
+    c.diff = { bot: clamp(B.bot * (0.55 + 0.45 * k), 0.45, 1.1), aim: clamp(B.aim + (k - 1) * 0.45, 0.3, 0.9), dmg: B.dmg * (0.55 + 0.45 * k) };
+    const r = c.diff.bot / old;
+    if (Math.abs(r - 1) > 1e-3) for (const a of c.actors) if (a.kind === "bot" && a.ai && a.team !== this.me.team) a.ai.skill *= r;   // 이미 나와 있는 적에게도
+    if (this.director && D.cap0) this.director.cap = Math.round(clamp(D.cap0 * (0.6 + 0.4 * k), 5, D.cap0 + 4));
   }
 
   // 임무 막바지: 남은 시간 25초 (동료 무전용)

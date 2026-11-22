@@ -99,6 +99,12 @@ export class Fleet {
       const sg = side ? 1 : -1;
       const C = this.mid.clone().addScaledVector(axis, sg * this.sep / 2);
       C.x = clamp(C.x, -this.lim, this.lim); C.z = clamp(C.z, -this.lim, this.lim);
+      const me = c.player;
+      if (side && me) {   // 적 함대는 플레이어 코앞이 아니라 중·원거리(260m 이상)에서 시작
+        for (let k = 0; k < 12 && Math.hypot(C.x - me.pos.x, C.z - me.pos.z) < 260; k++) {
+          C.addScaledVector(axis, 25); C.x = clamp(C.x, -this.lim, this.lim); C.z = clamp(C.z, -this.lim, this.lim);
+        }
+      }
       for (let i = 0; i < nShip; i++) {
         const big = i === 0, sc = big ? (side ? 1.5 : 1.4) : 0.72, style = side ? this.enemyStyle : "ally";
         const model = (side ? (style === "ail" ? ailShip : eiaShip) : allyShip)(big, this.mats, i + 1 + side * 10);
