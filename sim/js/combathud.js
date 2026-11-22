@@ -73,9 +73,9 @@ export function drawCombatHud(c, h, o = {}) {
   // 적·아군 표시
   const locked = c.lockT >= LOCK_T;
   for (const a of c.actors) {
-    if (!a.alive || a === p || !a.targetable) continue;
+    if (!a.alive || a === p || !a.targetable || a.cloaked) continue;   // 은신한 스텔스기는 표시하지 않는다
     const d = a.pos.distanceTo(cam.position);
-    const enemy = c.hostile(p, a) || !p.alive && (c.ffa || a.team !== p.team);
+    const enemy = c.hostile(p, a) || !p.alive && (c.ffa ? !(a.squad && a.squad === p.squad) : a.team !== p.team);
     const isLock = a === c.lock, isAim = a === c.aim;
     if (d > MARK_R && !isLock && !isAim && !a.bossBar && a.botKind !== "boss") continue;   // 화면 표시는 200m 이내만 (조준·락온 중인 표적과 보스는 예외 — 보스는 늘 위치 표시)
     if (!enemy && !full) continue;
@@ -132,6 +132,12 @@ export function drawCombatHud(c, h, o = {}) {
   bossBars(c, h);
 
   if (c.warn > 0 && Math.floor(s.time * 8) % 2) h.banner("⚠ 미사일 접근", H * 0.72, HC.warn, 20);
+  // 저격 조준 경고: 조준선이 고정되기 전에 옆으로 피하거나 고속 회피
+  if (c.snipeOnMe > 0 && p.alive) {
+    const k = c.snipeOnMe, fr = c.snipeFrom;
+    if (k > 0.75 || Math.floor(s.time * 10) % 2) h.banner(k > 0.75 ? "⚠ 저격 — 지금 회피!" : "⚠ 저격 조준", H * 0.66, k > 0.75 ? "#ff3050" : "#ff8a8a", k > 0.75 ? 20 : 17);
+    if (fr && fr.alive) h.marker(fr.pos, cam, "#ff3050", fr.name || "저격기", fr.pos.distanceTo(p.pos));
+  }
   if (!p.alive) h.banner(`격추됨 — ${Math.max(0, p.respawnT || 0).toFixed(1)}초 후 재출격`, H * 0.4, HC.warn, 24);
 
   if (h.vis("radar") && o.radar !== false) drawRadar(c, h, o.radarRange || 160);   // 기지전은 자체 전장 지도를 그린다
@@ -518,8 +524,8 @@ function drawRadar(c, h, range) {
   for (const pk of c.pickups) if (pk.active) dot(pk.pos, "rgba(255,225,74,0.9)", 2 * u, 1);
   if (c.swarm) c.swarm.radar(dot, u, range);   // 드론 함대전: 모의 함대 드론은 흐린 점
   for (const a of c.actors) {
-    if (!a.alive || a === p || !a.targetable) continue;
-    const enemy = c.ffa || a.team !== p.team;
+    if (!a.alive || a === p || !a.targetable || a.cloaked || a.radarHide) continue;   // 은신 스텔스기 · 숨은 발견물은 레이더에 없다
+    const enemy = c.ffa ? !(a.squad && a.squad === p.squad) : a.team !== p.team;
     dot(a.pos, enemy ? (a === c.lock && c.lockT >= LOCK_T ? "#ffffff" : "#ff5a5a") : "#5aa9ff", (a.static ? 3.8 : 3) * u, a.static ? 1 : 0);
   }
   if (h.obj && h.obj.pos) dot(h.obj.pos, h.obj.color || HC.ok, 3.2 * u, 2);
