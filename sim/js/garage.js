@@ -183,12 +183,14 @@ export function onResult(cfg, r) {
 // ── 상점: 외형 · 테마 · 효과 ──
 // key: "frame:hexa" 처럼 종류:값. price 0 = 기본 제공
 export const SHOP = {
-  frame: { name: "프레임", items: { x: 0, stretch: 300, deadcat: 300, tri: 450, whoop: 500, hexa: 700, cross: 600, raptor: 750, viper: 800, phantom: 1000 } },
+  frame: { name: "프레임", items: { x: 0, stretch: 300, deadcat: 300, tri: 450, whoop: 500, hexa: 700, cross: 600, raptor: 750, viper: 800, phantom: 1000,
+    micro: 350, plus: 400, squash: 450, lowrider: 500, vtail: 550, cinewhoop: 600, hrace: 650, lr7: 700, y6: 800, wedge: 850, octo: 950 } },
   canopy: { name: "캐노피", items: { pod: 0, racer: 200, battery: 200, cine: 250 } },
-  skin: { name: "스킨", items: { solid: 0, stripe: 250, camo: 300, hazard: 350, carbon: 400, flame: 500 } },
-  led: { name: "LED", items: { solid: 0, off: 0, blink: 120, rainbow: 450 } },
+  skin: { name: "스킨", items: { solid: 0, stripe: 250, camo: 300, hazard: 350, carbon: 400, flame: 500,
+    matte: 0, gradient: 200, checker: 250, digital: 300, tiger: 350, splatter: 350, hex: 400, dazzle: 450, neon: 550, circuit: 600, chrome: 700 } },
+  led: { name: "LED", items: { solid: 0, off: 0, blink: 120, rainbow: 450, breathe: 150, strobe: 200, police: 300 } },
   trail: { name: "연기 꼬리", items: { off: 0, "#ffffff": 100, "#ff5a1f": 200, "#21d4fd": 200, "#ff2bd6": 200, "#3dff7c": 200 } },
-  preset: { name: "색 조합", items: { 0: 0, 1: 150, 2: 150, 3: 200, 4: 150, 5: 250 } },
+  preset: { name: "색 조합", items: { 0: 0, 1: 150, 2: 150, 3: 200, 4: 150, 5: 250, 6: 150, 7: 200, 8: 0, 9: 200, 10: 250, 11: 0, 12: 250, 13: 200, 14: 250, 15: 300 } },
   paint: { name: "커스텀 페인트", items: { on: 600 } },
 };
 // 효과: 레이저(색·형태), 미사일, 부스트, 아이템 사용
@@ -213,6 +215,32 @@ export const THEMES = {
   eia: { name: "에이아 레드", price: 1500, desc: "기계제국의 붉은 눈", need: "e5", look: { frame: "hexa", canopy: "battery", skin: "hazard", frameColor: "#141016", accentColor: "#ff2d3d", propColor: "#ff6b78", ledColor: "#ff2d3d", ledMode: "blink" }, fx: { laser: "red", beam: "nova", missile: "toxic", boost: "void", item: "neon" } },
   ail: { name: "에일 바이올렛", price: 1800, desc: "별의 저편에서 온 생체 결정", need: "s4", look: { frame: "tri", canopy: "pod", skin: "flame", frameColor: "#1c0d33", accentColor: "#c060ff", propColor: "#e0b0ff", ledColor: "#c060ff", ledMode: "rainbow" }, fx: { laser: "violet", beam: "nova", missile: "plasma", boost: "aurora", item: "star" } },
 };
+
+// 외형이 주는 작은 성능 특성 (loadout 에 더해진다 · PvP 기본 수치에는 빠진다). tag: 카드에 붙는 성격
+export const LOOK_FX = {
+  frame: {
+    hrace: { tag: "고속", fx: { thrust: 0.03, hp: -0.05 } },
+    squash: { tag: "순간 가속", fx: { boost: 0.06, boostDur: -0.06 } },
+    cinewhoop: { tag: "보호형", fx: { hp: 0.06, thrust: -0.03 } },
+    octo: { tag: "중량형", fx: { hp: 0.1, mCap: 1, thrust: -0.05 } },
+    wedge: { tag: "저피탐", fx: { crit: 0.03, hp: -0.04 } },
+    plus: { tag: "정밀형", fx: { range: 0.05, boost: -0.04 } },
+    y6: { tag: "생존형", fx: { hp: 0.05, boostDur: 0.06, thrust: -0.03 } },
+    lr7: { tag: "장거리", fx: { itemDur: 0.08, boostDur: 0.08, boost: -0.08 } },
+    micro: { tag: "경량", fx: { boost: 0.08, hp: -0.08 } },
+    lowrider: { tag: "안정형", fx: { hp: 0.04, boost: -0.03 } },
+    vtail: { tag: "곡예형", fx: { gauge: 0.05, hp: -0.03 } },
+  },
+};
+export const lookFx = (kind, v) => (LOOK_FX[kind] && LOOK_FX[kind][v] && LOOK_FX[kind][v].fx) || null;
+// 가격 → 등급 이름 (카드 테두리 색)
+export function rarity(price) {
+  if (!price) return { id: "base", name: "기본" };
+  if (price < 300) return { id: "common", name: "일반" };
+  if (price < 500) return { id: "rare", name: "고급" };
+  if (price < 800) return { id: "epic", name: "희귀" };
+  return { id: "legend", name: "전설" };
+}
 
 export const owns = (kind, v) => { const it = SHOP[kind] && SHOP[kind].items[v]; return it === 0 || !!S().owned[`${kind}:${v}`]; };
 export const priceOf = (kind, v) => SHOP[kind].items[v];
@@ -250,7 +278,7 @@ export function themeEquip(id) {
   return true;
 }
 
-// ── 파츠: 슬롯 8개. 슬롯마다 성격이 다른 부품 3종 중 하나를 장착하고, 부품마다 0~5단계 업그레이드. 3·5단계에서 추가 효과 ──
+// ── 파츠: 슬롯 8개. 슬롯마다 성격이 다른 부품 4~5종 중 하나를 장착하고, 부품마다 0~5단계 업그레이드. 3·5단계에서 추가 효과 ──
 // base: 장착만 해도 붙는 특성(장단점) · per: 단계마다 · b3/b5: 3·5단계 추가 효과. 모두 0 기준 가산치
 export const UP_COST = [200, 400, 700, 1100, 1600];
 // 수치 표기: pct 는 %, good -1 은 낮을수록 좋은 값
@@ -274,36 +302,47 @@ export const PARTS = {
   armor: { name: "프레임·장갑", short: "장갑", icon: "🛡", variants: {
     std: { name: "카본 장갑", price: 0, tag: "균형형", desc: "가볍고 무난한 기본 장갑판.", per: { hp: 0.06 }, b3: { crash: -0.2 }, b5: { shieldK: 0.3 } },
     ti: { name: "티타늄 중장갑", price: 1000, tag: "중장갑", desc: "두꺼운 판으로 버티지만 그만큼 무겁다.", base: { hp: 0.08, thrust: -0.04 }, per: { hp: 0.09 }, b3: { regen: 1 }, b5: { guard: -0.1 } },
-    light: { name: "경량 골조", price: 900, tag: "경량", desc: "장갑을 덜어 내 가볍다. 맞으면 아프다.", base: { thrust: 0.05, hp: -0.1 }, per: { thrust: 0.015, hp: 0.03 }, b3: { crash: -0.3 }, b5: { boost: 0.15 } } } },
+    light: { name: "경량 골조", price: 900, tag: "경량", desc: "장갑을 덜어 내 가볍다. 맞으면 아프다.", base: { thrust: 0.05, hp: -0.1 }, per: { thrust: 0.015, hp: 0.03 }, b3: { crash: -0.3 }, b5: { boost: 0.15 } },
+    reactive: { name: "반응 장갑", price: 1100, tag: "피해 감소", desc: "맞는 순간 터지며 충격을 흘리는 블록. 받는 피해가 줄지만 내구도는 낮다.", base: { guard: -0.07, hp: -0.04 }, per: { guard: -0.015, hp: 0.03 }, b3: { spawnShield: 40 }, b5: { hp: 0.1 } },
+    bumper: { name: "범퍼 케이지", price: 950, tag: "출격 보호", desc: "기체를 두르는 보호 봉. 출격 직후를 실드로 버티지만 무게 때문에 느리다.", base: { spawnShield: 50, thrust: -0.03 }, per: { hp: 0.05 }, b3: { regen: 0.6 }, b5: { guard: -0.06 } } } },
   motor: { name: "모터·추진", short: "모터", icon: "⚙", variants: {
     std: { name: "표준 모터", price: 0, tag: "균형형", desc: "어디에나 무난한 기본 모터.", per: { thrust: 0.025 }, b3: { boost: 0.1 }, b5: { thrust: 0.05 } },
     race: { name: "레이싱 모터", price: 900, tag: "최고 속도", desc: "높은 회전수로 빠르지만 열이 많이 난다.", base: { thrust: 0.03, heat: 0.08 }, per: { thrust: 0.035 }, b3: { boost: 0.12 }, b5: { thrust: 0.06 } },
-    torque: { name: "고토크 덕트", price: 1000, tag: "부스트 특화", desc: "큰 덕트로 순간 가속이 강하다. 평소엔 조금 둔하다.", base: { boost: 0.15, thrust: -0.03 }, per: { boost: 0.06, thrust: 0.01 }, b3: { boostDur: 0.25 }, b5: { crash: -0.25 } } } },
+    torque: { name: "고토크 덕트", price: 1000, tag: "부스트 특화", desc: "큰 덕트로 순간 가속이 강하다. 평소엔 조금 둔하다.", base: { boost: 0.15, thrust: -0.03 }, per: { boost: 0.06, thrust: 0.01 }, b3: { boostDur: 0.25 }, b5: { crash: -0.25 } },
+    eco: { name: "저발열 효율 모터", price: 950, tag: "저발열", desc: "방열 지느러미로 열을 덜 낸다. 레이저를 오래 쏘기 좋지만 부스트 힘은 약하다.", base: { heat: -0.08, boostDur: 0.08, boost: -0.1 }, per: { thrust: 0.02, boostDur: 0.03 }, b3: { cool: 0.15 }, b5: { thrust: 0.04 } },
+    jet: { name: "제트 보조 추진기", price: 1150, tag: "폭발 가속", desc: "작은 제트 노즐로 부스트가 폭발적이다. 대신 짧게 끝나고 열이 오른다.", base: { boost: 0.24, boostDur: -0.18, heat: 0.06 }, per: { boost: 0.05 }, b3: { thrust: 0.03 }, b5: { boostDur: 0.22 } } } },
   battery: { name: "배터리·동력", short: "배터리", icon: "🔋", variants: {
     std: { name: "리튬 배터리", price: 0, tag: "균형형", desc: "아이템 효과를 오래 유지하는 기본 전원.", per: { itemDur: 0.06 }, b3: { spawnShield: 40 }, b5: { boostDur: 0.3 } },
     cell: { name: "고밀도 셀", price: 900, tag: "대용량", desc: "용량이 큰 대신 무겁다.", base: { itemDur: 0.08, thrust: -0.03 }, per: { itemDur: 0.08 }, b3: { boostDur: 0.25 }, b5: { regen: 1.5 } },
-    cap: { name: "축전기 뱅크", price: 1000, tag: "스킬 특화", desc: "순간 방전으로 스킬 게이지가 빨리 찬다. 아이템 지속은 짧다.", base: { gauge: 0.1, itemDur: -0.12 }, per: { gauge: 0.05 }, b3: { overDur: 0.3 }, b5: { gaugeStart: 25 } } } },
+    cap: { name: "축전기 뱅크", price: 1000, tag: "스킬 특화", desc: "순간 방전으로 스킬 게이지가 빨리 찬다. 아이템 지속은 짧다.", base: { gauge: 0.1, itemDur: -0.12 }, per: { gauge: 0.05 }, b3: { overDur: 0.3 }, b5: { gaugeStart: 25 } },
+    solar: { name: "태양광 날개", price: 1000, tag: "자가 회복", desc: "펼친 패널로 비행 중 조금씩 기체를 고친다. 아이템·스킬 충전은 조금 느리다.", base: { regen: 0.6, itemDur: -0.05, gauge: -0.04 }, per: { regen: 0.2 }, b3: { itemDur: 0.1 }, b5: { regen: 1 } },
+    reactor: { name: "소형 리액터", price: 1150, tag: "과충전", desc: "빛나는 노심이 과충전을 길게 끌고 스킬 게이지를 미리 채운다. 열이 많다.", base: { overDur: 0.25, gaugeStart: 15, heat: 0.08 }, per: { overDur: 0.05, gauge: 0.02 }, b3: { gaugeStart: 15 }, b5: { gauge: 0.12 } } } },
   laser: { name: "레이저 포", short: "레이저", icon: "⚡", variants: {
     std: { name: "펄스 레이저", price: 0, tag: "균형형", desc: "연사와 위력이 고른 기본 포.", per: { laserDmg: 0.05 }, b3: { heat: -0.15 }, b5: { crit: 0.1 } },
     rapid: { name: "속사형 개틀링", price: 1000, tag: "속사", desc: "세 포신이 돌며 빠르게 쏜다. 한 발은 약하고 금방 달아오른다.", base: { rate: 0.35, laserDmg: -0.22 }, per: { laserDmg: 0.04 }, b3: { rate: 0.1 }, b5: { crit: 0.08 } },
     rail: { name: "고출력 레일", price: 1100, tag: "고출력", desc: "긴 포신에서 묵직한 한 발. 연사가 느리다.", base: { laserDmg: 0.3, rate: -0.22, heat: 0.15 }, per: { laserDmg: 0.07 }, b3: { crit: 0.08 }, b5: { critK: 0.5 } },
-    scatter: { name: "확산형 트라이빔", price: 1200, tag: "확산", desc: "좌우로 보조탄 두 발을 함께 쏜다. 가까울수록 강하고 주탄은 약하다.", base: { spread: 2, laserDmg: -0.25, heat: 0.1 }, per: { laserDmg: 0.05 }, b3: { spreadK: 0.15 }, b5: { crit: 0.06, spreadK: 0.1 } } } },
+    scatter: { name: "확산형 트라이빔", price: 1200, tag: "확산", desc: "좌우로 보조탄 두 발을 함께 쏜다. 가까울수록 강하고 주탄은 약하다.", base: { spread: 2, laserDmg: -0.25, heat: 0.1 }, per: { laserDmg: 0.05 }, b3: { spreadK: 0.15 }, b5: { crit: 0.06, spreadK: 0.1 } },
+    ion: { name: "이온 블래스터", price: 1150, tag: "치명 · EMP", desc: "코일로 가속한 이온탄. 치명타가 아프고 EMP 를 넓힌다. 기본 위력은 낮다.", base: { critK: 0.4, crit: 0.03, laserDmg: -0.12, heat: 0.05 }, per: { crit: 0.012, laserDmg: 0.03 }, b3: { emp: 0.3 }, b5: { critK: 0.4 } } } },
   missile: { name: "미사일 포드", short: "미사일", icon: "🚀", variants: {
     std: { name: "표준 포드", price: 0, tag: "균형형", desc: "락온이 빠른 기본 포드.", per: { lock: -0.05 }, b3: { mCap: 2 }, b5: { mDmg: 0.25 } },
     swarm: { name: "다연장 포드", price: 1000, tag: "물량", desc: "작은 탄을 많이 싣는다. 한 발은 약하다.", base: { mStart: 2, mCap: 2, mDmg: -0.2 }, per: { mDmg: 0.05 }, b3: { mStart: 2 }, b5: { lock: -0.3 } },
-    heavy: { name: "대형 탄두 포드", price: 1100, tag: "한 방", desc: "큰 탄두 두 발. 강력하지만 적게 싣고 락온이 느리다.", base: { mDmg: 0.35, mStart: -1, lock: 0.15 }, per: { mDmg: 0.07 }, b3: { mCap: 1 }, b5: { mDmg: 0.2, lock: -0.15 } } } },
+    heavy: { name: "대형 탄두 포드", price: 1100, tag: "한 방", desc: "큰 탄두 두 발. 강력하지만 적게 싣고 락온이 느리다.", base: { mDmg: 0.35, mStart: -1, lock: 0.15 }, per: { mDmg: 0.07 }, b3: { mCap: 1 }, b5: { mDmg: 0.2, lock: -0.15 } },
+    seeker: { name: "추적 미사일 레일", price: 1050, tag: "빠른 락온", desc: "탐색기 렌즈가 달린 가는 탄. 멀리서 빨리 잡지만 탄두가 작다.", base: { lock: -0.25, range: 0.08, mDmg: -0.15 }, per: { lock: -0.04 }, b3: { mStart: 1 }, b5: { mDmg: 0.2 } } } },
   sensor: { name: "센서·조준", short: "센서", icon: "📡", variants: {
     std: { name: "기본 센서", price: 0, tag: "균형형", desc: "조준 보조 거리를 넓히는 기본 센서.", per: { range: 0.04 }, b3: { lock: -0.1 }, b5: { crit: 0.05 } },
     scope: { name: "정밀 조준경", price: 900, tag: "치명타", desc: "약점을 짚어 치명타를 노린다. 탐지 범위는 좁다.", base: { crit: 0.04, range: -0.1 }, per: { crit: 0.015 }, b3: { laserDmg: 0.06 }, b5: { critK: 0.5 } },
-    radar: { name: "광역 레이더", price: 900, tag: "탐지", desc: "멀리서 먼저 잡는다. 회전 안테나가 무겁다.", base: { range: 0.15, thrust: -0.02 }, per: { range: 0.06, lock: -0.03 }, b3: { gauge: 0.12 }, b5: { mCap: 2 } } } },
+    radar: { name: "광역 레이더", price: 900, tag: "탐지", desc: "멀리서 먼저 잡는다. 회전 안테나가 무겁다.", base: { range: 0.15, thrust: -0.02 }, per: { range: 0.06, lock: -0.03 }, b3: { gauge: 0.12 }, b5: { mCap: 2 } },
+    ew: { name: "전자전 재머", price: 950, tag: "EMP · 스킬", desc: "채찍 안테나로 적 회로를 교란한다. EMP 범위와 스킬 충전이 늘지만 조준 거리는 줄어든다.", base: { emp: 0.4, gauge: 0.06, range: -0.08 }, per: { emp: 0.08 }, b3: { lock: -0.1 }, b5: { gauge: 0.1 } } } },
   shield: { name: "실드 발생기", short: "실드", icon: "⬢", variants: {
     std: { name: "표준 발생기", price: 0, tag: "균형형", desc: "실드와 수리 효율을 고르게 올린다.", per: { shieldK: 0.05, repair: 0.04 }, b3: { emp: 0.25 }, b5: { spawnShield: 40 } },
     tac: { name: "반응형 방벽", price: 900, tag: "실드 특화", desc: "두꺼운 실드를 두르지만 수리 효율이 떨어진다.", base: { shieldK: 0.12, repair: -0.15 }, per: { shieldK: 0.08 }, b3: { spawnShield: 60 }, b5: { guard: -0.08 } },
-    nano: { name: "나노 수리기", price: 1000, tag: "회복", desc: "실드 대신 기체를 스스로 고친다.", base: { regen: 0.5, shieldK: -0.15 }, per: { repair: 0.1 }, b3: { regen: 1 }, b5: { regen: 1, hp: 0.08 } } } },
+    nano: { name: "나노 수리기", price: 1000, tag: "회복", desc: "실드 대신 기체를 스스로 고친다.", base: { regen: 0.5, shieldK: -0.15 }, per: { repair: 0.1 }, b3: { regen: 1 }, b5: { regen: 1, hp: 0.08 } },
+    cap: { name: "흡수 실드 코어", price: 1000, tag: "출격 실드", desc: "회전 고리가 에너지를 모아 두꺼운 출격 실드를 만든다. 수리 효율과 추력이 조금 준다.", base: { spawnShield: 60, repair: -0.1, thrust: -0.02 }, per: { shieldK: 0.05, spawnShield: 10 }, b3: { guard: -0.05 }, b5: { shieldK: 0.2 } } } },
   cooler: { name: "냉각기", short: "냉각", icon: "❄", variants: {
     std: { name: "방열판", price: 0, tag: "균형형", desc: "레이저 열을 빨리 식히는 기본 방열판.", per: { cool: 0.05 }, b3: { heat: -0.08 }, b5: { overDur: 0.2 } },
     cryo: { name: "극저온 냉각기", price: 900, tag: "지속 사격", desc: "냉매 탱크로 과열을 크게 늦춘다. 탱크가 무겁다.", base: { heat: -0.12, thrust: -0.03 }, per: { heat: -0.04 }, b3: { cool: 0.25 }, b5: { laserDmg: 0.08 } },
-    vent: { name: "터보 벤트", price: 900, tag: "가속 보조", desc: "배기열을 뒤로 뿜어 부스트를 돕는다. 식히는 힘은 약하다.", base: { boostDur: 0.12, cool: -0.08 }, per: { boostDur: 0.05, cool: 0.03 }, b3: { overDur: 0.3 }, b5: { boost: 0.12 } } } },
+    vent: { name: "터보 벤트", price: 900, tag: "가속 보조", desc: "배기열을 뒤로 뿜어 부스트를 돕는다. 식히는 힘은 약하다.", base: { boostDur: 0.12, cool: -0.08 }, per: { boostDur: 0.05, cool: 0.03 }, b3: { overDur: 0.3 }, b5: { boost: 0.12 } },
+    liquid: { name: "수랭 순환기", price: 950, tag: "급속 냉각", desc: "냉각관으로 열을 빠르게 뺀다. 연사가 오래 가지만 펌프 무게로 부스트가 약하다.", base: { cool: 0.2, heat: -0.04, boost: -0.07 }, per: { cool: 0.06 }, b3: { rate: 0.06 }, b5: { overDur: 0.25 } } } },
 };
 export const SLOTS = Object.keys(PARTS);
 const clampLv = (n) => Math.max(0, Math.min(5, Math.floor(+n) || 0));
@@ -352,10 +391,13 @@ export function partLook(over) {
 }
 
 // 장착 상태 → 전투·비행 배율 (모두 0 기준의 가산치). over: 미리보기용 { slot, v, lv }
-export function loadout(over) {
+// lookOver: 외형 미리보기 { frame } (주지 않으면 지금 외형)
+export function loadout(over, lookOver) {
   const L = { thrust: 0, boost: 0, heat: 0, cool: 0, itemDur: 0, boostDur: 0, overDur: 0, spawnShield: 0, regen: 0, hp: 0, guard: 0, crash: 0, shieldK: 0, laserDmg: 0, rate: 0, spread: 0, spreadK: 0, crit: 0, critK: 0, lock: 0, range: 0, mCap: 0, mDmg: 0, mStart: 0, repair: 0, emp: 0, gauge: 0, gaugeStart: 0 };
   const look = partLook(over);
   for (const slot of SLOTS) for (const [k, v] of Object.entries(partEffect(slot, look[slot].v, look[slot].lv))) L[k] = (L[k] || 0) + v;
+  const fr = (lookOver && lookOver.frame) || settings.drone.frame;
+  for (const [k, v] of Object.entries(lookFx("frame", fr) || {})) L[k] = (L[k] || 0) + v;
   const f = (slot) => FX[slot].items[fxEquipped(slot)] || FX[slot].items[FX[slot].def];
   L.fx = { laser: f("laser").color, beam: f("beam"), missile: f("missile").color, boost: f("boost"), item: f("item") };
   return L;

@@ -4,7 +4,7 @@ import {
   HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset, QUALITY_NAMES, VERSION,
 } from "./config.js";
 import { MAPS, MAP_LIST } from "./maps/index.js";
-import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
+import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS, skinSwatch } from "./dronemodel.js";
 import { VARIANTS } from "./modes/survival.js";
 import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
@@ -19,6 +19,7 @@ import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
+import { isFighter } from "./fighters.js";
 
 const MODE_META = {
   training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 수동 비행을 이륙부터 곡예까지 단계별 과제로 배웁니다.",
@@ -57,6 +58,21 @@ const SUB = {
   pvp: { name: "PVP", en: "PVP · 대인전", c: "#21d4fd", img: "9-empire", desc: "다른 플레이어와 실시간 대전. 배틀넷 랜덤 매칭 또는 커스텀 방. 파츠 능력치 미적용 · 스킬 피해 60%." },
 };
 const TRAILS = [["off", "끄기"], ["#ffffff", "흰색"], ["#ff5a1f", "주황"], ["#21d4fd", "하늘"], ["#ff2bd6", "분홍"], ["#3dff7c", "초록"]];
+// 격납고 외형: 카테고리 · LED 모드 설명 · 미리보기용 설정 조각
+const LOOK_CATS = [["frame", "프레임"], ["canopy", "캐노피"], ["skin", "스킨"], ["preset", "색 조합"], ["paint", "페인트"], ["led", "LED"], ["trail", "연기"], ["cls", "등급"]];
+const LED_DESC = { solid: "늘 같은 밝기로 켜 둔다", off: "LED 를 끈 은밀 비행", blink: "또렷하게 깜빡이는 점멸", rainbow: "무지개색이 천천히 흐른다", breathe: "숨 쉬듯 천천히 밝아졌다 어두워진다", strobe: "짧고 강하게 번쩍이는 스트로브", police: "빨강·파랑이 번갈아 도는 경광등" };
+const COLOR_KEYS = ["frameColor", "accentColor", "propColor", "ledColor"];
+function lookPatch(kind, v) {
+  if (kind === "frame") return { frame: v };
+  if (kind === "canopy") return { canopy: v };
+  if (kind === "skin") return { skin: v };
+  if (kind === "led") return { ledMode: v };
+  if (kind === "trail") return { trail: v };
+  if (kind === "cls") return { cls: v };
+  if (kind === "preset") { const { name, desc, ...c } = COLOR_PRESETS[+v] || COLOR_PRESETS[0]; void name; void desc; return c; }
+  if (kind === "theme") return { ...(GP.THEMES[v] ? GP.THEMES[v].look : {}) };
+  return {};
+}
 
 const kb = (g) => `<kbd class="pad">${String(g).replace(/[&<>"]/g, "")}</kbd>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -157,6 +173,7 @@ export class UI {
     this._syncStage();
     if (name === "title") this._titleShow(); else clearInterval(this._slideT);
     if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
+    if (name === "hangar") this._wantThumbs();
     if (this.tut) this.tut.onShow(name);
   }
 
@@ -164,7 +181,7 @@ export class UI {
   _syncStage() {
     const menu = this.game.menu;
     menu.setMode(this.screen === "main" || this.screen === "setup" ? this.sel.mode : null);
-    if (this._ptKey && (this.screen !== "hangar" || this._gtab !== "parts")) this._ptClear();   // 파츠 미리보기는 파츠 탭에서만
+    if (this._ptKey && this.screen !== "hangar") this._ptClear();   // 격납고를 나가면 미리보기를 버리고 장착한 모습으로
     menu.low = this.screen === "hangar" && this._gtab === "parts";
     if (menu.previewSkill) menu.previewSkill(this.screen === "hangar" && this._gtab === "skill" ? this._skPv || GP.skillEquipped() : null);
     const st = this.root.querySelector("[data-stage]");
@@ -857,6 +874,7 @@ export class UI {
     const val = typeof cur === "boolean" ? v === "true" : typeof cur === "number" ? +v : v;
     setPath(settings, path, val);
     this._applied(path);
+    if (path.startsWith("drone.") && this.screen === "hangar") { this._ptKey = "?"; this._pvApply(); }
     save();
     this.redraw();
   }
@@ -898,28 +916,29 @@ export class UI {
     const tabs = [["look", "외형"], ["theme", "테마"], ["fx", "효과"], ["parts", "파츠"], ["skill", "스킬"], ["quest", "퀘스트"]];
     let body = "";
     if (tab === "look") {
+      const cat = LOOK_CATS.some((c) => c[0] === this._lcat) ? this._lcat : (this._lcat = "frame");
       const paint = GP.owns("paint", "on");
       const color = (key, label) => `<div class="opt"><label>${label}</label>${paint ? `<input type="color" value="${d[key]}" data-set="drone.${key}">` : `<span class="hint">커스텀 페인트 필요</span>`}</div>`;
-      body = `<h3 style="margin-top:0">기체 등급 (성능)</h3>
-        <div class="grid">${Object.entries(DRONE_CLASSES).map(([k, c]) => `<button class="card ${d.cls === k ? "sel" : ""}" data-a="set" data-k="drone.cls" data-v="${k}"><div class="nm">${c.name}</div><div class="ds">${c.desc}</div></button>`).join("")}</div>
-        <div class="spec"><span>추력</span>${bar(cls.twr / 8)}<span>최고 속도</span>${bar(cls.pitchSpeed / 62)}<span>민첩성</span>${bar(0.028 / cls.rateTau)}<span>안정감</span>${bar(cls.cdaT / 0.045 * 0.6 + cls.rateTau / 0.05 * 0.4)}</div>
-        <h3>프레임 (형상)</h3>${chips("frame", "frame", FRAMES, d.frame)}
-        <h3>캐노피</h3>${chips("canopy", "canopy", CANOPIES, d.canopy)}
-        <h3>프로펠러</h3><div class="chips">${[["2", "2엽"], ["3", "3엽"]].map(([k, l]) => `<button class="chip ${String(d.props) === k ? "on" : ""}" data-a="set" data-k="drone.props" data-v="${k}">${l}</button>`).join("")}</div>
-        <h3>스킨</h3>${chips("skin", "skin", SKINS, d.skin)}
-        <h3>색 조합</h3><div class="swatches">${COLOR_PRESETS.map((pr, n) => { const own = GP.owns("preset", String(n)); return `<button class="swatch ${own ? "" : "lock"}" data-a="gbuy" data-kind="preset" data-v="${n}"><i style="background:${pr.accentColor}"></i><i style="background:${pr.propColor}"></i>${own ? "" : "🔒 "}${pr.name}${own ? "" : ` <em>${P(GP.priceOf("preset", String(n)))}</em>`}</button>`; }).join("")}</div>
-        <h3>커스텀 페인트</h3>${paint ? "" : `<button class="chip lock" data-a="gbuy" data-kind="paint" data-v="on">🔒 색을 직접 고르기 <em>${P(GP.priceOf("paint", "on"))}</em></button>`}
-        ${color("frameColor", "프레임")}${color("accentColor", "포인트")}${color("propColor", "프로펠러")}${color("ledColor", "LED")}
-        <h3>LED</h3>${chips("led", "ledMode", LED_MODES, d.ledMode)}
-        <h3>연기 꼬리</h3>${chips("trail", "trail", Object.fromEntries(TRAILS), d.trail)}`;
+      const ids = this._lids(cat);
+      body = `<div class="lcats" role="tablist">${LOOK_CATS.map(([k, l]) => `<button class="${cat === k ? "on" : ""}" data-a="glcat" data-v="${k}">${l}${k === "paint" || k === "cls" ? "" : `<small>${this._lids(k).filter((v) => this._lown(k, v)).length}/${this._lids(k).length}</small>`}</button>`).join("")}</div>
+        <p class="hint2">카드를 누르면 <b>왼쪽 기체에 바로 입혀 봅니다</b>. 마음에 들면 아래에서 구매·적용하세요. 그냥 나가면 원래 외형으로 돌아갑니다.</p>`;
+      if (cat === "paint") {
+        body += `<div class="icards">${this._icard("paint", "on")}</div>
+          <h3>커스텀 색</h3>${color("frameColor", "프레임")}${color("accentColor", "포인트")}${color("propColor", "프로펠러")}${color("ledColor", "LED")}`;
+      } else {
+        body += `<div class="icards ${cat === "cls" ? "wide" : ""}">${ids.map((v) => this._icard(cat, v)).join("")}</div>`;
+        if (cat === "canopy") body += `<h3>프로펠러</h3><div class="chips">${[["2", "2엽"], ["3", "3엽"]].map(([k, l]) => `<button class="chip ${String(d.props) === k ? "on" : ""}" data-a="set" data-k="drone.props" data-v="${k}">${l}</button>`).join("")}</div>`;
+        if (cat === "cls") body += `<div class="spec"><span>추력</span>${bar(cls.twr / 8)}<span>최고 속도</span>${bar(cls.pitchSpeed / 62)}<span>민첩성</span>${bar(0.028 / cls.rateTau)}<span>안정감</span>${bar(cls.cdaT / 0.045 * 0.6 + cls.rateTau / 0.05 * 0.4)}</div>`;
+      }
+      body += this._gdetLook(cat);
     } else if (tab === "theme") {
-      body = `<p class="hint2">테마는 외형(프레임·캐노피·스킨·색)과 효과(레이저·미사일·부스트·아이템)를 한 번에 바꾸는 세트입니다. 장착 후 따로 바꿔도 됩니다.</p><div class="themes">${Object.entries(GP.THEMES).map(([id, t]) => {
-        const own = GP.themeOwns(id), lockStory = t.need && !SY.chapterDone(story().chapters.find((c) => c.id === t.need) || { stages: [] });
-        return `<button class="card theme ${own ? "" : "locked"}" data-a="gtheme" data-v="${id}" ${lockStory && !own ? "disabled" : ""}>
+      body = `<p class="hint2">테마는 외형(프레임·캐노피·스킨·색)과 효과(레이저·미사일·부스트·아이템)를 한 번에 바꾸는 세트입니다. 카드를 누르면 기체에 미리 입혀 봅니다.</p><div class="themes">${Object.entries(GP.THEMES).map(([id, t]) => {
+        const own = GP.themeOwns(id), lockStory = t.need && !SY.chapterDone(story().chapters.find((c) => c.id === t.need) || { stages: [] }), pv = this._lpv && this._lpv.kind === "theme" && this._lpv.v === id;
+        return `<button class="card theme ${own ? "" : "locked"} ${pv ? "pv" : ""}" data-a="glpv" data-kind="theme" data-v="${id}" ${lockStory && !own ? "disabled" : ""}>
           <span class="sw"><i style="background:${t.look.frameColor}"></i><i style="background:${t.look.accentColor}"></i><i style="background:${t.look.propColor}"></i></span>
           <div class="nm">${t.name}</div><div class="ds">${esc(t.desc)}</div>
-          <div class="pr">${own ? "보유 · 눌러서 장착" : lockStory ? `🔒 ${t.need.startsWith("e") ? "에이아 연대기" : "별의 저편"} 클리어 필요` : `🔒 ${P(t.price)}`}</div></button>`;
-      }).join("")}</div>`;
+          <div class="pr">${pv ? "▶ 미리보기 중 · " : ""}${own ? "보유" : lockStory ? `🔒 ${t.need.startsWith("e") ? "에이아 연대기" : "별의 저편"} 클리어 필요` : `🔒 ${P(t.price)}`}</div></button>`;
+      }).join("")}</div>${this._lpv && this._lpv.kind === "theme" ? this._gdetLook("theme") : ""}`;
     } else if (tab === "fx") {
       body = Object.entries(GP.FX).map(([slot, F]) => `<h3>${F.name}</h3><div class="chips">${Object.entries(F.items).map(([k, it]) => {
         const own = GP.fxOwns(slot, k), on = GP.fxEquipped(slot) === k, c = it.color ? "#" + it.color.toString(16).padStart(6, "0") : it.rainbow ? "conic-gradient(#f55,#fd5,#5f8,#5df,#a5f,#f55)" : "";
@@ -948,7 +967,7 @@ export class UI {
               ${on ? "" : `<button class="primary small" data-a="gpart" data-v="${id}" ${own || GP.points() >= V.price ? "" : "disabled"}>${own ? "장착" : `구매 · ${P(V.price)}`}</button>`}
               ${!own ? `<span class="nx">구매하면 업그레이드할 수 있습니다</span>` : lv < 5 ? `<button class="primary small up" data-a="gup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${lv + 1} · ${P(cost)}</button><span class="nx">다음 단계: ${esc(GP.effText(next))}</span>` : `<span class="maxed">★ 최대 단계</span>`}
             </div></div>`;
-        }).join("");
+        }).join("") + this._gdetPart(slot);
     } else if (tab === "skill") {
       const eq = GP.skillEquipped(), pv = this._skPv || eq, ck = (c) => "#" + c.toString(16).padStart(6, "0");
       body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 포인트로 <b>Lv.5</b>까지 강화하면 수치와 연출이 함께 커집니다(Lv.3·Lv.5 에서 새 효과). 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
@@ -987,8 +1006,165 @@ export class UI {
   }
   _gnote(t, bad = false) { this._gmsg = { t, bad }; clearTimeout(this._gmt); this._gmt = setTimeout(() => { this._gmsg = null; if (this.screen === "hangar") this.redraw(); }, 2200); }
   _look() { save(); this.game.menu.setLook(settings.drone); this.redraw(); }
+  // ── 격납고 외형: 항목 목록 · 정보 · 카드 · 미리보기 패널 (고르면 기체에 입혀 보고, 구매/적용은 패널에서) ──
+  _lids(cat) {
+    if (cat === "frame") return Object.keys(FRAMES);
+    if (cat === "canopy") return Object.keys(CANOPIES);
+    if (cat === "skin") return Object.keys(SKINS);
+    if (cat === "preset") return COLOR_PRESETS.map((_, n) => String(n));
+    if (cat === "led") return Object.keys(LED_MODES);
+    if (cat === "trail") return TRAILS.map((t) => t[0]);
+    if (cat === "cls") return Object.keys(DRONE_CLASSES);
+    if (cat === "paint") return ["on"];
+    return [];
+  }
+  _lprice(kind, v) { if (kind === "cls") return 0; if (kind === "theme") return GP.THEMES[v].price; return (GP.SHOP[kind] && GP.SHOP[kind].items[v]) || 0; }
+  _lown(kind, v) { if (kind === "cls") return true; if (kind === "theme") return GP.themeOwns(v); return GP.owns(kind, v); }
+  _lon(kind, v) {
+    if (kind === "paint") return GP.owns("paint", "on");
+    const d = settings.drone, pt = lookPatch(kind, v);
+    return Object.entries(pt).every(([k, x]) => String(d[k]).toLowerCase() === String(x).toLowerCase());
+  }
+  _litem(kind, v) {
+    const price = this._lprice(kind, v);
+    let name = String(v), desc = "", tag = "";
+    if (kind === "frame") { name = FRAMES[v].name; desc = FRAMES[v].desc; tag = (GP.LOOK_FX.frame[v] && GP.LOOK_FX.frame[v].tag) || (isFighter(v) ? "전투기형" : "균형형"); }
+    else if (kind === "canopy") { name = CANOPIES[v].name; desc = CANOPIES[v].desc || ""; }
+    else if (kind === "skin") { name = SKINS[v].name; desc = SKINS[v].desc || ""; }
+    else if (kind === "preset") { const c = COLOR_PRESETS[+v]; name = c.name; desc = c.desc || "프레임·포인트·프로펠러·LED 색을 한 번에 바꾼다"; }
+    else if (kind === "led") { name = LED_MODES[v]; desc = LED_DESC[v] || ""; }
+    else if (kind === "trail") { name = (TRAILS.find((t) => t[0] === v) || [v, v])[1]; desc = v === "off" ? "연기 꼬리를 남기지 않는다" : "비행하는 동안 기체 뒤에 이 색의 연기를 남긴다"; }
+    else if (kind === "cls") { const c = DRONE_CLASSES[v]; name = c.name; desc = c.desc; tag = "비행 성능"; }
+    else if (kind === "paint") { name = "커스텀 페인트"; desc = "프레임·포인트·프로펠러·LED 색을 직접 고를 수 있게 된다 (한 번 사면 계속)"; }
+    else if (kind === "theme") { const t = GP.THEMES[v]; name = t.name; desc = `${t.desc} · 레이저·미사일·부스트 효과까지 한 세트`; tag = "세트"; }
+    return { kind, v, name, desc, tag, price, own: this._lown(kind, v), on: this._lon(kind, v), rar: GP.rarity(price) };
+  }
+  _ithumb(kind, v) {
+    const d = settings.drone;
+    if (kind === "frame" || kind === "canopy") { const url = this.game.thumbs[kind] && this.game.thumbs[kind][v]; return `<span class="ith shot" data-thumb="${kind}:${v}">${url ? `<img src="${url}" alt="">` : `<i class="ph"></i>`}</span>`; }
+    if (kind === "skin") {
+      const key = `${v}|${d.frameColor}|${d.accentColor}`, c = (this._swc = this._swc || {});
+      if (!(key in c)) c[key] = skinSwatch(v, d.frameColor, d.accentColor);
+      return `<span class="ith sk" style="background:${d.frameColor}${c[key] ? ` url(${c[key]}) center/cover` : ""}"></span>`;
+    }
+    if (kind === "preset") { const c = COLOR_PRESETS[+v]; return `<span class="ith pal"><i style="background:${c.frameColor}"></i><i style="background:${c.accentColor}"></i><i style="background:${c.propColor}"></i><i style="background:${c.ledColor}"></i></span>`; }
+    if (kind === "theme") { const t = GP.THEMES[v].look; return `<span class="ith pal"><i style="background:${t.frameColor}"></i><i style="background:${t.accentColor}"></i><i style="background:${t.propColor}"></i><i style="background:${t.ledColor}"></i></span>`; }
+    if (kind === "led") return `<span class="ith led m-${v}" style="--c:${d.ledColor}"><i></i><i></i><i></i></span>`;
+    if (kind === "trail") return `<span class="ith trl" style="--c:${v === "off" ? "rgba(255,255,255,0.12)" : v}"><i></i></span>`;
+    if (kind === "cls") { const c = DRONE_CLASSES[v]; return `<span class="ith cls"><b>${c.name.match(/\d+인치/) ? c.name.match(/\d+인치/)[0] : "✈"}</b></span>`; }
+    if (kind === "paint") return `<span class="ith pnt"></span>`;
+    return `<span class="ith"></span>`;
+  }
+  _icard(kind, v) {
+    const it = this._litem(kind, v), pv = this._lpv && this._lpv.kind === kind && this._lpv.v === v;
+    const badge = it.on ? `<i class="bd eq">✔ 장착</i>` : it.own ? `<i class="bd own">보유</i>` : `<i class="bd buy">◆ ${it.price.toLocaleString()}</i>`;
+    const fx = kind === "frame" ? GP.lookFx("frame", v) : null;
+    return `<button class="icard r-${it.rar.id} ${it.on ? "on" : ""} ${pv ? "pv" : ""} ${it.own ? "" : "lock"}" data-a="glpv" data-kind="${kind}" data-v="${v}" title="${esc(it.desc)}">
+      ${this._ithumb(kind, v)}<i class="rt">${it.rar.name}</i>${badge}${pv ? `<i class="pvt">미리보기</i>` : ""}
+      <b class="inm">${esc(it.name)}</b>${kind === "frame" ? `<small class="itg ${fx ? "fx" : ""}">${it.tag}</small>` : kind === "cls" ? `<small class="itg">${esc(it.desc)}</small>` : ""}</button>`;
+  }
+  // 바꾸기 전후 능력치 차이 칩
+  _dchips(a, b, keys) {
+    return keys.map((k) => [k, (b[k] || 0) - (a[k] || 0)]).filter((e) => Math.abs(e[1]) > 1e-9)
+      .map(([k, n]) => `<i class="${GP.statGood(k, n) ? "up" : "dn"}">${esc(GP.statText(k, n))}</i>`).join("");
+  }
+  _gdetLook(cat) {
+    const pv = this._lpv && (this._lpv.kind === cat || cat === "theme") ? this._lpv : null;
+    let it;
+    if (pv) it = this._litem(pv.kind, pv.v);
+    else { const v = this._lids(cat).find((x) => this._lon(cat, x)); if (!v) return `<div class="gdet empty"><span>카드를 눌러 기체에 입혀 보세요</span></div>`; it = this._litem(cat, v); }
+    const chg = pv && !it.on;
+    let chips = "";
+    if (it.kind === "frame" || it.kind === "theme") {
+      const nf = it.kind === "frame" ? it.v : GP.THEMES[it.v].look.frame, a = GP.lookFx("frame", settings.drone.frame) || {}, b = GP.lookFx("frame", nf) || {};
+      const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+      chips = chg ? this._dchips(a, b, keys) || `<i class="nt">능력치 변화 없음</i>` : this._dchips({}, b, Object.keys(b)) || `<i class="nt">균형형 · 능력치 보정 없음</i>`;
+    } else if (it.kind === "cls") {
+      const A = DRONE_CLASSES[settings.drone.cls] || DRONE_CLASSES.freestyle, B = DRONE_CLASSES[it.v];
+      const row = (nm, a, b, f, good = 1) => (Math.abs(b - a) < 1e-9 ? `<i class="nt">${nm} ${f(b)}</i>` : `<i class="${(b - a) * good > 0 ? "up" : "dn"}">${nm} ${f(a)} → ${f(b)}</i>`);
+      chips = row("추력비", A.twr, B.twr, (x) => x.toFixed(1)) + row("최고 속도", A.pitchSpeed, B.pitchSpeed, (x) => `${x}m/s`) + row("반응", A.rateTau, B.rateTau, (x) => `${Math.round(x * 1000)}ms`, -1) + row("무게", A.mass, B.mass, (x) => `${Math.round(x * 1000)}g`, -1);
+    } else chips = `<i class="nt">외형 전용 · 성능 변화 없음</i>`;
+    const pts = GP.points(), can = pts >= it.price, buyLabel = it.kind === "frame" ? "장착" : "적용";
+    let st, btns = "";
+    if (it.on && it.kind !== "paint") st = `<span class="gst eq">✔ 장착 중</span>`;
+    else if (it.own) st = `<span class="gst own">보유</span>`;
+    else st = `<span class="gst buy">◆ ${it.price.toLocaleString()}P</span>`;
+    if (it.kind === "paint") btns = it.own ? `<span class="gnote">아래 색 고르기로 바로 칠할 수 있습니다</span>` : `<button class="primary small buy" data-a="glbuy" ${can ? "" : "disabled"}>구매 · ${it.price.toLocaleString()}P</button>${can ? "" : `<span class="why">${(it.price - pts).toLocaleString()}P 부족</span>`}`;
+    else if (!chg) btns = pv ? "" : `<span class="gnote">다른 카드를 눌러 비교해 보세요</span>`;
+    else if (it.own) btns = `<button class="primary small" data-a="glapply">${buyLabel}</button>`;
+    else btns = `<button class="primary small buy" data-a="glbuy" ${can ? "" : "disabled"}>구매 · ${it.price.toLocaleString()}P</button>${can ? `<span class="gnote">구매하면 바로 ${buyLabel}됩니다</span>` : `<span class="why">${(it.price - pts).toLocaleString()}P 부족</span>`}`;
+    if (pv && it.kind !== "paint") btns += `<button class="ghost small rv" data-a="glrevert">↺ 되돌리기</button>`;
+    return `<div class="gdet r-${it.rar.id} ${chg ? "pv" : ""}">
+      ${this._ithumb(it.kind, it.v)}
+      <div class="gdi"><div class="gdn"><small class="gk">${chg ? "미리보기" : "현재"}</small><b>${esc(it.name)}</b><i class="rt">${it.rar.name}</i>${it.tag ? `<i class="tag">${it.tag}</i>` : ""}${st}</div>
+        <p>${esc(it.desc)}</p><div class="fxc">${chips}</div></div>
+      <div class="gda">${btns}</div></div>`;
+  }
+  _gdetPart(slot) {
+    const Pt = GP.PARTS[slot], cur = GP.partOf(slot), pv = this._ppv && this._ppv.slot === slot && this._ppv.v !== cur.v ? this._ppv : null, v = pv ? pv.v : cur.v, V = Pt.variants[v];
+    const own = GP.variantOwns(slot, v), lv = GP.partLv(slot, v), id = `${slot}.${v}`, rar = GP.rarity(V.price), pts = GP.points(), cost = GP.UP_COST[lv];
+    const chips = pv ? this._dchips(GP.loadout(), GP.loadout(pv), Object.keys(GP.STATS)) || `<i class="nt">능력치 변화 없음</i>`
+      : this._dchips({}, GP.partEffect(slot, v, lv), Object.keys(GP.STATS)) || `<i class="nt">기본 성능</i>`;
+    let btns;
+    if (!pv) btns = `<span class="gst eq">✔ 장착 중 · Lv.${lv}</span>` + (lv < 5 ? `<button class="primary small up" data-a="gup" data-v="${id}" ${pts < cost ? "disabled" : ""}>업그레이드 · ${cost.toLocaleString()}P</button>` : `<span class="maxed">★ 최대 단계</span>`);
+    else if (own) btns = `<button class="primary small" data-a="gpart" data-v="${id}">장착</button>`;
+    else btns = `<button class="primary small buy" data-a="gpart" data-v="${id}" ${pts >= V.price ? "" : "disabled"}>구매 · ${V.price.toLocaleString()}P</button>${pts >= V.price ? `<span class="gnote">구매하면 바로 장착됩니다</span>` : `<span class="why">${(V.price - pts).toLocaleString()}P 부족</span>`}`;
+    if (pv) btns += `<button class="ghost small rv" data-a="gprevert">↺ 되돌리기</button>`;
+    return `<div class="gdet r-${rar.id} ${pv ? "pv" : ""}">
+      <span class="ith pic">${Pt.icon}</span>
+      <div class="gdi"><div class="gdn"><small class="gk">${pv ? "미리보기" : "현재"}</small><b>${esc(V.name)}</b><i class="rt">${rar.name}</i><i class="tag">${V.tag}</i>${pv ? own ? `<span class="gst own">보유</span>` : `<span class="gst buy">◆ ${V.price.toLocaleString()}P</span>` : ""}</div>
+        <p>${esc(V.desc)}</p><div class="fxc">${chips}</div></div>
+      <div class="gda">${btns}</div></div>`;
+  }
+  _wantThumbs() {
+    if (this.screen !== "hangar" || (this._gtab || "look") !== "look") return;
+    const cat = this._lcat || "frame";
+    if (cat === "frame" || cat === "canopy") this.game.thumbs.want(cat, this._lids(cat));
+  }
+  a_glcat(v) { if (!LOOK_CATS.some((c) => c[0] === v)) return; this._lcat = v; this._lpv = null; this._pvApply(); this.redraw(); }
+  a_glpv(v, el) {
+    const kind = el.dataset.kind;
+    this._lpv = this._lon(kind, v) && kind !== "paint" ? null : { kind, v };
+    this._pvApply(); this.redraw();
+  }
+  a_glrevert() { this._lpv = null; this._pvApply(); this.redraw(); }
+  a_gprevert() { this._ppv = null; this._pvApply(); this.redraw(); }
+  a_glbuy() {
+    const pv = this._lpv;
+    if (!pv) return;
+    const it = this._litem(pv.kind, pv.v);
+    if (!it.own) {
+      const ok = pv.kind === "theme" ? GP.themeBuy(pv.v) : GP.buy(pv.kind, pv.v);
+      if (!ok) return (this._gnote(`포인트가 부족합니다 (${it.price.toLocaleString()}P 필요)`, true), this.redraw());
+      this.game.sound.play("pickup");
+    }
+    this._lapply(pv, it, it.own ? null : `「${it.name}」 구매 · -${it.price.toLocaleString()}P${pv.kind === "paint" ? "" : " · 적용 완료"}`);
+  }
+  a_glapply() {
+    const pv = this._lpv;
+    if (!pv) return;
+    const it = this._litem(pv.kind, pv.v);
+    if (!it.own) return;
+    this.game.sound.play("confirm");
+    this._lapply(pv, it);
+  }
+  _lapply(pv, it, msg) {
+    if (pv.kind === "theme") GP.themeEquip(pv.v);
+    else if (pv.kind !== "paint") Object.assign(settings.drone, lookPatch(pv.kind, pv.v));
+    this._lpv = null;
+    this._gnote(msg || `「${it.name}」 적용`);
+    save(); this._ptKey = "?"; this._pvApply(); this.redraw();
+  }
+  // 미리보기(외형 + 파츠)를 3D 기체에 반영 (같은 구성이면 다시 만들지 않는다). hover: 잠깐 올려 본 부품
+  _pvApply(hover) {
+    const lp = this._lpv, pp = hover || this._ppv;
+    const key = lp || pp ? `${lp ? `${lp.kind}:${lp.v}` : ""}|${pp ? `${pp.slot}.${pp.v}` : ""}` : "";
+    if (key === (this._ptKey || "")) return;
+    this._ptKey = key;
+    this.game.menu.setLook(lp ? { ...settings.drone, ...lookPatch(lp.kind, lp.v) } : settings.drone, GP.partLook(pp));
+  }
   a_gq() { this._gtab = "quest"; this.show("hangar"); }
-  a_gtab(v) { this._gtab = v; if (v !== "parts") this._ptClear(); this.redraw(); this._syncStage(); }
+  a_gtab(v) { this._gtab = v; this._ptClear(); this.redraw(); this._syncStage(); }
   a_gskpv(v) { this._skPv = v; this.game.sound.play("click"); this.redraw(); this._syncStage(); }
   a_gskill(v) {
     const k = GP.SKILLS[v];
@@ -1048,8 +1224,9 @@ export class UI {
   _gsumUpd(hover) {
     const box = this.root.querySelector(".lsum");
     if (!box) return;
-    const pv = hover || (this._gtab === "parts" ? this._ppv : null);
-    const R0 = GP.ratings(GP.loadout()), R1 = pv ? GP.ratings(GP.loadout(pv)) : R0, w = (x) => Math.round(Math.max(0, Math.min(1, (x - 0.5) / 1.3)) * 1000) / 10, pc = (x) => `${x >= 1 ? "+" : ""}${Math.round((x - 1) * 100)}%`;
+    const pv = hover || (this._gtab === "parts" ? this._ppv : null), lp = this._lpv;
+    const lo = lp && (lp.kind === "frame" ? { frame: lp.v } : lp.kind === "theme" && GP.THEMES[lp.v] ? { frame: GP.THEMES[lp.v].look.frame } : null);
+    const R0 = GP.ratings(GP.loadout()), R1 = pv || lo ? GP.ratings(GP.loadout(pv, lo)) : R0, w = (x) => Math.round(Math.max(0, Math.min(1, (x - 0.5) / 1.3)) * 1000) / 10, pc = (x) => `${x >= 1 ? "+" : ""}${Math.round((x - 1) * 100)}%`;
     this._barPrev = {};
     for (const [k] of GP.RATINGS) {
       const el = box.querySelector(`[data-r="${k}"]`), a = w(R0[k]), b = w(R1[k]), d = Math.round((R1[k] - R0[k]) * 100);
@@ -1062,13 +1239,8 @@ export class UI {
     }
   }
   // 미리보기 부품을 3D 기체에 반영 (같은 구성이면 다시 만들지 않는다)
-  _ptModel(pv) {
-    const key = pv ? `${pv.slot}.${pv.v}` : "";
-    if (key === (this._ptKey || "")) return;
-    this._ptKey = key;
-    this.game.menu.setLook(settings.drone, GP.partLook(pv));
-  }
-  _ptClear() { this._ppv = null; if (this._ptKey) { this._ptKey = ""; this.game.menu.setLook(settings.drone); } }
+  _ptModel(pv) { this._pvApply(pv); }
+  _ptClear() { this._ppv = null; this._lpv = null; if (this._ptKey) { this._ptKey = ""; this.game.menu.setLook(settings.drone); } }
   _ptHover(id) {
     if (this.screen !== "hangar" || this._gtab !== "parts") return;
     const [slot, v] = id ? id.split(".") : [];

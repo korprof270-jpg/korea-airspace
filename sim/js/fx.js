@@ -8,6 +8,32 @@ const WHITE = new THREE.Color(0xffffff);
 const NFLASH = 14;
 const MAXD = 120;    // 격파 잔해 조각 (인스턴스 상자)
 const NRING = 10;
+const MAXW = 48;     // 격추 잔해 덩어리 (땅에 떨어져 튀고 연기 내며 남는 큰 조각, 인스턴스 하나)
+const MAXH = 10;     // 격추된 기체 몸통 (연기 뿜으며 회전해 떨어지는 그을린 동체, 인스턴스 하나)
+const _hitW = { depth: 0, normal: new THREE.Vector3(), collider: null };
+
+// 여러 지오메트리를 하나로 (위치·법선만, 인덱스 없이) — 몸통 잔해 모양을 한 번의 드로우 콜로
+function mergeGeos(list) {
+  const parts = list.map((g) => (g.index ? g.toNonIndexed() : g));
+  let n = 0; for (const g of parts) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+  let o = 0;
+  for (const g of parts) { pos.set(g.attributes.position.array, o); nor.set(g.attributes.normal.array, o); o += g.attributes.position.count * 3; g.dispose(); }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.BufferAttribute(pos, 3)); out.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+  return out;
+}
+// 부서진 드론 몸통: 납작한 동체 + 한쪽이 꺾인 X 자 팔 + 모터 셋 (지름 약 2, 크기는 인스턴스에서)
+function hullGeo() {
+  const L = [], add = (g, x, y, z, ry = 0, rz = 0) => { g.rotateZ(rz); g.rotateY(ry); g.translate(x, y, z); L.push(g); };
+  add(new THREE.BoxGeometry(0.75, 0.28, 1.05), 0, 0, 0);
+  add(new THREE.BoxGeometry(0.5, 0.18, 0.5), 0, 0.2, -0.1);
+  add(new THREE.BoxGeometry(2.0, 0.1, 0.14), 0, 0, 0, Math.PI / 4);
+  add(new THREE.BoxGeometry(1.0, 0.1, 0.14), -0.36, -0.08, -0.36, -Math.PI / 4, 0.35);   // 꺾여 늘어진 팔
+  add(new THREE.BoxGeometry(0.5, 0.1, 0.14), 0.18, 0, 0.18, -Math.PI / 4);              // 부러진 팔 토막
+  for (const [x, z] of [[0.7, 0.7], [-0.7, -0.7], [-0.62, 0.66]]) add(new THREE.CylinderGeometry(0.17, 0.2, 0.22, 7), x, x < 0 && z > 0 ? -0.22 : 0.06, z);
+  return mergeGeos(L);
+}
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
@@ -135,6 +161,29 @@ export class FX {
     this.debris = [];
     for (let i = 0; i < MAXD; i++) this.debris.push({ on: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), ax: new THREE.Vector3(1, 0, 0), spin: 0, life: 0, max: 1, size: 0.3, hot: false, col: new THREE.Color() });
     this._dc = 0;
+    // 격추 잔해 덩어리: 음영 있는 찌그러진 조각. 중력으로 떨어져 지형·건물에 튀고, 멈추면 연기를 내다 가라앉는다 (인스턴스 하나 = 드로우 콜 한 번, 없으면 그리지 않음)
+    this.wGeo = new THREE.IcosahedronGeometry(0.5, 0);
+    this.wMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    this.wchunk = new THREE.InstancedMesh(this.wGeo, this.wMat, MAXW);
+    this.wchunk.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.wchunk.frustumCulled = false; this.wchunk.count = 0; this.wchunk.visible = false;
+    this.wchunk.setColorAt(0, _c.set(0x222222));
+    scene.add(this.wchunk);
+    this.wrecks = [];
+    for (let i = 0; i < MAXW; i++) this.wrecks.push({ on: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), ax: new THREE.Vector3(1, 0, 0), sc: new THREE.Vector3(1, 1, 1), spin: 0, life: 0, max: 1, size: 0.5, rest: false, bounce: 0, smokeT: 0, hot: 0, col: new THREE.Color() });
+    this._wc = 0;
+    // 격추된 몸통: 자기 속도를 이어받아 회전하며 떨어지고, 땅에 처박히며 2차 폭발, 멈춘 뒤 연기 기둥, 끝에 가라앉는다
+    this.hGeo = hullGeo();
+    this.hull = new THREE.InstancedMesh(this.hGeo, this.wMat, MAXH);
+    this.hull.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.hull.frustumCulled = false; this.hull.count = 0; this.hull.visible = false;
+    this.hull.setColorAt(0, _c.set(0x222222));
+    scene.add(this.hull);
+    this.hulls = [];
+    for (let i = 0; i < MAXH; i++) this.hulls.push({ on: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), ax: new THREE.Vector3(1, 0, 0), spin: 0, t: 0, life: 1, size: 1, rest: false, hits: 0, smokeT: 0, col: new THREE.Color() });
+    this._hc = 0;
+    this.onWreckHit = null;   // 몸통이 처음 땅에 부딪힐 때 (pos, size) — combat.js 가 폭발음을 낸다
+    this.col = null;    // 충돌 월드 (combat.js 가 넣어 준다): 잔해가 지형·건물에 부딪힌다. 없으면 y=0 바닥
     this.density = 1;   // 파티클 개수 배율 (그래픽 품질·자동 조절이 정한다)
   }
 
@@ -151,6 +200,36 @@ export class FX {
       d.hot = Math.random() < 0.35;
       d.col.set(d.hot ? 0xffa040 : color).multiplyScalar(d.hot ? 1.6 : 0.55 + Math.random() * 0.3);
     }
+  }
+
+  // 격추 잔해 덩어리: n 개가 사방으로 튀어 떨어진다. color = 기체 색, size = 조각 크기(m), vel = 기체 속도(이어받음)
+  wreckBurst(pos, color, n = 4, speed = 10, size = 0.6, vel = null) {
+    n = Math.max(1, Math.round(n * Math.max(0.5, this.density)));
+    for (let i = 0; i < n; i++) {
+      const d = this.wrecks[this._wc]; this._wc = (this._wc + 1) % MAXW;
+      const a = Math.random() * Math.PI * 2, sv = speed * (0.45 + Math.random() * 0.7);
+      d.on = true; d.rest = false; d.bounce = 0; d.p.copy(pos);
+      d.v.set(Math.cos(a) * sv, speed * (0.3 + Math.random() * 0.6), Math.sin(a) * sv);
+      if (vel) d.v.addScaledVector(vel, 0.5);
+      d.q.random(); d.ax.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+      d.spin = 3 + Math.random() * 9; d.life = d.max = 4.5 + Math.random() * 2.5;
+      d.size = size * (0.6 + Math.random() * 0.8);
+      d.sc.set(1 + Math.random() * 0.8, 0.35 + Math.random() * 0.5, 0.7 + Math.random() * 0.6);   // 납작하고 길쭉한 판·덩어리
+      d.hot = Math.random() < 0.6 ? 1 : 0; d.smokeT = Math.random() * 0.2;
+      d.col.set(Math.random() < 0.35 ? color : 0x3a3d44).multiplyScalar(0.35 + Math.random() * 0.35);
+    }
+  }
+
+  // 격추된 몸통 하나: pos 에서 vel 을 이어받아 떨어진다. size = 기체 반경(m), quat = 처음 자세, color = 기체 색
+  wreckHull(pos, vel, size = 1, quat = null, color = 0x8a93a6) {
+    let d = this.hulls.find((h) => !h.on);
+    if (!d) { d = this.hulls[this._hc]; this._hc = (this._hc + 1) % MAXH; }
+    d.on = true; d.rest = false; d.hits = 0; d.t = 0; d.life = 3.6 + Math.random() * 1.2; d.smokeT = 0;
+    d.p.copy(pos); d.v.copy(vel || _u.set(0, 0, 0)).multiplyScalar(0.75); d.v.y += 3 + Math.random() * 4;
+    if (quat) d.q.copy(quat); else d.q.identity();
+    d.ax.set(Math.random() - 0.5, (Math.random() - 0.5) * 0.5, Math.random() - 0.5).normalize();
+    d.spin = 3 + Math.random() * 4; d.size = size;
+    d.col.set(color).lerp(_c.set(0x3a3d44), 0.65);   // 그을린 기체 색 (원래 색이 조금 남는다)
   }
 
   // 사방으로 퍼지는 파티클
@@ -284,6 +363,7 @@ export class FX {
   }
   endBolts() {
     this.bolts.count = this._bi;
+    this.bolts.visible = this._bi > 0;   // 날아가는 탄이 없으면 드로우 콜을 아낀다
     this.bolts.instanceMatrix.needsUpdate = true;
     if (this.bolts.instanceColor) this.bolts.instanceColor.needsUpdate = true;
   }
@@ -334,6 +414,103 @@ export class FX {
       this.deb.instanceMatrix.needsUpdate = true;
       if (this.deb.instanceColor) this.deb.instanceColor.needsUpdate = true;
     }
+    this.deb.visible = n > 0;   // 개수 0 인 인스턴스도 드로우 콜을 쓰므로 숨긴다
+    this._wreckUpdate(dt);
+  }
+
+  // 잔해 덩어리: 중력 · 지형/건물 튕김 · 멈춘 뒤 연기 · 끝에 가라앉으며 작아진다
+  _wreckUpdate(dt) {
+    let n = 0;
+    const col = this.col;
+    for (const d of this.wrecks) {
+      if (!d.on) continue;
+      d.life -= dt;
+      if (d.life <= 0) { d.on = false; continue; }
+      const r = d.size * 0.4;
+      if (!d.rest) {
+        d.v.y -= 20 * dt; d.v.multiplyScalar(1 - 0.25 * dt);
+        d.p.addScaledVector(d.v, dt);
+        d.q.multiply(_q.setFromAxisAngle(d.ax, d.spin * dt));
+        let hit = false;
+        if (col) { if (col.querySphere(d.p, r, _hitW)) { hit = true; d.p.addScaledVector(_hitW.normal, _hitW.depth); } }
+        else if (d.p.y < r) { hit = true; d.p.y = r; _hitW.normal.set(0, 1, 0); }
+        if (hit) {
+          const vn = d.v.dot(_hitW.normal);
+          if (vn < 0) d.v.addScaledVector(_hitW.normal, -1.45 * vn);     // 튕김 (반발 0.45)
+          d.v.multiplyScalar(0.55); d.spin *= 0.5; d.bounce++;
+          if (d.bounce === 1 && d.hot) this.burst(d.p, 0xffa040, 4, 4, 0.35, 0.14, 10);   // 첫 충돌 불똥
+          if (d.v.lengthSq() < 2.5 || d.bounce > 4) { d.rest = true; d.v.set(0, 0, 0); }
+        }
+      }
+      // 연기: 불붙은 조각은 진하게, 오래. 날아가는 동안은 짧은 꼬리
+      if ((d.smokeT -= dt) <= 0) {
+        const left = d.life / d.max;
+        d.smokeT = d.rest ? 0.28 + (1 - left) * 0.5 : 0.07;
+        if (d.hot || !d.rest) this.smoke(d.p, d.rest ? 0.9 + d.size : 0.45 + d.size * 0.5, d.rest ? 2.2 : 0.8, d.hot ? 0.07 : 0.16, 0.3);
+        if (d.hot && !d.rest && Math.random() < 0.6) this.glow.spawn(d.p.x, d.p.y, d.p.z, 0, 0.3, 0, 1, 0.5, 0.18, 0.3, d.size * 0.9, -0.2, 0.8);
+      }
+      const k = Math.min(1, d.life / 0.8);   // 끝 0.8초: 가라앉으며 작아진다
+      _s.copy(d.sc).multiplyScalar(d.size * k);
+      if (d.rest && k < 1) d.p.y -= dt * 0.25;
+      _m.compose(d.p, d.q, _s);
+      this.wchunk.setMatrixAt(n, _m);
+      this.wchunk.setColorAt(n, d.col);
+      n++;
+    }
+    if (n || this.wchunk.count) {
+      this.wchunk.count = n;
+      this.wchunk.instanceMatrix.needsUpdate = true;
+      if (this.wchunk.instanceColor) this.wchunk.instanceColor.needsUpdate = true;
+    }
+    this.wchunk.visible = n > 0;
+    this._hullUpdate(dt);
+  }
+
+  _hullUpdate(dt) {
+    let n = 0;
+    const col = this.col;
+    for (const d of this.hulls) {
+      if (!d.on) continue;
+      d.t += dt;
+      if (d.t >= d.life) { d.on = false; continue; }
+      const R = d.size * 0.7;
+      if (!d.rest) {
+        d.v.y -= 22 * dt; d.v.multiplyScalar(1 - 0.3 * dt);
+        d.p.addScaledVector(d.v, dt);
+        d.q.premultiply(_q.setFromAxisAngle(d.ax, d.spin * dt));
+        let hit = false;
+        if (col) { if (col.querySphere(d.p, R, _hitW)) { hit = true; d.p.addScaledVector(_hitW.normal, _hitW.depth); } }
+        else if (d.p.y < R) { hit = true; d.p.y = R; _hitW.normal.set(0, 1, 0); }
+        if (hit) {
+          const vn = d.v.dot(_hitW.normal); if (vn < 0) d.v.addScaledVector(_hitW.normal, -1.35 * vn);
+          d.v.multiplyScalar(0.45); d.spin *= 0.45; d.hits++;
+          if (d.hits === 1) {   // 땅에 처박힘: 작은 2차 폭발과 덩어리 몇 개
+            this.explosion(d.p, 0.45 + d.size * 0.12);
+            this.wreckBurst(d.p, d.col.getHex(), 2, 6, 0.3 + d.size * 0.25);
+            if (this.onWreckHit) this.onWreckHit(d.p, d.size);
+          }
+          if (d.v.lengthSq() < 4 || d.hits > 3) { d.rest = true; d.v.set(0, 0, 0); }
+        }
+      }
+      if ((d.smokeT -= dt) <= 0) {   // 떨어지는 동안은 진한 꼬리와 불, 멈춘 뒤에는 피어오르는 연기 기둥
+        d.smokeT = d.rest ? 0.16 : 0.045;
+        this.smoke(d.p, (d.rest ? 1.3 : 0.9) * d.size, d.rest ? 2.2 : 1.5, 0.07, d.size * 0.6);
+        if (!d.rest || Math.random() < 0.55) this.puff(d.p, 0xff7a2a, (d.rest ? 0.3 : 0.45) * d.size, d.rest ? 0.5 : 0.35, 0.4);   // 멈춘 뒤에도 불씨가 남아 어두운 곳에서 보인다
+      }
+      const end = d.life - d.t;
+      let k = 1;
+      if (end < 0.9) { k = Math.max(0.02, end / 0.9); d.p.y -= dt * R * 0.8; }   // 끝: 가라앉으며 작아진다
+      _m.compose(d.p, d.q, _s.setScalar(d.size * k));
+      this.hull.setMatrixAt(n, _m);
+      this.hull.setColorAt(n, d.col);
+      n++;
+    }
+    if (n || this.hull.count) {
+      this.hull.count = n;
+      this.hull.instanceMatrix.needsUpdate = true;
+      if (this.hull.instanceColor) this.hull.instanceColor.needsUpdate = true;
+    }
+    this.hull.visible = n > 0;
   }
 
   dispose() {
@@ -344,5 +521,6 @@ export class FX {
     for (const f of this.rings) { this.scene.remove(f.m); f.m.material.dispose(); }
     this.flashGeo.dispose(); this.ringGeo.dispose();
     this.scene.remove(this.deb); this.debGeo.dispose(); this.debMat.dispose(); this.deb.dispose();
+    this.scene.remove(this.wchunk, this.hull); this.wGeo.dispose(); this.hGeo.dispose(); this.wMat.dispose(); this.wchunk.dispose(); this.hull.dispose();
   }
 }

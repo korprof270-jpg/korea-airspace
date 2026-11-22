@@ -46,6 +46,8 @@ export class Feel {
     this.breakup = 0;                                            // 영상 신호 끊김(잡음·탈색) 0..1
     this.deadA = 0; this.stunA = 0; this.heatA = 0;
     this.boostK = 0; this.overK = 0; this.streak = 0; this.streakPulse = 0;
+    this.dodgeK = 0;                                             // 고속 회피 중: 속도선이 짙어지고 푸르게, 시야가 잠깐 넓어진다
+    this.lowDesat = (session.game.q || "med") !== "low";         // 빈사 탈색(CSS 필터)은 '낮음' 품질에서 생략 (휴대폰 합성 비용)
     this.muzzleA = 0; this.muzzleSide = 1; this.muzzleHot = false;
     this.fullA = 0; this.fullCol = "#fff"; this.fullDecay = 4; this.fullCool = 0;
     this.slots = [];                                             // 짧은 테두리 번쩍임
@@ -320,7 +322,7 @@ export class Feel {
     const s = this.s, pl = s.player, b = pl.body, mode = s.mode;
     const c = mode && mode.combat, p = c && c.player;
     const run = mode && mode.state === "run" && !this.over;
-    let low = 0, warn = false, heat = 0, stun = false, dead = false, boost = 0, over = 0, hold = 0;
+    let low = 0, warn = false, heat = 0, stun = false, dead = false, boost = 0, over = 0, hold = 0, dodge = 0;
 
     if (p && run) {
       dead = !p.alive; stun = p.alive && p.stunT > 0;
@@ -331,6 +333,7 @@ export class Feel {
         heat = p.overheated ? 1 : smooth(0.72, 1, p.heat) * 0.6;
         boost = p.boostT > 0 ? Math.min(1, p.boostT * 2) : 0;
         over = p.overT > 0 ? Math.min(1, p.overT * 2) : 0;
+        dodge = p.dodgeT > 0 ? 1 : 0;
         warn = c.warn > 0;
         // 조준선에 적이 들어옴
         this.aimCool -= dt;
@@ -353,6 +356,7 @@ export class Feel {
       if ((this.beatT -= dt) <= 0) {
         this.beatT = 0.95 - 0.4 * low;
         this.beatA = 1;
+        if (!(settings.fx && settings.fx.reduceMotion)) this.fovPunch -= 0.5 + 0.6 * low;   // 박동마다 시야가 살짝 조여든다
         this.cue("heart", 0.45 + 0.55 * low);
         this.rumble(0.12 + 0.22 * low, 0, 70);
       }
@@ -377,13 +381,15 @@ export class Feel {
     this.heatA += (heat - this.heatA) * Math.min(1, dt * 7);
     this.boostK += (boost - this.boostK) * lr;
     this.overK += (over - this.overK) * lr;
+    this.dodgeK += (dodge - this.dodgeK) * Math.min(1, dt * (dodge ? 14 : 4));
 
     // 속도감: 고속·부스터에서 가장자리 속도선과 FOV 확대
     const sp = b.speed, fly = pl.camMode !== "los" && !pl.crashed && run;
-    const st = fly ? Math.max(smooth(26, 50, sp) * 0.75, this.boostK * smooth(8, 22, sp)) : 0;
+    const rm = settings.fx && settings.fx.reduceMotion ? 0.5 : 1;
+    const st = fly ? Math.max(smooth(26, 50, sp) * 0.75, this.boostK * smooth(8, 22, sp), this.dodgeK * rm) : 0;
     this.streakPulse = Math.max(0, this.streakPulse - dt * 2.2);
     this.streak += (st - this.streak) * Math.min(1, dt * 4);
-    const fs = fly ? smooth(9, 46, sp) * 7 + this.boostK * 5 : 0;
+    const fs = fly ? smooth(9, 46, sp) * 7 + this.boostK * 5 + this.dodgeK * 6 * rm : 0;
     this.fovSpeed += (fs - this.fovSpeed) * Math.min(1, dt * 3);
 
     // 소리 레이어: 신호 잡음, 먹먹함
@@ -573,7 +579,7 @@ export class Feel {
 
     // 1) 영상 신호 끊김: 탈색 + 회색 덮개 + 잡음 + 가로 줄
     const bk = this.breakup;
-    this._filter(Math.max(bk, this.deadA * 0.85) * F);
+    this._filter(Math.max(bk, this.deadA * 0.85, this.lowDesat ? this.lowK * 0.3 : 0) * F);   // 빈사: 살짝 탈색 (최대 20%)
     if (bk > 0.02) {
       g.globalAlpha = bk * 0.22 * F; g.fillStyle = "rgb(120,126,132)"; g.fillRect(0, 0, W, H);
       const k = Math.max(2, Math.round(3 * u)), ox = (Math.random() * 64) | 0, oy = (Math.random() * 64) | 0;
@@ -598,7 +604,10 @@ export class Feel {
     if (this.deadA > 0.01) { this._layer(g, im.vigBlack, this.deadA * 0.9 * F, W, H); this._layer(g, im.vigRed, this.deadA * 0.3 * F, W, H); }
 
     // 3) 상태 비네트: 빈사(심장 박동) · 피격(방향) · EMP · 과열
-    if (this.lowK > 0.01) this._layer(g, im.vigRed, Math.sqrt(this.lowK) * (0.2 + 0.4 * this.beatA) * F, W, H);
+    if (this.lowK > 0.01) {
+      this._layer(g, im.vigRed, Math.sqrt(this.lowK) * (0.2 + 0.4 * this.beatA) * F, W, H);
+      if (!this.lowDesat) this._layer(g, im.vigBlack, this.lowK * 0.22 * F, W, H);   // '낮음': 탈색 대신 어두운 테두리
+    }
     if (this.hurtA > 0.01) {
       const a = this.hurtA * 0.62 * F, b = this.hurtBias;
       this._layer(g, im.vigRed, a * (1 - 0.5 * b), W, H);
@@ -614,15 +623,16 @@ export class Feel {
     for (const f of this.slots) if (f.a > 0.004 && f.img) this._layer(g, f.img, f.a * F, W, H);
 
     // 5) 속도선: 화면 가장자리 타원 띠에서 바깥으로 흐른다
-    const st = Math.min(1, this.streak + this.streakPulse);
+    const st = Math.min(1, this.streak + this.streakPulse), dk = this.dodgeK;
     if (st > 0.04) {
-      g.globalAlpha = Math.min(0.5, st * 0.4) * F;
-      g.strokeStyle = this.boostK > 0.3 ? "#fff3b0" : "#ffffff";
-      g.lineWidth = 1.7 * u; g.lineCap = "round";
+      g.globalAlpha = Math.min(0.5 + 0.15 * dk, st * (0.4 + 0.2 * dk)) * F;
+      g.strokeStyle = dk > 0.3 ? "#bfe6ff" : this.boostK > 0.3 ? "#fff3b0" : "#ffffff";
+      g.lineWidth = (1.7 + dk) * u; g.lineCap = "round";
       g.beginPath();
-      for (let i = 0; i < 30; i++) {
+      const nl = 30 + ((dk * 18) | 0);                          // 회피 중에는 선이 더 많고 길다
+      for (let i = 0; i < nl; i++) {
         const a = hash(i * 3.7) * 6.2832, ph = (hash(i * 9.1) + t * (1.5 + hash(i * 5.3) * 1.5)) % 1;
-        const r0 = 0.66 + 0.5 * ph, r1 = r0 + (0.05 + 0.14 * st) * (0.6 + ph);
+        const r0 = 0.66 - 0.12 * dk + 0.5 * ph, r1 = r0 + (0.05 + 0.14 * st + 0.12 * dk) * (0.6 + ph);
         const cx = Math.cos(a) * W / 2, cy = Math.sin(a) * H / 2;
         g.moveTo(W / 2 + cx * r0, H / 2 + cy * r0); g.lineTo(W / 2 + cx * r1, H / 2 + cy * r1);
       }

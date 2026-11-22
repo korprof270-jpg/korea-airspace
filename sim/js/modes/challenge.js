@@ -144,6 +144,21 @@ export class ChallengeMode extends CombatMode {
     if (this.limit && this.time >= this.limit && this.failT < 0 && this.winT < 0) { this.failT = 0.01; this.failWhy = "제한 시간 초과"; }
   }
 
+  // 임무 막바지: 동료 무전용 (제한 시간 30초 전 · 수송함 도착 직전 · 최종 웨이브 · 마지막 목표 하나)
+  nearEnd() {
+    if (this.winT > 0 || this.failT > 0) return false;
+    if (this.limit && this.limit - this.time < 30) return true;
+    switch (this.id) {
+      case "waves": return this.wave >= this.waves && !this.pending;
+      case "escort": return this.mover && this.mover.s / this.mover.length > 0.86;
+      case "strike": return this.targets && this.targets.filter((t) => t.alive).length === 1;
+      case "supply": case "heist": return this.pads ? this.done === this.pads.length - 1 : this.done === HEIST_N - 1;
+      case "boss": return this.open && this.boss && this.boss.hp / this.boss.maxHp < 0.25;
+      case "titan": return this.titan && this.titan.hp / this.titan.maxHp < 0.25;
+    }
+    return false;
+  }
+
   hud(h) {
     const u = h.u, L = h.L;
     drawCombatHud(this.combat, h, { radarRange: 200 });
