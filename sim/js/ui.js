@@ -708,7 +708,7 @@ export class UI {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else {
-        opts += `<p class="hint2">제한 시간 5분 · 적 드론 수와 난이도는 조종 실력에 맞춰 자동으로 조절됩니다.</p>`;
+        opts += `<p class="hint2">제한 시간 8분 · 적 드론 수와 난이도는 조종 실력에 맞춰 자동으로 조절됩니다.</p>`;
       }
     } else {
       const list = cmMissions(s.map);
@@ -764,8 +764,8 @@ export class UI {
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
-    // 서바이벌: 5분 고정 · 적 수 고정 · 실력에 따라 자동 난이도
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "tdm" ? 8 : 6, time: 300, difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    // 서바이벌: 8분 고정 · 적 수 고정 · 실력에 따라 자동 난이도
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "tdm" ? 8 : 6, time: 480, difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
