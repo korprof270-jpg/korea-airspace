@@ -4,10 +4,10 @@
   const sc = (SIM.scene = { xray: false, env: "bench", showExpect: false, dragDrone: false, poseName: "level", lift: 0, tumble: 0, pick: null, drag: null });
   const objs = (sc.objs = {});
   const K = (sc.K = 2.2); // 2종(7~25kg)급 기체 크기
-  const ARM_R = 0.225, S2 = Math.SQRT1_2, REST_Y = 0.09 * K;
+  const ARM_R = 0.225, S2 = Math.SQRT1_2, REST_Y = 0.096 * K;
   // 부품별 모형 배율 (프레임 대비 잘 보이도록 키움)
-  const PS = { motor: 2.0, prop: 1.2, esc: 1.4, fc: 1.5, pm: 1.4, battery: 1.3, gps: 1.4, rx: 1.5, telem: 1.5, buzzer: 1.8, switch: 1.8 };
-  let renderer, scene, camera, drone, benchGroup, fieldGroup, partsRoot, wires, expectGroup, selBox, sun, snapRing, liveWire, stageEl;
+  const PS = { bottom: 1, top: 1, arm: 1, skid: 1, motor: 2.0, prop: 1.2, esc: 1.4, fc: 1.5, pm: 1.4, battery: 1.3, gps: 1.4, rx: 1.5, telem: 1.5, buzzer: 1.8, switch: 1.8 };
+  let stand, renderer, scene, camera, drone, benchGroup, fieldGroup, partsRoot, wires, expectGroup, selBox, sun, snapRing, liveWire, stageEl;
   const air = {}, targets = [];
   const orbit = (sc.orbit = { theta: 0.45, phi: 0.92, dist: 2.2, target: new T.Vector3(0, 0.22, 0) });
   const poseQ = new T.Quaternion();
@@ -90,9 +90,53 @@
   }
 
   // FC 윗면 포트 위치 (FC 모형 좌표, 앞쪽 = -z)
-  const FC_PORT = { "RC IN": [-0.022, 0.009, 0.043], "SBUS OUT": [0.022, 0.009, 0.043], POWER: [-0.012, 0.012, -0.04], GPS: [0.012, 0.012, -0.04], "SERIAL 4/5": [0, 0.012, -0.04], TELEM1: [0.023, 0.014, -0.026], TELEM2: [0.023, 0.014, -0.006], I2C: [-0.023, 0.014, -0.006], CAN: [-0.023, 0.014, -0.026], SWITCH: [0.019, 0.014, -0.036], BUZZER: [-0.019, 0.014, -0.036], "SPKT/DSM": [-0.023, 0.014, 0.014], "ADC 3.3V": [0.023, 0.014, 0.014], "ADC 6.6V": [0.023, 0.014, 0.028], SPI: [-0.023, 0.014, 0.028], USB: [-0.025, 0.007, 0] };
-  for (let n = 1; n <= 8; n++) FC_PORT["MAIN OUT " + n] = [(n - 4.5) * 0.0045, 0.008, 0.043];
-  for (let n = 1; n <= 6; n++) FC_PORT["AUX OUT " + n] = [(n - 3.5) * 0.0045, 0.013, 0.043];
+  // 부품 윗면에 인쇄하는 이름표 (평면)
+  function nameplate(text, w, h, bg, fg) {
+    const W = 256, H = Math.max(32, Math.round((256 * h) / w));
+    const tex = canvasTex(W, H, (g) => {
+      if (bg) { g.fillStyle = bg; g.fillRect(0, 0, W, H); } else g.clearRect(0, 0, W, H);
+      g.fillStyle = fg || "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+      let fs = Math.round(H * 0.62); g.font = "bold " + fs + "px sans-serif";
+      while (g.measureText(text).width > W * 0.9 && fs > 8) { fs -= 2; g.font = "bold " + fs + "px sans-serif"; }
+      g.fillText(text, W / 2, H / 2 + 2);
+    });
+    const p = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, transparent: !bg, depthWrite: !!bg }));
+    p.rotation.x = -Math.PI / 2; return p;
+  }
+  // 매끄러운 곡선 프로펠러 날개: 평면형(뿌리 좁고 가운데 넓고 끝이 둥근) + 비틀림
+  const BLADE_R = 0.115;
+  function bladeGeo(s) {
+    const sh = new T.Shape();
+    sh.moveTo(0.008, -0.006);
+    sh.bezierCurveTo(0.03, -0.012, 0.06, -0.012, 0.1, -0.008);
+    sh.quadraticCurveTo(BLADE_R + 0.002, -0.006, BLADE_R, 0.0);
+    sh.quadraticCurveTo(BLADE_R - 0.002, 0.007, 0.098, 0.009);
+    sh.bezierCurveTo(0.07, 0.016, 0.035, 0.02, 0.008, 0.007);
+    sh.closePath();
+    const geo = new T.ExtrudeGeometry(sh, { depth: 0.0012, bevelEnabled: true, bevelThickness: 0.0006, bevelSize: 0.0008, bevelSegments: 2, curveSegments: 24 });
+    geo.translate(0, 0, -0.0006); geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position, v = new T.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const th = s * (0.5 - 0.32 * Math.min(1, Math.max(0, v.x / BLADE_R)));
+      const y = v.y * Math.cos(th) - v.z * Math.sin(th), z = v.y * Math.sin(th) + v.z * Math.cos(th);
+      pos.setXYZ(i, v.x, y + 0.004, z);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+  const bladeTwist = (s, r) => s * (0.5 - 0.32 * (r / BLADE_R));
+
+  // FC 윗면 포트 위치 (FC 모형 좌표, 앞쪽 = -z). 서보 레일은 뒤쪽 한 줄: RC IN, SBUS OUT, MAIN 1–8, AUX 1–6
+  const FC_PORT = {
+    CAN: [-0.019, 0.016, -0.03], I2C: [-0.019, 0.016, -0.018], SPI: [-0.019, 0.016, -0.006], "SPKT/DSM": [-0.019, 0.016, 0.006], BUZZER: [-0.019, 0.016, 0.018],
+    TELEM1: [0.019, 0.016, -0.03], TELEM2: [0.019, 0.016, -0.018], SWITCH: [0.019, 0.016, -0.006], "ADC 3.3V": [0.019, 0.016, 0.006], "ADC 6.6V": [0.019, 0.016, 0.018],
+    POWER: [-0.01, 0.016, -0.038], "SERIAL 4/5": [0, 0.016, -0.038], GPS: [0.01, 0.016, -0.038], USB: [-0.026, 0.007, 0],
+  };
+  const RAIL = ["RC IN", "SBUS OUT"]; for (let n = 1; n <= 8; n++) RAIL.push("MAIN OUT " + n); for (let n = 1; n <= 6; n++) RAIL.push("AUX OUT " + n);
+  RAIL.forEach((p, i) => (FC_PORT[p] = [(i - 7.5) * 0.0034, 0.012, 0.044]));
+  const RX_COLS = ["1", "2", "3", "4", "5", "6", "7", "8", "SB"], rxColX = (i) => (i - 4) * 0.0026;
+  const SHORT = (p) => (p === "RC IN" ? "RC" : p === "SBUS OUT" ? "SB" : /OUT/.test(p) ? p.replace(/\D/g, "") : p);
 
   // ---------- 부품 모형 (원점 = 장착면 중앙, 안쪽/뒤쪽 = -z) ----------
   function makePart(part) {
@@ -102,7 +146,7 @@
     if (part.type === "motor") {
       g.add(cyl(0.0135, 0.008, M.dark, 0, 0.004, 0));
       const bell = new T.Group();
-      bell.add(cyl(0.014, 0.016, M.steel, 0, 0.017, 0), cyl(0.0141, 0.003, M.dark, 0, 0.0235, 0));
+      bell.add(cyl(0.014, 0.016, M.steel, 0, 0.017, 0), cyl(0.0142, 0.003, M.dark, 0, 0.0215, 0));
       bell.add(cyl(0.0025, 0.012, M.steel, 0, 0.03, 0, 10));
       // 축 나사 방향에 따라 너트 색이 다르다 (검정 / 은색)
       bell.add(cyl(0.0055, 0.004, part.thread === "cw" ? M.dark : M.steel, 0, 0.0345, 0, 6));
@@ -110,59 +154,101 @@
       ["y", "b", "g"].forEach((c, k) => lead(o, "ph" + (k + 1), [(k - 1) * 0.004, 0.004, -0.012], [(k - 1) * 0.006, 0.003, -0.021], LEAD[c], 0.0011));
       g.add(bell); o.spinner = bell;
     } else if (part.type === "prop") {
-      const sp = new T.Group(), pitch = part.dir === "ccw" ? 0.3 : -0.3;
-      const geo = new T.BoxGeometry(0.11, 0.0026, 0.03);
-      const b1 = mesh(geo, M.prop, 0.064, 0.004, 0); b1.rotation.x = pitch;
-      const b2 = mesh(geo, M.prop, -0.064, 0.004, 0); b2.rotation.x = -pitch;
-      sp.add(b1, b2, cyl(0.009, 0.008, M.dark, 0, 0.004, 0), cyl(0.0062, 0.001, M.white, 0, 0.0084, 0), box(0.03, 0.0006, 0.005, M.white, 0.04, 0.0056, 0), box(0.03, 0.0006, 0.005, M.white, -0.04, 0.0056, 0));
+      const sp = new T.Group(), s = part.dir === "ccw" ? 1 : -1, geo = bladeGeo(s);
+      const b1 = new T.Mesh(geo, M.prop), b2 = new T.Mesh(geo, M.prop); b1.castShadow = b2.castShadow = true; b2.rotation.y = Math.PI;
+      sp.add(b1, b2, cyl(0.0095, 0.009, M.dark, 0, 0.0045, 0, 28), cyl(0.0055, 0.0012, M.steel, 0, 0.0094, 0, 20));
+      // 날개 윗면 인쇄: 규격(길이 2자리 + 피치 2자리)과 회전 방향 — 확대해야 읽힌다
+      const txt = "2408 " + part.dir.toUpperCase();
+      for (const rot of [0, Math.PI]) {
+        const r = 0.066, th = bladeTwist(s, r), lb = nameplate(txt, 0.034, 0.006, null, "#e8ecec");
+        const holder = new T.Group(); holder.rotation.y = rot; sp.add(holder);
+        lb.rotation.x = -Math.PI / 2 + th; lb.position.set(r, 0.004 + 0.0013 * Math.cos(th), 0.0013 * Math.sin(th) + 0.001);
+        holder.add(lb);
+      }
       const disc = new T.Mesh(new T.CircleGeometry(0.12, 40), new T.MeshBasicMaterial({ color: 0x9aa6a8, transparent: true, opacity: 0, side: T.DoubleSide, depthWrite: false }));
       disc.rotation.x = -Math.PI / 2; disc.position.y = 0.004;
       g.add(sp, disc); o.spinner = sp; o.disc = disc;
     } else if (part.type === "esc") {
-      g.add(box(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0), box(0.018, 0.0012, 0.02, M.yellow, 0, 0.0086, -0.004));
+      g.add(box(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0));
+      const el = nameplate("ESC", 0.018, 0.009, "#e2b322", "#1a1a1a"); el.position.set(0, 0.0083, -0.006); g.add(el);
       ["A", "B", "C"].forEach((p, k) => { const pd = box(0.005, 0.0016, 0.006, M.copper, (k - 1) * 0.007, 0.0088, 0.019); g.add(pd); o.pads[p] = new T.Vector3((k - 1) * 0.007, 0.0096, 0.019); target(g, mesh(new T.BoxGeometry(0.0068, 0.006, 0.009), HIT, (k - 1) * 0.007, 0.0096, 0.019), { kind: "escPad", part: part.id, pad: p, label: "ESC 단자 " + p }); });
-      lead(o, "pwrR", [-0.007, 0.004, -0.024], [-0.009, 0.003, -0.036], LEAD.r, 0.0019);
-      lead(o, "pwrK", [-0.003, 0.004, -0.024], [-0.004, 0.003, -0.036], LEAD.k, 0.0019);
+      lead(o, "pwr", [-0.006, 0.004, -0.024], [-0.01, 0.004, -0.034], LEAD.r, 0.0018);
+      { const k2 = new T.CatmullRomCurve3([new T.Vector3(-0.003, 0.004, -0.024), new T.Vector3(-0.006, 0.006, -0.029), new T.Vector3(-0.008, 0.004, -0.034)]); const t2 = new T.Mesh(new T.TubeGeometry(k2, 8, 0.0018, 5), LEAD.k); g.add(t2); }
+      g.add(box(0.008, 0.0055, 0.0075, M.yellow, -0.009, 0.004, -0.0375)); // XT60M
       lead(o, "sig", [0.0035, 0.005, -0.024], [0.0045, 0.004, -0.034], LEAD.w, 0.0009, true);
       lead(o, "tel", [0.008, 0.005, -0.024], [0.01, 0.004, -0.032], LEAD.o, 0.0008, true);
     } else if (part.type === "fc") {
-      const body = box(0.05, 0.015, 0.082, M.dark, 0, 0.0075, 0); g.add(body);
-      target(g, mesh(new T.BoxGeometry(0.052, 0.018, 0.084), HIT, 0, 0.0075, 0), { kind: "fc", part: part.id, label: "비행 컨트롤러" });
-      const d = arrowDecal(0.04, 0.05, "FC", "#1b1e22"); d.position.set(0, 0.0152, 0.004); g.add(d);
-      g.add(box(0.044, 0.006, 0.005, M.plug, 0, 0.009, 0.042)); // 뒤쪽 서보 레일
-      for (const p of ["POWER", "GPS", "SERIAL 4/5", "TELEM1", "TELEM2", "I2C", "CAN", "SWITCH", "BUZZER", "SPKT/DSM", "ADC 3.3V", "ADC 6.6V", "SPI"]) { const v = FC_PORT[p]; g.add(box(0.0062, 0.0024, 0.0042, M.plug, v[0], 0.0158, v[2])); }
+      g.add(box(0.05, 0.015, 0.082, M.dark, 0, 0.0075, 0));
+      target(g, mesh(new T.BoxGeometry(0.03, 0.017, 0.06), HIT, 0, 0.0075, 0.002), { kind: "fc", part: part.id, label: "비행 컨트롤러" });
+      const d = arrowDecal(0.024, 0.032, "FC", "#1b1e22"); d.position.set(0, 0.0152, 0.006); g.add(d);
+      // 포트마다 커넥터 하우징과 이름 인쇄, 하나씩 꽂을 수 있는 자리
+      for (const p in FC_PORT) {
+        if (RAIL.includes(p)) continue;
+        const v = FC_PORT[p], t = SIM.portType(p), side = Math.abs(v[0]) > 0.015 && p !== "USB";
+        const len = t === "usb" ? 0.007 : (SIM.CONN_PINS[t] || 3) * 0.0012 + 0.002;
+        g.add(box(side ? 0.0035 : len, 0.0025, side ? len : 0.0035, M.plug, v[0], 0.0158, v[2]));
+        target(g, mesh(new T.BoxGeometry(side ? 0.006 : len + 0.002, 0.006, side ? len + 0.002 : 0.006), HIT, v[0], 0.016, v[2]), { kind: "fcPort", part: part.id, port: p, label: p });
+        if (p === "USB") continue;
+        const lb = nameplate(p, 0.013, 0.0028, null, "#cfd6d4");
+        lb.position.set(side ? v[0] - Math.sign(v[0]) * 0.0095 : v[0], 0.0153, side ? v[2] : v[2] + 0.0045); if (side) lb.rotation.z = 0; g.add(lb);
+      }
+      for (const p of RAIL) {
+        const v = FC_PORT[p];
+        g.add(box(0.0028, 0.007, 0.004, M.plug, v[0], 0.0095, v[2]));
+        target(g, mesh(new T.BoxGeometry(0.0034, 0.011, 0.008), HIT, v[0], 0.011, v[2]), { kind: "fcPort", part: part.id, port: p, label: p });
+        const lb = nameplate(SHORT(p), 0.0032, 0.0026, null, "#cfd6d4"); lb.position.set(v[0], 0.0153, 0.0385); g.add(lb);
+      }
     } else if (part.type === "pm") {
       g.add(box(0.022, 0.009, 0.05, M.dark, 0, 0.0045, 0));
+      const nl = nameplate("PMU", 0.018, 0.009, "#2a2e33", "#ffffff"); nl.position.set(0, 0.0093, -0.004); g.add(nl);
       g.add(box(0.016, 0.009, 0.012, M.yellow, 0, 0.0045, 0.03));
-      target(g, mesh(new T.BoxGeometry(0.02, 0.014, 0.016), HIT, 0, 0.0045, 0.03), { kind: "pmIn", part: part.id, label: "파워 모듈 입력 커넥터" });
+      target(g, mesh(new T.BoxGeometry(0.02, 0.014, 0.016), HIT, 0, 0.0045, 0.03), { kind: "pmIn", part: part.id, label: "PMU 입력 커넥터" });
       o.pads.in = new T.Vector3(0, 0.0045, 0.037);
       lead(o, "fc", [-0.006, 0.006, -0.025], [-0.008, 0.005, -0.04], LEAD.r, 0.0009, true);
       lead(o, "outR", [0.003, 0.005, -0.025], [0.004, 0.004, -0.04], LEAD.r, 0.0019);
       lead(o, "outK", [0.008, 0.005, -0.025], [0.009, 0.004, -0.04], LEAD.k, 0.0019);
     } else if (part.type === "battery") {
       g.add(box(0.046, 0.034, 0.135, M.blue, 0, 0.017, 0), box(0.0465, 0.012, 0.136, M.dark, 0, 0.017, 0));
+      const nl = nameplate("배터리", 0.04, 0.016, null, "#ffffff"); nl.position.set(0, 0.0345, -0.02); g.add(nl);
       lead(o, "xt", [0.012, 0.026, 0.068], [0.012, 0.042, 0.084], LEAD.r, 0.0024, true);
     } else if (part.type === "gps") {
       g.add(cyl(0.003, 0.07, M.carbon, 0, 0.035, 0, 8), cyl(0.012, 0.003, M.carbon, 0, 0.0015, 0), cyl(0.03, 0.012, M.dark, 0, 0.076, 0, 32));
       const d = arrowDecal(0.03, 0.045, "GPS", "#1b1e22"); d.position.y = 0.0822; g.add(d);
-      lead(o, "gps", [0.003, 0.003, -0.006], [0.008, 0.003, -0.022], LEAD.l, 0.0009, true);
-      lead(o, "compass", [-0.003, 0.003, -0.006], [-0.008, 0.003, -0.022], LEAD.v, 0.0008, true);
+      lead(o, "gps", [0.003, 0.004, -0.004], [0.013, 0.003, -0.036], LEAD.l, 0.0013, true);
+      lead(o, "compass", [-0.003, 0.004, -0.004], [-0.013, 0.003, -0.036], LEAD.v, 0.0011, true);
     } else if (part.type === "rx") {
       g.add(box(0.024, 0.01, 0.04, mat(0x3a3f45), 0, 0.005, 0), box(0.02, 0.0006, 0.012, M.white, 0, 0.0104, 0));
       const a1 = cyl(0.0008, 0.07, M.dark, -0.006, 0.03, 0.022, 6); a1.rotation.x = 0.5;
       const a2 = cyl(0.0008, 0.07, M.dark, 0.006, 0.03, 0.022, 6); a2.rotation.x = 0.5; a2.rotation.z = -0.5;
       g.add(a1, a2);
-      lead(o, "sig", [0, 0.005, -0.02], [0, 0.004, -0.032], LEAD.g, 0.0009, true);
+      const nl = nameplate("수신기", 0.02, 0.008, null, "#ffffff"); nl.position.set(0, 0.0102, 0.004); g.add(nl);
+      // 핀 헤더: 채널 1–8, SBUS (뒤쪽 끝)
+      RX_COLS.forEach((c, i) => { const x = rxColX(i); g.add(box(0.0022, 0.004, 0.003, M.dark, x, 0.012, -0.0175)); const lb = nameplate(c === "SB" ? "B" : c, 0.0024, 0.0024, null, "#ffffff"); lb.position.set(x, 0.0104, -0.0135); g.add(lb); });
+      // 바인딩 버튼과 상태 LED
+      const bb = cyl(0.0022, 0.0018, M.white, 0.0095, 0.0108, -0.006, 12); g.add(bb);
+      const bh = mesh(new T.BoxGeometry(0.008, 0.006, 0.008), HIT, 0.0095, 0.011, -0.006); bh.userData.bind = part.id; g.add(bh);
+      const bl = nameplate("BIND", 0.007, 0.0022, null, "#ffffff"); bl.position.set(0.0095, 0.0104, -0.0015); g.add(bl);
+      o.led = new T.Mesh(new T.SphereGeometry(0.0016, 10, 8), new T.MeshBasicMaterial({ color: 0x333333 })); o.led.position.set(-0.0095, 0.0108, -0.006); g.add(o.led);
+      // 3선 커넥터의 FC 쪽 끝
+      const hh = new T.Mesh(new T.SphereGeometry(0.0065, 8, 6), HIT); hh.position.set(0, 0.004, -0.04); hh.userData.tip = { part: part.id, key: "sig" }; g.add(hh);
+      o.tips.sig = new T.Vector3(0, 0.004, -0.04);
     } else if (part.type === "buzzer") {
       g.add(cyl(0.008, 0.007, M.dark, 0, 0.0035, 0), cyl(0.002, 0.0005, M.steel, 0, 0.0072, 0, 8));
+      const nl = nameplate("부저", 0.012, 0.005, null, "#ffffff"); nl.position.set(0, 0.0071, 0.0045); g.add(nl);
       lead(o, "fc", [0, 0.003, -0.008], [0, 0.003, -0.018], LEAD.k, 0.0008, true);
     } else if (part.type === "switch") {
       g.add(box(0.014, 0.008, 0.014, M.dark, 0, 0.004, 0), cyl(0.0045, 0.004, M.red, 0, 0.01, 0, 16));
+      const nl = nameplate("안전 스위치", 0.014, 0.0035, null, "#ffffff"); nl.position.set(0, 0.0081, 0.0055); g.add(nl);
       lead(o, "fc", [0, 0.003, -0.007], [0, 0.003, -0.018], LEAD.r, 0.0008, true);
     } else if (part.type === "telem") {
       g.add(box(0.024, 0.01, 0.046, M.green, 0, 0.005, 0), cyl(0.003, 0.075, M.dark, 0, 0.045, 0.02, 8));
+      const nl = nameplate("텔레메트리", 0.02, 0.006, null, "#ffffff"); nl.position.set(0, 0.0102, -0.006); g.add(nl);
       lead(o, "fc", [0, 0.005, -0.023], [0, 0.004, -0.034], LEAD.y, 0.0009, true);
     }
+    if (part.type === "bottom") buildBottom(o);
+    if (part.type === "top") buildTop(o);
+    if (part.type === "arm") buildArm(o, part);
+    if (part.type === "skid") buildSkid(o);
     g.scale.setScalar(PS[part.type] || 1);
     return g;
   }
@@ -171,42 +257,67 @@
   const PADS = { batt: { plus: [-0.014, 0.088], minus: [0.014, 0.088] } };
   for (const id of SIM.POS_IDS) { const p = SIM.POS[id], dx = p.x * S2, dz = p.z * S2; PADS[id] = { plus: [dx * 0.088 - dz * 0.027, dz * 0.088 + dx * 0.027], minus: [dx * 0.088 + dz * 0.027, dz * 0.088 - dx * 0.027] }; }
   const HARNESS = [-0.048, 0.0015, -0.03];
-  const harnessObj = { group: null, id: "harness", tips: {}, pads: {} };
-
-  function buildFrame() {
-    const g = new T.Group();
-    const plate = (w, d, y) => { const p = mesh(new T.CylinderGeometry(0.5, 0.5, 0.003, 8), M.carbon, 0, y, 0); p.scale.set(w * 1.08, 1, d * 1.08); p.rotation.y = Math.PI / 8; return p; };
-    const topP = plate(0.21, 0.24, 0.0385); topP.material = M.carbon.clone(); topP.material.transparent = true; sc.topPlate = topP;
-    g.add(plate(0.21, 0.21, -0.0015), topP);
-    // 하판 일체형 배전판(PDB): 구리 패드와 +/− 인쇄
+  const armDir = (pid) => { const p = SIM.POS[pid]; return [p.x * S2, p.z * S2]; };
+  // XT60F 위치: 붐대 양옆 (i=0 → 오른쪽 옆, 1 → 왼쪽 옆)
+  const xtRoot = (pid, i) => { const [dx, dz] = armDir(pid), s = i ? 1 : -1; return new T.Vector3(dx * 0.066 - dz * 0.03 * s, 0.002, dz * 0.066 + dx * 0.03 * s); };
+  const xtLocal = (pid, i) => { const [dx, dz] = armDir(pid), s = i ? 1 : -1; return new T.Vector3(dx * 0.1 - dz * 0.034 * s, 0.004, dz * 0.1 + dx * 0.034 * s); };
+  const octPlate = (w, d, m) => { const p = mesh(new T.CylinderGeometry(0.5, 0.5, 0.003, 8), m || M.carbon, 0, 0, 0); p.scale.set(w * 1.08, 1, d * 1.08); p.rotation.y = Math.PI / 8; return p; };
+  // 하판: 카본 판 + PDB(구리 패드, +/− 인쇄) + 통신선 하네스 + 스탠드오프
+  function buildBottom(o) {
+    const g = o.group;
+    const pl = octPlate(0.21, 0.21); pl.position.y = -0.0015; g.add(pl);
     const pcb = mesh(new T.CylinderGeometry(0.5, 0.5, 0.0006, 8), mat(0x143d2c, { roughness: 0.5 }), 0, 0.0004, 0); pcb.scale.set(0.2 * 1.08, 1, 0.2 * 1.08); pcb.rotation.y = Math.PI / 8; pcb.castShadow = false; g.add(pcb);
     const silk = (ch) => { const p = new T.Mesh(new T.PlaneGeometry(0.011, 0.011), new T.MeshBasicMaterial({ map: canvasTex(64, 64, (c) => { c.fillStyle = "#143d2c"; c.fillRect(0, 0, 64, 64); c.fillStyle = "#fff"; c.font = "bold 58px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(ch, 32, 34); }) })); p.rotation.x = -Math.PI / 2; return p; };
-    for (const key in PADS) for (const sgn of ["plus", "minus"]) {
+    // XT60F 8개 (붐대 양옆, 짧은 빨강·검정 선 끝)
+    SIM.POS_IDS.forEach((pid) => SIM.XT_OF[pid].forEach((xt, i) => {
+      const c = xtLocal(pid, i), a = xtRoot(pid, i);
+      for (const [col, off] of [[LEAD.r, -0.0018], [LEAD.k, 0.0018]]) { const cv = new T.CatmullRomCurve3([new T.Vector3(a.x + off, 0.0015, a.z), new T.Vector3((a.x + c.x) / 2 + off, 0.005, (a.z + c.z) / 2), new T.Vector3(c.x + off * 0.6, 0.004, c.z)]); const m = new T.Mesh(new T.TubeGeometry(cv, 8, 0.0016, 5), col); m.castShadow = true; g.add(m); }
+      const hs = box(0.009, 0.006, 0.009, M.yellow, c.x, 0.004, c.z); hs.rotation.y = Math.atan2(SIM.POS[pid].x, SIM.POS[pid].z); g.add(hs);
+      target(g, mesh(new T.BoxGeometry(0.015, 0.012, 0.015), HIT, c.x, 0.004, c.z), { kind: "xt", part: o.id, xt, pos: pid, label: "PDB " + SIM.xtName(xt) });
+      const nl = nameplate(xt.slice(2), 0.006, 0.004, null, "#ffffff"); nl.position.set(a.x, 0.0012, a.z); g.add(nl);
+    }));
+    for (const key of ["batt"]) for (const sgn of ["plus", "minus"]) {
       const a = PADS[key][sgn];
       g.add(box(0.014, 0.0012, 0.014, sgn === "plus" ? M.copper : M.steel, a[0], 0.001, a[1]));
-      target(g, mesh(new T.BoxGeometry(0.016, 0.008, 0.016), HIT, a[0], 0.003, a[1]), { kind: "pdb", group: key, sign: sgn, label: "PDB " + (sgn === "plus" ? "＋" : "－") + " 패드" });
+      target(g, mesh(new T.BoxGeometry(0.016, 0.008, 0.016), HIT, a[0], 0.003, a[1]), { kind: "pdb", part: o.id, group: key, sign: sgn, label: "PDB " + (sgn === "plus" ? "＋" : "－") + " 패드" });
       const s = silk(sgn === "plus" ? "+" : "−"), k = 1 + 0.016 / Math.hypot(a[0], a[1]);
       s.position.set(a[0] * k, 0.0011, a[1] * k); g.add(s);
     }
-    // ESC 통신선 하네스 (하판 위 작은 커넥터 보드)
+    const pn = nameplate("PDB", 0.024, 0.008, null, "#e6efe9"); pn.position.set(0.045, 0.0011, 0.05); g.add(pn);
     const hb = new T.Group(); hb.position.set(...HARNESS); g.add(hb);
     hb.add(box(0.02, 0.006, 0.012, M.plug, 0, 0.003, 0));
-    target(hb, mesh(new T.BoxGeometry(0.024, 0.012, 0.016), HIT, 0, 0.003, 0), { kind: "harness", label: "ESC 통신선 하네스" });
-    harnessObj.group = hb;
-    lead(harnessObj, "fc", [0, 0.004, -0.006], [0.004, 0.006, -0.022], LEAD.o, 0.0009, true);
-    for (const id of SIM.POS_IDS) {
-      const p = SIM.POS[id], a = new T.Group();
-      a.rotation.y = Math.atan2(p.x, p.z);
-      a.add(box(0.03, 0.016, 0.2, p.z < 0 ? M.red : M.white, 0, 0.002, 0.14));
-      a.add(cyl(0.03, 0.004, M.carbon, 0, 0.008, ARM_R));
-      const leg = box(0.008, 0.094, 0.014, M.carbon, 0, -0.045, 0.165); leg.rotation.x = 0.12; a.add(leg);
-      a.add(box(0.02, 0.006, 0.03, M.dark, 0, -0.088, 0.17));
-      g.add(a);
-    }
+    target(hb, mesh(new T.BoxGeometry(0.024, 0.012, 0.016), HIT, 0, 0.003, 0), { kind: "harness", part: o.id, label: "ESC 통신선 하네스" });
+    const ho = { group: hb, id: o.id, tips: {}, pads: {} };
+    lead(ho, "harness", [0, 0.004, -0.006], [0.004, 0.006, -0.022], LEAD.o, 0.0009, true);
+    o.tips.harness = ho.tips.harness.clone().add(new T.Vector3(...HARNESS));
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(cyl(0.003, 0.038, M.steel, sx * 0.06, 0.018, sz * 0.078, 8));
-    // 마스트 받침
-    g.add(cyl(0.006, 0.003, M.carbon, 0, 0.0415, 0.09));
-    return g;
+  }
+  function buildTop(o) {
+    const pl = octPlate(0.21, 0.24, M.carbon.clone()); pl.material.transparent = true; o.group.add(pl); sc.topPlate = pl;
+    o.group.add(cyl(0.006, 0.003, M.carbon, 0, 0.003, 0.09)); // 마스트 받침
+    const fr = arrowDecal(0.016, 0.022, "", "#22262a"); fr.position.set(0, 0.0016, -0.1); o.group.add(fr);
+  }
+  // 붐대: 가운데가 원점, 바깥쪽 = +z (끝에 모터 마운트)
+  function buildArm(o, part) {
+    const g = o.group;
+    g.add(box(0.03, 0.016, 0.2, part.color === "red" ? M.red : M.white, 0, 0.002, 0));
+    g.add(cyl(0.03, 0.004, M.carbon, 0, 0.008, ARM_R - 0.14));
+    g.add(box(0.032, 0.02, 0.016, M.carbon, 0, 0.002, -0.092)); // 안쪽 클램프
+  }
+  // 스키드: 앞뒤로 긴 원통 레일 2개, 하판에 물리는 가로대 2개, 바깥으로 벌어진 굽은 다리 4개
+  function buildSkid(o) {
+    const g = o.group, r = 0.0055, RY = -0.0895, RX = 0.12;
+    const tubeAlong = (pts, rr) => { const c = new T.CatmullRomCurve3(pts.map((p) => new T.Vector3(...p))); const m = new T.Mesh(new T.TubeGeometry(c, 32, rr, 10), M.carbon); m.castShadow = true; return m; };
+    for (const sx of [-1, 1]) {
+      g.add(tubeAlong([[sx * RX, RY, -0.17], [sx * RX, RY, 0.17]], r));
+      for (const sz of [-1, 1]) { const cap = new T.Mesh(new T.SphereGeometry(r, 10, 8), M.dark); cap.position.set(sx * RX, RY, sz * 0.17); g.add(cap); }
+      for (const sz of [-1, 1]) g.add(tubeAlong([[sx * 0.062, -0.006, sz * 0.1], [sx * 0.07, -0.03, sz * 0.1], [sx * 0.1, -0.07, sz * 0.1], [sx * RX, RY, sz * 0.1]], 0.0045));
+      for (const sz of [-1, 1]) g.add(box(0.016, 0.01, 0.014, M.dark, sx * RX, RY + 0.004, sz * 0.1)); // 레일 이음쇠
+    }
+    for (const sz of [-1, 1]) {
+      g.add(tubeAlong([[-0.075, -0.006, sz * 0.1], [0.075, -0.006, sz * 0.1]], 0.0045));
+      for (const sx of [-1, 1]) g.add(box(0.014, 0.008, 0.016, M.dark, sx * 0.045, -0.003, sz * 0.1)); // 하판 클램프
+    }
   }
 
   // ---------- 장착 자리 (기체 기준 위치·방향) ----------
@@ -215,23 +326,31 @@
     const [t, pos] = slot.split("@"), st = SIM.state;
     if (pos) {
       const p = SIM.POS[pos], ry = Math.atan2(p.x, p.z);
+      if (t === "arm") return { p: [p.x * 0.14 * S2, 0, p.z * 0.14 * S2], ry };
       if (t === "motor") return { p: [p.x * ARM_R * S2, 0.01, p.z * ARM_R * S2], ry };
       if (t === "prop") { const fl = part && st.flip[part.id]; return { p: [p.x * ARM_R * S2, fl ? 0.093 : 0.085, p.z * ARM_R * S2], ry: 0, rx: fl ? Math.PI : 0 }; }
       return { p: [p.x * 0.093 * S2, 0.01, p.z * 0.093 * S2], ry };
     }
     const ry = part && (part.type === "fc" || part.type === "gps") ? (-st.rot[part.type] * Math.PI) / 2 : 0;
+    if (slot === "frame:base") return { p: [0, 0, 0], ry: 0 };
+    if (slot === "frame:top") return { p: [0, 0.0385, 0], ry: 0 };
+    if (slot === "frame:skid") return { p: [0, -0.0015, 0], ry: 0 };
     return { p: DECKPOS[slot], ry };
   }
   // 작업대 위 기본 보관 위치 (partsRoot 좌표)
   function homeOf(part) {
-    const b = SIM.state.bench[part.id];
-    if (b) return { p: [b[0], 0, b[1]], ry: 0 };
+    const b = SIM.state.bench[part.id], by = { skid: 0.095, bottom: 0.0015, top: 0.0015, arm: 0.006 }[part.type] || 0;
+    if (b) return { p: [b[0], by, b[1]], ry: part.type === "skid" ? Math.PI / 2 : 0 };
     const n = +(part.id.match(/\d+$/) || [1])[0] - 1;
-    if (part.type === "motor") return { p: [-0.62, 0, -0.27 + n * 0.11], ry: 0 };
-    if (part.type === "esc") return { p: [-0.49, 0, -0.27 + n * 0.11], ry: 0 };
-    if (part.type === "prop") return { p: [0.58, 0, -0.3 + n * 0.1], ry: 0 };
-    const row = { fc: -0.36, pm: -0.24, battery: -0.12, gps: 0.02, rx: 0.13, telem: 0.23, buzzer: 0.32, switch: 0.4 };
-    return { p: [row[part.type], 0, 0.4], ry: 0 };
+    if (part.type === "bottom") return { p: [-0.52, 0.0015, -0.39], ry: 0 };
+    if (part.type === "top") return { p: [-0.24, 0.0015, -0.39], ry: 0 };
+    if (part.type === "arm") return { p: [0.12 + n * 0.055, 0.006, -0.39], ry: 0 };
+    if (part.type === "skid") return { p: [0.56, 0.095, -0.38], ry: Math.PI / 2 };
+    if (part.type === "motor") return { p: [-0.66, 0, -0.17 + n * 0.11], ry: 0 };
+    if (part.type === "esc") return { p: [-0.52, 0, -0.17 + n * 0.11], ry: 0 };
+    if (part.type === "prop") return { p: [0.6, 0, -0.13 + n * 0.1], ry: 0 };
+    const row = { fc: -0.42, pm: -0.3, battery: -0.17, gps: 0.0, rx: 0.12, telem: 0.22, buzzer: 0.31, switch: 0.39 };
+    return { p: [row[part.type], 0, 0.41], ry: 0 };
   }
   const xfQuat = (x) => new T.Quaternion().setFromEuler(new T.Euler(x.rx || 0, x.ry, 0, "YXZ"));
 
@@ -244,11 +363,10 @@
   }
   // 부품 좌표 → 기체 좌표 (장착된 목표 위치 기준이라 움직이는 중에도 선이 맞는다)
   function toDrone(o, v) {
-    if (o === harnessObj) return v.clone().add(new T.Vector3(...HARNESS));
     const g = o.group, s = g.scale.x;
     return v.clone().multiplyScalar(s).applyQuaternion(g.userData.tq).add(g.userData.tp);
   }
-  const tipPos = (id, key) => (id === "harness" ? toDrone(harnessObj, harnessObj.tips[key]) : toDrone(objs[id], objs[id].tips[key]));
+  const tipPos = (id, key) => toDrone(objs[id], objs[id].tips[key]);
   const padPos = (key, sgn) => new T.Vector3(PADS[key][sgn][0], 0.002, PADS[key][sgn][1]);
   const fcPortPos = (port) => toDrone(objs.fc, new T.Vector3(...(FC_PORT[port] || [0, 0.014, 0])));
   function link(a, b, color, r) {
@@ -257,7 +375,7 @@
   }
   // 케이블 이름 → 선 끝 (부품, 팁)
   sc.cableTip = (c) => {
-    if (c === "escTelem") return ["harness", "fc"];
+    if (c === "escTelem") return ["frameBot", "harness"];
     if (/^esc[A-Z]{2}$/.test(c)) { const p = SIM.partAt("esc@" + c.slice(3)); return p ? [p.id, "sig"] : null; }
     return { pm: ["pm", "fc"], gps: ["gps", "gps"], compass: ["gps", "compass"], telem: ["telem", "fc"], buzzer: ["buzzer", "fc"], switch: ["switch", "fc"], rx: ["rx", "sig"] }[c];
   };
@@ -269,10 +387,23 @@
       const escP = SIM.partAt("esc@" + id), mot = SIM.partAt("motor@" + id);
       if (!escP) continue;
       if (mot) for (let k = 1; k <= 3; k++) { const pad = w.motorWires[id][k]; if (pad) link(tipPos(mot.id, "ph" + k), toDrone(objs[escP.id], objs[escP.id].pads[pad]), [0xe0c020, 0x2c6fd0, 0x2f9a4a][k - 1], 0.0015); }
-      if (w.escPwr[id]) { const rv = w.escPwr[id] === "rev"; link(tipPos(escP.id, "pwrR"), padPos(id, rv ? "minus" : "plus"), RED, 0.0021); link(tipPos(escP.id, "pwrK"), padPos(id, rv ? "plus" : "minus"), BLK, 0.0021); }
-      if (w.escTelem[id] === "harness") link(tipPos(escP.id, "tel"), new T.Vector3(...HARNESS).add(new T.Vector3(0, 0.006, 0)), 0xe88a20, 0.0009);
+      if (SIM.escPowered(id) && SIM.has("frameBot")) { const xi = SIM.XT_OF[id].indexOf(w.escPwr[id]), b = xtLocal(id, xi); link(tipPos(escP.id, "pwr"), b, RED, 0.0024); const t0 = tipPos(escP.id, "pwr"); link(t0.clone().add(new T.Vector3(0.002, 0, 0.002)), b.clone().add(new T.Vector3(0.002, 0, 0.002)), BLK, 0.0024); }
+      if (w.escTelem[id] === "harness" && SIM.has("frameBot")) link(tipPos(escP.id, "tel"), toDrone(objs.frameBot, new T.Vector3(HARNESS[0], 0.007, HARNESS[2])), 0xe88a20, 0.0009);
+    }
+    if (SIM.has("rx")) {
+      const o = objs.rx, col = (rev) => (rev ? [0xf2f2f2, 0xc8281e, 0x161616] : [0x161616, 0xc8281e, 0xf2f2f2]);
+      const end = tipPos("rx", "sig"), side = toDrone(o, new T.Vector3(0.004, 0, 0)).sub(toDrone(o, new T.Vector3(0, 0, 0))).normalize();
+      const tri = (a, b, cols, plugA, plugB) => {
+        for (let k = 0; k < 3; k++) { const off = side.clone().multiplyScalar((k - 1) * 0.0022); link(a.clone().add(off), b.clone().add(off), cols[k], 0.0009); }
+        for (const [p, on] of [[a, plugA], [b, plugB]]) if (on) { const m = new T.Mesh(new T.BoxGeometry(0.008, 0.004, 0.006), mat(0x111111)); m.position.copy(p); wires.add(m); }
+      };
+      const ri = RX_COLS.indexOf(w.rxEnd);
+      if (ri >= 0) tri(toDrone(o, new T.Vector3(rxColX(ri), 0.0145, -0.0175)), end, col(w.rxRevRx), true, true);
+      else { const m = new T.Mesh(new T.BoxGeometry(0.008, 0.004, 0.006), mat(0x111111)); m.position.copy(end); wires.add(m); }
+      if (fcIn && w.plug.rx && SIM.cableReady("rx")) tri(end, fcPortPos(w.plug.rx), col(w.rxRevFc), false, true);
     }
     if (fcIn) for (const c in w.plug) {
+      if (c === "rx") continue;
       if (!w.plug[c] || !SIM.cableReady(c)) continue;
       const t = sc.cableTip(c); if (!t) continue;
       link(tipPos(t[0], t[1]), fcPortPos(w.plug[c]), /^esc[A-Z]/.test(c) ? 0xf2f2f2 : CABLE_COL[c], 0.0013);
@@ -305,6 +436,7 @@
       g.userData.tq = xfQuat(x);
     }
     rebuildWires(); rebuildExpect();
+    if (stand) stand.visible = sc.env === "bench" && !SIM.has("skid");
     const sel = SIM.selected && objs[SIM.selected];
     selBox.visible = !!sel && sc.env === "bench";
     if (sel) selBox.setFromObject(sel.group);
@@ -383,7 +515,10 @@
 
     drone = new T.Group(); sc.drone = drone;
     drone.position.set(0, REST_Y, 0); drone.scale.setScalar(K);
-    drone.add(buildFrame());
+    // 스키드가 없을 때 기체를 받쳐 두는 조립 거치대
+    stand = new T.Group();
+    for (const sx of [-1, 1]) { stand.add(cyl(0.012, REST_Y - 0.004, M.steel, sx * 0.09 * K, (REST_Y - 0.004) / 2, 0, 16)); stand.add(cyl(0.05, 0.012, M.dark, sx * 0.09 * K, 0.006, 0, 24)); }
+    benchGroup.add(stand);
     wires = new T.Group(); expectGroup = new T.Group();
     drone.add(wires, expectGroup);
     partsRoot = new T.Group(); partsRoot.scale.setScalar(K);
@@ -406,8 +541,8 @@
       new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     } catch (e) {}
     bindPointer(canvas);
-    const resize = () => { const w = stageEl.clientWidth || 300, h = stageEl.clientHeight || 200; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
-    try { new ResizeObserver(resize).observe(stageEl); } catch (e) { window.addEventListener("resize", resize); }
+    const resize = () => { const w = canvas.clientWidth || 300, h = canvas.clientHeight || 200; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+    try { const ro = new ResizeObserver(resize); ro.observe(stageEl); ro.observe(canvas); } catch (e) {} window.addEventListener("resize", resize);
     resize();
     sc.sync();
     SIM.on(sc.sync);
@@ -417,7 +552,7 @@
   const _v = new T.Vector3();
   function toScreen(world) {
     _v.copy(world).project(camera);
-    return { x: ((_v.x + 1) / 2) * stageEl.clientWidth, y: ((1 - _v.y) / 2) * stageEl.clientHeight, vis: _v.z < 1 };
+    const cv = renderer.domElement; return { x: ((_v.x + 1) / 2) * cv.clientWidth, y: ((1 - _v.y) / 2) * cv.clientHeight, vis: _v.z < 1 };
   }
   sc.screenOf = (id) => { const g = objs[id].group, b = new T.Box3().setFromObject(g), c = b.getCenter(new T.Vector3()); c.y = b.max.y; return toScreen(c); };
 
@@ -425,33 +560,32 @@
   // 지금 이 선 끝이 연결된 상태를 끊는다
   function disconnect(tip) {
     const w = SIM.state.wiring, id = tip.part, k = tip.key, slot = SIM.state.install[id] || "", pos = slot.split("@")[1];
-    if (id === "harness") w.plug.escTelem = "";
+    if (k === "harness") w.plug.escTelem = "";
     else if (/^ph\d$/.test(k)) w.motorWires[pos][k[2]] = "";
-    else if (k === "pwrR" || k === "pwrK") w.escPwr[pos] = "";
+    else if (k === "pwr") w.escPwr[pos] = "";
     else if (k === "tel") w.escTelem[pos] = "";
     else if (k === "outR" || k === "outK") w.pmOut = "";
     else if (k === "xt") w.batt = "";
     else { const c = tipCable(tip); if (c) w.plug[c] = ""; }
   }
   function tipCable(tip) {
-    if (tip.part === "harness") return "escTelem";
+    if (tip.key === "harness") return "escTelem";
     const part = SIM.part(tip.part);
     if (part.type === "esc" && tip.key === "sig") return "esc" + SIM.state.install[part.id].split("@")[1];
     if (part.type === "gps") return tip.key;
     if (["pm", "rx", "telem", "buzzer", "switch"].includes(part.type) && (tip.key === "fc" || tip.key === "sig")) return part.id;
     return null;
   }
-  sc.cancelPick = () => { sc.pick = null; if (liveWire) { liveWire.geometry.dispose(); drone.remove(liveWire); liveWire = null; } if (sc.onHover) sc.onHover(""); };
+  sc.cancelPick = () => { sc.pick = null; sc.wireDrag = false; if (liveWire) { liveWire.geometry.dispose(); drone.remove(liveWire); liveWire = null; } if (sc.onHover) sc.onHover(""); };
   function startPick(tip) {
     disconnect(tip);
     sc.pick = tip;
     SIM.select(null);
     SIM.emit();
-    if (sc.onHover) sc.onHover("연결할 곳을 누르세요 · 빈 곳을 누르면 취소");
   }
   function finishPick(tg) {
-    const tip = sc.pick, w = SIM.state.wiring, part = tip.part === "harness" ? { type: "harness" } : SIM.part(tip.part);
-    const pos = tip.part === "harness" ? null : (SIM.state.install[tip.part] || "").split("@")[1];
+    const tip = sc.pick, w = SIM.state.wiring, part = SIM.part(tip.part);
+    const pos = (SIM.state.install[tip.part] || "").split("@")[1];
     const say = (m) => SIM.toast(m, "bad");
     if (tg.kind === "escPad") {
       if (part.type !== "motor") return say("이 선은 ESC 단자에 연결하지 않습니다.");
@@ -461,16 +595,24 @@
     } else if (tg.kind === "pdb") {
       const red = tip.key === "pwrR" || tip.key === "outR";
       const pol = (tg.sign === "plus") === red ? "ok" : "rev";
-      if (part.type === "esc" && (tip.key === "pwrR" || tip.key === "pwrK")) w.escPwr[pos] = pol;
-      else if (part.type === "pm" && (tip.key === "outR" || tip.key === "outK")) w.pmOut = pol;
+      if (part.type === "pm" && (tip.key === "outR" || tip.key === "outK")) w.pmOut = pol;
       else if (part.type === "battery") w.batt = "pdb";
       else return say("이 선은 PDB 패드에 연결하지 않습니다.");
+    } else if (tg.kind === "xt") {
+      if (!(part.type === "esc" && tip.key === "pwr")) return say("커넥터가 맞지 않습니다.");
+      if (tg.pos !== pos) return say("선이 닿지 않습니다.");
+      SIM.setEscXt(pos, tg.xt); sc.cancelPick(); return;
     } else if (tg.kind === "pmIn") {
       if (part.type !== "battery") return say("커넥터가 맞지 않습니다.");
       w.batt = "pm";
     } else if (tg.kind === "harness") {
       if (!(part.type === "esc" && tip.key === "tel")) return say("커넥터가 맞지 않습니다.");
       w.escTelem[pos] = "harness";
+    } else if (tg.kind === "fcPort") {
+      const c = tipCable(tip);
+      if (!c) return say("이 선은 FC에 꽂지 않습니다.");
+      if (SIM.CABLES[c].conn !== SIM.portType(tg.port)) return say("커넥터 모양이 맞지 않아 " + tg.port + "에 들어가지 않습니다.");
+      SIM.setPlug(c, tg.port);
     } else if (tg.kind === "fc") {
       const c = tipCable(tip);
       if (!c) return say("이 선은 FC에 꽂지 않습니다.");
@@ -503,7 +645,8 @@
         if (see && h.object === sc.topPlate) continue; // 투시 중에는 상판을 지나 아래를 누른다
         if (sc.pick && h.object.material !== HIT) continue; // 연결 중에는 단자·선 끝만 찾는다
         if (h.object.material === HIT) {
-          if (h.object.userData.tip) { const t = h.object.userData.tip; if (t.part === "harness" || SIM.state.install[t.part]) return { tip: t, point: h.point }; continue; }
+          if (h.object.userData.bind && !sc.pick) return { bind: true, part: h.object.userData.bind, point: h.point };
+          if (h.object.userData.tip) { const t = h.object.userData.tip; if (SIM.state.install[t.part]) return { tip: t, point: h.point }; continue; }
           if (h.object.userData.target) { const tg = h.object.userData.target; if (sc.pick && (!tg.part || SIM.state.install[tg.part])) return { target: h.object.userData.target, point: h.point }; const id = partOf(h.object); if (id) return { part: id, point: h.point }; continue; }
           continue;
         }
@@ -519,7 +662,7 @@
     canvas.addEventListener("pointerdown", (e) => {
       canvas.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; pinch = 0;
       down = null;
-      if (pts.size === 1 && canEdit() && !sc.pick) { const h = pickAt(e); if (h.part) down = { id: h.part }; }
+      if (pts.size === 1 && canEdit() && !sc.pick) { const h = pickAt(e); if (h.tip) down = { tip: h.tip }; else if (h.part) down = { id: h.part }; }
     });
     canvas.addEventListener("pointermove", (e) => {
       const p = pts.get(e.pointerId);
@@ -527,7 +670,8 @@
         if (!canEdit()) return;
         const h = pickAt(e);
         canvas.style.cursor = sc.pick ? (h.target ? "copy" : "crosshair") : h.tip ? "pointer" : h.part ? "grab" : "default";
-        if (sc.pick) { if (h.point) drawLiveWire(h.point); if (sc.onHover) sc.onHover(h.target ? h.target.label : "연결할 곳을 누르세요 · 빈 곳을 누르면 취소"); }
+        if (sc.pick) { if (h.point) drawLiveWire(h.point); }
+        if (sc.onHover) sc.onHover(sc.pick ? (h.target ? h.target.label : "") : "", e.clientX, e.clientY);
         return;
       }
       const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
@@ -537,7 +681,13 @@
         pinch = d; moved = 99; down = null; return;
       }
       moved += Math.abs(dx) + Math.abs(dy);
-      if (down && moved > 6) { dragMove(e); return; }
+      if (down && down.tip && moved > 6) { // 선 끝을 끌어서 연결
+        if (!sc.wireDrag) { startPick(down.tip); sc.wireDrag = true; }
+        const h = pickAt(e); if (h.point) drawLiveWire(h.point);
+        if (sc.onHover) sc.onHover(h.target ? h.target.label : "", e.clientX, e.clientY);
+        return;
+      }
+      if (down && moved > 6) { dragMove(e); if (down) return; }
       if (down) return;
       if (sc.dragDrone && sc.env === "bench") {
         const right = new T.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -552,6 +702,7 @@
     function dragMove(e) {
       const id = down.id, part = SIM.part(id), o = objs[id], g = o.group;
       if (!sc.drag) {
+        if (SIM.state.install[id] && SIM.dependents(SIM.state.install[id]).length) { down = null; return; } // 위에 붙은 부품이 있으면 떼지 않고 시점만 돌린다
         sc.drag = { id, active: true, slot: null };
         if (SIM.state.install[id]) SIM.remove(id);
         SIM.select(null);
@@ -570,7 +721,7 @@
       if (best) {
         g.userData.tp = partsRoot.worldToLocal(best.wp.clone()); g.userData.tq = xfQuat(best.x);
         snapRing.visible = true; snapRing.position.copy(best.wp); snapRing.position.y += 0.01;
-        if (sc.onHover) sc.onHover(SIM.slotName(best.slot));
+        if (sc.onHover) sc.onHover(SIM.slotName(best.slot), e.clientX, e.clientY);
       } else {
         snapRing.visible = false;
         plane.constant = 0;
@@ -579,7 +730,7 @@
           l.x = Math.max(-0.75, Math.min(0.75, l.x)); l.z = Math.max(-0.52, Math.min(0.52, l.z)); l.y = 0.03;
           g.userData.tp = l; g.userData.tq = new T.Quaternion();
         }
-        if (sc.onHover) sc.onHover("작업대에 내려놓기");
+        if (sc.onHover) sc.onHover("", e.clientX, e.clientY);
       }
     }
     function dragEnd() {
@@ -592,6 +743,12 @@
     const up = (e) => {
       pts.delete(e.pointerId);
       if (sc.drag) { dragEnd(); down = null; return; }
+      if (sc.wireDrag) { // 끌던 선을 놓은 자리
+        const h = pickAt(e); down = null;
+        if (h.target) finishPick(h.target); else { sc.cancelPick(); SIM.emit(); }
+        if (sc.pick) { sc.cancelPick(); SIM.emit(); }
+        return;
+      }
       down = null;
       if (moved > 6 || e.type !== "pointerup" || !canEdit()) return;
       const h = pickAt(e);
@@ -602,9 +759,11 @@
         return;
       }
       if (h.tip) return startPick(h.tip);
+      if (h.bind) { if (!SIM.state.install.rx) { if (sc.onPick) sc.onPick("rx"); return; } const err = SIM.bindRx(); if (err) SIM.toast(err, "bad"); else SIM.toast("바인딩 중… LED 빠르게 깜빡임"); return; }
       if (sc.onPick) sc.onPick(h.part || null);
     };
     canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("dblclick", (e) => { if (!pickAt(e).part) sc.home(); });
     canvas.addEventListener("wheel", (e) => { e.preventDefault(); orbit.dist = clampDist(orbit.dist * Math.exp(e.deltaY * 0.001)); }, { passive: false });
     window.addEventListener("keydown", (e) => { if (e.key === "Escape" && sc.pick) { sc.cancelPick(); SIM.emit(); } });
   }
@@ -650,6 +809,7 @@
     }
     for (const p of SIM.PARTS) if (!SIM.state.install[p.id] && objs[p.id].disc) objs[p.id].disc.material.opacity = 0;
     if (selBox.visible && SIM.selected) selBox.setFromObject(objs[SIM.selected].group);
+    { const led = SIM.rxLed(), t = performance.now(); objs.rx.led.material.color.setHex(led === "green" ? 0x33ff66 : led === "blink" ? (t % 1000 < 500 ? 0xff3322 : 0x330000) : led === "fast" ? (t % 200 < 100 ? 0xff3322 : 0x330000) : 0x222222); }
     const tm = sc.topPlate.material, want = sc.env === "bench" && (sc.xray || sc.pick) ? 0.22 : 1;
     tm.opacity += (want - tm.opacity) * k; tm.depthWrite = tm.opacity > 0.9;
 

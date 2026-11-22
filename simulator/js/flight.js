@@ -77,14 +77,15 @@
   const ESC_GAIN = { FR: 1, RR: 0.9, RL: 1, FL: 0.84 };
   const MOTOR_VAR = { FR: 1, RR: 0.975, RL: 1.015, FL: 0.985 }; // 모터·프로펠러 개체 차이
   const DELAY = 3, dbuf = [];
-  const CONTACTS = [[0.12, -0.09, 0.12], [-0.12, -0.09, 0.12], [0.12, -0.09, -0.12], [-0.12, -0.09, -0.12], [0.25, 0.05, 0.25], [-0.25, 0.05, 0.25], [0.25, 0.05, -0.25], [-0.25, 0.05, -0.25], [0, 0.11, 0.06], [0, -0.05, 0]].map((a) => new T.Vector3(a[0] * K, a[1] * K, a[2] * K));
+  const CONTACTS = [[0.12, -0.095, 0.16], [-0.12, -0.095, 0.16], [0.12, -0.095, -0.16], [-0.12, -0.095, -0.16], [0.25, 0.05, 0.25], [-0.25, 0.05, 0.25], [0.25, 0.05, -0.25], [-0.25, 0.05, -0.25], [0, 0.11, 0.06], [0, -0.05, 0]].map((a) => new T.Vector3(a[0] * K, a[1] * K, a[2] * K));
 
   function resetCtl() { F.iR = F.iP = F.iY = F.thrI = 0; F.dp = F.dq = 0; F.lastP = F.lastQ = 0; F.altT = F.pos.y; F.posT = F.pos.clone(); F.rtlPhase = 0; F.landT = 0; }
   F.start = function () {
+    if (!SIM.frameComplete()) { SIM.log("프레임(하판·상판·붐대 4개·스키드)을 먼저 모두 조립하세요.", "bad"); return; }
     F.active = true; F.armed = false; F.crashed = false; F.drain = 1;
-    F.pos.set(0, 0.092 * K, 0); F.lost = {}; F.looseT = {}; F.vel.set(0, 0, 0); F.q.identity(); F.w.set(0, 0, 0);
+    F.pos.set(0, 0.096 * K, 0); F.lost = {}; F.looseT = {}; F.vel.set(0, 0, 0); F.q.identity(); F.w.set(0, 0, 0);
     F.used = 0; F.fsRadio = false; F.fsBatt = false; F.lowT = 0; F.gest = 0; F.lastSlot = 0; F.idleT = 0; F.tiltT = 0; F.hdgT = null;
-    F.home = new T.Vector3(0, 0.092 * K, 0); dbuf.length = 0; F.gust = new T.Vector3();
+    F.home = new T.Vector3(0, 0.096 * K, 0); dbuf.length = 0; F.gust = new T.Vector3();
     for (const id of SIM.POS_IDS) SIM.motorU[id] = 0;
     resetCtl();
     tx.ly = -1; tx.lx = tx.rx = tx.ry = 0;
@@ -314,7 +315,7 @@
     const out = {};
     for (let n = 1; n <= 4; n++) {
       const pos = SIM.POS_IDS.find((id) => SIM.state.wiring.plug["esc" + id] === "MAIN OUT " + n);
-      if (!pos || !SIM.escTelemOk(pos) || !SIM.power().pdb || SIM.state.wiring.escPwr[pos] !== "ok") { out[n] = null; continue; }
+      if (!pos || !SIM.escTelemOk(pos) || !SIM.power().pdb || !SIM.escPowered(pos)) { out[n] = null; continue; }
       const u = SIM.motorU[pos], ph = SIM.motorPhysical(pos);
       SIM._escT = SIM._escT || {}; const tk = SIM._escT[pos] = (SIM._escT[pos] || 24) + (u * 40 + 24 - (SIM._escT[pos] || 24)) * 0.002;
       out[n] = { rpm: Math.round(u * (ph.prop ? 5200 : 7400)), amps: +(Math.pow(u, 1.5) * (ph.prop ? 15 : 1.2)).toFixed(1), temp: Math.round(tk), volt: SIM.flight.active ? SIM.flight.volt : 25.1 };

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>드론 정비 시뮬레이터</title>
+<title>드론 조립과 정비 시뮬레이터</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="sim.css" />
@@ -11,33 +11,22 @@
 <body>
 <div class="app">
   <header class="top">
-    <h1>드론 정비 시뮬레이터</h1>
-    <nav class="tabs" aria-label="메뉴 불러오기">
-      <button type="button" data-act="tab" data-arg="hw" aria-pressed="false">하드웨어</button>
-      <button type="button" data-act="tab" data-arg="sw" aria-pressed="false">소프트웨어 설정</button>
-      <button type="button" data-act="tab" data-arg="test" aria-pressed="false">테스트</button>
+    <h1>드론 조립과 정비 시뮬레이터</h1>
+    <nav class="stepbar" aria-label="단계 이동">
+      <button type="button" id="step-prev" class="stepnav" data-act="stepPrev">‹ <span></span></button>
+      <button type="button" id="step-title" class="steptitle" data-act="menu" aria-expanded="false"><b></b><small></small></button>
+      <button type="button" id="step-next" class="stepnav next" data-act="stepNext"><span></span> ›</button>
     </nav>
     <div class="status" aria-live="polite">
-      <span id="st-power" class="chip">전원 없음</span>
-      <span id="st-fc" class="chip">FC 없음</span>
-      <span id="st-arm" class="chip">DISARMED</span>
+      <span id="trainee" class="trainee"></span>
+      <span id="timer" class="timer" aria-label="경과 시간">00:00</span>
     </div>
   </header>
   <main class="work">
     <section class="stage" aria-label="3D 작업대">
       <canvas id="gl"></canvas>
       <canvas id="hud" hidden></canvas>
-      <div class="viewbtns">
-        <button type="button" class="btn" data-act="view" data-arg="back">뒤</button>
-        <button type="button" class="btn" data-act="view" data-arg="top">위</button>
-        <button type="button" class="btn" data-act="view" data-arg="side">옆</button>
-        <button type="button" class="btn" data-act="view" data-arg="front">앞</button>
-        <button type="button" class="btn" data-act="zoomIn" aria-label="확대">＋</button>
-        <button type="button" class="btn" data-act="zoomOut" aria-label="축소">－</button>
-        <button type="button" class="btn" data-act="home">전체</button>
-        <button type="button" class="btn" id="xray" data-act="xray" aria-pressed="false">상판 투시</button>
-      </div>
-      <p id="hint" class="hint"></p>
+      <div id="hovertip" class="hovertip" hidden></div>
       <div id="toast" class="toast" role="status"></div>
       <div id="pop" class="pop" hidden></div>
       <div id="fcview" class="fcview" hidden></div>
@@ -61,11 +50,29 @@
     </section>
   </main>
 </div>
+<div id="intro" class="intro">
+  <div class="intro-card">
+    <p class="intro-kicker">교육용 3D 정비 실습</p>
+    <h2 class="intro-title">드론 조립과 정비 시뮬레이터</h2>
+    <form id="intro-form" class="intro-form" autocomplete="off">
+      <label for="trainee-name">이름</label>
+      <div class="intro-row"><input id="trainee-name" type="text" maxlength="30" placeholder="이름을 입력하세요" required><button type="submit" class="btn primary">확인</button></div>
+    </form>
+    <div id="intro-ready" class="intro-ready" hidden>
+      <p id="intro-hello"></p>
+      <button type="button" id="intro-start" class="startbtn" data-act="sessionStart">START</button>
+      <button type="button" class="btn ghost" data-act="sessionRename">이름 다시 입력</button>
+    </div>
+  </div>
+</div>
+<div id="finish" class="modal" hidden><div class="modal-card" id="finish-card"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/core.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/flight.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/session.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

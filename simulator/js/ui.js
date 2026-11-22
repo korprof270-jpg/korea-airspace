@@ -33,7 +33,7 @@
   function pgParts() {
     const st = SIM.state;
     let h = "";
-    const groups = [["구동부", ["motor", "esc", "prop"]], ["제어·전원", ["fc", "pm", "battery"]], ["주변장치", ["gps", "rx", "telem", "buzzer", "switch"]]];
+    const groups = [["프레임", ["bottom", "top", "arm", "skid"]], ["구동부", ["motor", "esc", "prop"]], ["제어·전원", ["fc", "pm", "battery"]], ["주변장치", ["gps", "rx", "telem", "buzzer", "switch"]]];
     for (const [g, types] of groups) {
       h += "<h4>" + g + '</h4><div class="partlist">';
       for (const p of SIM.PARTS.filter((x) => types.includes(x.type))) {
@@ -53,16 +53,24 @@
     let leads = "";
     if (slot) {
       if (p.type === "motor") for (let k = 1; k <= 3; k++) leads += row("선 " + "①②③"[k - 1], w.motorWires[pos][k] && SIM.has("esc@" + pos) ? "ESC 단자 " + w.motorWires[pos][k] : "");
-      if (p.type === "esc") leads += row("전원선", pol(w.escPwr[pos])) + row("신호선", w.plug["esc" + pos]) + row("통신선", w.escTelem[pos] ? "하네스" : "");
+      if (p.type === "esc") leads += row("전원 커넥터", SIM.escPowered(pos) ? "PDB " + SIM.xtName(w.escPwr[pos]) : "") + row("신호선", w.plug["esc" + pos]) + row("통신선", w.escTelem[pos] ? "하네스" : "");
       if (p.type === "pm") leads += row("FC 케이블", w.plug.pm) + row("출력선", pol(w.pmOut)) + row("입력", w.batt === "pm" && SIM.has("battery") ? "배터리" : "");
-      if (p.type === "battery") leads += row("커넥터", w.batt === "pm" ? "파워 모듈 입력" : w.batt === "pdb" ? "PDB 패드" : "");
+      if (p.type === "battery") leads += row("커넥터", w.batt === "pm" ? "PMU 입력" : w.batt === "pdb" ? "PDB 패드" : "");
       if (p.type === "gps") leads += row("굵은 선", w.plug.gps) + row("가는 선", w.plug.compass);
-      if (["rx", "telem", "buzzer", "switch"].includes(p.type)) leads += row("케이블", w.plug[id]);
+      if (["telem", "buzzer", "switch"].includes(p.type)) leads += row("케이블", w.plug[id]);
+      if (p.type === "rx") {
+        const ledKo = { off: "꺼짐", blink: "빨강 깜빡임", fast: "빨강 빠르게 깜빡임", green: "초록" }[SIM.rxLed()];
+        leads += row("수신기 쪽 핀", w.rxEnd ? (w.rxEnd === "SB" ? "SBUS" : "CH" + w.rxEnd) + (w.rxRevRx ? " · 반대 방향" : "") : "") + row("FC 쪽", w.plug.rx ? w.plug.rx + (w.rxRevFc ? " · 반대 방향" : "") : "") + row("LED", ledKo);
+      }
     }
     let b = "";
     if (slot && p.type === "fc") b += btn("fcView", "세부 보기 · 포트", "primary");
     if (slot && (p.type === "fc" || p.type === "gps")) b += btn("rotate", "90° 돌리기", "", id);
     if (p.type === "prop") b += btn("flip", "뒤집기", "", id);
+    if (slot && p.type === "rx") {
+      b += sel("pop-rxend", "rxEnd", { "": "수신기 쪽 핀 선택", 1: "CH1", 2: "CH2", 3: "CH3", 4: "CH4", 5: "CH5", 6: "CH6", 7: "CH7", 8: "CH8", SB: "SBUS" }, w.rxEnd);
+      b += btn("rxFlip", "수신기 쪽 뒤집어 꽂기", "", "rxRevRx") + btn("rxFlip", "FC 쪽 뒤집어 꽂기", "", "rxRevFc") + btn("bind", "바인딩 버튼 누르기", "primary");
+    }
     if (slot) b += btn("remove", "분리", "", id);
     b += btn("select", "닫기", "ghost", "");
     return "<h3>" + esc(p.name) + '</h3><p class="where">' + (slot ? SIM.slotName(slot) : "작업대") + "</p>" + (leads ? "<ul>" + leads + "</ul>" : "") + '<div class="btns">' + b + "</div>";
@@ -70,17 +78,17 @@
   const off = (t) => '<span class="muted">' + t + "</span>";
   function pgWiring() {
     const st = SIM.state, w = st.wiring, fc = SIM.has("fc");
-    let h = "<h4>배터리 · 파워 모듈 · PDB</h4>";
-    h += '<label class="row" for="w-batt"><span><b>배터리 커넥터</b></span>' + (SIM.has("battery") ? sel("w-batt", "wire", Object.assign({ "": "분리됨" }, SIM.has("pm") ? { pm: "파워 모듈 입력 커넥터" } : {}, { pdb: "PDB 배터리 패드에 직접" }), w.batt, "batt") : off("배터리 없음")) + "</label>";
+    let h = "<h4>배터리 · PMU · PDB</h4>";
+    h += '<label class="row" for="w-batt"><span><b>배터리 커넥터</b></span>' + (SIM.has("battery") ? sel("w-batt", "wire", Object.assign({ "": "분리됨" }, SIM.has("pm") ? { pm: "PMU 입력 커넥터" } : {}, { pdb: "PDB 배터리 패드에 직접" }), w.batt, "batt") : off("배터리 없음")) + "</label>";
     const pol = { "": "미연결", ok: "빨강→＋ / 검정→－", rev: "빨강→－ / 검정→＋" };
-    h += '<label class="row" for="w-pmOut"><span><b>파워 모듈 출력선</b><code>→ PDB 배터리 패드</code></span>' + (SIM.has("pm") ? sel("w-pmOut", "wire", pol, w.pmOut, "pmOut") : off("파워 모듈 없음")) + "</label>";
+    h += '<label class="row" for="w-pmOut"><span><b>PMU 출력선</b><code>→ PDB 배터리 패드</code></span>' + (SIM.has("pm") ? sel("w-pmOut", "wire", pol, w.pmOut, "pmOut") : off("PMU 없음")) + "</label>";
     const pads = { "": "미연결", A: "단자 A", B: "단자 B", C: "단자 C" }, sigPorts = { "": "미연결" };
     SIM.PORTS.servo.forEach((p) => (sigPorts[p] = p));
     for (const id of SIM.POS_IDS) {
       const e = SIM.has("esc@" + id), m = SIM.has("motor@" + id);
       h += "<h4>" + SIM.POS[id].name + "</h4>";
       for (let k = 1; k <= 3; k++) h += '<label class="row" for="w-mw-' + id + k + '"><span><b>모터선 ' + "①②③"[k - 1] + "</b><code>→ ESC 3상 단자</code></span>" + (e && m ? sel("w-mw-" + id + k, "motorWire", pads, w.motorWires[id][k], id + k) : off("모터·ESC 필요")) + "</label>";
-      h += '<label class="row" for="w-pwr-' + id + '"><span><b>ESC 전원선</b><code>→ PDB 패드</code></span>' + (e ? sel("w-pwr-" + id, "escPwr", pol, w.escPwr[id], id) : off("ESC 없음")) + "</label>";
+      h += '<label class="row" for="w-pwr-' + id + '"><span><b>ESC 전원 커넥터</b><code>XT60M → PDB XT60F</code></span>' + (e && SIM.has("frameBot") ? sel("w-pwr-" + id, "escPwr", Object.fromEntries([["", "미연결"], ...SIM.XT_OF[id].map((x) => [x, SIM.xtName(x)])]), w.escPwr[id], id) : off("ESC 없음")) + "</label>";
       h += '<label class="row" for="w-plug-esc' + id + '"><span><b>ESC 신호선</b><code>3핀 서보 → FC</code></span>' + (SIM.cableReady("esc" + id) ? sel("w-plug-esc" + id, "plug", sigPorts, w.plug["esc" + id], "esc" + id) : off(fc ? "ESC 없음" : "FC 없음")) + "</label>";
       h += '<label class="row" for="w-tl-' + id + '"><span><b>ESC 통신선</b><code>단선</code></span>' + (e ? sel("w-tl-" + id, "escTelem", { "": "미연결", harness: "통신선 하네스" }, w.escTelem[id], id) : off("ESC 없음")) + "</label>";
     }
@@ -307,11 +315,17 @@
   // ---------- 렌더 ----------
   function render() {
     const tab = ui.tab, page = ui.page[tab], pw = SIM.power(), F = SIM.flight;
-    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-pressed", ui.open && b.dataset.arg === tab));
-    $("#panel").hidden = !ui.open; $("#panel-title").textContent = { hw: "하드웨어", sw: "소프트웨어 설정", test: "테스트" }[tab];
+    const si = STEPS.indexOf(tab);
+    $("#step-title b").textContent = STEP_NAME[tab]; $("#step-title small").textContent = (si + 1) + " / " + STEPS.length + (tab === "sw" && innerWidth > 760 ? "" : ui.open ? " · 메뉴 닫기" : " · 메뉴 열기");
+    $("#step-title").setAttribute("aria-expanded", ui.open);
+    $("#step-prev").hidden = si === 0; $("#step-prev span").textContent = si > 0 ? STEP_NAME[STEPS[si - 1]] : "";
+    const last = si === STEPS.length - 1;
+    $("#step-next span").textContent = last ? "완료" : STEP_NAME[STEPS[si + 1]]; $("#step-next").classList.toggle("done", last);
+    $("#panel").hidden = !ui.open; $("#panel-title").textContent = STEP_NAME[tab];
     const pop = $("#pop"), showPop = !!SIM.selected && !F.active && SIM.scene.env === "bench" && !ui.fcView;
     pop.hidden = !showPop; if (showPop) pop.innerHTML = popHtml(SIM.selected);
-    $("#subnav").innerHTML = NAV[tab].map(([k, n]) => '<button type="button" data-act="page" data-arg="' + k + '"' + (k === page ? ' aria-current="true"' : "") + ">" + n + "</button>").join("");
+    const doneMark = { accel: SIM.state.cal.accel, compass: SIM.state.cal.compass, radio: SIM.state.cal.radio, esccal: SIM.state.cal.esc, frame: P().FRAME_CLASS === 1 };
+    $("#subnav").innerHTML = NAV[tab].map(([k, n], i) => (tab === "sw" && i === 0 ? '<p class="navgroup">필수 설정</p>' : "") + (tab === "sw" && k === "battery" ? '<p class="navgroup">선택 설정</p>' : "") + '<button type="button" data-act="page" data-arg="' + k + '"' + (k === page ? ' aria-current="true"' : "") + ">" + (tab === "sw" ? '<span class="navnum">' + (i + 1) + "</span>" : "") + "<span>" + n + "</span>" + (tab === "sw" && doneMark[k] ? '<span class="navok" aria-label="완료">✓</span>' : "") + "</button>").join("");
     const body = $("#page"), keep = body.scrollTop, focus = document.activeElement && document.activeElement.id;
     let html = "<h2>" + NAV[tab].find((n) => n[0] === page)[1] + "</h2>";
     if (tab === "sw" && !pw.fc) html += note("비행 컨트롤러가 장착되지 않아 연결할 수 없습니다 (No Heartbeat). 하드웨어 메뉴에서 FC를 먼저 장착하세요.", "bad");
@@ -321,9 +335,10 @@
     if (ui.fcView && !(pw.fc && !F.active)) ui.fcView = false;
     const fv = $("#fcview"); fv.hidden = !ui.fcView; if (ui.fcView) fv.innerHTML = fcViewHtml();
     if (!SIM.switchOk()) SIM.safetyPressed = false;
-    $("#st-power").className = "chip " + (pw.main ? "ok" : ""); $("#st-power").textContent = pw.main ? "배터리 연결" : "전원 없음";
-    $("#st-fc").className = "chip " + (pw.fc ? "ok" : ""); $("#st-fc").textContent = pw.fc ? "FC 연결됨" : "FC 없음";
-    $("#st-arm").className = "chip " + (F.armed ? "bad" : ""); $("#st-arm").textContent = F.armed ? "ARMED" : "DISARMED";
+    // 소프트웨어 설정 단계: 왼쪽 3D, 오른쪽에 미션플래너식 설정 메뉴를 고정
+    const dock = tab === "sw" && innerWidth > 760; document.body.classList.toggle("dock", dock);
+    if (dock) { $("#panel").hidden = false; $("#panel").style.left = ""; $("#panel").style.top = ""; $("#panel").style.right = ""; }
+    if (dock !== ui.wasDock) { ui.wasDock = dock; requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))); }
     const showTx = (tab === "sw" && ["radio", "modes", "failsafe"].includes(page) && pw.fc) || (tab === "test" && page === "flight" && F.active);
     const showHud = pw.fc && ((tab === "sw" && ["accel", "compass", "orient"].includes(page)) || (tab === "test" && ["sensor", "flight"].includes(page)));
     $("#tx").hidden = !showTx; $("#hud").hidden = !showHud; SIM.txVisible = showTx;
@@ -332,10 +347,9 @@
     SIM.scene.dragDrone = (tab === "test" && page === "sensor") || (tab === "sw" && page === "compass" && !!ui.compass);
     setHint();
   }
-  function setHint() {
-    const F = SIM.flight;
-    $("#hint").textContent = ui.hover || (F.active ? "드래그: 시점 · 휠/핀치: 거리" : SIM.scene.dragDrone ? "드래그: 기체를 손으로 돌리기" : "부품 끌기: 옮기기·장착 · 선 끝 누르기: 연결 · 빈 곳 드래그: 회전 · 휠: 확대");
-  }
+  function setHint() {}
+  const STEPS = ["hw", "sw", "test"], STEP_NAME = { hw: "하드웨어 설정", sw: "소프트웨어 설정", test: "테스트" };
+  ui.ACT_go = (t) => { ui.open = true; go(t); };
   function go(tab, page) {
     const leaving = ui.tab + "/" + ui.page[ui.tab];
     ui.tab = tab; if (page) ui.page[tab] = page;
@@ -355,9 +369,14 @@
   const ACT = {
     tab: (a) => { if (ui.open && ui.tab === a) { ui.open = false; render(); } else { ui.open = true; go(a); } },
     closePanel: () => { ui.open = false; render(); },
+    menu: () => { ui.open = !ui.open; render(); },
+    stepPrev: () => { const i = STEPS.indexOf(ui.tab); if (i > 0) { ui.open = true; go(STEPS[i - 1]); } },
+    stepNext: () => { const i = STEPS.indexOf(ui.tab); if (i < STEPS.length - 1) { ui.open = true; go(STEPS[i + 1]); } else if (SIM.session) SIM.session.finish(); },
     page: (a) => go(ui.tab, a),
     home: () => SIM.scene.home(),
     xray: () => { SIM.scene.xray = !SIM.scene.xray; $("#xray").setAttribute("aria-pressed", SIM.scene.xray); },
+    rxFlip: (a) => { SIM.state.wiring[a] = !SIM.state.wiring[a]; SIM.emit(); },
+    bind: () => { const e = SIM.bindRx(); SIM.toast(e || "바인딩 중… LED 빠르게 깜빡임", e ? "bad" : ""); },
     focusPart: (a) => { SIM.select(a); SIM.scene.focus(a); },
     select: (a) => SIM.select(a && SIM.selected !== a ? a : null),
     install: (a) => { const e = SIM.install(SIM.selected, a); if (e) SIM.toast(e, "bad"); },
@@ -399,7 +418,7 @@
       for (let c = 1; c <= 4; c++) { p["RC" + c + "_MIN"] = r.min[c]; p["RC" + c + "_MAX"] = r.max[c]; p["RC" + c + "_TRIM"] = c === 3 ? r.min[c] : raw[c]; }
       SIM.state.cal.radio = true; SIM.toast("라디오 교정 완료", "ok"); SIM.emit();
     },
-    escCal: () => { if (SIM.POS_IDS.some((id) => !SIM.has("esc@" + id) || SIM.state.wiring.escPwr[id] !== "ok" || !SIM.motorNumForPos(id)) || !SIM.power().pdb) return SIM.toast("ESC 교정 실패 · ESC가 응답하지 않습니다", "bad"); SIM.state.cal.esc = true; SIM.toast("ESC 교정 완료 · 네 개의 스로틀 범위가 같아졌습니다", "ok"); SIM.emit(); },
+    escCal: () => { if (SIM.POS_IDS.some((id) => !SIM.has("esc@" + id) || !SIM.escPowered(id) || !SIM.motorNumForPos(id)) || !SIM.power().pdb) return SIM.toast("ESC 교정 실패 · ESC가 응답하지 않습니다", "bad"); SIM.state.cal.esc = true; SIM.toast("ESC 교정 완료 · 네 개의 스로틀 범위가 같아졌습니다", "ok"); SIM.emit(); },
     tuneReset: () => { for (const k in SIM.PARAM_DEFS) if (/^(ATC_|MOT_|ANGLE|PILOT|RTL)/.test(k)) P()[k] = SIM.PARAM_DEFS[k].d; SIM.emit(); },
     mt: (a) => mtRun(SIM.motorTest.run([a], ui.mt.pct, ui.mt.dur)),
     mtSeq: () => mtRun(SIM.motorTest.run(["A", "B", "C", "D"], ui.mt.pct, ui.mt.dur)),
@@ -422,8 +441,9 @@
     param: (v, a) => SIM.setParam(a, v),
     plug: (v, a) => SIM.setPlug(a, v),
     wire: (v, a) => { SIM.state.wiring[a] = v; SIM.emit(); },
-    escPwr: (v, a) => { SIM.state.wiring.escPwr[a] = v; SIM.emit(); },
+    escPwr: (v, a) => SIM.setEscXt(a, v),
     motorWire: (v, a) => { SIM.state.wiring.motorWires[a.slice(0, 2)][a[2]] = v; SIM.emit(); },
+    rxEnd: (v) => { SIM.state.wiring.rxEnd = v; SIM.emit(); },
     escTelem: (v, a) => { SIM.state.wiring.escTelem[a] = v; SIM.emit(); },
     expect: (v, a, el) => { SIM.scene.showExpect = el.checked; SIM.scene.sync(); },
     rev: (v, a, el) => SIM.setParam("RC" + a + "_REVERSED", el.checked ? 1 : 0),
@@ -528,9 +548,10 @@
       pop.style.left = Math.max(8, Math.min(W - pop.offsetWidth - 8, s.x + 16)) + "px";
       pop.style.top = Math.max(8, Math.min(H - pop.offsetHeight - 8, s.y - 24)) + "px";
     }
-    const armChip = $("#st-arm"); if ((armChip.textContent === "ARMED") !== F.armed) { armChip.className = "chip " + (F.armed ? "bad" : ""); armChip.textContent = F.armed ? "ARMED" : "DISARMED"; }
+
   };
 
+  ui.ACT = null;
   ui.init = function () {
     document.body.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("g.port")) { e.preventDefault(); ACT.port(e.target.dataset.arg); } });
     document.body.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && !b.disabled && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset.arg); });
@@ -540,7 +561,14 @@
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
     SIM.scene.onPick = (id) => SIM.select(id && id !== SIM.selected ? id : null);
     SIM.scene.onFcCable = (c) => { ui.fcView = true; ui.cable = SIM.cableReady(c) ? c : null; render(); };
-    SIM.scene.onHover = (t) => { ui.hover = t; setHint(); };
+    // 끌기·연결 중 커서 옆 이름표
+    SIM.scene.onHover = (t, x, y) => {
+      const tip = $("#hovertip"); ui.hover = t;
+      if (!t) { tip.hidden = true; return; }
+      const r = tip.parentElement.getBoundingClientRect();
+      tip.textContent = t; tip.hidden = false;
+      if (x !== undefined) { tip.style.left = x - r.left + "px"; tip.style.top = y - r.top + "px"; }
+    };
     // 메뉴 창 끌어서 옮기기 (넓은 화면)
     const panel = $("#panel"), head = $("#panel-head"); let pd = null;
     head.addEventListener("pointerdown", (e) => { if (e.target.closest("button") || innerWidth <= 760) return; const r = panel.getBoundingClientRect(), s = panel.parentElement.getBoundingClientRect(); pd = { dx: e.clientX - r.left, dy: e.clientY - r.top, s }; head.setPointerCapture(e.pointerId); });
