@@ -1034,3 +1034,7 @@ body.nocur, body.nocur * { cursor: none !important; }
 #perfhud .pb { display: flex; gap: 6px; margin-top: 6px; }
 #perfhud button { font-size: 11.5px; padding: 4px 9px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.3); background: #1b2540; color: #fff; }
 #perfhud[hidden] { display: none; }
+
+/* 첫 화면 버전 표시 */
+.titlescreen .tver { position: absolute; left: calc(env(safe-area-inset-left) + 18px); bottom: calc(env(safe-area-inset-bottom) + 16px); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 0 var(--ink), 0 0 8px rgba(0, 0, 0, 0.6); z-index: 3; pointer-events: none; }

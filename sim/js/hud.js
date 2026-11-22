@@ -695,9 +695,7 @@ export class Hud {
     const out = Math.max(Math.abs(b.pos.x), Math.abs(b.pos.z)) - R;
     if (pl.crashed) this.banner("추락! 재배치 중…", H * 0.36, HC.warn, 24);
     else if (b.flipped && b.onGround) this.banner(`뒤집혔습니다 — ${this.keyName("reset", "리셋 버튼", true)} 다시 세우기`, H * 0.36, HC.gold, 18);
-    else if (out > 0 || b.pos.y > session.world.ceiling) {
-      if (Math.floor(session.time * 4) % 2) this.banner("⚠ 비행 구역 이탈 — 돌아가세요", H * 0.3, HC.warn, 20);
-    }
+    void out;   // 구역 이탈 경고는 없앴다 (경계는 보이지 않는 벽으로 막는다)
   }
 
   drawToasts(dt) {

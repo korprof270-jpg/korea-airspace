@@ -1,7 +1,7 @@
 // 메뉴 UI: 메인 · 모드 설정 · 정비소(외형) · 설정 · 조작법 · 일시정지 · 결과
 import {
   settings, save, records, resetSettings, fmtTime, DRONE_CLASSES, RATE_PRESETS, FLIGHT_MODES, FLIGHT_MODE_INFO, STICK_MODES, DIFFICULTY,
-  HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset, QUALITY_NAMES,
+  HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset, QUALITY_NAMES, VERSION,
 } from "./config.js";
 import { MAPS, MAP_LIST } from "./maps/index.js";
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS } from "./dronemodel.js";
@@ -242,12 +242,13 @@ export class UI {
   // ── 타이틀 화면: 3D 장면을 배경으로 로고만. 누르면 메뉴로 ──
   s_title() {
     // 첫 장면만 바로 받고, 나머지는 차례가 오기 직전에 받는다 (겹쳐 놓은 그림은 loading="lazy" 로는 미뤄지지 않는다)
-    const slides = TITLE_SLIDES.map(([f, cap], i) => `<figure class="slide ${i ? "" : "on"}"><img ${i ? `data-src="img/title/${f}.jpg"` : `src="img/title/${f}.jpg" fetchpriority="high"`} alt="" decoding="async"><figcaption>${cap}</figcaption></figure>`).join("");
+    const slides = TITLE_SLIDES.map(([f], i) => `<figure class="slide ${i ? "" : "on"}"><img ${i ? `data-src="img/title/${f}.jpg"` : `src="img/title/${f}.jpg" fetchpriority="high"`} alt="" decoding="async"></figure>`).join("");
     return `<div class="screen titlescreen" data-a="enter">
       <div class="slides">${slides}</div>
       <div class="tcast" aria-hidden="true"><img src="img/title/keyart.webp" srcset="img/title/keyart-1280.webp 1280w, img/title/keyart.webp 2400w" sizes="(max-aspect-ratio: 1/1) 114vh, 137vh" alt="" decoding="async" fetchpriority="high"></div>
       <div class="tbox"><div class="tlogo"><b>FPV</b> PROJECT</div></div>
       <div class="press">START</div>
+      <div class="tver">${VERSION}</div>
     </div>`;
   }
   // 타이틀 슬라이드: 장면마다 천천히 밀고 당기며(켄 번스) 겹쳐 바뀐다
