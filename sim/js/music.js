@@ -75,7 +75,19 @@ for (const m of Object.values(MOODS)) {
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
-const LOOKAHEAD = 1.5;   // 초: 미리 예약하는 길이
+const LOOKAHEAD = 1.5;
+
+// ElevenLabs 로 만든 테마 곡(sim/audio/bgm/*.mp3): 맵·모드·대화 분위기 → 곡. 파일이 없으면 지금처럼 합성 음악
+const BGM = {
+  menu: "menu", race: "race", boss: "boss",
+  city: "city", airbase: "city", outpost: "city", arena: "race", stadium: "race",
+  canyon: "canyon", island: "island", snow: "snow", frost: "snow", vault: "vault",
+  empire: "empire", factory: "empire", foundry: "empire",
+  moon: "space", orbit: "space", spaceport: "space",
+  ail: "ail", aildune: "ail", ailsea: "ail", ailwood: "ail", ailsky: "ail",
+  "m:calm": "vn_calm", "m:daily": "vn_calm", "m:tense": "vn_tense", "m:sad": "vn_sad", "m:resolve": "vn_resolve",
+  "m:mystery": "vault", "m:eia": "empire", "m:space": "ail",
+};   // 초: 미리 예약하는 길이
 
 export class Music {
   constructor(sound) {
@@ -88,7 +100,9 @@ export class Music {
     setInterval(() => this._tick(), 100);
   }
 
-  setTheme(id) { this.want = THEMES[id] ? id : "menu"; }
+  setTheme(id) { this.want = THEMES[id] || BGM[id] ? id : "menu"; }
+  // 보스전: 보스가 살아 있는 동안 보스 곡 (곡 파일이 있을 때만)
+  setBoss(on) { this.boss = !!on; }
   // 전투 긴장도(0..1): 높아지면 추진 베이스·16분 하이햇·탐(0.25~), 두 배 킥·크래시·스네어 롤·상승음(0.6~)이 차례로 들어오고
   // 전체 음색 필터가 열린다. 오를 때는 1~2초, 가라앉을 때는 6초쯤 걸려 따라간다. 메뉴·대화 분위기 곡에서는 무시한다
   setIntensity(k) { this.int = k > 0 ? (k < 1 ? k : 1) : 0; }
@@ -198,13 +212,47 @@ export class Music {
     if (!this.out) this._init();
     const tgt = this._target();
     // 음량 0·음소거·"@bgm -" 이면 곡을 줄이고 아예 연주(노드 생성)를 멈춘다
-    if (settings.musicVolume <= 0.01 || settings.mute || !tgt) { if (this.theme) { this._fadeOut(tgt ? 0.2 : 0.8); this.theme = null; } return; }
-    if (tgt !== this.theme) this._start(tgt);
+    if (settings.musicVolume <= 0.01 || settings.mute || !tgt) { if (this.theme) { this._fadeOut(tgt ? 0.2 : 0.8); this.theme = null; } this._stopFile(tgt ? 0.2 : 0.8); return; }
+    // 녹음 곡이 있으면 그것을 튼다 (보스가 있으면 보스 곡). 아직 불러오는 중이거나 없으면 합성 음악
+    const ftgt = this.boss && !tgt.startsWith("m:") && tgt !== "menu" ? "boss" : tgt;
+    const url = BGM[ftgt] ? `audio/bgm/${BGM[ftgt]}.mp3` : null, fb = url ? this._loadFile(url) : false;
+    if (fb) { if (this.fileId !== ftgt) this._startFile(ftgt, fb, tgt); this._intensity(s.ctx.currentTime, tgt === "menu" || tgt.startsWith("m:")); return; }
+    if (this.fileId) this._stopFile(0.8);
+    if (tgt !== this.theme || this._fromFile) { this._fromFile = false; this._start(tgt); }
     const now = s.ctx.currentTime;
     this._intensity(now, tgt === "menu" || tgt.startsWith("m:"));
     if (this.next < now - 1.5) this.next = now + 0.05;          // 아주 오래 멈췄을 때(탭 숨김 등)만 건너뛴다
     else if (this.next < now) this.next = now + 0.02;            // 조금 늦었으면 박자를 잃지 않고 바로 이어서
     while (this.next < now + LOOKAHEAD) { this._play(this.step, this.next); this.step++; this.next += this.spb; }
+  }
+
+  // 곡 파일: undefined=아직, null=불러오는 중, false=없음, AudioBuffer=준비됨
+  _loadFile(url) {
+    const B = this.files || (this.files = {});
+    if (B[url] === undefined) {
+      B[url] = null;
+      fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then((ab) => this.sound.ctx.decodeAudioData(ab))
+        .then((b) => { B[url] = b; }).catch(() => { B[url] = false; });
+    }
+    return B[url] || false;
+  }
+  _startFile(id, buf, tgt) {
+    const ctx = this.sound.ctx, now = ctx.currentTime;
+    if (this.theme) { this._fadeOut(0.6); this.theme = null; }   // 합성 음악은 줄여서 끈다
+    this._stopFile(0.6);
+    const g = ctx.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.9, now + 0.1, 0.5);
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    src.connect(g); g.connect(this.tone);   // 긴장도 음색 필터를 거친다
+    src.start(now + 0.05);
+    this.fileSrc = src; this.fileG = g; this.fileId = id; this._fromFile = true; this.theme = null;
+    void tgt;
+  }
+  _stopFile(tc) {
+    if (!this.fileSrc) return;
+    const ctx = this.sound.ctx, now = ctx.currentTime, src = this.fileSrc, g = this.fileG;
+    g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.setTargetAtTime(0, now, tc);
+    setTimeout(() => { try { src.stop(); } catch (_) { /* 이미 멈춤 */ } g.disconnect(); }, tc * 6000 + 300);
+    this.fileSrc = null; this.fileG = null; this.fileId = null;
   }
 
   // 긴장도 → 레이어 음량 [A, B]

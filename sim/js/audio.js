@@ -9,6 +9,10 @@ const VOICE = new Set(["vtick", "vblip", "vblipr", "vblipm"]);
 // 컨텍스트가 막 깨어나는 중에도 울려야 하는 메뉴 소리
 const UI_NOW = new Set(["click", "confirm", "back"]);
 
+// ElevenLabs 로 만든 녹음 효과음 (sim/audio/sfx/*.mp3). 없으면 합성음
+const SAMPLE_NAMES = ["laser", "missile", "explode", "bigkill", "hurt", "shieldup", "pickup", "boost", "whoosh", "lock", "warn", "click", "beep", "emp", "gate"];
+const SAMPLE_VOL = { laser: 0.45, click: 0.6, beep: 0.7, hurt: 0.85, explode: 0.9, bigkill: 1, warn: 0.6, lock: 0.6 };
+
 export class Sound {
   constructor() {
     this.ctx = null;
@@ -94,6 +98,7 @@ export class Sound {
       this._mOn = true; this._motorIdle(true);   // 비행 전에는 지속음 경로를 떼어 둔다
       if (ctx.state === "suspended") ctx.resume();
       this.ok = true;
+      this.loadSamples();   // 녹음 효과음(있으면)
     } catch (_) { this.ok = false; }
   }
 
@@ -201,6 +206,27 @@ export class Sound {
     s.start(t, Math.random() * 0.5, dur + 0.05);
   }
 
+  // 녹음 효과음 불러오기 (없는 파일은 조용히 건너뛰고 합성음을 계속 쓴다)
+  loadSamples(names = SAMPLE_NAMES, base = "audio/sfx/") {
+    if (!this.ok || this._samplesLoading) return;
+    this._samplesLoading = true;
+    this.samples = this.samples || {};
+    for (const n of names) {
+      fetch(base + n + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+        .then((ab) => this.ctx.decodeAudioData(ab)).then((b) => { this.samples[n] = b; }).catch(() => { /* 파일 없음: 합성음 사용 */ });
+    }
+  }
+  // 대사 녹음 재생 (무전 등). 대사 음량을 따른다. 반환: 재생했으면 true
+  playVoiceClip(url, vol = 1) {
+    if (!this.ok || settings.mute || (settings.voiceVolume ?? 0.7) <= 0.01 || !url) return false;
+    const go = (b) => { try { const src = this.ctx.createBufferSource(), g = this.ctx.createGain(); src.buffer = b; g.gain.value = vol; src.connect(g); g.connect(this.voice); src.start(); this._clipSrc = src; } catch (_) { /* 재생 실패 무시 */ } };
+    this._clips = this._clips || {};
+    const c = this._clips[url];
+    if (c && c !== "loading" && c !== "fail") { go(c); return true; }
+    if (!c) { this._clips[url] = "loading"; fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then((ab) => this.ctx.decodeAudioData(ab)).then((b) => { this._clips[url] = b; go(b); }).catch(() => { this._clips[url] = "fail"; }); }
+    return c !== "fail";
+  }
+
   // 게임 코드가 부르는 효과음. vol: 거리 감쇠 등 상대 음량(0..1), pan: -1(왼쪽)..1(오른쪽), pitch: 음높이 배율
   play(name, vol = 1, pan = 0, pitch = 1) {
     if (this.onPlay) this.onPlay(name, vol, pan);
@@ -222,6 +248,18 @@ export class Sound {
     const N = (dur, v, f0, f1, delay, ft, q, atk) => this._noise(dur, v * vol, f0, f1, delay, pan, ft, q, atk);
     this._route = voice ? this.voice : null;
     this._out = this._chain(this._route || this.bus, pan, cut);
+    // 녹음된 효과음(audio/sfx/이름.mp3)이 있으면 그것을, 없으면 합성음을 쓴다
+    const sb = this.samples && this.samples[name];
+    if (sb) {
+      try {
+        const src = this.ctx.createBufferSource(), g = this.ctx.createGain();
+        src.buffer = sb; src.playbackRate.value = p;
+        g.gain.value = vol * (SAMPLE_VOL[name] ?? 0.8);
+        src.connect(g); g.connect(this._out); src.start(now);
+        this._voice(now + sb.duration / p);
+      } finally { this._route = null; this._out = null; }
+      return;
+    }
     try { this._cases(name, T, N); } finally { this._route = null; this._out = null; }
   }
 

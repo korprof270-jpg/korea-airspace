@@ -780,6 +780,7 @@ export class Combat {
         for (const a of this.actors) if (a.alive && a !== p && a.kind === "bot" && this.hostile(p, a)) { if (a.pos.distanceToSquared(p.pos) < 160 * 160) near++; if (a.bossBar || a.botKind === "boss") boss = true; }
         const hit = this.s.time - (p.hurtAt || -99) < 3 ? 0.25 : 0;
         const mus = this.s.game.music;
+        if (mus && mus.setBoss) mus.setBoss(boss && !this.frozen);   // 보스가 살아 있으면 보스 곡
         if (mus && mus.setIntensity) mus.setIntensity(this.frozen ? 0 : clamp(Math.min(near, 5) * 0.13 + hit + (hpK < 0.35 ? 0.2 : 0) + (boss ? 0.4 : 0), 0, 1));
       }
       // 재생 (장갑·배터리 단계 효과): 4초 동안 맞지 않으면
@@ -1257,7 +1258,7 @@ export class Combat {
   }
 
   dispose() {
-    try { this.snd.lowHp(0); const mus = this.s.game.music; if (mus && mus.setIntensity) mus.setIntensity(0); } catch (_) { /* 소리 끄기 실패는 무시 */ }
+    try { this.snd.lowHp(0); const mus = this.s.game.music; if (mus && mus.setIntensity) mus.setIntensity(0); if (mus && mus.setBoss) mus.setBoss(false); } catch (_) { /* 소리 끄기 실패는 무시 */ }
     const sc = this.w.scene;
     if (this.skill) this.skill.dispose();
     this.units.dispose();

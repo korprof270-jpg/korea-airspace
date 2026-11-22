@@ -145,7 +145,8 @@ class Game {
         this._autoTierUp();
         this.lastCfg = cfg;
         this.session = new Session(this, cfg);
-        this.music.setTheme(cfg.map);
+        this.music.setTheme(cfg.mode === "race" ? "race" : cfg.map);   // 레이싱은 레이싱 곡, 나머지는 맵 테마 곡
+        this.music.setBoss(false);
         this.session.resize(innerWidth, innerHeight);
         this.state = "play";
         this.hud.toasts.length = 0; this.hud.feedLines.length = 0;
