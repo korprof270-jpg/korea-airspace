@@ -24,8 +24,8 @@ const TIERS = ["low", "med", "high"];
 const MENU_BLOOM = { strength: 0.42, radius: 0.55, threshold: 0.92 };
 
 // 기기 화면 갱신 제한(ms) 기억: 품질을 낮춰도 빨라지지 않던 속도
-function qcapLoad() { try { const v = +localStorage.getItem("fpv.qcap"); return v > 0 && v < 100 ? v : 0; } catch (_) { return 0; } }
-function qcapSave(v) { try { localStorage.setItem("fpv.qcap", String(Math.round(v * 10) / 10)); } catch (_) { /* 저장 불가 환경 */ } }
+function qcapLoad() { try { const v = +localStorage.getItem("fpv.qcap2"); return v > 0 && v < 100 ? v : 0; } catch (_) { return 0; } }
+function qcapSave(v) { try { localStorage.setItem("fpv.qcap2", String(Math.round(v * 10) / 10)); } catch (_) { /* 저장 불가 환경 */ } }
 
 class Game {
   constructor() {
@@ -74,13 +74,14 @@ class Game {
     else { this.q = TIERS.includes(settings.quality) ? settings.quality : "med"; this.dprScale = 1; }
     const q = this.q;
     this.renderer.shadowMap.enabled = q !== "low";
+    this.renderer.shadowMap.type = q === "high" || !matchMedia("(pointer: coarse)").matches ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;   // 휴대폰 보통: 가벼운 그림자 필터
     // 후처리(외곽선 + 블룸 + 톤매핑 + FXAA): 낮음 품질에서는 끄고 툰 음영만 남긴다. 휴대폰의 보통 품질은 화면 공간 음영(AO)을 뺀 가벼운 후처리
     if (this.composer) { this.composer.dispose(); this.composer = null; }
     if (q !== "low") {
       try {
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
         // 계단 현상 제거(MSAA): 높음 4배, 보통 2배 (WebGL2 가 아니면 0)
-        const samples = this.renderer.capabilities.isWebGL2 ? (q === "high" ? 4 : 2) : 0;
+        const coarseQ = matchMedia("(pointer: coarse)").matches, samples = this.renderer.capabilities.isWebGL2 ? (q === "high" ? 4 : coarseQ ? 0 : 2) : 0;   // 휴대폰 보통 품질은 MSAA 끔(후처리 FXAA 로 충분)
         this.composer = new PostFX(this.renderer, Math.max(2, size.x), Math.max(2, size.y), { samples });
         this.composer.setLite(q === "med" && matchMedia("(pointer: coarse)").matches);
       } catch (e) { console.warn("후처리를 사용할 수 없어 기본 렌더링으로 전환합니다", e); this.composer = null; }
@@ -223,6 +224,16 @@ class Game {
     if (tr) {
       this._trial = null;
       if (avg > tr.prev * 0.9) {
+        // 해상도를 낮춰도 그대로면 → 해상도 대신 품질 단계(후처리·그림자)를 낮춰 한 번 더 본다
+        const i = TIERS.indexOf(tr.tier);
+        if (tr.kind === "dpr" && i > 0) {
+          this.dprScale = tr.dpr;
+          this._autoTier = TIERS[i - 1]; this.applyQuality();
+          this._trial = { prev: tr.prev, dpr: tr.dpr, tier: tr.tier, kind: "tier" };
+          if (this.state === "play") this.hud.toast(`성능에 맞춰 그래픽을 '${QUALITY_NAMES[this.q]}'(으)로 낮췄습니다`, "#ffd24a", 2.4, 16);
+          return;
+        }
+        // 품질 단계까지 낮춰도 그대로면 기기 쪽 제한(30fps 고정 등) → 원래대로 되돌리고 그 속도를 기억
         this.dprScale = tr.dpr;
         if (this._autoTier !== tr.tier) { this._autoTier = tr.tier; this.applyQuality(); } else this._pixelRatio();
         this._capAvg = Math.max(this._capAvg || 0, tr.prev); qcapSave(this._capAvg);
@@ -232,9 +243,10 @@ class Game {
     const capped = this._capAvg && avg < this._capAvg * 1.25;   // 기기 제한 속도 근처면 '느림'이 아니다
     if (avg > 22 && !capped) {
       a.good = 0; this._fastRuns = 0;
-      this._trial = { prev: avg, dpr: this.dprScale, tier: this._autoTier || this.q };
+      this._trial = { prev: avg, dpr: this.dprScale, tier: this._autoTier || this.q, kind: "dpr" };
       if (this._capAvg) this._tierUpFail = true;
       if (this.dprScale > 0.62) { this.dprScale = Math.max(0.6, this.dprScale * 0.85); this._pixelRatio(); a.skip = 600; return; }
+      this._trial.kind = "tier";
       const i = TIERS.indexOf(this.q);
       if (i > 0) {
         this._autoTier = TIERS[i - 1]; this.dprScale = 0.85;
