@@ -79,7 +79,9 @@ class Game {
     if (q !== "low") {
       try {
         const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-        this.composer = new PostFX(this.renderer, Math.max(2, size.x), Math.max(2, size.y));
+        // 계단 현상 제거(MSAA): 높음 4배, 보통 2배 (WebGL2 가 아니면 0)
+        const samples = this.renderer.capabilities.isWebGL2 ? (q === "high" ? 4 : 2) : 0;
+        this.composer = new PostFX(this.renderer, Math.max(2, size.x), Math.max(2, size.y), { samples });
         this.composer.setLite(q === "med" && matchMedia("(pointer: coarse)").matches);
       } catch (e) { console.warn("후처리를 사용할 수 없어 기본 렌더링으로 전환합니다", e); this.composer = null; }
     }
@@ -91,7 +93,7 @@ class Game {
   // 픽셀 비율 = 단계별 상한 × 자동 해상도 배율
   _pixelRatio() {
     const q = this.q, dpr = window.devicePixelRatio || 1, coarse = matchMedia("(pointer: coarse)").matches;
-    const cap = q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.5 : 1.75) : Math.min(dpr, 2);   // 먼 곳을 덜 그리는 만큼 해상도를 올림
+    const cap = q === "low" ? Math.min(dpr, 1) : q === "med" ? Math.min(dpr, coarse ? 1.5 : 1.75) : Math.min(dpr, coarse ? 1.75 : 2);   // 먼 곳을 덜 그리는 만큼 해상도를 올림 (높음: 휴대폰은 1.75배)
     const pr = Math.max(0.5, cap * (this.dprScale || 1));
     if (Math.abs(this.renderer.getPixelRatio() - pr) > 0.01) { this.renderer.setPixelRatio(pr); this.resize(); }
   }
@@ -250,7 +252,7 @@ class Game {
 
   // 새 비행을 시작할 때: 지난 비행 내내 여유가 있었으면(해상도 100% + 빠른 구간이 충분) 단계 하나 올려 본다
   _autoTierUp() {
-    if (!this.autoQ || !this._fastRuns || this._fastRuns < 8) return;
+    if (!this.autoQ || !this._fastRuns || this._fastRuns < 6) return;   // 지난 비행 내내 60fps 근처였으면 다음 비행에서 한 단계 올려 본다
     if (this._capAvg && this._tierUpFail) return;   // 제한 기기에서 올렸다가 느려진 적이 있으면 그만
     const i = TIERS.indexOf(this._autoTier);
     if (i >= 0 && i < TIERS.length - 1 && this.dprScale >= 1) { this._autoTier = TIERS[i + 1]; this.applyQuality(); }
