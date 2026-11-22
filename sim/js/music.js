@@ -257,6 +257,7 @@ export class Music {
     src.start(now + 0.05);
     this.fileSrc = src; this.fileG = g; this.fileId = id; this._fromFile = true; this.theme = null;
     this.fileBuf = buf; this.fileEnd = now + 0.05 + buf.duration; this.fileOff = 0; this.fileT0 = now + 0.05;
+    this.fileKey = BGM[id];
     void tgt;
   }
   // 재생 위치 관리: ① 분석 파일(audio/bgm/index.json)에 적힌 단조로운 구간은 겹치며 건너뛴다
@@ -264,12 +265,16 @@ export class Music {
   _loopFile() {
     if (!this.fileSrc || !this.fileBuf) return;
     const ctx = this.sound.ctx, now = ctx.currentTime, buf = this.fileBuf, XF = 2.5;
-    const info = (BGM_INFO && BGM_INFO[BGM[this.fileId]]) || {};
+    const info = (BGM_INFO && BGM_INFO[this.fileKey]) || {};
+    if (info.alt) this._loadFile(`audio/bgm/${info.alt}.mp3`);   // 다른 버전 미리 받기
     const pos = this.fileOff + (now - this.fileT0);
     for (const [a, b] of info.skip || []) {
       if (pos >= a - XF && pos < a && b < buf.duration - 4) return this._jumpFile(b, XF);
     }
     if (now >= this.fileEnd - XF - 0.3) {
+      // 같은 테마의 다른 버전(B곡)이 있으면 그 곡으로 넘어간다 → 같은 곡만 되풀이되지 않게
+      const ab = info.alt && this._loadFile(`audio/bgm/${info.alt}.mp3`);
+      if (ab) { this.fileBuf = ab; this.fileKey = info.alt; return this._jumpFile(4, 3, true); }
       const loop = info.loop ?? Math.min(buf.duration * 0.3, Math.max(0, buf.duration - 20));
       this._jumpFile(loop, 3);
     }
@@ -287,7 +292,7 @@ export class Music {
     const ctx = this.sound.ctx, now = ctx.currentTime, src = this.fileSrc, g = this.fileG;
     g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.setTargetAtTime(0, now, tc);
     setTimeout(() => { try { src.stop(); } catch (_) { /* 이미 멈춤 */ } g.disconnect(); }, tc * 6000 + 300);
-    this.fileSrc = null; this.fileG = null; this.fileId = null; this.fileBuf = null;
+    this.fileSrc = null; this.fileG = null; this.fileId = null; this.fileBuf = null; this.fileKey = null;
   }
 
   // 긴장도 → 레이어 음량 [A, B]
