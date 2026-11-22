@@ -341,6 +341,27 @@ export class Combat {
   }
 
   // 막히지 않은 임의 지점 (지면 위 lo~hi m)
+  // 큰 적(함대·거대로봇)이 코앞에 나타나지 않게: 플레이어와 min 미터보다 가까우면 바깥으로 밀어낸다(맵 안, 높이는 지형 기준 유지)
+  farFrom(p, min = 200) {
+    const me = this.player; if (!p || !me) return p;
+    const s = this.w.size - 30, dx0 = p.x - me.pos.x, dz0 = p.z - me.pos.z;
+    if (Math.hypot(dx0, dz0) >= min) return p;
+    const y0 = p.y - this.w.h(p.x, p.z);
+    let best = null, bd = -1;
+    const a0 = Math.hypot(dx0, dz0) > 1 ? Math.atan2(dz0, dx0) : Math.random() * Math.PI * 2;
+    for (let i = 0; i < 12; i++) {   // 원래 방향부터 좌우로 돌려 가며 맵 안에서 충분히 먼 곳을 찾는다
+      const a = a0 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.52;
+      for (const r of [min, min * 0.8, min * 0.65]) {
+        const x = clamp(me.pos.x + Math.cos(a) * r, -s, s), z = clamp(me.pos.z + Math.sin(a) * r, -s, s), d = Math.hypot(x - me.pos.x, z - me.pos.z);
+        if (this.w.def.land && !this.w.def.land(x, z)) continue;
+        if (d > bd) { bd = d; best = [x, z]; }
+        if (d >= min * 0.95) { i = 99; break; }
+      }
+    }
+    if (best && bd > Math.hypot(dx0, dz0)) { p.x = best[0]; p.z = best[1]; p.y = this.w.h(p.x, p.z) + Math.max(0, y0); }
+    return p;
+  }
+
   randomPoint(lo = 6, hi = 28, frac = 0.7, cx = 0, cz = 0, rad = null) {
     const R = rad ?? this.w.size * frac, p = new THREE.Vector3();
     for (let i = 0; i < 40; i++) {

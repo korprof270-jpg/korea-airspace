@@ -46,6 +46,8 @@ export class Units {
   // 행진 상태: root.march = { eta(초), progress(0..1), remaining(m), reached, done, halted, text("로봇 도달까지 N초") }
   spawn(type, o = {}) {
     const base = BASE[type] || type;
+    // 거대로봇·거신·공성기·전투함은 가까이 나타나지 않는다(중·원거리에서 등장)
+    if (FAR[type] && o.pos && !o.near && this.c.farFrom) { o = Object.assign({}, o, { pos: this.c.farFrom(o.pos.clone(), FAR[type]) }); if (o.home && !o.march) o.home = o.pos; }
     // 계급: 포인트 색(o.tc)과 내구도·화력·조준 배율
     const rk = rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.c.level, base));
     const ail = this.c.s.cfg.faction === "ail";
@@ -463,6 +465,7 @@ const MAKE = {
 };
 // 계급·이름·진영 외피는 같은 모델을 쓰는 기본 종류로
 const BASE = { titan: "mech", siege: "mech" };
+const FAR = { titan: 230, mech: 190, frigate: 170, cruiser: 190 };   // 등장 최소 거리(m)
 
 // ── 전투기 모델 (AI 드론 종류 "jet" 이 쓴다): 기수는 -Z ──
 export function buildJet(color) {
