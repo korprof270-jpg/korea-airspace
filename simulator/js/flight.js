@@ -8,19 +8,34 @@
   const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
   // ---------- 송신기 (모드 2) ----------
-  const tx = (SIM.tx = { on: true, lx: 0, ly: -1, rx: 0, ry: 0, sw: 0, keys: {} });
+  const tx = (SIM.tx = { on: false, lx: 0, ly: -1, rx: 0, ry: 0, sw: 0, sa: 0, sb: 0, sd: 0, keys: {} });
   // 수신기가 FC로 보내는 원시 PWM
+  // 조종기 스틱 모드: 기능(Ail/Ele/Thr/Rud) → 실제 스틱 축
+  const MODE_MAP = { 1: { Rud: "lx", Ele: "ly", Ail: "rx", Thr: "ry" }, 2: { Rud: "lx", Thr: "ly", Ail: "rx", Ele: "ry" }, 3: { Ail: "lx", Ele: "ly", Rud: "rx", Thr: "ry" }, 4: { Ail: "lx", Thr: "ly", Rud: "rx", Ele: "ry" } };
+  const SW3 = [-1, 0, 1];
+  function srcValue(src) {
+    const m = MODE_MAP[SIM.state.txm.mode] || MODE_MAP[2];
+    if (src === "Ele") return -tx[m.Ele]; // 앞으로 밀면 PWM이 내려가도록 (ArduPilot 기준)
+    if (m[src]) return tx[m[src]];
+    if (src === "SA") return tx.sa ? 1 : -1;
+    if (src === "SB") return SW3[tx.sb || 0];
+    if (src === "SC") return SW3[tx.sw];
+    if (src === "SD") return tx.sd ? 1 : -1;
+    return 0;
+  }
+  const OFFS = { 1: 6, 2: -2, 3: 0, 4: 2, 5: 0, 6: 0, 7: 0, 8: 0 };
   SIM.rcRaw = function () {
-    const c = SIM.TX, pwm = [0, 1500, 1500, 900, 1500, 1500, 1500, 1500, 1500];
+    const pwm = [0, 1500, 1500, 900, 1500, 1500, 1500, 1500, 1500], tm = SIM.state.txm;
     if (!SIM.rxOk()) return { present: false, pwm };
-    if (tx.on) {
-      pwm[1] = Math.round(c.c[1] + tx.rx * c.amp[1]);
-      pwm[2] = Math.round(c.c[2] - tx.ry * c.amp[2]); // 스틱을 앞으로 밀면 PWM이 내려간다
-      pwm[3] = Math.round(c.thrMin + ((tx.ly + 1) / 2) * (c.thrMax - c.thrMin));
-      pwm[4] = Math.round(c.c[4] + tx.lx * c.amp[4]);
-      pwm[5] = c.sw[tx.sw];
-    } // 송신기가 꺼지면 수신기 페일세이프: 스로틀 900 출력
-    return { present: true, pwm };
+    if (SIM.txLink()) {
+      for (let ch = 1; ch <= 8; ch++) { const src = tm.mix[ch]; pwm[ch] = src ? Math.round(1500 + OFFS[ch] + srcValue(src) * 476) : 1500; }
+      SIM._lastPwm = pwm.slice();
+      return { present: true, pwm };
+    }
+    // 링크가 없을 때: 수신기 페일세이프 설정에 따라 다르다
+    if (!SIM._lastPwm || tm.failsafe === "No pulses") return { present: false, pwm };
+    if (tm.failsafe === "Custom") { const p2 = SIM._lastPwm.slice(); for (let ch = 1; ch <= 8; ch++) if (tm.mix[ch] === "Thr") p2[ch] = 900; return { present: true, pwm: p2 }; }
+    return { present: true, pwm: SIM._lastPwm.slice() }; // Hold · Not set: 마지막 값을 그대로 유지
   };
   SIM.rcIn = function () {
     const raw = SIM.rcRaw(), p = SIM.state.params, pwm = raw.pwm;
@@ -34,7 +49,7 @@
     const tc = p.RCMAP_THROTTLE;
     let thr = clamp((pwm[tc] - p["RC" + tc + "_MIN"]) / Math.max(1, p["RC" + tc + "_MAX"] - p["RC" + tc + "_MIN"]), 0, 1);
     if (p["RC" + tc + "_REVERSED"]) thr = 1 - thr;
-    const lost = !raw.present || pwm[3] < p.FS_THR_VALUE;
+    const lost = !raw.present || pwm[tc] < p.FS_THR_VALUE;
     const out = { present: raw.present, pwm, lost, roll: axis(p.RCMAP_ROLL), pitch: axis(p.RCMAP_PITCH), yaw: axis(p.RCMAP_YAW), thr, modePwm: pwm[p.FLTMODE_CH] || 1500 };
     if (lost) { out.roll = out.pitch = out.yaw = 0; out.thr = 0; }
     return out;
@@ -49,7 +64,7 @@
     const fx = Math.sin(e), fz = -Math.cos(e), rx = Math.cos(e), rz = Math.sin(e); // FC가 앞/오른쪽이라고 믿는 방향
     let roll = Math.atan2(-(_up.x * rx + _up.z * rz), _up.y), pitch = Math.atan2(_up.x * fx + _up.z * fz, _up.y);
     if (!st.cal.accel) roll += 4 * DEG; // 미교정 가속도계: 수평 기준이 틀어짐
-    if (SIM.fcOffCenter()) { // 무게 중심에서 벗어난 FC: 회전에 따른 가속도 오차와 진동
+    if (SIM.fcOffCenter() || SIM.platesLoose()) { // 무게 중심에서 벗어났거나 판이 고정되지 않은 FC: 가속도 오차와 진동
       let u = 0; for (const id of SIM.POS_IDS) u += SIM.motorU[id] / 4;
       roll += 2.5 * DEG + (Math.random() - 0.5) * 3 * DEG * u; pitch -= 1.5 * DEG + (Math.random() - 0.5) * 3 * DEG * u;
     }
@@ -259,9 +274,11 @@
       _force.y += thrust;
       _tq.x += -ps.z * ARM * thrust; _tq.z += ps.x * ARM * thrust;
       _tq.y += -s * KQ * TMAX * u * (ph.prop ? 1 : 0.05);
-      if (ph.loose && ph.prop && u > 0.2) { // 축 나사 방향이 반대인 모터: 너트가 서서히 풀린다
+      const prP = SIM.partAt("prop@" + id), moP = SIM.partAt("motor@" + id), arP = SIM.partAt("arm@" + id);
+      const cause = ph.loose ? "프로펠러가 풀려 이탈했습니다" : prP && !SIM.fastened(prP.id) ? "프로펠러 브라켓이 고정되지 않아 프로펠러가 이탈했습니다" : moP && !SIM.fastened(moP.id) ? "모터가 마운트에서 떨어졌습니다" : arP && !SIM.fastened(arP.id) ? "붐대가 고정되지 않아 접혔습니다" : "";
+      if (cause && ph.prop && u > 0.2 && !F.lost[id]) { // 나사가 덜 체결되었거나 축 나사 방향이 반대: 진동으로 풀린다
         F.looseT[id] = (F.looseT[id] || 0) + u * dt;
-        if (F.looseT[id] > 3) { F.lost[id] = true; SIM.log(SIM.POS[id].name + " 프로펠러가 풀려 이탈했습니다", "bad"); }
+        if (F.looseT[id] > (ph.loose ? 3 : 1.5)) { F.lost[id] = true; SIM.log(SIM.POS[id].name + " " + cause, "bad"); }
       }
     }
     _force.applyQuaternion(F.q); // 월드 좌표 힘

@@ -6,9 +6,9 @@
   const P = () => SIM.state.params;
 
   const NAV = {
-    hw: [["parts", "부품·조립"], ["wiring", "배선"], ["inspect", "정답 확인"]],
+    hw: [["parts", "하드웨어 설정"]], // 시험: 하드웨어 단계에는 메뉴(부품 목록·배선표·정답)를 띄우지 않는다
     sw: [["frame", "프레임 타입"], ["accel", "가속도계 교정"], ["compass", "나침반 교정"], ["radio", "라디오 교정"], ["esccal", "ESC 교정"], ["modes", "비행 모드"], ["failsafe", "페일세이프"], ["battery", "배터리 모니터"], ["servo", "서보 출력"], ["serial", "시리얼 포트"], ["orient", "보드 방향"], ["tuning", "튜닝"], ["params", "전체 파라미터"]],
-    test: [["preflight", "시동 전 점검"], ["motor", "모터 테스트"], ["sensor", "자세 센서"], ["flight", "비행 테스트"], ["fault", "고장 진단 훈련"]],
+    test: [["preflight", "시동 전 점검"], ["motor", "모터 테스트"], ["sensor", "자세 센서"], ["flight", "비행 테스트"]],
   };
 
   SIM.toast = function (msg, kind) {
@@ -71,6 +71,8 @@
       b += sel("pop-rxend", "rxEnd", { "": "수신기 쪽 핀 선택", 1: "CH1", 2: "CH2", 3: "CH3", 4: "CH4", 5: "CH5", 6: "CH6", 7: "CH7", 8: "CH8", SB: "SBUS" }, w.rxEnd);
       b += btn("rxFlip", "수신기 쪽 뒤집어 꽂기", "", "rxRevRx") + btn("rxFlip", "FC 쪽 뒤집어 꽂기", "", "rxRevFc") + btn("bind", "바인딩 버튼 누르기", "primary");
     }
+    const nh = SIM.SCREW_HOLES[p.type];
+    if (slot && nh) { let tight = 0; for (let i = 0; i < nh; i++) if (SIM.screwTight(SIM.state.screws[id + ":" + i])) tight++; leads = '<li class="' + (SIM.screwCount(id) ? "on" : "") + '"><span>나사</span><span>' + SIM.screwCount(id) + " / " + nh + " (조임 " + tight + ")</span></li>" + leads; }
     if (slot) b += btn("remove", "분리", "", id);
     b += btn("select", "닫기", "ghost", "");
     return "<h3>" + esc(p.name) + '</h3><p class="where">' + (slot ? SIM.slotName(slot) : "작업대") + "</p>" + (leads ? "<ul>" + leads + "</ul>" : "") + '<div class="btns">' + b + "</div>";
@@ -164,6 +166,70 @@
     return '<div class="fchead"><h2>비행 컨트롤러 · Pixhawk 포트 배치</h2>' + btn("fcClose", "닫기") + '</div><div class="fcbody">' + s + tray + "</div>";
   }
 
+  // ---------- 조종기 (TX12) 화면 ----------
+  const tx12 = (ui.tx12 = { scr: "main", page: 0, row: 0, edit: false });
+  const TX_NAMES = ["MODEL01", "QUAD", "DRONE", "TRAINER"];
+  function txRows() {
+    const m = SIM.state.txm, multi = m.rf === "MULTI";
+    if (tx12.scr === "mdl" && tx12.page === 0) return { title: "MODEL SETUP 1/2", rows: [
+      { k: "Name", v: m.name, opts: TX_NAMES, set: (v) => (m.name = v) },
+      { k: "Internal RF", v: m.rf, opts: ["OFF", "MULTI"], set: (v) => (m.rf = v) },
+      { k: "Protocol", v: multi ? m.proto : "---", opts: multi ? SIM.TX_PROTOS : null, set: (v) => (m.proto = v) },
+      { k: "Receiver", v: multi ? (SIM.txBinding ? "[Bind]" : "Bind") : "---", act: multi ? "bind" : null },
+      { k: "Failsafe", v: m.failsafe, opts: ["Not set", "Hold", "Custom", "No pulses"], set: (v) => (m.failsafe = v) },
+    ] };
+    if (tx12.scr === "mdl") return { title: "MIXES 2/2", rows: [1, 2, 3, 4, 5, 6, 7, 8].map((ch) => ({ k: "CH" + ch, v: m.mix[ch] || "---", opts: SIM.TX_SOURCES.map((x) => x || "---"), set: (v) => (m.mix[ch] = v === "---" ? "" : v) })) };
+    if (tx12.scr === "sys") return { title: "RADIO SETUP", rows: [{ k: "Stick mode", v: "Mode " + m.mode, opts: ["Mode 1", "Mode 2", "Mode 3", "Mode 4"], set: (v) => (m.mode = +v.slice(-1)) }] };
+    if (tx12.scr === "tel") { const link = SIM.txLink(); return { title: "TELEMETRY", rows: [{ k: "RSSI", v: link ? "92 dB" : "---" }, { k: "RxBt", v: link && SIM.power().fcBatt ? "5.1V" : "---" }] }; }
+    return null;
+  }
+  function lcdHtml() {
+    if (!SIM.tx.on) return '<div class="lcd off"></div>';
+    const r = txRows();
+    if (!r) { // 메인 화면
+      const m = SIM.state.txm, link = SIM.txLink();
+      return '<div class="lcd"><div class="lcd-top"><span>' + esc(m.name) + "</span><span>7.6V</span></div><div class=\"lcd-big\">" + esc(m.name) + '</div><div class="lcd-row"><span>Mode ' + m.mode + "</span><span>" + (m.rf === "MULTI" ? m.proto : "RF OFF") + '</span></div><div class="lcd-row"><span>RSSI ' + (link ? "92" : "---") + "</span><span>" + (SIM.txBinding ? "BIND…" : "") + "</span></div></div>";
+    }
+    return '<div class="lcd"><div class="lcd-top"><span>' + r.title + "</span><span>" + (tx12.scr === "mdl" ? "MDL" : tx12.scr.toUpperCase()) + "</span></div>" + r.rows.map((x, i) => '<div class="lcd-row' + (i === tx12.row ? (tx12.edit ? " edit" : " sel") : "") + (x.k === "Receiver" && SIM.txBinding ? " blink" : "") + '"><span>' + x.k + "</span><span>" + esc(x.v) + "</span></div>").join("") + "</div>";
+  }
+  function txHtml() {
+    const t = SIM.tx, m = SIM.state.txm, b = (a, label, cls) => '<button type="button" class="txb ' + (cls || "") + '" data-act="txKey" data-arg="' + a + '">' + label + "</button>";
+    const sw = (k, label, n) => '<button type="button" class="txsw" data-act="txKey" data-arg="' + k + '">' + label + "<i>" + ["▲", "■", "▼"][n] + "</i></button>";
+    const gim = (x, y) => '<div class="gimbal"><i style="left:' + (50 + x * 40) + "%;top:" + (50 - y * 40) + '%"></i></div>';
+    return '<div class="tx12"><button type="button" class="btn ghost txclose" data-act="txClose">닫기</button>' +
+      '<div class="tx12-sw">' + sw("sa", "SA", t.sa ? 2 : 0) + sw("sb", "SB", t.sb || 0) + '<span class="tx12-brand">TX12</span>' + sw("sc", "SC", t.sw) + sw("sd", "SD", t.sd ? 2 : 0) + "</div>" +
+      '<div class="tx12-mid"><div class="txcol">' + b("sys", "SYS") + b("mdl", "MDL") + b("tel", "TEL") + "</div>" + lcdHtml() + '<div class="txcol">' + b("page", "PAGE") + b("rtn", "RTN") + '<div class="roller">' + b("up", "▲") + b("enter", "ENT") + b("down", "▼") + "</div></div></div>" +
+      '<div class="tx12-bot">' + gim(t.lx, t.ly) + b("power", t.on ? "전원 끄기" : "전원 켜기", "pwr" + (t.on ? " on" : "")) + gim(t.rx, t.ry) + "</div></div>";
+  }
+  function txKey(k) {
+    const t = SIM.tx, m = SIM.state.txm;
+    if (k === "power") { t.on = !t.on; if (!t.on) SIM.txBinding = false; tx12.scr = "main"; tx12.edit = false; SIM.emit(); return; }
+    if (k === "sa") { t.sa = t.sa ? 0 : 1; return render(); }
+    if (k === "sb") { t.sb = ((t.sb || 0) + 1) % 3; return render(); }
+    if (k === "sc") { t.sw = (t.sw + 1) % 3; return render(); }
+    if (k === "sd") { t.sd = t.sd ? 0 : 1; return render(); }
+    if (!t.on) return;
+    if (k === "sys" || k === "mdl" || k === "tel") { tx12.scr = k; tx12.page = 0; tx12.row = 0; tx12.edit = false; return render(); }
+    if (k === "rtn") { if (tx12.edit) tx12.edit = false; else { tx12.scr = "main"; SIM.txBinding = false; } return render(); }
+    if (k === "page") { if (tx12.scr === "mdl") { tx12.page = (tx12.page + 1) % 2; tx12.row = 0; tx12.edit = false; } return render(); }
+    const r = txRows(); if (!r) return;
+    const row = r.rows[tx12.row];
+    if (k === "up" || k === "down") {
+      const d = k === "up" ? -1 : 1;
+      if (tx12.edit && row.opts) { const i = row.opts.indexOf(row.v); row.set(row.opts[(i + d + row.opts.length) % row.opts.length]); SIM.emit(); }
+      else tx12.row = (tx12.row + d + r.rows.length) % r.rows.length;
+      return render();
+    }
+    if (k === "enter") {
+      if (row.act === "bind") { SIM.txBinding = !SIM.txBinding; render(); return; }
+      if (row.opts) tx12.edit = !tx12.edit;
+      return render();
+    }
+  }
+  // 바인드 모드 신호음
+  let actx = null, lastBeep = 0;
+  function beep() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = 2300; g.gain.value = 0.06; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09); } catch (e) {} }
+
   // ---------- 소프트웨어 ----------
   function pgFrame() {
     const f = SIM.frame();
@@ -243,6 +309,8 @@
   function pgServo() {
     let h = "";
     for (let i = 1; i <= 8; i++) h += prow("SERVO" + i + "_FUNCTION", "MAIN OUT " + i);
+    h += "<h4>모터 방향 반전 (SERVO_BLH_RVMASK)</h4>";
+    for (let i = 1; i <= 4; i++) h += '<label class="row" for="rv' + i + '"><span><b>MAIN OUT ' + i + ' 반대로 회전</b></span><input id="rv' + i + '" type="checkbox" data-change="rvmask" data-arg="' + i + '"' + (P().SERVO_BLH_RVMASK & (1 << (i - 1)) ? " checked" : "") + "></label>";
     return h;
   }
   function pgSerial() { return [1, 2, 3, 4].map((n) => prow("SERIAL" + n + "_PROTOCOL")).join(""); }
@@ -267,7 +335,7 @@
     const fails = SIM.prearm(0);
     let h = '<div class="verdict ' + (fails.length ? "bad" : "ok") + '">' + (fails.length ? "시동 불가 · " + fails.length + "건" : "시동 가능 (Ready to Arm)") + "</div>";
     h += fails.length ? checks(fails.map((f) => ({ lvl: "bad", t: f, d: "" }))) : checks([{ lvl: "ok", t: "모든 PreArm 점검 통과", d: P().ARMING_CHECK ? "" : "ARMING_CHECK=0" }]);
-    return h + '<div class="btns foot">' + safetyBtn() + btn("autoConfigure", "소프트웨어 설정 자동 완료") + "</div>";
+    return h + '<div class="btns foot">' + safetyBtn() + "</div>";
   }
   const safetyBtn = () => (P().BRD_SAFETYENABLE ? btn("safety", SIM.safetyOff() ? "안전 스위치 해제됨" : "안전 스위치 누르기", SIM.safetyOff() ? "on" : "") : "");
   function pgMotor() {
@@ -316,14 +384,15 @@
   function render() {
     const tab = ui.tab, page = ui.page[tab], pw = SIM.power(), F = SIM.flight;
     const si = STEPS.indexOf(tab);
-    $("#step-title b").textContent = STEP_NAME[tab]; $("#step-title small").textContent = (si + 1) + " / " + STEPS.length + (tab === "sw" && innerWidth > 760 ? "" : ui.open ? " · 메뉴 닫기" : " · 메뉴 열기");
+    $("#step-title b").textContent = STEP_NAME[tab]; $("#step-title small").textContent = (si + 1) + " / " + STEPS.length + (tab === "hw" || (tab === "sw" && innerWidth > 760) ? "" : ui.open ? " · 메뉴 닫기" : " · 메뉴 열기");
     $("#step-title").setAttribute("aria-expanded", ui.open);
     $("#step-prev").hidden = si === 0; $("#step-prev span").textContent = si > 0 ? STEP_NAME[STEPS[si - 1]] : "";
     const last = si === STEPS.length - 1;
     $("#step-next span").textContent = last ? "완료" : STEP_NAME[STEPS[si + 1]]; $("#step-next").classList.toggle("done", last);
-    $("#panel").hidden = !ui.open; $("#panel-title").textContent = STEP_NAME[tab];
-    const pop = $("#pop"), showPop = !!SIM.selected && !F.active && SIM.scene.env === "bench" && !ui.fcView;
-    pop.hidden = !showPop; if (showPop) pop.innerHTML = popHtml(SIM.selected);
+    $("#panel").hidden = !ui.open || tab === "hw"; $("#panel-title").textContent = STEP_NAME[tab];
+    if (SIM.selected) ui.wire = null;
+    const pop = $("#pop"), showPop = (!!SIM.selected || !!ui.wire) && !F.active && SIM.scene.env === "bench" && !ui.fcView;
+    pop.hidden = !showPop; if (showPop) pop.innerHTML = ui.wire ? "<h3>배선</h3><p class=\"where\">" + esc(ui.wire.label) + '</p><div class="btns">' + btn("wireCut", "분리") + btn("wireClose", "닫기", "ghost") + "</div>" : popHtml(SIM.selected);
     const doneMark = { accel: SIM.state.cal.accel, compass: SIM.state.cal.compass, radio: SIM.state.cal.radio, esccal: SIM.state.cal.esc, frame: P().FRAME_CLASS === 1 };
     $("#subnav").innerHTML = NAV[tab].map(([k, n], i) => (tab === "sw" && i === 0 ? '<p class="navgroup">필수 설정</p>' : "") + (tab === "sw" && k === "battery" ? '<p class="navgroup">선택 설정</p>' : "") + '<button type="button" data-act="page" data-arg="' + k + '"' + (k === page ? ' aria-current="true"' : "") + ">" + (tab === "sw" ? '<span class="navnum">' + (i + 1) + "</span>" : "") + "<span>" + n + "</span>" + (tab === "sw" && doneMark[k] ? '<span class="navok" aria-label="완료">✓</span>' : "") + "</button>").join("");
     const body = $("#page"), keep = body.scrollTop, focus = document.activeElement && document.activeElement.id;
@@ -334,6 +403,7 @@
     if (focus && document.getElementById(focus) && focus === "pfilter") { const el = document.getElementById(focus); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
     if (ui.fcView && !(pw.fc && !F.active)) ui.fcView = false;
     const fv = $("#fcview"); fv.hidden = !ui.fcView; if (ui.fcView) fv.innerHTML = fcViewHtml();
+    const tv = $("#txview"); tv.hidden = !ui.txView || F.active; if (!tv.hidden) tv.innerHTML = txHtml();
     if (!SIM.switchOk()) SIM.safetyPressed = false;
     // 소프트웨어 설정 단계: 왼쪽 3D, 오른쪽에 미션플래너식 설정 메뉴를 고정
     const dock = tab === "sw" && innerWidth > 760; document.body.classList.toggle("dock", dock);
@@ -369,12 +439,16 @@
   const ACT = {
     tab: (a) => { if (ui.open && ui.tab === a) { ui.open = false; render(); } else { ui.open = true; go(a); } },
     closePanel: () => { ui.open = false; render(); },
-    menu: () => { ui.open = !ui.open; render(); },
+    menu: () => { if (ui.tab === "hw") return; ui.open = !ui.open; render(); },
     stepPrev: () => { const i = STEPS.indexOf(ui.tab); if (i > 0) { ui.open = true; go(STEPS[i - 1]); } },
     stepNext: () => { const i = STEPS.indexOf(ui.tab); if (i < STEPS.length - 1) { ui.open = true; go(STEPS[i + 1]); } else if (SIM.session) SIM.session.finish(); },
     page: (a) => go(ui.tab, a),
     home: () => SIM.scene.home(),
     xray: () => { SIM.scene.xray = !SIM.scene.xray; $("#xray").setAttribute("aria-pressed", SIM.scene.xray); },
+    txKey: (a) => txKey(a),
+    txClose: () => { ui.txView = false; render(); },
+    wireCut: () => { const m = ui.wire; ui.wire = null; if (m) SIM.scene.disconnectTip(m.tip); else render(); },
+    wireClose: () => { ui.wire = null; render(); },
     rxFlip: (a) => { SIM.state.wiring[a] = !SIM.state.wiring[a]; SIM.emit(); },
     bind: () => { const e = SIM.bindRx(); SIM.toast(e || "바인딩 중… LED 빠르게 깜빡임", e ? "bad" : ""); },
     focusPart: (a) => { SIM.select(a); SIM.scene.focus(a); },
@@ -443,6 +517,7 @@
     wire: (v, a) => { SIM.state.wiring[a] = v; SIM.emit(); },
     escPwr: (v, a) => SIM.setEscXt(a, v),
     motorWire: (v, a) => { SIM.state.wiring.motorWires[a.slice(0, 2)][a[2]] = v; SIM.emit(); },
+    rvmask: (v, a, el) => { const b = 1 << (a - 1); SIM.setParam("SERVO_BLH_RVMASK", el.checked ? P().SERVO_BLH_RVMASK | b : P().SERVO_BLH_RVMASK & ~b); },
     rxEnd: (v) => { SIM.state.wiring.rxEnd = v; SIM.emit(); },
     escTelem: (v, a) => { SIM.state.wiring.escTelem[a] = v; SIM.emit(); },
     expect: (v, a, el) => { SIM.scene.showExpect = el.checked; SIM.scene.sync(); },
@@ -542,8 +617,11 @@
       const et = SIM.escTelemetry();
       for (let n = 1; n <= 4; n++) { const d = et[n]; txt("et-r" + n, d ? String(d.rpm) : "—"); txt("et-a" + n, d ? d.amps.toFixed(1) + " A" : "—"); txt("et-t" + n, d ? d.temp + " °C" : "—"); txt("et-v" + n, d ? d.volt.toFixed(1) + " V" : "—"); }
     }
+    if (SIM.txBinding && SIM.tx.on && performance.now() - lastBeep > 700) { lastBeep = performance.now(); beep(); }
+    if (ui.txView && !$("#txview").hidden) { const gs = document.querySelectorAll("#txview .gimbal i"), t = SIM.tx; if (gs.length === 2) { gs[0].style.left = 50 + t.lx * 40 + "%"; gs[0].style.top = 50 - t.ly * 40 + "%"; gs[1].style.left = 50 + t.rx * 40 + "%"; gs[1].style.top = 50 - t.ry * 40 + "%"; } }
     const pop = $("#pop");
-    if (!pop.hidden && SIM.selected) {
+    if (!pop.hidden && ui.wire) { const st = pop.parentElement.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(st.width - pop.offsetWidth - 8, ui.wireAt[0] - st.left + 12)) + "px"; pop.style.top = Math.max(8, Math.min(st.height - pop.offsetHeight - 8, ui.wireAt[1] - st.top - 20)) + "px"; }
+    else if (!pop.hidden && SIM.selected) {
       const s = SIM.scene.screenOf(SIM.selected), st = pop.parentElement, W = st.clientWidth, H = st.clientHeight;
       pop.style.left = Math.max(8, Math.min(W - pop.offsetWidth - 8, s.x + 16)) + "px";
       pop.style.top = Math.max(8, Math.min(H - pop.offsetHeight - 8, s.y - 24)) + "px";
@@ -559,7 +637,9 @@
     document.body.addEventListener("input", (e) => { if (e.target.dataset.input === "pfilter") { ui.paramFilter = e.target.value; render(); } });
     setL = bindStick($("#stickL"), (x, y) => { SIM.tx.lx = x; if (y !== null) SIM.tx.ly = y; }, false);
     setR = bindStick($("#stickR"), (x, y) => { SIM.tx.rx = x; SIM.tx.ry = y === null ? 0 : y; }, true);
-    SIM.scene.onPick = (id) => SIM.select(id && id !== SIM.selected ? id : null);
+    SIM.scene.onPick = (id) => { ui.wire = null; SIM.select(id && id !== SIM.selected ? id : null); };
+    SIM.scene.onTx = () => { ui.txView = true; render(); };
+    SIM.scene.onWire = (meta, x, y) => { ui.wire = meta; ui.wireAt = [x, y]; if (SIM.selected) SIM.select(null); else render(); };
     SIM.scene.onFcCable = (c) => { ui.fcView = true; ui.cable = SIM.cableReady(c) ? c : null; render(); };
     // 끌기·연결 중 커서 옆 이름표
     SIM.scene.onHover = (t, x, y) => {

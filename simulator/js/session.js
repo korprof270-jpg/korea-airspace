@@ -39,18 +39,50 @@
     return out.sort((a, b) => (a.end < b.end ? -1 : 1));
   }
 
+  // ----- 결과 항목: 무엇이 안 되었는지와 그때 생기는 문제 (엑셀에만 기록) -----
+  const EFFECT = [
+    [/나사/, (t) => (/모터|붐대|프로펠러/.test(t) ? "비행 중 진동으로 풀려 부품 이탈, 추락" : "진동·자세 오차, 기체 흐름")],
+    [/모터 회전 방향|모터선|ESC 신호선|ESC 전원|프로펠러 종류|FC 장착 방향|프레임 타입/, () => "이륙 직후 기체가 뒤집힘(전복)"],
+    [/프로펠러 방향/, () => "추력 부족, 한쪽으로 흐름"],
+    [/모터 종류/, () => "비행 중 프로펠러 너트가 풀려 이탈, 추락"],
+    [/프로펠러|모터 마운트|모터$/, () => "추력 부족 또는 비행 불가"],
+    [/FC 위치/, () => "자세 오차로 기체가 흐름"],
+    [/GPS|나침반/, () => "Loiter·RTL 불가 또는 위치가 원을 그리며 흐름"],
+    [/수신기/, () => "RC 신호 없음, 시동 불가"],
+    [/PMU|배터리/, () => "FC 전원·전압 정보 없음, 시동 불가 또는 저전압 경고 불가"],
+    [/안전 스위치/, () => "시동 불가"],
+    [/부저/, () => "시동·경고음을 들을 수 없음"],
+    [/텔레메트리/, () => "지상국 연결 안 됨"],
+    [/통신선|하네스/, () => "ESC 회전수·전류·온도를 받지 못함"],
+    [/붐대 색/, () => "기수 방향을 헷갈려 조종 실수"],
+    [/하판|상판|스키드|붐대|비행 컨트롤러/, () => "기체 구조 불완전, 비행 불가"],
+  ];
+  const effectOf = (t) => { for (const [re, f] of EFFECT) if (re.test(t)) return f(t); return ""; };
+  function issueList() {
+    const hw = SIM.hardwareCheck().filter((i) => i.lvl !== "ok").map((i) => ({ area: "하드웨어", item: i.t, detail: i.d, effect: effectOf(i.t), level: i.lvl === "bad" ? "오류" : "주의" }));
+    const sw = SIM.softwareCheck().map((i) => ({ area: "소프트웨어", item: i.t, detail: i.d, effect: i.e, level: "오류" }));
+    const pre = SIM.prearm(0).map((m) => ({ area: "시동 전 점검", item: "PreArm", detail: m, effect: "시동 불가", level: "오류" }));
+    return hw.concat(sw, pre);
+  }
+
   // ----- 엑셀(.xlsx) 만들기와 저장 -----
-  const COLS = [["date", "날짜"], ["name", "이름"], ["time", "소요 시간"], ["seconds", "소요 시간(초)"], ["start", "시작 시각"], ["end", "완료 시각"], ["errors", "조립·배선 오류(건)"], ["prearm", "시동 전 점검"]];
+  const COLS = [["date", "날짜"], ["name", "이름"], ["time", "소요 시간"], ["seconds", "소요 시간(초)"], ["start", "시작 시각"], ["end", "완료 시각"], ["errors", "오류(건)"], ["prearm", "시동 전 점검"]];
   function workbook(date, rows) {
     const data = rows.map((r) => Object.fromEntries(COLS.map(([k, n]) => [n, r[k]])));
+    const DCOLS = [["name", "이름"], ["area", "구분"], ["level", "등급"], ["item", "항목"], ["detail", "무엇이 문제인가"], ["effect", "발생하는 문제"]];
+    const detail = [];
+    rows.forEach((r) => { const list = r.issues || []; if (!list.length) detail.push({ name: r.name, area: "-", level: "-", item: "문제 없음", detail: "", effect: "" }); list.forEach((i) => detail.push(Object.assign({ name: r.name }, i))); });
     if (window.XLSX) {
       const ws = XLSX.utils.json_to_sheet(data, { header: COLS.map((c) => c[1]) });
       ws["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 14 }];
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, date);
+      const ws2 = XLSX.utils.json_to_sheet(detail.map((d) => Object.fromEntries(DCOLS.map(([k, n]) => [n, d[k] || ""]))), { header: DCOLS.map((c) => c[1]) });
+      ws2["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 6 }, { wch: 28 }, { wch: 60 }, { wch: 40 }];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, date); XLSX.utils.book_append_sheet(wb, ws2, "상세 " + date);
       return { filename: "드론정비_기록_" + date + ".xlsx", data: XLSX.write(wb, { type: "array", bookType: "xlsx" }) };
     }
     // 엑셀 라이브러리를 못 불러온 경우: 엑셀에서 열리는 CSV
-    const csv = "﻿" + [COLS.map((c) => c[1])].concat(rows.map((r) => COLS.map(([k]) => '"' + String(r[k]).replace(/"/g, '""') + '"'))).map((l) => l.join(",")).join("\r\n");
+    const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    const csv = "\ufeff" + [COLS.map((c) => c[1])].concat(rows.map((r) => COLS.map(([k]) => q(r[k])))).map((l) => l.join(",")).join("\r\n") + "\r\n\r\n" + [DCOLS.map((c) => c[1])].concat(detail.map((d) => DCOLS.map(([k]) => q(d[k])))).map((l) => l.join(",")).join("\r\n");
     return { filename: "드론정비_기록_" + date + ".csv", data: csv };
   }
   async function offerFile(file) {
@@ -92,14 +124,14 @@
   S.finish = function () {
     if (!S.running) return;
     const errs = SIM.hardwareCheck().filter((i) => i.lvl === "bad").length, pre = SIM.prearm(0);
-    $("#finish-card").innerHTML = '<h2>정비를 마치고 기록할까요?</h2><p class="muted">' + esc(S.name) + " · " + dateStr(new Date()) + '</p><p class="bigtime">' + fmt(elapsed()) + '</p><ul class="checks"><li class="' + (errs ? "bad" : "ok") + '"><span class="mark">' + (errs ? "✕" : "✓") + "</span><div><b>조립·배선 오류 " + errs + "건</b></div></li><li class=\"" + (pre.length ? "bad" : "ok") + '"><span class="mark">' + (pre.length ? "✕" : "✓") + "</span><div><b>시동 전 점검 " + (pre.length ? "불가 " + pre.length + "건" : "통과") + '</b></div></li></ul><div class="btns">' +
+    $("#finish-card").innerHTML = '<h2>정비를 마치고 기록할까요?</h2><p class="muted">' + esc(S.name) + " · " + dateStr(new Date()) + '</p><p class="bigtime">' + fmt(elapsed()) + '</p><p class="muted">기록하면 결과는 엑셀 파일로만 확인할 수 있습니다.</p><div class="btns">' +
       '<button type="button" class="btn primary" data-act="sessionConfirm">완료 기록 · 엑셀 저장</button><button type="button" class="btn ghost" data-act="sessionCancel">계속 작업하기</button></div>';
     $("#finish").hidden = false;
   };
   async function confirmFinish() {
     const end = new Date(), sec = Math.round(elapsed()), startD = new Date(S.startAt);
-    const errs = SIM.hardwareCheck().filter((i) => i.lvl === "bad").length, pre = SIM.prearm(0);
-    const rec = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), date: dateStr(end), name: S.name, seconds: sec, time: fmt(sec), start: timeStr(startD), end: timeStr(end), errors: errs, prearm: pre.length ? "불가 (" + pre.length + "건)" : "통과" };
+    const issues = issueList(), errs = issues.filter((i) => i.level === "오류").length, pre = SIM.prearm(0);
+    const rec = { issues, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), date: dateStr(end), name: S.name, seconds: sec, time: fmt(sec), start: timeStr(startD), end: timeStr(end), errors: errs, prearm: pre.length ? "불가 (" + pre.length + "건)" : "통과" };
     S.running = false; S.final = sec; persist();
     const recs = load(REC, []); recs.push(rec); save(REC, recs);
     const shared = await shareRecord(rec);
@@ -110,8 +142,8 @@
   }
   function renderResult(rec, rows, shared, how) {
     const msg = how === "saved" ? S.lastFile.filename + " 파일을 저장했습니다." : how === "declined" ? "파일 저장을 취소했습니다. 아래 버튼으로 다시 저장할 수 있습니다." : "이 화면에서는 파일을 저장할 수 없습니다.";
-    $("#finish-card").innerHTML = "<h2>기록되었습니다</h2><p>" + esc(rec.name) + " · " + rec.date + " · 소요 시간 <b>" + rec.time + '</b></p><p class="muted">' + esc(msg) + (shared ? " 공유 기록에도 저장했습니다." : "") + '</p><h4>' + rec.date + ' 기록</h4><div class="tblwrap"><table class="tbl"><thead><tr>' + COLS.filter(([k]) => k !== "date" && k !== "seconds").map(([, n]) => "<th>" + n + "</th>").join("") + "</tr></thead><tbody>" +
-      rows.map((r) => "<tr>" + COLS.filter(([k]) => k !== "date" && k !== "seconds").map(([k]) => "<td>" + esc(r[k]) + "</td>").join("") + "</tr>").join("") + '</tbody></table></div><div class="btns"><button type="button" class="btn" data-act="sessionSaveAgain">엑셀 다시 저장</button><button type="button" class="btn primary" data-act="sessionNew">새 교육생 시작</button></div>';
+    $("#finish-card").innerHTML = "<h2>기록되었습니다</h2><p>" + esc(rec.name) + " · " + rec.date + " · 소요 시간 <b>" + rec.time + '</b></p><p class="muted">' + esc(msg) + (shared ? " 공유 기록에도 저장했습니다." : "") + '</p><h4>' + rec.date + ' 기록</h4><div class="tblwrap"><table class="tbl"><thead><tr>' + COLS.filter(([k]) => ["name", "time", "start", "end"].includes(k)).map(([, n]) => "<th>" + n + "</th>").join("") + "</tr></thead><tbody>" +
+      rows.map((r) => "<tr>" + COLS.filter(([k]) => ["name", "time", "start", "end"].includes(k)).map(([k]) => "<td>" + esc(r[k]) + "</td>").join("") + "</tr>").join("") + '</tbody></table></div><div class="btns"><button type="button" class="btn" data-act="sessionSaveAgain">엑셀 다시 저장</button><button type="button" class="btn primary" data-act="sessionNew">새 교육생 시작</button></div>';
   }
 
   // ----- 버튼 -----
