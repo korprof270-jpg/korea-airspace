@@ -175,7 +175,7 @@ export class Director {
     }
     // 적 본진: 튼튼한 코어(사용자 요청: 예전 기지의 약 4배 × 코어 3배) + 포탑 4. 마지막 단계 전까지는 방어막으로 무적
     const bp = c.units.groundSpot(this.B.x, this.B.z, 30, 9);
-    const base = (this.base = this.m.buildBase(bp.x, bp.z, 1, 4, 9000));
+    const base = (this.base = this.m.buildBase(bp.x, bp.z, 1, 4, 4500));   // 적 본진 코어: 9000 → 4500 (사용자 요청)
     base.core.name = "적 본진 코어"; base.core.dir = true; base.core.invulnerable = true; base.core.squad = "e";
     for (const t of base.turrets) { t.hp = t.maxHp = 600; t.squad = "e"; t.name = "적 본진 포탑"; t.dir = true; }
     const dome = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 12), new THREE.MeshBasicMaterial({ color: 0xff5a66, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
