@@ -21,6 +21,19 @@
     prop: mat(0x2c2f33, { roughness: 0.35 }), green: mat(0x2f8a54), plug: mat(0xece6d2, { roughness: 0.7 }),
   };
   const HIT = new T.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  // 카본 직조 무늬 (트윌) + 클리어코트
+  const carbonTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d"); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const k = (x + y) % 4 < 2; const gr = g.createLinearGradient(x * 8, y * 8, x * 8 + 8, y * 8 + 8); gr.addColorStop(0, k ? "#2c3034" : "#17191c"); gr.addColorStop(1, k ? "#1b1e21" : "#24272b"); g.fillStyle = gr; g.fillRect(x * 8, y * 8, 8, 8); } const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(6, 6); t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; })();
+  M.carbon = new T.MeshPhysicalMaterial({ color: 0xffffff, map: carbonTex, roughness: 0.42, metalness: 0.15, clearcoat: 0.8, clearcoatRoughness: 0.25 });
+  M.steel = mat(0xc4cace, { metalness: 0.9, roughness: 0.25 });
+  // 모서리가 둥근 상자 (전자부품 외형)
+  function roundBox(w, h, d, m, x, y, z, r) {
+    r = Math.min(r || 0.003, w / 2.2, d / 2.2); const b = Math.min(r * 0.6, h * 0.3);
+    const sh = new T.Shape(), W = w / 2 - b, D = d / 2 - b, R = Math.max(0.0001, r - b);
+    sh.moveTo(-W + R, -D); sh.lineTo(W - R, -D); sh.quadraticCurveTo(W, -D, W, -D + R); sh.lineTo(W, D - R); sh.quadraticCurveTo(W, D, W - R, D); sh.lineTo(-W + R, D); sh.quadraticCurveTo(-W, D, -W, D - R); sh.lineTo(-W, -D + R); sh.quadraticCurveTo(-W, -D, -W + R, -D);
+    const geo = new T.ExtrudeGeometry(sh, { depth: Math.max(0.0002, h - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 3, curveSegments: 6 });
+    geo.rotateX(-Math.PI / 2); geo.computeBoundingBox(); const bb = geo.boundingBox; geo.translate(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, -(bb.min.z + bb.max.z) / 2);
+    return mesh(geo, m, x, y, z);
+  }
   function mesh(geo, m, x, y, z) {
     const o = new T.Mesh(geo, m);
     o.position.set(x || 0, y || 0, z || 0);
@@ -28,7 +41,7 @@
     return o;
   }
   const box = (w, h, d, m, x, y, z) => mesh(new T.BoxGeometry(w, h, d), m, x, y, z);
-  const cyl = (r, h, m, x, y, z, seg) => mesh(new T.CylinderGeometry(r, r, h, seg || 24), m, x, y, z);
+  const cyl = (r, h, m, x, y, z, seg) => mesh(new T.CylinderGeometry(r, r, h, Math.max(seg || 32, 12)), m, x, y, z);
 
   function canvasTex(w, h, draw) {
     const c = document.createElement("canvas");
@@ -172,7 +185,7 @@
       g.add(sp, disc); o.spinner = sp; o.disc = disc;
       sp.traverse((m) => { if (m.isMesh) m.userData.plate = true; }); // 프로펠러 전체(날개·인쇄·허브)는 아래 부품 클릭을 가리지 않는다
     } else if (part.type === "esc") {
-      g.add(box(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0));
+      g.add(roundBox(0.024, 0.008, 0.048, M.blue, 0, 0.004, 0, 0.004));
       const el = nameplate("ESC", 0.018, 0.009, "#e2b322", "#1a1a1a"); el.position.set(0, 0.0083, -0.006); g.add(el);
       ["A", "B", "C"].forEach((p, k) => { const pd = box(0.005, 0.0016, 0.006, M.copper, (k - 1) * 0.007, 0.0088, 0.019); g.add(pd); o.pads[p] = new T.Vector3((k - 1) * 0.007, 0.0096, 0.019); target(g, mesh(new T.BoxGeometry(0.0068, 0.006, 0.009), HIT, (k - 1) * 0.007, 0.0096, 0.019), { kind: "escPad", part: part.id, pad: p, label: "ESC 단자 " + p }); });
       lead(o, "pwr", [-0.006, 0.004, -0.024], [-0.01, 0.004, -0.034], LEAD.r, 0.0018);
@@ -181,7 +194,7 @@
       lead(o, "sig", [0.0035, 0.005, -0.024], [0.0045, 0.004, -0.034], LEAD.w, 0.0009, true);
       lead(o, "tel", [0.008, 0.005, -0.024], [0.01, 0.004, -0.032], LEAD.o, 0.0008, true);
     } else if (part.type === "fc") {
-      g.add(box(0.05, 0.015, 0.082, M.dark, 0, 0.0075, 0));
+      g.add(roundBox(0.05, 0.015, 0.082, mat(0x1c1f23, { roughness: 0.45, metalness: 0.3 }), 0, 0.0075, 0, 0.006));
       target(g, mesh(new T.BoxGeometry(0.03, 0.017, 0.06), HIT, 0, 0.0075, 0.002), { kind: "fc", part: part.id, label: "비행 컨트롤러" });
       const d = arrowDecal(0.024, 0.032, "FC", "#1b1e22"); d.position.set(0, 0.0152, 0.006); g.add(d);
       // 포트마다 커넥터 하우징과 이름 인쇄, 하나씩 꽂을 수 있는 자리
@@ -202,7 +215,7 @@
         const lb = nameplate(SHORT(p), 0.0032, 0.0026, null, "#cfd6d4"); lb.position.set(v[0], 0.0153, 0.0385); g.add(lb);
       }
     } else if (part.type === "pm") {
-      g.add(box(0.022, 0.009, 0.05, M.dark, 0, 0.0045, 0));
+      g.add(roundBox(0.022, 0.009, 0.05, M.dark, 0, 0.0045, 0, 0.004));
       const nl = nameplate("PMU", 0.018, 0.009, "#2a2e33", "#ffffff"); nl.position.set(0, 0.0093, -0.004); g.add(nl);
       g.add(box(0.016, 0.009, 0.012, M.yellow, 0, 0.0045, 0.03));
       target(g, mesh(new T.BoxGeometry(0.02, 0.014, 0.016), HIT, 0, 0.0045, 0.03), { kind: "pmIn", part: part.id, label: "PMU 입력 커넥터" });
@@ -211,7 +224,7 @@
       lead(o, "outR", [0.003, 0.005, -0.025], [0.004, 0.004, -0.04], LEAD.r, 0.0019);
       lead(o, "outK", [0.008, 0.005, -0.025], [0.009, 0.004, -0.04], LEAD.k, 0.0019);
     } else if (part.type === "battery") {
-      g.add(box(0.046, 0.034, 0.135, M.blue, 0, 0.017, 0), box(0.0465, 0.012, 0.136, M.dark, 0, 0.017, 0));
+      g.add(roundBox(0.046, 0.034, 0.135, mat(0x2b62c4, { roughness: 0.35 }), 0, 0.017, 0, 0.007), roundBox(0.0468, 0.012, 0.1365, M.dark, 0, 0.017, 0, 0.007));
       const nl = nameplate("배터리", 0.04, 0.016, null, "#ffffff"); nl.position.set(0, 0.0345, -0.02); g.add(nl);
       lead(o, "xt", [0.012, 0.026, 0.068], [0.012, 0.042, 0.084], LEAD.r, 0.0024, true);
     } else if (part.type === "gps") {
@@ -220,7 +233,7 @@
       lead(o, "gps", [0.003, 0.004, -0.004], [0.013, 0.003, -0.036], LEAD.l, 0.0013, true);
       lead(o, "compass", [-0.003, 0.004, -0.004], [-0.013, 0.003, -0.036], LEAD.v, 0.0011, true);
     } else if (part.type === "rx") {
-      g.add(box(0.024, 0.01, 0.04, mat(0x3a3f45), 0, 0.005, 0), box(0.02, 0.0006, 0.012, M.white, 0, 0.0104, 0));
+      g.add(roundBox(0.024, 0.01, 0.04, mat(0x3a3f45, { roughness: 0.5 }), 0, 0.005, 0, 0.004), box(0.02, 0.0006, 0.012, M.white, 0, 0.0104, 0));
       const a1 = cyl(0.0008, 0.07, M.dark, -0.006, 0.03, 0.022, 6); a1.rotation.x = 0.5;
       const a2 = cyl(0.0008, 0.07, M.dark, 0.006, 0.03, 0.022, 6); a2.rotation.x = 0.5; a2.rotation.z = -0.5;
       g.add(a1, a2);
@@ -244,7 +257,7 @@
       const nl = nameplate("안전 스위치", 0.014, 0.0035, null, "#ffffff"); nl.position.set(0, 0.0081, 0.0055); g.add(nl);
       lead(o, "fc", [0, 0.003, -0.007], [0, 0.003, -0.018], LEAD.r, 0.0008, true);
     } else if (part.type === "telem") {
-      g.add(box(0.024, 0.01, 0.046, M.green, 0, 0.005, 0), cyl(0.003, 0.075, M.dark, 0, 0.045, 0.02, 8));
+      g.add(roundBox(0.024, 0.01, 0.046, M.green, 0, 0.005, 0, 0.004), cyl(0.003, 0.075, M.dark, 0, 0.045, 0.02, 8));
       const nl = nameplate("텔레메트리", 0.02, 0.006, null, "#ffffff"); nl.position.set(0, 0.0102, -0.006); g.add(nl);
       lead(o, "fc", [0, 0.005, -0.023], [0, 0.004, -0.034], LEAD.y, 0.0009, true);
     }
@@ -252,6 +265,7 @@
     if (part.type === "top") buildTop(o);
     if (part.type === "arm") buildArm(o, part);
     if (part.type === "skid") buildSkid(o);
+    if (part.type === "canopy") buildCanopy(o);
     g.scale.setScalar(PS[part.type] || 1);
     if (["motor", "esc", "pm", "rx", "telem", "buzzer", "switch"].includes(part.type)) { // 작은 부품은 넉넉한 클릭 영역
       const sc0 = g.scale.x, bb = new T.Box3().setFromObject(g), c = bb.getCenter(new T.Vector3()).divideScalar(sc0), sz = bb.getSize(new T.Vector3()).divideScalar(sc0), m = 0.006 / sc0;
@@ -376,6 +390,16 @@
     }
   }
 
+  // 케이스(덮개): 상판 위를 덮는 유선형 셸, 위에 GPS 마스트가 지나는 구멍
+  function buildCanopy(o) {
+    const g = o.group, shell = new T.MeshPhysicalMaterial({ color: 0xeef1f2, roughness: 0.28, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.12, side: T.DoubleSide });
+    const dome = new T.Mesh(new T.SphereGeometry(0.5, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), shell); dome.scale.set(0.24, 0.095, 0.29); dome.castShadow = dome.receiveShadow = true; g.add(dome);
+    const skirt = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 0.008, 48, 1, true), shell); skirt.scale.set(0.24, 1, 0.29); skirt.position.y = 0.004; g.add(skirt);
+    const stripe = new T.Mesh(new T.TorusGeometry(0.5, 0.012, 8, 64), mat(0xc8382e, { roughness: 0.35 })); stripe.rotation.x = Math.PI / 2; stripe.scale.set(0.242, 0.292, 1); stripe.position.y = 0.006; g.add(stripe);
+    const vis = new T.Mesh(new T.SphereGeometry(0.5, 32, 12, -0.6, 1.2, 0.95, 0.45), mat(0x15181b, { roughness: 0.15, metalness: 0.4 })); vis.scale.set(0.245, 0.097, 0.295); vis.rotation.y = Math.PI; g.add(vis); // 앞쪽 검은 창
+    g.add(cyl(0.012, 0.004, M.dark, 0, 0.046, 0.09, 24)); // GPS 마스트 구멍 링
+  }
+
   // ---------- 장착 자리 (기체 기준 위치·방향) ----------
   const DECKPOS = { "deck:C": [0, 0.04, -0.012], "deck:L": [-0.077, 0.04, -0.035], "deck:R": [0.077, 0.04, -0.035], "deck:RL": [-0.074, 0.04, 0.058], "deck:RR": [0.074, 0.04, 0.058], mast: [0, 0.043, 0.09], "bot:C": [0, 0.0015, 0.004], under: [0, -0.047, 0] };
   function slotXform(slot, part) {
@@ -391,17 +415,19 @@
     if (slot === "frame:base") return { p: [0, 0, 0], ry: 0 };
     if (slot === "frame:top") return { p: [0, 0.0385, 0], ry: 0 };
     if (slot === "frame:skid") return { p: [0, -0.0015, 0], ry: 0 };
+    if (slot === "frame:canopy") return { p: [0, 0.04, 0], ry: 0 };
     return { p: DECKPOS[slot], ry };
   }
   // 작업대 위 기본 보관 위치 (partsRoot 좌표)
   function homeOf(part) {
-    const b = SIM.state.bench[part.id], by = { skid: 0.095, bottom: 0.0015, top: 0.0015, arm: 0.006 }[part.type] || 0;
+    const b = SIM.state.bench[part.id], by = { skid: 0.128, bottom: 0.0015, top: 0.0015, arm: 0.006 }[part.type] || 0;
     if (b) return { p: [b[0], by, b[1]], ry: part.type === "skid" ? Math.PI / 2 : 0 };
     const n = +(part.id.match(/\d+$/) || [1])[0] - 1;
     if (part.type === "bottom") return { p: [-0.52, 0.0015, -0.39], ry: 0 };
     if (part.type === "top") return { p: [-0.24, 0.0015, -0.39], ry: 0 };
     if (part.type === "arm") return { p: [0.12 + n * 0.055, 0.006, -0.39], ry: 0 };
-    if (part.type === "skid") return { p: [0.56, 0.095, -0.38], ry: Math.PI / 2 };
+    if (part.type === "skid") return { p: [0.56, 0.128, -0.38], ry: Math.PI / 2 };
+    if (part.type === "canopy") return { p: [0.0, 0, -0.39], ry: 0 };
     if (part.type === "motor") return { p: [-0.66, 0, -0.17 + n * 0.11], ry: 0 };
     if (part.type === "esc") return { p: [-0.52, 0, -0.17 + n * 0.11], ry: 0 };
     if (part.type === "prop") return { p: [0.6, 0, -0.13 + n * 0.1], ry: 0 };
@@ -429,6 +455,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
   const fcPortPos = (port) => toDrone(objs.fc, new T.Vector3(...(FC_PORT[port] || [0, 0.014, 0])));
   let curMeta = null; // 지금 그리는 선이 무엇인지 (누르면 정보창)
   function link(a, b, color, r) {
+    if (SIM.has("canopy") && a.y > 0.035 && b.y > 0.035 && Math.abs(a.x) < 0.12 && Math.abs(b.x) < 0.12 && Math.abs(a.z) < 0.14 && Math.abs(b.z) < 0.14) return; // 케이스 안쪽 선은 가려진다
     const lift = Math.max(a.y, b.y) + 0.014;
     const pts = [a, new T.Vector3(a.x + (b.x - a.x) * 0.15, lift, a.z + (b.z - a.z) * 0.15), new T.Vector3(a.x + (b.x - a.x) * 0.85, lift, a.z + (b.z - a.z) * 0.85), b];
     wires.add(tube(pts, color, (r || 0.0013) * 1.3));
@@ -549,19 +576,30 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     renderer.outputEncoding = T.sRGBEncoding;
+    renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
     scene = new T.Scene();
     camera = sc.camera = new T.PerspectiveCamera(42, 1, 0.02, 400);
-    scene.add(new T.HemisphereLight(0xffffff, 0x556060, 0.85));
-    sun = new T.DirectionalLight(0xffffff, 0.9);
+    // 반사용 환경광: 밝은 천장·창 패널이 있는 작업장 (금속·클리어코트에 비친다)
+    try {
+      const env = new T.Scene(), pm = new T.PMREMGenerator(renderer);
+      const room = new T.Mesh(new T.SphereGeometry(10, 32, 16), new T.MeshBasicMaterial({ side: T.BackSide, vertexColors: true }));
+      const cols = [], pos = room.geometry.attributes.position; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 10, c = new T.Color().setHSL(0.55, 0.08, 0.35 + 0.45 * Math.max(0, y)); cols.push(c.r, c.g, c.b); }
+      room.geometry.setAttribute("color", new T.Float32BufferAttribute(cols, 3)); env.add(room);
+      for (const [x, z, w] of [[0, 0, 6], [5, 3, 2], [-5, -2, 2.5]]) { const p = new T.Mesh(new T.PlaneGeometry(w, w * 0.5), new T.MeshBasicMaterial({ color: 0xffffff })); p.position.set(x, 8, z); p.rotation.x = Math.PI / 2; env.add(p); }
+      scene.environment = pm.fromScene(env, 0.04).texture; pm.dispose();
+    } catch (e) {}
+    scene.add(new T.HemisphereLight(0xffffff, 0x556060, 0.55));
+    sun = new T.DirectionalLight(0xfff6e8, 1.1);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -3 * KS, right: 3 * KS, top: 3 * KS, bottom: -3 * KS, near: 0.1, far: 16 * KS });
-    sun.shadow.bias = -0.0008;
+    sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
 
     // 작업대
     benchGroup = new T.Group();
-    const top = box(4.0 * KS, 0.08, 2.9 * KS, mat(0x8a6646, { roughness: 0.8 }), 0, -0.044, 0); top.castShadow = false;
+    const wood = canvasTex(512, 256, (g, W, H) => { g.fillStyle = "#8a6646"; g.fillRect(0, 0, W, H); for (let i = 0; i < 90; i++) { g.strokeStyle = "rgba(" + (60 + Math.random() * 40) + "," + (40 + Math.random() * 25) + ",20," + (0.15 + Math.random() * 0.2) + ")"; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); const y0 = Math.random() * H; g.moveTo(0, y0); for (let x = 0; x <= W; x += 32) g.lineTo(x, y0 + Math.sin(x * 0.02 + i) * 4); g.stroke(); } });
+    const top = box(4.0 * KS, 0.08, 2.9 * KS, new T.MeshStandardMaterial({ map: wood, roughness: 0.7 }), 0, -0.044, 0); top.castShadow = false;
     const matTex = canvasTex(1024, 640, (g, W, H) => {
       g.fillStyle = "#1d6b55"; g.fillRect(0, 0, W, H);
       for (let i = 0; i <= 36; i++) { g.strokeStyle = i % 5 ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.34)"; g.lineWidth = i % 5 ? 1 : 2; g.beginPath(); g.moveTo((i * W) / 36, 0); g.lineTo((i * W) / 36, H); g.stroke(); }
@@ -712,6 +750,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
   // 끌던 선을 FC 근처에 놓으면 화면에서 가장 가까운 포트에 꽂는다 (작은 핀도 쉽게)
   function nearestPort(cx, cy) {
     const o = objs.fc; if (!o || !o.ports) return null;
+    if (SIM.has("canopy") && /^deck:/.test(SIM.state.install.fc || "")) return null; // 케이스를 씌우면 상판 위 FC 포트에 손이 닿지 않는다
     const r = renderer.domElement.getBoundingClientRect(), mx = cx - r.left, my = cy - r.top, wp = new T.Vector3();
     let best = null, bd = 34;
     for (const m of o.ports) { m.getWorldPosition(wp); const sp = toScreen(wp); const d = Math.hypot(sp.x - mx, sp.y - my); if (sp.vis && d < bd) { bd = d; best = m.userData.target; } }
@@ -728,33 +767,35 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
   function finishPick(tg) {
     const tip = sc.pick, w = SIM.state.wiring, part = SIM.part(tip.part);
     const pos = (SIM.state.install[tip.part] || "").split("@")[1];
-    const say = (m) => SIM.toast(m, "bad");
+    const say = (m) => { SIM.toast(m, "bad"); if (SIM.sfx) SIM.sfx("err"); };
+    const ok = (t) => { if (SIM.sfx) SIM.sfx(t || "plug"); };
     if (tg.kind === "escPad") {
       if (part.type !== "motor") return say("이 선은 ESC 단자에 연결하지 않습니다.");
       const escPos = SIM.state.install[tg.part].split("@")[1];
       if (escPos !== pos) return say("선이 닿지 않습니다.");
-      w.motorWires[pos][tip.key[2]] = tg.pad;
+      w.motorWires[pos][tip.key[2]] = tg.pad; ok("plug");
     } else if (tg.kind === "pdb") {
       const red = tip.key === "pwrR" || tip.key === "outR";
       const pol = (tg.sign === "plus") === red ? "ok" : "rev";
       if (part.type === "pm" && (tip.key === "outR" || tip.key === "outK")) w.pmOut = pol;
       else if (part.type === "battery") w.batt = "pdb";
       else return say("이 선은 PDB 패드에 연결하지 않습니다.");
+      ok("plug");
     } else if (tg.kind === "xt") {
       if (!(part.type === "esc" && tip.key === "pwr")) return say("커넥터가 맞지 않습니다.");
       if (tg.pos !== pos) return say("선이 닿지 않습니다.");
-      SIM.setEscXt(pos, tg.xt); sc.cancelPick(); return;
+      SIM.setEscXt(pos, tg.xt); ok("xt"); sc.cancelPick(); return;
     } else if (tg.kind === "pmIn") {
       if (part.type !== "battery") return say("커넥터가 맞지 않습니다.");
-      w.batt = "pm";
+      w.batt = "pm"; ok("xt");
     } else if (tg.kind === "harness") {
       if (!(part.type === "esc" && tip.key === "tel")) return say("커넥터가 맞지 않습니다.");
-      w.escTelem[pos] = "harness";
+      w.escTelem[pos] = "harness"; ok("plug");
     } else if (tg.kind === "fcPort") {
       const c = tipCable(tip);
       if (!c) return say("이 선은 FC에 꽂지 않습니다.");
       if (SIM.CABLES[c].conn !== SIM.portType(tg.port)) return say("커넥터 모양이 맞지 않아 " + tg.port + "에 들어가지 않습니다.");
-      SIM.setPlug(c, tg.port);
+      SIM.setPlug(c, tg.port); ok("plug");
     } else if (tg.kind === "fc") {
       const c = tipCable(tip);
       if (!c) return say("이 선은 FC에 꽂지 않습니다.");
@@ -912,7 +953,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       const d = sc.drag; sc.drag = null; snapRing.visible = false;
       if (sc.onHover) sc.onHover("");
       canvas.style.cursor = "grab";
-      if (d.slot) { const err = SIM.install(d.id, d.slot); if (err) SIM.toast(err, "bad"); }
+      if (d.slot) { const err = SIM.install(d.id, d.slot); if (err) { SIM.toast(err, "bad"); SIM.sfx && SIM.sfx("err"); } else SIM.sfx && SIM.sfx("mount"); }
       else { const t = objs[d.id].group.userData.tp; SIM.placeOnBench(d.id, +t.x.toFixed(3), +t.z.toFixed(3)); }
     }
     const up = (e) => {
@@ -970,7 +1011,15 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
 
   const tmpQ = new T.Quaternion(), yAxis = new T.Vector3(0, 1, 0);
   let airT = 0;
+  // 느린 컴퓨터에서는 화질을 자동으로 낮춘다 (픽셀 밀도·그림자 해상도)
+  let perfT = 0, perfN = 0, perfLow = false;
+  function adaptQuality(dt) {
+    if (perfLow) return; perfT += dt; perfN++;
+    if (perfT > 3) { const avg = perfT / perfN; perfT = 0; perfN = 0;
+      if (avg > 1 / 24) { perfLow = true; renderer.setPixelRatio(1); renderer.shadowMap.type = T.PCFShadowMap; sun.shadow.mapSize.set(1024, 1024); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } window.dispatchEvent(new Event("resize")); } }
+  }
   sc.update = function (dt) {
+    adaptQuality(dt);
     const k = 1 - Math.exp(-12 * dt);
     for (const part of SIM.PARTS) {
       const g = objs[part.id].group;

@@ -60,13 +60,14 @@
   parts.push({ id: "frameTop", type: "top", name: "상판" });
   ["red", "red", "white", "white"].forEach((c, i) => parts.push({ id: "arm" + (i + 1), type: "arm", color: c, name: "붐대 " + "ABCD"[i] }));
   parts.push({ id: "skid", type: "skid", name: "스키드" });
+  parts.push({ id: "canopy", type: "canopy", name: "케이스 (덮개)" });
   SIM.PARTS = parts;
   SIM.part = (id) => parts.find((p) => p.id === id);
 
   // 기체 위 장착 자리. 부품 모양만 맞으면 어느 자리에든 붙일 수 있다 (맞는 자리인지는 직접 판단).
-  SIM.SLOTS = { "frame:base": "조립 거치대", "frame:top": "하판 위 (상판 자리)", "frame:skid": "하판 아래 (스키드 자리)", "deck:C": "상판 중앙", "deck:L": "상판 왼쪽", "deck:R": "상판 오른쪽", "deck:RL": "상판 왼쪽 뒤", "deck:RR": "상판 오른쪽 뒤", mast: "상판 뒤 마스트", "bot:C": "하판 중앙", under: "하판 아래" };
+  SIM.SLOTS = { "frame:base": "조립 거치대", "frame:top": "하판 위 (상판 자리)", "frame:skid": "하판 아래 (스키드 자리)", "frame:canopy": "상판 위 (케이스 자리)", "deck:C": "상판 중앙", "deck:L": "상판 왼쪽", "deck:R": "상판 오른쪽", "deck:RL": "상판 왼쪽 뒤", "deck:RR": "상판 오른쪽 뒤", mast: "상판 뒤 마스트", "bot:C": "하판 중앙", under: "하판 아래" };
   const DECK = ["deck:C", "deck:L", "deck:R", "deck:RL", "deck:RR"];
-  SIM.ACCEPT = { fc: [...DECK, "bot:C"], gps: ["mast", ...DECK], pm: ["bot:C", ...DECK], battery: ["under"], bottom: ["frame:base"], top: ["frame:top"], skid: ["frame:skid"], rx: [...DECK, "bot:C"], telem: [...DECK, "bot:C"], buzzer: [...DECK, "bot:C"], switch: [...DECK, "bot:C"] };
+  SIM.ACCEPT = { fc: [...DECK, "bot:C"], gps: ["mast", ...DECK], pm: ["bot:C", ...DECK], battery: ["under"], bottom: ["frame:base"], top: ["frame:top"], skid: ["frame:skid"], canopy: ["frame:canopy"], rx: [...DECK, "bot:C"], telem: [...DECK, "bot:C"], buzzer: [...DECK, "bot:C"], switch: [...DECK, "bot:C"] };
   SIM.slotName = (s) => {
     const [t, pos] = s.split("@");
     if (pos) return SIM.POS[pos].name + (t === "prop" ? " 모터 축" : t === "motor" ? " 모터 마운트" : t === "arm" ? " 붐대 자리" : " 붐대 위");
@@ -243,6 +244,7 @@
   SIM.canInstall = (part, slot) => {
     if (!SIM.slotsFor(part).includes(slot)) return "이 부품은 그 자리에 맞지 않습니다.";
     if (SIM.partAt(slot)) return "이미 다른 부품이 장착된 자리입니다.";
+    if (slot.startsWith("deck:") && SIM.has("canopy")) return "케이스를 먼저 벗기세요.";
     const need = SIM.slotNeeds(slot);
     if (need && !SIM.partAt(need)) return "먼저 " + SIM.slotName(need) + "에 부품을 장착하세요.";
     return "";
@@ -251,7 +253,7 @@
   SIM.slotNeeds = (slot) => {
     const [t, pos] = slot.split("@");
     if (pos) return t === "arm" ? "frame:base" : t === "prop" ? "motor@" + pos : "arm@" + pos;
-    if (slot.startsWith("deck:") || slot === "mast") return "frame:top";
+    if (slot.startsWith("deck:") || slot === "mast" || slot === "frame:canopy") return "frame:top";
     if (slot === "frame:base") return null;
     return "frame:base";
   };
@@ -300,6 +302,7 @@
     if (!slot) return "";
     const ns = SIM.screwCount(id);
     if (ns) return "먼저 나사 " + ns + "개를 푸세요.";
+    if (slot.startsWith("deck:") && SIM.has("canopy")) return "케이스를 먼저 벗기세요.";
     const dep = SIM.dependents(slot);
     if (dep.length) return "먼저 " + dep.map((p) => p.name).join(", ") + "을(를) 분리하세요.";
     const part = SIM.part(id), pos = slot.split("@")[1];
@@ -373,7 +376,7 @@
     if (!SIM.bindUntil) return;
     if (!powered || now > SIM.bindUntil) { SIM.binding = 0; SIM.bindUntil = 0; SIM.emit(); return; }
     const ok = SIM.txBinding && SIM.tx && SIM.tx.on && SIM.state.txm.rf === "MULTI" && SIM.state.txm.proto === SIM.RX_PROTO;
-    if (ok && now - SIM.binding > 1500) { SIM.state.rxBound = true; SIM.txBinding = false; SIM.binding = 0; SIM.bindUntil = 0; SIM.toast("바인딩 완료", "ok"); SIM.emit(); }
+    if (ok && now - SIM.binding > 1500) { SIM.state.rxBound = true; SIM.txBinding = false; SIM.binding = 0; SIM.bindUntil = 0; SIM.toast("바인딩 완료", "ok"); if (SIM.sfx) SIM.sfx("bind"); SIM.emit(); }
   };
   // LED: 전원만 들어오면 빨강, 조종기와 연결되면 초록, 바인딩 중 깜빡임, 조종기를 끄면 다시 빨강
   SIM.rxLed = () => (!SIM.rxPowered() ? "off" : SIM.binding ? "fast" : SIM.txLink() ? "green" : "red");
@@ -431,6 +434,7 @@
     const add = (lvl, t, d) => out.push({ lvl, t, d });
     const dirKo = (d) => (d === "cw" ? "시계(CW)" : "반시계(CCW)");
     for (const [id, n] of [["frameBot", "하판"], ["frameTop", "상판"], ["skid", "스키드"]]) if (!SIM.has(id)) add("bad", n, "장착되지 않았습니다.");
+    if (SIM.has("frameTop") && !SIM.has("canopy")) add("warn", "케이스", "씌우지 않았습니다. 비·먼지·약제가 전자부품에 닿습니다.");
     for (const p of SIM.POS_IDS) { const a = SIM.partAt("arm@" + p); if (!a) add("bad", SIM.POS[p].name + " 붐대", "장착되지 않았습니다."); else if ((SIM.POS[p].z < 0) !== (a.color === "red")) add("warn", SIM.POS[p].name + " 붐대 색", (a.color === "red" ? "빨간" : "흰") + " 붐대입니다. 앞쪽 붐대를 빨간색으로 맞춰야 조종할 때 기수 방향을 알아볼 수 있습니다."); }
     if (st.params.FRAME_TYPE === 0) add("bad", "프레임 타입", "기체는 X형 암 배치인데 FRAME_TYPE이 Plus로 설정되어 있습니다.");
     for (const id of SIM.POS_IDS) {
@@ -588,7 +592,7 @@
       w.motorWires[id] = exp[id].spin === "ccw" ? { 1: "A", 2: "B", 3: "C" } : { 1: "A", 2: "C", 3: "B" };
       w.escTelem[id] = "harness";
     });
-    Object.assign(st.install, { frameBot: "frame:base", frameTop: "frame:top", skid: "frame:skid", arm1: "arm@FR", arm2: "arm@FL", arm3: "arm@RR", arm4: "arm@RL", fc: "deck:C", gps: "mast", pm: "bot:C", battery: "under", rx: "deck:L", telem: "deck:R", buzzer: "deck:RL", switch: "deck:RR" });
+    Object.assign(st.install, { canopy: "frame:canopy", frameBot: "frame:base", frameTop: "frame:top", skid: "frame:skid", arm1: "arm@FR", arm2: "arm@FL", arm3: "arm@RR", arm4: "arm@RL", fc: "deck:C", gps: "mast", pm: "bot:C", battery: "under", rx: "deck:L", telem: "deck:R", buzzer: "deck:RL", switch: "deck:RR" });
     Object.assign(w.plug, { pm: "POWER", gps: "GPS", compass: "I2C", rx: "RC IN", telem: "TELEM1", buzzer: "BUZZER", switch: "SWITCH", escTelem: "TELEM2" });
     w.batt = "pm"; w.pmOut = "ok"; w.rxEnd = "SB"; w.rxRevRx = false; w.rxRevFc = false; st.rxBound = true;
     SIM.fastenAll();

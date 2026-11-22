@@ -240,6 +240,20 @@
   function calLeft() { const e = tx12.ext; if (!e) return ""; const left = Object.keys(e).filter((a) => e[a][0] > -0.95 || e[a][1] < 0.95); return left.length ? "남은 축 " + left.length : ""; }
   // 바인드 모드 신호음
   let actx = null, lastBeep = 0;
+  // 체결 효과음 (합성): mount 부품 장착, plug 커넥터, xt XT60, bind 바인딩, err 실패
+  SIM.sfx = (type) => {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = actx.currentTime, out = actx.createGain(); out.gain.value = 0.22; out.connect(actx.destination);
+      const tone = (f, at, dur, wave, vol) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = wave || "sine"; o.frequency.setValueAtTime(f, t0 + at); g.gain.setValueAtTime(vol || 0.6, t0 + at); g.gain.exponentialRampToValueAtTime(0.001, t0 + at + dur); o.connect(g); g.connect(out); o.start(t0 + at); o.stop(t0 + at + dur + 0.02); return o; };
+      const click = (at, freq, dur, vol) => { const n = Math.floor(actx.sampleRate * dur), buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); s.buffer = buf; f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 1.2; g.gain.value = vol || 1; s.connect(f); f.connect(g); g.connect(out); s.start(t0 + at); };
+      if (type === "mount") { tone(150, 0, 0.14, "sine", 0.9).frequency.exponentialRampToValueAtTime(70, t0 + 0.12); click(0, 900, 0.05, 0.8); }
+      else if (type === "plug") { click(0, 3200, 0.025, 1.2); tone(2200, 0.004, 0.03, "triangle", 0.25); }
+      else if (type === "xt") { click(0, 2000, 0.03, 1.2); click(0.06, 2600, 0.035, 1.3); tone(420, 0.06, 0.06, "square", 0.08); }
+      else if (type === "bind") { tone(1400, 0, 0.09, "sine", 0.4); tone(2100, 0.11, 0.14, "sine", 0.4); }
+      else if (type === "err") { tone(110, 0, 0.18, "square", 0.12); }
+    } catch (e) {}
+  };
   function beep() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = 2300; g.gain.value = 0.06; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09); } catch (e) {} }
 
   // ---------- 소프트웨어 ----------
@@ -469,7 +483,7 @@
       const w = SIM.state.wiring, cur = Object.keys(w.plug).find((c) => w.plug[c] === a && SIM.cableReady(c));
       if (!ui.cable) { if (cur) SIM.setPlug(cur, ""); else SIM.toast("먼저 꽂을 케이블을 고르세요."); return; }
       if (SIM.CABLES[ui.cable].conn !== SIM.portType(a)) return SIM.toast("커넥터 모양이 맞지 않아 들어가지 않습니다.", "bad");
-      const c = ui.cable; ui.cable = null; SIM.setPlug(c, a);
+      const c = ui.cable; ui.cable = null; SIM.setPlug(c, a); SIM.sfx("plug");
     },
     safety: () => { if (!SIM.switchOk()) return SIM.toast("안전 스위치가 반응하지 않습니다.", "bad"); SIM.safetyPressed = !SIM.safetyPressed; render(); },
     answer: () => { ui.showAnswer = true; render(); }, answerHide: () => { ui.showAnswer = false; render(); },
