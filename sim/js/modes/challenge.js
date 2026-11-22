@@ -228,7 +228,7 @@ export class ChallengeMode extends CombatMode {
   // ── 1. 기지 방어 ──────────────────────────────────────────
   setup_waves(c, map) {
     const [bx, bz] = map.combat.blue;
-    this.base = this.buildBase(bx, bz, 0, 2, 2400);
+    this.base = this.buildBase(bx, bz, 0, 2, 2400 * 3);   // 기지 방어 코어 체력 3배
     this.base.core.armor = 0.75;
     const start = new THREE.Vector3(bx + 14, 0, bz - 10);
     this.placePlayer(start, Math.atan2(-(0 - bx), -(0 - bz)));
