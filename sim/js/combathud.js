@@ -67,6 +67,7 @@ export function drawCombatHud(c, h, o = {}) {
   h.fade(1);
 
   if (c.hurts.length) hurtArcs(c, h);
+  if (c.radio && !(s.cfg.radio && s.mode.state === "run" && s.cfg.radio.some(([at]) => s.mode.time >= at && s.mode.time < at + 4.5))) enemyRadio(c, h);   // 스토리 무전과 겹치면 미룬다
   if (p.stunT > 0) h.banner("EMP — 조종 불능", H * 0.45, "#b8c8ff", 22);
 
   // 적·아군 표시
@@ -141,26 +142,52 @@ export function drawCombatHud(c, h, o = {}) {
 }
 
 // 피격 방향: 화면 중심 둘레의 붉은 호. 방향마다 하나씩, 피해가 클수록 넓고 굵게
+// 쏜 기체가 살아 있으면 호가 그 기체를 따라 돌고(combat.js), 화면 밖이면 가장자리에 공격자 화살표·거리, 뒤쪽이면 "후방" 표시
 function hurtArcs(c, h) {
-  const g = h.g, u = h.u, L = h.L;
+  const g = h.g, u = h.u, L = h.L, cam = c.s.camera, p = c.player;
   for (const hu of c.hurts) {
     const k = clamp(hu.t, 0, 1), big = clamp(hu.amt / 40, 0, 1);
-    h.project(hu.pos, c.s.camera, _s);
-    const ang = h._dirAngle(_s), R = Math.min(h.H * 0.3, 128 * u) + (1 - k) * 12 * u, half = 0.22 + big * 0.3, lw = (6 + big * 6) * u;
+    h.project(hu.pos, cam, _s);
+    // 뒤에서 온 공격은 화면 아래쪽(바로 뒤 = 6시)으로, 옆-뒤는 아래 좌우로 — 앞쪽은 화면상 방향 그대로
+    const ang = _s.front ? h._dirAngle(_s) : Math.atan2(_s.vz * 0.8 - _s.vy * 0.3, _s.vx), R = Math.min(h.H * 0.3, 128 * u) + (1 - k) * 12 * u, half = 0.22 + big * 0.3, lw = (6 + big * 6) * u;
+    const behind = !_s.front && _s.vz > 0 && Math.abs(_s.vx) < _s.vz * 1.2;   // 대략 뒤쪽 ±50°
+    const hit = Math.max(0, 1 - (hu.age || 0) / 0.18);                          // 맞은 순간 바깥으로 튀었다 돌아온다
+    const R2 = R + hit * 10 * u;
     h.fade(Math.min(1, k * 1.8));
-    g.beginPath(); g.arc(L.cx, L.cy, R, ang - half, ang + half);
+    g.beginPath(); g.arc(L.cx, L.cy, R2, ang - half, ang + half);
     g.lineCap = "round"; g.lineWidth = lw + 5 * u; g.strokeStyle = INK; g.stroke();
     g.lineWidth = lw; g.strokeStyle = big > 0.6 ? "#ff2a2a" : "#ff4646"; g.stroke();
     // 안쪽을 향한 쐐기
-    const ca = Math.cos(ang), sa = Math.sin(ang), r2 = R - lw * 0.5 - 7 * u, w = (7 + big * 5) * u;
+    const ca = Math.cos(ang), sa = Math.sin(ang), r2 = R2 - lw * 0.5 - 7 * u, w = (7 + big * 5) * u;
     g.beginPath();
     g.moveTo(L.cx + ca * (r2 - (8 + big * 6) * u), L.cy + sa * (r2 - (8 + big * 6) * u));
     g.lineTo(L.cx + ca * r2 - sa * w, L.cy + sa * r2 + ca * w);
     g.lineTo(L.cx + ca * r2 + sa * w, L.cy + sa * r2 - ca * w);
     g.closePath();
     h.fill2("#ff4646", 2.5);
+    // 바깥쪽 화살표: 공격자 쪽으로 (호 바로 바깥)
+    const ro = R2 + lw * 0.5 + 12 * u;
+    h.chevron(L.cx + ca * ro, L.cy + sa * ro, ang, (8 + big * 4) * u, big > 0.6 ? "#ff2a2a" : "#ff5a5a");
+    if (behind && k > 0.3) h.text("후방!", L.cx + ca * (ro + 22 * u), L.cy + sa * (ro + 22 * u) + 4 * u, { size: 13, align: "center", color: "#ff6a5a" });
+    // 공격자가 화면 밖이면 가장자리 표지 (이름·거리) — 맞고 1.5초 동안만
+    if (hu.who && hu.who.alive && (hu.age || 0) < 1.5 && !_s.on && p) h.marker(hu.who.pos, cam, "#ff5a5a", hu.who.name || "공격", hu.who.pos.distanceTo(p.pos));
   }
   h.fade(1);
+}
+
+// 적 무전: 왼쪽에 짧은 한 줄 (적 AI 의 상태가 바뀔 때 — combat.js bark)
+function enemyRadio(c, h) {
+  const r = c.radio, g = h.g, u = h.u, L = h.L;
+  const k = Math.min(1, r.t * 6, (3.4 - r.t) * 2.5);
+  if (k <= 0) return;
+  const w = Math.min(300 * u, h.W * 0.42), ph = 40 * u, x = L.l + (1 - Math.min(1, r.t * 5)) * -20 * u, y = h.H * 0.3;
+  g.save(); g.globalAlpha = k * h.opacity;
+  h.plate(x, y, w, ph, { accent: "#ff5a5a", fill: "rgba(28,8,12,0.78)", skew: 0.06 });
+  // 지직거리는 무전 막대
+  for (let i = 0; i < 4; i++) { const bh = (4 + Math.abs(Math.sin(r.t * 23 + i * 1.7)) * 9) * u; g.fillStyle = "#ff7a6a"; g.fillRect(x + 12 * u + i * 4 * u, y + ph / 2 - bh / 2, 2.5 * u, bh); }
+  h.text(`적 무전 · ${r.who}`, x + 34 * u, y + 13 * u, { size: 10.5, base: "middle", bold: true, color: "#ff8a7a", shadow: false });
+  h.text(`“${r.text}”`, x + 34 * u, y + 28 * u, { size: 13.5, base: "middle", color: "#fff", shadow: false });
+  g.restore();
 }
 
 // 락온 진행: 네 쐐기가 표적으로 조여 들고, 완료되면 붉게 고정

@@ -43,10 +43,22 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
 const _des = new THREE.Vector3(), _aim = new THREE.Vector3();
 const _hit = { depth: 0, normal: new THREE.Vector3(), collider: null };
 const _m = new THREE.Matrix4(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
-const _q = new THREE.Quaternion();
+const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _eu = new THREE.Euler();
 const _p1 = new THREE.Vector3(), _p2 = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const _s = {};
+const pick = (L) => L[(Math.random() * L.length) | 0];
+// 적 무전 (AI 상태가 바뀔 때 가끔 한 줄)
+const BARK = {
+  spot: ["적기 발견!", "목표 포착, 교전한다!", "적 드론 확인!", "저기 있다!"],
+  bait: ["정면은 내가 맡는다!", "내가 끌어들인다, 돌아 들어가!", "시선 끈다, 엄호해!"],
+  flank: ["우회한다, 엄호해!", "측면으로 돌아간다!", "뒤로 돌아 들어간다!"],
+  behind: ["뒤를 잡았다!", "후방 확보, 사격 개시!", "꼬리 물었다!"],
+  retreat: ["후퇴한다!", "피해가 크다, 이탈한다!", "엄호해! 빠진다!"],
+  juke: ["회피 기동!", "조준당했다, 피해!", "락온 경보!"],
+  down: ["당했다! 놈을 잡아!", "아군 격추!", "윙맨이 떨어졌다!"],
+  back: ["복귀한다, 다시 붙는다!", "전열 복귀!"],
+};
 
 // 고속 회피: 최대 충전 · 한 칸 다시 차는 시간(초) · 무적 시간 · 밀어내는 속도(m/s)
 export const DODGE = { max: 2, cool: 6, iframe: 0.45, push: 26 };
@@ -92,6 +104,23 @@ export class Combat {
     this.level = baseLevel(session.cfg, session.cfg.difficulty || settings.difficulty);   // 이 판 적들의 기준 계급
     this.units = new Units(this);     // 전차·대공 로봇·전투함·거대로봇
     this.botN = 0;
+    this.fx.col = this.w.col;      // 격추 잔해가 지형·건물에 튄다
+    this.fx.onWreckHit = (p, size) => this.snd.play("explode", this.volAt(p) * (0.35 + size * 0.1), this.panAt(p), 1.3);
+    this.radio = null;             // 적 무전 한 줄 { who, text, t } — combathud 가 그린다
+    this.barkNext = 4 + Math.random() * 3;   // 다음 무전이 가능한 시각(전투 시작 직후 몇 초는 조용히)
+    this._coordT = 1;              // 협공 역할 다시 정하기까지(초)
+    this._roleUntil = 0;
+  }
+
+  // 적 무전: 내게 적대적인 가까운 기체만, 6.5~8초에 한 번 이하
+  bark(a, kind) {
+    const p = this.player, t = this.s.time;
+    if (!p || !a || !a.alive || t < this.barkNext || !this.hostile(a, p) || a.remote) return false;
+    if (a.pos.distanceToSquared(p.pos) > 300 * 300) return false;
+    this.barkNext = t + 6.5 + Math.random() * 1.5;
+    this.radio = { who: a.name || "적기", text: pick(BARK[kind]), t: 0, kind };
+    this.snd.play("radio", 0.32);
+    return true;
   }
 
   hostile(a, b) { return a !== b && a.alive && b.alive && (this.ffa || a.team !== b.team); }
@@ -315,7 +344,7 @@ export class Combat {
         if (o.isPlayer) { this.s.hud.toast("EMP 피격 — 조종 불능!", "#b8c8ff", 1.5, 24); this.feel.emit("stun"); }
         else this.fx.spark(o.pos, 0xb8c8ff, 10);
       }
-      if (!a.isPlayer) this.snd.play("emp", this.volAt(a.pos), this.panAt(a.pos));
+      if (!a.isPlayer) this.snd.playAt("emp", a.pos, this.s.camera);
     }
   }
 
@@ -505,7 +534,7 @@ export class Combat {
     if (a.shield > 0) {
       const s = Math.min(a.shield, amount); a.shield -= s; amount -= s;
       if (a.isPlayer) {
-        this.snd.play("shield", clamp(s / 15, 0.4, 1), src ? this.panAt(src) * 0.7 : 0);
+        src ? this.snd.playAt("shield", src, this.s.camera, clamp(s / 15, 0.4, 1), 1, 0) : this.snd.play("shield", clamp(s / 15, 0.4, 1), 0);
         this.feel.emit("shield", s, src);
         if (a.shield <= 0) { this.feel.emit("shieldBreak"); this.fx.ring(a.pos, 0x7fe6ff, 3, 0.4); }
       } else if (attacker && attacker.isPlayer) { this.hitMark = HIT_T; this.hitKind = "shield"; this.hitAmt = s; this.feel.emit("hit", s, a); this.fx.spark(point || a.pos, 0x7fe6ff, 8); this._pop(point || a.pos, s, "shield"); }
@@ -513,13 +542,14 @@ export class Combat {
     if (amount <= 0) return;
     a.hp -= amount;
     a.flash = 0.12;
+    if (a.kind === "bot" && a.ai && a.model && !a.remote) this._hitReact(a, amount, attacker, point);
     if (a.ai && attacker) { a.ai.lastHit = attacker; a.ai.lastHitT = 4; }
     if (a.isPlayer) {
       this.hurtT = 0.5;
       if (attacker) this.hurtDir.copy(attacker.pos); else if (point) this.hurtDir.copy(point);
       this.hurtAmt = amount;
-      if (src) this._hurtDir(src, amount);
-      this.snd.play("hurt", clamp(amount / 20, 0.3, 1), src ? this.panAt(src) * 0.7 : 0);
+      if (src) this._hurtDir(src, amount, attacker && attacker !== a ? attacker : null);
+      src ? this.snd.playAt("hurt", src, this.s.camera, clamp(amount / 20, 0.3, 1), 1, 0) : this.snd.play("hurt", clamp(amount / 20, 0.3, 1), 0);   // 맞은 방향에서 들리게
       this.feel.emit("hurt", amount, src);
     } else if (attacker && attacker.isPlayer) { this.hitMark = HIT_T; this.hitKind = "hp"; this.hitAmt = amount; this.feel.emit("hit", amount, a); this._pop(point || a.pos, amount, a.hp - amount <= 0 ? "kill" : a.armor && a.armor < 0.9 ? "armor" : "hp"); this._pulse(a); }   // 명중 확인음은 feel 이 낸다(연속 명중 시 음 상승)
     if (this.h.onDamage) this.h.onDamage(a, amount, attacker);
@@ -541,15 +571,108 @@ export class Combat {
   }
 
   // 피격 방향 표시 추가: 같은 쪽(가까운 위치)에서 연달아 맞으면 하나로 합쳐 더 진하게
-  _hurtDir(src, amount) {
+  // who: 쏜 기체 — 살아 있는 동안 표시가 그 기체를 따라 돈다 (몸을 돌려도 공격자 쪽을 가리킨다)
+  _hurtDir(src, amount, who = null) {
     const p = this.player;
     for (const h of this.hurts) {
-      if (h.pos.distanceToSquared(src) < 36 || (p && _p1.copy(h.pos).sub(p.pos).normalize().dot(_p2.copy(src).sub(p.pos).normalize()) > 0.94)) {
-        h.pos.copy(src); h.t = 1; h.amt = Math.min(80, h.amt * 0.5 + amount); return;
+      if ((who && h.who === who) || h.pos.distanceToSquared(src) < 36 || (p && _p1.copy(h.pos).sub(p.pos).normalize().dot(_p2.copy(src).sub(p.pos).normalize()) > 0.94)) {
+        h.pos.copy(src); h.t = 1; h.amt = Math.min(80, h.amt * 0.5 + amount); h.age = 0; if (who) h.who = who; return;
       }
     }
     if (this.hurts.length >= 4) this.hurts.shift();
-    this.hurts.push({ pos: src.clone(), t: 1, amt: amount });
+    this.hurts.push({ pos: src.clone(), t: 1, amt: amount, who, age: 0 });
+  }
+
+  // 맞은 자리에 따른 반응: 뒤(엔진 쪽) → 연기 꼬리, 옆 → 휘청(요·롤), 앞·위 → 고개가 들림, 큰 한 방 → 불꽃
+  _hitReact(a, amount, attacker, point) {
+    const ai = a.ai, now = this.s.time, R = a.radius || 1;
+    const src = point || (attacker && attacker.pos);
+    if (src) {
+      _p1.copy(src).sub(a.pos);
+      if (_p1.lengthSq() < 0.04 * R * R && attacker) _p1.copy(attacker.pos).sub(a.pos);   // 정중앙 폭발: 공격자 쪽으로
+      _q2.copy(a.model.quaternion).invert();
+      _p1.applyQuaternion(_q2);
+      const l = _p1.length();
+      if (l > 1e-4) {
+        _p1.multiplyScalar(1 / l);
+        const frac = amount / Math.max(1, a.maxHp);
+        // 모델 앞쪽은 -Z: z > 0 이면 뒤(엔진)
+        if (_p1.z > 0.4) a.rearDmg = Math.min(1, (a.rearDmg || 0) + 0.3 + frac * 2);
+        const k = clamp(0.35 + frac * 5, 0.35, a.botKind === "gunship" || a.botKind === "boss" ? 0.6 : 1.4);
+        if ((ai.wob || 0) < 0.25) ai.wobPh = Math.PI / 2;   // 첫 흔들림은 바로 크게
+        ai.wob = Math.min(1.5, (ai.wob || 0) + k);
+        if (Math.abs(_p1.x) > 0.45) {           // 옆구리: 맞은 반대쪽으로 휘청 + 옆으로 밀림
+          ai.wobS = -Math.sign(_p1.x); ai.wobP = 0.25;
+          _x.set(1, 0, 0).applyQuaternion(a.model.quaternion);
+          if (!a.static) a.vel.addScaledVector(_x, -Math.sign(_p1.x) * (1.5 + frac * 30) / (a.botKind === "gunship" || a.botKind === "boss" ? 3 : 1));
+        } else { ai.wobS = Math.random() < 0.5 ? 0.4 : -0.4; ai.wobP = _p1.z < -0.4 ? 1 : _p1.y > 0.4 ? -0.8 : 0.5; }
+        if (amount >= 14 || frac > 0.12) {    // 큰 한 방: 불꽃·파편
+          const at = point || a.pos;
+          this.fx.burst(at, 0xffc060, 9, 9, 0.35, 0.2, 12);
+          this.fx.flash(at, 0xffd9a0, 1.2 + R * 0.6, 0.12);
+          if (frac > 0.18 || amount >= 25) this.fx.debrisBurst(at, 0x3a3f4a, 2, 7, 0.14 + R * 0.08);
+        }
+      }
+    }
+    // 맞으면 회피 기동 (조금씩, 재사용 대기)
+    if (attacker && attacker !== a && !a.K.boom && a.botKind !== "boss" && now > (ai.jukeCD || 0) && Math.random() < 0.55) this._juke(a, attacker);
+  }
+
+  // 회피 기동: 공격자 시선에 수직으로 짧게 튄다
+  _juke(a, from) {
+    const ai = a.ai, now = this.s.time;
+    ai.jukeT = 0.45 + Math.random() * 0.4; ai.jukeCD = now + 2.2 + Math.random() * 1.6;
+    _p1.copy(a.pos).sub(from.pos).normalize();
+    const v = ai.jukeV || (ai.jukeV = new THREE.Vector3());
+    v.crossVectors(_p1, UP); if (v.lengthSq() < 1e-4) v.set(1, 0, 0);
+    v.normalize().multiplyScalar(Math.random() < 0.5 ? 1 : -1);
+    v.y = (Math.random() - 0.35) * 0.8;
+    if (from.isPlayer && Math.random() < 0.3) this.bark(a, "juke");
+  }
+
+  // 격추된 드론: 그을린 몸통(인스턴스 한 벌, fx)이 연기를 뿜으며 회전해 떨어지고, 지형에 튀었다가 멈춰 가라앉는다
+  _wreckable(a) { return a.kind === "bot" && a.model && !a.remote && !a.swarm && !a.bossBar && a.botKind !== "boss" && !a.boomed; }
+
+  // 협공 역할 정하기: 나를 노리는 드론이 둘 이상이면 하나는 정면 미끼, 하나(둘)는 뒤로 돌아 들어간다
+  _coord() {
+    const p = this.player, now = this.s.time, L = this._coordL || (this._coordL = []);
+    L.length = 0;
+    for (const a of this.actors) {
+      if (a.kind !== "bot" || !a.ai || a.remote) continue;
+      const ok = !this.ffa && p && p.alive && a.alive && a.ai.target === p && !a.K.boom && a.botKind !== "boss" && !a.swarm && !(a.ai.retreatT > 0) && !a.ai.leader;
+      if (ok) L.push(a); else if (a.ai.role) a.ai.role = null;
+    }
+    if (L.length < 2) { for (const a of L) a.ai.role = null; return; }
+    if (now < this._roleUntil && L.every((a) => a.ai.role)) return;   // 몇 초는 역할을 유지한다
+    _d.copy(this.s.player.aimDir); _d.y = 0; if (_d.lengthSq() < 1e-4) _d.set(0, 0, -1); _d.normalize();
+    for (const a of L) { _p1.copy(a.pos).sub(p.pos); _p1.y = 0; const l = _p1.length() || 1; a.ai._fd = _p1.dot(_d) / l; a.ai._fs = Math.sign(_d.x * _p1.z - _d.z * _p1.x) || 1; }
+    L.sort((x, y) => y.ai._fd - x.ai._fd);
+    const nf = Math.min(2, L.length - 1);
+    L.forEach((a, i) => {
+      const was = a.ai.role;
+      a.ai.role = i === 0 ? "bait" : i >= L.length - nf ? "flank" : null;
+      if (a.ai.role === "flank" && was !== "flank") { a.ai.flankS = -a.ai._fs || 1; a.ai.flankDone = false; }
+      if (a.ai.role !== was && a.ai.role && Math.random() < 0.35) this.bark(a, a.ai.role);   // 역할 무전은 가끔만 (뒤를 잡았다·후퇴 무전에 자리를 남긴다)
+    });
+    this._roleUntil = now + 6 + Math.random() * 2;
+  }
+
+  // 숨을 곳: 위협에서 멀어지는 쪽 후보 몇 개 중 위협의 시야에서 가려지는 곳 (구조물 뒤). 없으면 그냥 먼 쪽
+  _hidePoint(a, threat) {
+    const out = (a.ai.hide || (a.ai.hide = new THREE.Vector3())), w = this.w, lim = w.size - 16;
+    if (!threat) return out.copy(this.randomPoint(8, 20));
+    _p1.copy(a.pos).sub(threat.pos); _p1.y = 0; if (_p1.lengthSq() < 1e-3) _p1.set(1, 0, 0); _p1.normalize();
+    let fall = false;
+    for (let i = 0; i < 5; i++) {
+      const ang = (i - 2) * 0.55 + (Math.random() - 0.5) * 0.3, c = Math.cos(ang), sn = Math.sin(ang), dist = 35 + Math.random() * 35;
+      _p2.set(a.pos.x + (_p1.x * c - _p1.z * sn) * dist, 0, a.pos.z + (_p1.x * sn + _p1.z * c) * dist);
+      _p2.x = clamp(_p2.x, -lim, lim); _p2.z = clamp(_p2.z, -lim, lim);
+      _p2.y = Math.min(w.ceiling - 10, w.h(_p2.x, _p2.z) + 5 + Math.random() * 6);   // 낮게: 건물 뒤에 숨는다
+      if (w.col.blocked(_p2, 2.5)) continue;
+      if (!w.col.visible(threat.pos, _p2, 2.5)) return out.copy(_p2);
+      if (!fall) { fall = true; out.copy(_p2); }
+    }
+    return fall ? out : out.copy(a.pos).addScaledVector(_p1, 50);
   }
 
   kill(a, killer) {
@@ -564,7 +687,7 @@ export class Combat {
     }
     const big = a.kind === "core" || a.botKind === "boss" ? 4 : a.kind === "turret" || a.botKind === "gunship" ? 2 : 1;
     this.fx.destroy(a.pos, a.isPlayer ? 1.4 : big);
-    this.snd.play("explode", a.isPlayer ? 1 : this.volAt(a.pos) * (0.6 + big * 0.2), a.isPlayer ? 0 : this.panAt(a.pos));
+    a.isPlayer ? this.snd.play("explode", 1, 0) : this.snd.playAt("explode", a.pos, this.s.camera, 0.6 + big * 0.2);
     if (a.isPlayer) {
       const pl = this.s.player;
       pl.crash(); pl.broken = true; pl.model.visible = false;
@@ -574,6 +697,12 @@ export class Combat {
       if (this.skill) this.skill.onPlayerDeath();
     } else {
       if (a.model) a.model.visible = false;
+      if (this._wreckable(a) && a.pos.distanceToSquared(this.s.camera.position) < 400 * 400) this.fx.wreckHull(a.pos, a.vel, Math.max(1, (a.bodyR || a.radius) * (a.botKind === "jet" ? 1.6 : 1.3)), a.model.quaternion, a.color || (a.rk && a.rk.color) || 0x8a93a6);
+      if ((a.kind === "bot" || a.kind === "turret") && a.pos.distanceToSquared(this.s.camera.position) < 400 * 400) this.fx.wreckBurst(a.pos, a.color || (a.rk && a.rk.color) || 0x8a93a6, 3 + big, 9 + big * 2, 0.3 + Math.min(1.4, (a.radius || 1) * 0.3), a.static ? null : a.vel);
+      // 동료가 격추되면 남은 적이 무전
+      if (killer && killer.isPlayer && a.kind === "bot" && Math.random() < 0.6) {
+        for (const o of this.actors) if (o !== a && o.alive && o.kind === "bot" && !this.hostile(o, a) && o.pos.distanceToSquared(a.pos) < 150 * 150) { this.bark(o, "down"); break; }
+      }
       if (a.collider) a.collider.off = true;
       if (a.collider2) a.collider2.off = true;
       if (a.respawns) a.respawnT = RESPAWN;
@@ -609,7 +738,7 @@ export class Combat {
     } else {
       a.pos.copy(pos); a.vel.set(0, 0, 0); a.missiles = a.K.missiles;
       if (a.model) a.model.visible = true;
-      a.ai.target = null;
+      a.ai.target = null; a.ai.role = null; a.ai.retreatT = 0; a.ai.spotted = false; a.ai.mq = null; a.ai.wob = 0; a.rearDmg = 0; a.boomed = false;
     }
   }
 
@@ -642,6 +771,17 @@ export class Combat {
         const c = bf.rainbow ? new THREE.Color().setHSL((this.s.time * 0.7) % 1, 1, 0.6).getHex() : bf.color;
         this.fx.puff(pl.body.pos, c, 0.35, 0.6, 0.25);
       }
+      // 저체력 심장 박동 · 전투 강도에 따라 음악 고조 (가까운 적 · 최근 피격 · 저체력 · 보스)
+      const hpK = p.hp / p.maxHp;
+      this.snd.lowHp(p.alive && !this.frozen ? clamp((0.35 - hpK) / 0.3, 0, 1) : 0);
+      if ((this._intT = (this._intT || 0) - dt) <= 0) {
+        this._intT = 0.25;
+        let near = 0, boss = false;
+        for (const a of this.actors) if (a.alive && a !== p && a.kind === "bot" && this.hostile(p, a)) { if (a.pos.distanceToSquared(p.pos) < 160 * 160) near++; if (a.bossBar || a.botKind === "boss") boss = true; }
+        const hit = this.s.time - (p.hurtAt || -99) < 3 ? 0.25 : 0;
+        const mus = this.s.game.music;
+        if (mus && mus.setIntensity) mus.setIntensity(this.frozen ? 0 : clamp(Math.min(near, 5) * 0.13 + hit + (hpK < 0.35 ? 0.2 : 0) + (boss ? 0.4 : 0), 0, 1));
+      }
       // 재생 (장갑·배터리 단계 효과): 4초 동안 맞지 않으면
       if (this.L.regen && p.alive && p.hp < p.maxHp && this.s.time - (p.hurtAt || -99) > 4) p.hp = Math.min(p.maxHp, p.hp + this.L.regen * dt);
       if (p.alive) pl.body.disabled = p.stunT > 0 || pl.crashed;
@@ -659,8 +799,18 @@ export class Combat {
         if (a.respawns && (a.respawnT -= dt) <= 0) this._respawn(a);
         continue;
       }
+      // 엔진 쪽을 맞은 드론: 꼬리에서 연기가 끌리고, 체력이 떨어질수록 짙고 굵어진다 (낮으면 불꽃도)
+      if (a.rearDmg > 0 && a.model && (a.trailT = (a.trailT || 0) - dt) <= 0) {
+        const lost = 1 - a.hp / a.maxHp, f = clamp(Math.max(lost, a.rearDmg * 0.5), 0, 1);
+        a.trailT = 0.2 - 0.15 * f;
+        if (a.pos.distanceToSquared(this.s.camera.position) < 220 * 220) {
+          _p1.set(0, 0, (a.radius || 1) * 0.9).applyQuaternion(a.model.quaternion).add(a.pos);
+          this.fx.smoke(_p1, (0.4 + f * 1.0) * a.radius, 0.9 + f * 1.3, 0.42 - f * 0.26, 0.15);
+          if (f > 0.55 && Math.random() < 0.5) this.fx.puff(_p1, 0xff8a2a, 0.3 * a.radius, 0.25, 0.2);
+        }
+      }
       // 크게 손상된 기체·포탑은 연기를 뿜는다 (1인칭에서는 내 연기가 시야를 가리므로 생략)
-      if (a.hp < a.maxHp * 0.4 && (a.kind === "bot" || a.kind === "turret" || a.isPlayer) && (a.smokeT = (a.smokeT || 0) - dt) <= 0) {
+      if (a.hp < a.maxHp * 0.4 && !(a.rearDmg > 0) && (a.kind === "bot" || a.kind === "turret" || a.isPlayer) && (a.smokeT = (a.smokeT || 0) - dt) <= 0) {
         const f = a.hp / (a.maxHp * 0.4);
         a.smokeT = 0.05 + f * 0.16;
         if ((!a.isPlayer || pl.camMode !== "fpv") && a.pos.distanceToSquared(this.s.camera.position) < 62500) {
@@ -673,6 +823,9 @@ export class Combat {
       else if (a.kind === "core") { a.orb.rotation.y += dt * 0.8; a.rings[0].rotation.x += dt * 0.9; a.rings[1].rotation.y += dt * 0.7; a.rings[1].rotation.x = 1.2; }
     }
 
+    if ((this._coordT -= dt) <= 0) { this._coordT = 0.7; this._coord(); }
+    if (this.radio && (this.radio.t += dt) > 3.4) this.radio = null;
+    for (const h of this.hurts) { h.age = (h.age || 0) + dt; if (h.who && h.who.alive) h.pos.copy(h.who.pos); }
     this._shots(dt);
     this._missiles(dt);
     this._pickups(dt);
@@ -736,7 +889,6 @@ export class Combat {
         if (t > 0 && t <= len && _a.lengthSq() - t * t < 10) {
           s.zip = true;
           _c.copy(s.pos).addScaledVector(s.dir, t);
-          this.snd.play("zip", 0.8, this.panAt(_c));
           this.feel.emit("zip");
         }
       }
@@ -752,6 +904,7 @@ export class Combat {
       if (s.far > 30) fx.bolt(_b.copy(s.pos).addScaledVector(s.dir, -19), s.dir, 18, s.color, wd * 0.45);
       if (!mine && (s.pt = (s.pt || 0) + 1) % 3 === 0) fx.puff(s.pos, s.color, 0.32 * clamp(cd / 30, 0.4, 1.6), 0.2, 0.05);   // 적 탄 머리의 빛 뭉치
     }
+    this.snd.updateFlybys(this.shots, this.s.camera, "laser", (o) => o.owner === this.player);   // 스쳐 가는 레이저: 도플러 휘익
     fx.endBolts();
   }
 
@@ -797,7 +950,7 @@ export class Combat {
       if (!direct && hc && hc.owner) { const tgt = this._bodyTarget(hc.owner); if (tgt && this.hostile(m.owner, tgt)) direct = tgt; }   // 선체·몸통에 직격
       if (boom) {
         this.fx.explosion(m.pos, 1.3);
-        this.snd.play("explode", this.volAt(m.pos) * 0.8, this.panAt(m.pos));
+        this.snd.playAt("explode", m.pos, this.s.camera, 0.8);
         this._blast(m.pos, 1.3);
         if (direct && m.owner && m.owner.isPlayer && (this.ffa || m.owner.team !== direct.team)) this._mHit = true;
         this._sk += m.skl ? 1 : 0;
@@ -806,6 +959,7 @@ export class Combat {
         this.missiles.splice(i, 1);
       }
     }
+    this.snd.updateFlybys(this.missiles, this.s.camera, "missile", (o) => o.owner === this.player);
     this.warnDist = wd;
   }
 
@@ -858,12 +1012,29 @@ export class Combat {
       if (o.kind === "turret" && ai.focus !== "turret") d *= 1.6;
       if (d < bs) { bs = d; best = o; }
     }
+    const prev = ai.target, me = this.player, now = this.s.time;
     ai.target = best;
     ai.los = best ? this._vis(a.pos, best, 1.5) : false;
     ai.goal = null;
-    // 체력이 낮으면 수리 키트를 찾는다
+    if (best && best === me && ai.los && prev !== me && !ai.spotted) { ai.spotted = true; this.bark(a, "spot"); }   // 처음 나를 봤다
+    const brave = a.botKind === "kamikaze" || a.botKind === "boss" || a.bossBar || a.static;
+    // 체력 30% 미만: 한동안 전투에서 빠져 위협의 시야를 벗어난 곳(구조물 뒤)으로 물러난다
+    if (!brave && !(ai.retreatT > 0) && a.hp < a.maxHp * 0.3 && now > (ai.retreatCD || 0) && !ai.leader) {
+      ai.retreatT = 4.5 + Math.random() * 3; ai.retreatCD = now + 15 + Math.random() * 6; ai.role = null;
+      this._hidePoint(a, ai.lastHit && ai.lastHit.alive ? ai.lastHit : best); ai.hideT = now;
+      this.bark(a, "retreat");
+    }
+    if (ai.retreatT > 0) {
+      // 숨을 곳에 닿았는데 아직 보이면 다른 곳 (2초에 한 번만 다시 고른다)
+      const th = ai.lastHit && ai.lastHit.alive ? ai.lastHit : best;
+      if (th && now - ai.hideT > 2 && a.pos.distanceToSquared(ai.hide) < 100 && ai.los) { this._hidePoint(a, th); ai.hideT = now; }
+      ai.goal = ai.hide;
+    }
+    // 조준당하는 중: 가끔 회피 기동 (락온을 깨려고)
+    if (me && me.alive && (this.aim === a || (this.lock === a && this.lockT > 0.25)) && !brave && now > (ai.jukeCD || 0) && Math.random() < 0.25 + 0.25 * Math.min(1, ai.skill)) this._juke(a, me);
+    // 체력이 낮으면 수리 키트를 찾는다 (후퇴 중이면 가까운 것만)
     if (a.hp < a.maxHp * 0.4 && a.botKind !== "kamikaze" && a.botKind !== "boss") {
-      let bp = null, bd = 130;
+      let bp = null, bd = ai.retreatT > 0 ? 70 : 130;
       for (const p of this.pickups) if (p.active && p.type === "repair") { const d = p.pos.distanceTo(a.pos); if (d < bd) { bd = d; bp = p; } }
       if (bp) ai.goal = bp.pos;
     }
@@ -882,9 +1053,11 @@ export class Combat {
       const gy = w.h(a.pos.x, a.pos.z) + BR; if (a.pos.y < gy) { a.pos.y = gy; a.vel.y = 0; }
       if (col.querySphere(a.pos, BR, _hit)) a.pos.addScaledVector(_hit.normal, _hit.depth);
       a.model.position.copy(a.pos); a.model.rotation.z += dt * 3; a.model.userData.tick(dt, 0, this.s.time);
+      ai.mq = null;
       return;
     }
     if ((ai.think -= dt) <= 0) this._think(a);
+    if (ai.retreatT > 0 && (ai.retreatT -= dt) <= 0) { ai.goal = null; ai.think = 0; this.bark(a, "back"); }
     const speed = K.speed * (0.75 + ai.skill * 0.3) * (a.boostT > 0 ? 1.35 : 1);
     const t = ai.target;
     let face = null;
@@ -899,15 +1072,17 @@ export class Combat {
       if (K.boom) { // 자폭 드론: 예상 위치로 돌진
         this._lead(a.pos, t, speed, _b).sub(a.pos).normalize();
         _des.copy(_b).multiplyScalar(speed);
-        if (d < a.radius + t.radius + 1.6) { this.splash(a.pos, 7, K.boom, a, null); this.kill(a, null); return; }
+        if (d < a.radius + t.radius + 1.6) { a.boomed = true; this.splash(a.pos, 7, K.boom, a, null); this.kill(a, null); return; }
       } else {
         _a.multiplyScalar(1 / Math.max(d, 1e-3));
         const R = ai.range + (t.static ? 12 : 0);
         _c.crossVectors(_a, UP).normalize().multiplyScalar(ai.orbit);
-        if (d > R + 10 || !ai.los) _des.copy(_a).multiplyScalar(speed).addScaledVector(_c, speed * 0.25);
+        const role = ai.role && t === this.player;
+        if (role) this._roleSteer(a, t, d, R, speed);
+        else if (d > R + 10 || !ai.los) _des.copy(_a).multiplyScalar(speed).addScaledVector(_c, speed * 0.25);
         else if (d < R - 8) _des.copy(_a).multiplyScalar(-speed * 0.7).addScaledVector(_c, speed * 0.6);
         else _des.copy(_c).multiplyScalar(speed * 0.65).addScaledVector(_a, (d - R) * 0.4);
-        _des.y += (t.pos.y + ai.altOff + (t.static ? 6 : 0) - a.pos.y) * 0.9;
+        if (!role) _des.y += (t.pos.y + ai.altOff + (t.static ? 6 : 0) - a.pos.y) * 0.9;
         if (Math.random() < dt * 0.25) ai.orbit = -ai.orbit;
       }
     } else if (ai.leader && ai.leader.alive) {
@@ -923,6 +1098,9 @@ export class Combat {
       _des.copy(ai.roam).sub(a.pos); const d = _des.length(); _des.multiplyScalar(speed * 0.7 / Math.max(d, 1));
     }
 
+    // 회피 기동: 짧게 옆으로 튄다
+    let jk = 1;
+    if (ai.jukeT > 0) { ai.jukeT -= dt; _des.addScaledVector(ai.jukeV, speed * 1.15); jk = 1.8; }
     // 회피: 지면·천장·경계·장애물
     const gy = w.h(a.pos.x, a.pos.z) + 2.5 + BR;
     if (a.pos.y < gy + 3) _des.y += (gy + 3 - a.pos.y) * 2.5;
@@ -944,7 +1122,7 @@ export class Combat {
 
     // 속도 적분
     _a.copy(_des).sub(a.vel);
-    const am = K.accel * (0.8 + ai.skill * 0.3) * dt, al = _a.length();
+    const am = K.accel * (0.8 + ai.skill * 0.3) * dt * jk, al = _a.length();
     if (al > am) _a.multiplyScalar(am / al);
     a.vel.add(_a);
     // 한 프레임 이동을 몸 반경보다 잘게 나눠 밀어낸다 (빠르거나 큰 기체가 벽·지형을 뚫고 지나가지 않게)
@@ -974,7 +1152,15 @@ export class Combat {
     _m.makeBasis(_x, _y, _z);
     a.quat.setFromRotationMatrix(_m);
     a.model.position.copy(a.pos);
-    a.model.quaternion.slerp(a.quat, Math.min(1, dt * 8));
+    // 기본 자세는 따로 보간하고, 피격 휘청임(요·롤·피치 감쇠 진동)은 그 위에 얹는다
+    const mq = ai.mq || (ai.mq = a.model.quaternion.clone());
+    mq.slerp(a.quat, Math.min(1, dt * 8));
+    a.model.quaternion.copy(mq);
+    if (ai.wob > 0.01) {
+      ai.wob = Math.max(0, ai.wob - dt * 2.4); ai.wobPh = (ai.wobPh || 0) + dt * 19;
+      const w = Math.sin(ai.wobPh) * ai.wob * ai.wob;
+      a.model.quaternion.multiply(_q.setFromEuler(_eu.set((ai.wobP || 0) * w * 0.3, (ai.wobS || 0) * w * 0.3, (ai.wobS || 0) * w * 0.55)));
+    }
     a.model.userData.tick(dt, 0.4 + a.vel.length() / 50, this.s.time);
 
     // 사격
@@ -993,7 +1179,7 @@ export class Combat {
           const lc = this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040;
           this.fireLaser(a, _b, _aim, K.dmg * (a.rk ? a.rk.dmg : 1) * (a.overT > 0 ? 2 : 1), lc, 92);
           this.fx.muzzle(_b, _aim, lc, K.scale * 0.6);
-          this.snd.play("elaser", this.volAt(a.pos) * 0.7, this.panAt(a.pos));
+          this.snd.playAt("elaser", a.pos, this.s.camera, 0.7);
         }
         if (a.missiles > 0 && ai.mcool <= 0 && d > 28 && d < 130 && !t.static) {
           a.missiles--; ai.mcool = (a.botKind === "boss" ? 3 : 7) + Math.random() * 5;
@@ -1003,6 +1189,30 @@ export class Combat {
         }
       }
     }
+  }
+
+  // 협공 조종: 미끼는 내 정면 사거리에서 좌우로 흔들며 시선을 끌고, 측면조는 크게 돌아 내 뒤로 파고든다
+  _roleSteer(a, t, d, R, speed) {
+    const ai = a.ai;
+    _d.copy(this.s.player.aimDir); _d.y = 0; if (_d.lengthSq() < 1e-4) _d.set(0, 0, -1); _d.normalize();   // 내 기수 방향(수평)
+    _e.set(-_d.z, 0, _d.x);                                                                                // 오른쪽
+    _p1.copy(a.pos).sub(t.pos); _p1.y = 0; const hd = _p1.length() || 1, fd = _p1.dot(_d) / hd;             // fd: 1 = 정면, -1 = 바로 뒤
+    if (ai.role === "bait") {
+      const sw = Math.sin(this.s.time * 0.9 + a.id) * R * 0.45;
+      _b.copy(t.pos).addScaledVector(_d, R * 0.85).addScaledVector(_e, sw);
+    } else {
+      // 뒤쪽 목표 지점. 아직 앞쪽이면 옆으로 크게 돌아서 간다 (내 앞을 가로지르지 않게)
+      const s = ai.flankS || 1;
+      if (fd > -0.2) _b.copy(t.pos).addScaledVector(_e, s * R * 1.1).addScaledVector(_d, -R * 0.2);
+      else _b.copy(t.pos).addScaledVector(_d, -R * 0.65).addScaledVector(_e, s * R * 0.25);
+      if (fd < -0.55 && d < R + 18 && !ai.flankDone) { ai.flankDone = true; this.bark(a, "behind"); }
+      if (fd > 0.2) ai.flankDone = false;
+    }
+    _b.y = Math.max(t.pos.y + 2 + ai.altOff, this.w.h(_b.x, _b.z) + 6);
+    _des.copy(_b).sub(a.pos);
+    const gd = _des.length();
+    _des.multiplyScalar((speed * (ai.role === "flank" ? 1.05 : 0.85)) * Math.min(1, gd / 12) / Math.max(gd, 1e-3));
+    _des.y *= 1.6;
   }
 
   _turret(a, dt) {
@@ -1037,7 +1247,7 @@ export class Combat {
       _b.copy(a.pos).addScaledVector(_aim, 2.6);
       this.fireLaser(a, _b, _aim, 7, a.team === 0 ? 0x66b8ff : 0xffa040, 86);
       this.fx.muzzle(_b, _aim, a.team === 0 ? 0x66b8ff : 0xffa040, 2.2);
-      this.snd.play("elaser", this.volAt(a.pos) * 0.6, this.panAt(a.pos));
+      this.snd.playAt("elaser", a.pos, this.s.camera, 0.6);
     }
   }
 
@@ -1047,6 +1257,7 @@ export class Combat {
   }
 
   dispose() {
+    try { this.snd.lowHp(0); const mus = this.s.game.music; if (mus && mus.setIntensity) mus.setIntensity(0); } catch (_) { /* 소리 끄기 실패는 무시 */ }
     const sc = this.w.scene;
     if (this.skill) this.skill.dispose();
     this.units.dispose();
