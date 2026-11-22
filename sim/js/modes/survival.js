@@ -9,11 +9,12 @@ import { rankStats, clampRank } from "../ranks.js";
 import { Director, directorWanted } from "../director.js";
 
 export const VARIANTS = {
-  dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
-  tdm: { name: "팀 데스매치", icon: "⚔️", desc: "아군 편대와 함께 적 편대와 맞붙는 팀전. 제한 시간이 끝날 때 팀 점수(격추·피해)가 높은 쪽이 이깁니다" },
+  assault: { name: "공방전", icon: "🛡️", desc: "전반 5분은 공격, 후반 5분은 수비. 구역마다 침투·격파·점령·침투 저지 임무를 이어 가며, 적 본진 코어를 부수거나 공격 점수 6000을 먼저 모으면 공격 성공. 승수가 같으면 총점이 높은 쪽이 최종 승리" },
+  dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요", hidden: true },
+  tdm: { name: "팀 데스매치", icon: "⚔️", desc: "아군 편대와 함께 적 편대와 맞붙는 팀전. 제한 시간이 끝날 때 팀 점수(격추·피해)가 높은 쪽이 이깁니다", hidden: true },
   fleet: { name: "함대전", icon: "🛸", desc: "하늘을 메운 아군 드론 함대와 함께 적 드론 함대와 맞붙는 대규모 공중전. 증원까지 모두 꺾어 적 함대 전력을 0으로 만들거나, 시간이 끝날 때 함대 전력이 앞서면 승리", hidden: true },   // 메뉴에서 뺌 (스토리 결전의 드론 함대는 그대로)
   aos: { name: "기지전 (AOS)", icon: "🏯", desc: "드론 리그 스타디움 5:5 팀전. 상대 본진 파괴 · 목표 전장 점수 달성 · 시간 종료 때 점수 우세 — 셋 중 하나로 승리. 미니언·타워·정글·보스, 경기 내 업그레이드", hidden: true },   // 메뉴에서 뺌
-  conq: { name: "점령전", icon: "🚩", desc: "4개 팀이 지역 거점을 땅따먹기처럼 차지하는 팀전. 상대 본부를 부수면 그 팀은 탈락, 격추·점령·본부 파괴로 점수를 쌓아 순위를 겨룹니다" },
+  conq: { name: "점령전", icon: "🚩", desc: "4개 팀이 지역 거점을 땅따먹기처럼 차지하는 팀전. 상대 본부를 부수면 그 팀은 탈락, 격추·점령·본부 파괴로 점수를 쌓아 순위를 겨룹니다", hidden: true },
   base: { name: "거점 공략전", icon: "🏰", desc: "숨은 적 거점 5곳을 찾아 부수는 팀전", hidden: true },
   cargo: { name: "화물 운반전", icon: "📦", desc: "보급 상자를 집어 아군 착륙장으로 운반. 적 운반 드론을 막으면 더 유리합니다", hidden: true },   // 스토리 단계에서만 쓴다
 };
@@ -25,12 +26,17 @@ const POINTS = 5, REVEAL_R = 90;   // 적 거점 수, 드러나는 거리(m)
 export class SurvivalMode extends CombatMode {
   constructor(session, cfg) {
     super(session, cfg);
+    if (cfg.variant === "assault" || cfg.assault) {   // 공방전: 팀전(아군 편대 대 적 편대) 위에 공격/수비 역할을 얹는다
+      cfg.assault = cfg.assault || { half: 1, role: "atk", wins: [0, 0], total: [0, 0], halves: [] };
+      cfg.variant = "tdm";
+    }
     this.variant = VARIANTS[cfg.variant] ? cfg.variant : "dm";
     this.duration = cfg.time || 180;
     this.title = `서바이벌 · ${VARIANTS[this.variant].name}`;
     if (this.variant === "fleet") { this.duration = cfg.time || 300; if (!cfg.faction) cfg.faction = "eia"; }   // 함대전: 적은 에이아 기계 함대
     this.team = [0, 0];
     this.recKey = `survival:${this.variant}:${session.map.id}`;
+    if (cfg.assault) { this.title = `서바이벌 · 공방전 (${cfg.assault.half === 1 ? "전반 공격" : "후반 수비"})`; this.recKey = `survival:assault:${session.map.id}`; this.duration = cfg.time || 300; }
     this.delivered = [0, 0];
     this.endT = -1;
   }
@@ -236,7 +242,7 @@ export class SurvivalMode extends CombatMode {
     const drone = a.kind === "player" || a.kind === "bot";
     const dir = this.director ? this.director.onKill(a, k) : false;   // 전선전 목표물(방어 지점·본진 코어 등)
     if (k && k !== a && (k.kind === "player" || k.kind === "bot")) {
-      const pts = a.kind === "core" ? (dir && a.team === 0 ? 300 : 1500) : a.kind === "turret" ? 300 : this.cargo && this.cargo.carried(a) ? 150 : a.K && a.K.base ? a.K.score : 100;
+      const pts = a.pts ? a.pts : a.kind === "core" ? (dir && a.team === 0 ? 300 : 1500) : a.kind === "turret" ? 300 : this.cargo && this.cargo.carried(a) ? 150 : a.K && a.K.base ? a.K.score : 100;
       this._add(k, pts);
       h.feed(`${k.name} ▸ ${a.name}`, k === me ? "#ffd24a" : a === me ? "#ff6b5a" : "#cfd8e3");
       if (k === me) h.toast(`${a.name} 격파  +${pts}`, "#ffd24a", 1.2, 22);
@@ -283,7 +289,7 @@ export class SurvivalMode extends CombatMode {
   // 자동 난이도: 20초마다 조종자의 격추·피격추·받은 피해를 보고 적의 실력·화력·동시 투입 수를 조금씩 맞춘다 (0.6 ~ 1.5)
   _dda(dt) {
     const c = this.combat, me = this.me; if (!c || !me) return;
-    const D = this.ddaS || (this.ddaS = { k: 0.9, t: 0, kills: me.kills, deaths: me.deaths, hurt: 0, hp: me.hp, cap0: this.director ? this.director.cap : 0 });
+    const D = this.ddaS || (this.ddaS = { k: (this.cfg.assault && this.cfg.assault.ddaK) || 0.9, t: 0, kills: me.kills, deaths: me.deaths, hurt: 0, hp: me.hp, cap0: this.director ? this.director.cap : 0 });
     if (me.alive && me.hp < D.hp) D.hurt += D.hp - me.hp;
     D.hp = me.hp;
     if (!D.applied) { D.applied = true; this._ddaApply(D); }
@@ -307,7 +313,40 @@ export class SurvivalMode extends CombatMode {
   // 임무 막바지: 남은 시간 25초 (동료 무전용)
   nearEnd() { return this.endT < 0 && this.duration - this.time < 25 && this.duration - this.time > 3; }
 
+  // 공방전: 한 판(전·후반)이 끝날 때. 전반이면 공수 교대해 후반을 시작, 후반이면 최종 결과
+  _endAssault() {
+    if (this._halfDone) return; this._halfDone = true;
+    const A = this.cfg.assault, D = this.director, me = this.me;
+    const win = A.role === "atk" ? !!(D && D.victory) : !(D && D.lost);   // 공격: 본진 파괴·점수 달성해야 승 / 수비: 본진을 지키면 승
+    const pts = this.team.map(Math.round);
+    const wins = A.wins.slice(), total = A.total.map((v, i) => v + pts[i]);
+    wins[win ? 0 : 1]++;
+    const halves = (A.halves || []).concat([{ role: A.role, win, pts, how: D ? (D.byScore ? "점수" : A.role === "atk" ? (D.victory ? "본진 파괴" : "") : D.lost ? "본진 함락" : "") : "", score: Math.round(me.score), kills: me.kills, deaths: me.deaths, done: D ? D.done : 0, tot: D ? D.total : 0 }]);
+    if (A.half === 1) {
+      this.state = "half"; this.combat.frozen = true;
+      const h = this.s.hud;
+      h.toast(`전반 종료 — 공격 ${win ? "성공" : "실패"}  ·  공수 교대!`, win ? "#35ff7a" : "#ff6b5a", 3, 30);
+      this.s.game.sound.play(win ? "lap" : "warn");
+      const cfg2 = Object.assign({}, this.cfg, { variant: "assault", assault: { half: 2, role: "def", wins, total, halves, ddaK: this.ddaS ? this.ddaS.k : 0.9 } });
+      setTimeout(() => { if (this.s.game.session === this.s) this.s.game.startSession(cfg2); }, 3000);
+      return;
+    }
+    const again = Object.assign({}, this.cfg, { variant: "assault" }); delete again.assault;
+    this.s.game.lastCfg = again;   // '다시 하기'는 전반부터
+    const rec = submitRecord(this.recKey, total[0]);
+    const fin = wins[0] !== wins[1] ? wins[0] > wins[1] : total[0] > total[1], draw = wins[0] === wins[1] && total[0] === total[1];
+    this.won = fin;
+    const H = (x) => `${x.role === "atk" ? "공격" : "수비"} ${x.win ? "성공" : "실패"}${x.how ? ` (${x.how})` : ""} · ${x.pts[0]} : ${x.pts[1]}`;
+    this.finish({
+      title: draw ? "무승부" : fin ? "최종 승리!" : "패배", sub: `공방전 · 승 ${wins[0]} : ${wins[1]}${wins[0] === wins[1] ? ` · 총점 ${total[0]} : ${total[1]}` : ""}`,
+      win: fin, record: rec, stars: fin ? (wins[0] === 2 ? 3 : 2) : wins[0] ? 1 : 0,
+      lines: [{ label: "전반", value: H(halves[0]) }, { label: "후반", value: H(halves[1]) }, { label: "승수 (아군 : 적군)", value: `${wins[0]} : ${wins[1]}` }, { label: "총점 (아군 : 적군)", value: `${total[0]} : ${total[1]}` },
+        { label: "내 격추 / 피격추", value: `${halves.reduce((q, x) => q + x.kills, 0)} / ${halves.reduce((q, x) => q + x.deaths, 0)}` }, { label: "완료한 임무", value: `${halves.reduce((q, x) => q + x.done, 0)} / ${halves.reduce((q, x) => q + x.tot, 0)}` }, { label: "최고 기록", value: `${records[this.recKey] || total[0]}` }],
+    });
+  }
+
   _end() {
+    if (this.cfg.assault) return this._endAssault();
     const c = this.combat, me = this.me, sc = Math.round(me.score);
     const rec = submitRecord(this.recKey, sc);
     const TN = this.variant === "tdm" ? TDM_NAME : TEAM_NAME;
