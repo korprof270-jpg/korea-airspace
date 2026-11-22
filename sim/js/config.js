@@ -2,7 +2,7 @@
 const KEY = "haneulgil-fpv-v1";
 
 // 게임 버전: 업데이트할 때마다 올린다 (첫 화면 왼쪽 아래에 표시)
-export const VERSION = "V1.03";
+export const VERSION = "V1.04";
 
 export const FLIGHT_MODES = ["ACRO", "HORIZON", "ANGLE", "ALTHOLD", "LOITER"];
 export const FLIGHT_MODE_INFO = {

@@ -10,7 +10,7 @@ const VOICE = new Set(["vtick", "vblip", "vblipr", "vblipm"]);
 const UI_NOW = new Set(["click", "confirm", "back"]);
 
 // ElevenLabs 로 만든 녹음 효과음 (sim/audio/sfx/*.mp3). 없으면 합성음
-const SAMPLE_NAMES = ["laser", "missile", "explode", "bigkill", "hurt", "shieldup", "pickup", "boost", "whoosh", "lock", "warn", "click", "beep", "emp", "gate"];
+const SAMPLE_NAMES = ["explode", "bigkill", "hurt", "shieldup", "pickup", "boost", "whoosh", "warn", "click", "beep", "emp", "gate"];   // 레이저·미사일·락온은 합성음이 더 낫다(사용자 의견)
 const SAMPLE_VOL = { laser: 0.45, click: 0.6, beep: 0.7, hurt: 0.85, explode: 0.9, bigkill: 1, warn: 0.6, lock: 0.6 };
 
 export class Sound {
