@@ -7,6 +7,10 @@ import { CAST } from "./story.js";
 
 const SHOW = 4.5, GAP = 8;
 
+// 무전 대사 녹음(ElevenLabs): audio/voice/index.json = { "대사 원문": "파일 이름" }. 없으면 글자만 띄운다
+let VOICES = null;
+fetch("audio/voice/index.json").then((r) => (r.ok ? r.json() : null)).then((j) => { VOICES = j; }).catch(() => { /* 녹음 없음 */ });
+
 export function installRadio(s) {
   if (s.radioSay) return s.radioSay;
   const Q = (s._radioQ = []);
@@ -33,6 +37,8 @@ export function installRadio(s) {
     if (!Q[0].force && clock - lastEnd < GAP) return;
     const q = Q.shift();
     cur = { who: q.who, line: q.line, start: clock, end: clock + SHOW };
+    const vf = VOICES && VOICES[q.line];
+    if (vf && s.game && s.game.sound && s.game.sound.playVoiceClip) s.game.sound.playVoiceClip(`audio/voice/${vf}`);
   };
   // 그리기: 정해진 무전이 있으면 그대로, 없으면 동적 줄을 같은 패널 모양으로 (원래 함수에 한 줄짜리 목록을 잠깐 넘긴다)
   s._radio = function (h) {
