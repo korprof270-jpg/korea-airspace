@@ -17,18 +17,26 @@
   // ----- 공유 기록 (게시 페이지에서만): 강사가 그날 교육생 전체 기록을 모아 받는다 -----
   let dbP = null;
   const getDb = () => (dbP = dbP || (window.claude && window.claude.use ? window.claude.use("db").catch(() => null) : Promise.resolve(null)));
+  // 교육생마다 records/<자기 id> 문서 하나에 회차를 쌓고, 소유자(강사)는 records 전체를 읽는다
+  async function myDoc() {
+    const db = await getDb(); if (!db) return null;
+    const user = await window.claude.use("user").catch(() => null); if (!user) return null;
+    const id = await user.id().catch(() => null); return id ? db.doc("records/" + id) : null;
+  }
   async function shareRecord(rec) {
-    const db = await getDb(); if (!db) return false;
-    try { await db.collection("records").add(rec); return true; } catch (e) { return false; }
+    try { const d = await myDoc(); if (!d) return false; const snap = await d.get(); const runs = ((snap.data() || {}).runs || []).slice(-200); await d.set({ runs: runs.concat(rec) }); return true; } catch (e) { return false; }
   }
   async function recordsOf(date) {
     const local = load(REC, []).filter((r) => r.date === date);
-    const db = await getDb(); if (!db) return local;
-    try {
-      const snap = await db.collection("records").where("date", "==", date).get();
-      const all = snap.docs.map((d) => d.data()), seen = new Set(all.map((r) => r.id));
-      return all.concat(local.filter((r) => !seen.has(r.id))).sort((a, b) => (a.end < b.end ? -1 : 1));
-    } catch (e) { return local; }
+    let shared = [];
+    const db = await getDb();
+    if (db) {
+      try { const snap = await db.collection("records").get(); snap.docs.forEach((d) => (shared = shared.concat((d.data() || {}).runs || []))); }
+      catch (e) { try { const d = await myDoc(); if (d) shared = ((await d.get()).data() || {}).runs || []; } catch (e2) {} }
+    }
+    const seen = new Set(), out = [];
+    for (const r of shared.concat(local)) if (r && r.date === date && !seen.has(r.id)) { seen.add(r.id); out.push(r); }
+    return out.sort((a, b) => (a.end < b.end ? -1 : 1));
   }
 
   // ----- 엑셀(.xlsx) 만들기와 저장 -----
