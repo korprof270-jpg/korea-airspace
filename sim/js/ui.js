@@ -709,7 +709,7 @@ export class UI {
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else {
         opts += `<div class="opt"><label>${s.variant === "tdm" ? "적 편대 수" : "AI 드론 수"}</label>${this.seg("bots", [[3, "3"], [5, "5"], [7, "7"], [9, "9"]], s.bots)}${s.variant === "tdm" ? `<div class="hint">아군 AI 편대는 적보다 둘 적게(최소 1기) 나와 나를 따라 싸웁니다.</div>` : ""}</div>`;
-        opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"]], s.time)}</div>` + this._diff();
+        opts += `<div class="opt"><label>제한 시간</label>${this.seg("time", [[120, "2분"], [180, "3분"], [300, "5분"], [600, "10분"]], s.time)}</div>` + this._diff();
       }
     } else {
       const list = cmMissions(s.map);

@@ -6,6 +6,7 @@ import { CombatMode, CargoSys } from "./combatmode.js";
 import { submitRecord, records, fmtTime } from "../config.js";
 import { drawCombatHud } from "../combathud.js";
 import { rankStats, clampRank } from "../ranks.js";
+import { Director, directorWanted } from "../director.js";
 
 export const VARIANTS = {
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요" },
@@ -42,6 +43,7 @@ export class SurvivalMode extends CombatMode {
       onDamage: (a, amt, k) => { if (k && k !== a && (k.kind === "player" || k.kind === "bot")) this._add(k, Math.min(amt, a.hp + amt) * (a.static ? 0.5 : 1)); },
       spawnPoint: (a) => this._spawn(a),
       botGoal: (a) => this._botGoal(a),
+      canSpawn: (k) => (this.director ? this.director.canSpawn(k) : k),   // 모함기 새끼 등 추가 투입 상한
     });
     const n = this.cfg.bots || 5, hard = (this.cfg.difficulty || "normal") === "hard";
 
@@ -55,6 +57,7 @@ export class SurvivalMode extends CombatMode {
       c.scatterPickups(11);
       // 지상 위협: 전차와 대공 로봇이 맵 어딘가를 돌아다닌다 (모두의 적)
       for (const type of n >= 7 ? ["tank", "aa", "tank"] : ["tank", "aa"]) c.units.spawn(type, { pos: c.randomPoint(3, 5, 0.6) });
+      this._direct();
       return;
     }
 
@@ -89,11 +92,12 @@ export class SurvivalMode extends CombatMode {
       }
       c.scatterPickups(11);
       c.units.spawn("tank", { pos: c.randomPoint(3, 5, 0.6) });
+      this._direct();
       return;
     }
 
     if (v === "base") {
-      this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 2000);
+      this.home = this.buildBase(B[0].x, B[0].z, 0, 3, 6000);   // 코어 체력 3배 (사용자 요청)
       this._makeOutposts(B);
       const mk = (team, i) => {
         // 아군: 코어·포탑 공략과 기지 방어를 나눠 맡는다. 적: 절반은 우리 기지를 치고 절반은 자기 거점을 지킨다
@@ -130,7 +134,7 @@ export class SurvivalMode extends CombatMode {
         const q = c.randomPoint(3, 5, 0.78);
         p.set(q.x, w.h(q.x, q.z) + 7, q.z);
         if (!ok(p.x, p.z, gap) || w.col.blocked(p, 5) || (strict && !flat(p.x, p.z))) continue;
-        const b = this.buildBase(p.x, p.z, 1, 2, 380);
+        const b = this.buildBase(p.x, p.z, 1, 2, 1140);   // 코어 체력 3배
         b.name = "적 거점 " + "ABCDE"[ops.length]; b.found = false; b.core.name = b.name;
         ops.push(b);
         // 거점마다 수비대: 전차·대공 로봇이 번갈아, 세 번째 거점 상공에는 전투함
@@ -140,6 +144,17 @@ export class SurvivalMode extends CombatMode {
       }
     }
   }
+  // 전선전 연출가 (director.js): 오프라인 데스매치·팀 데스매치(스토리 제외)
+  _direct() {
+    if (!directorWanted(this)) return;
+    this.director = new Director(this);
+    this.director.start();
+    // 플레이어는 제1 구역 뒤쪽에서 출발
+    const sp = this.director.spawnPoint(this.me);
+    this.placePlayer(sp.pos, sp.yaw);
+  }
+  dispose() { if (this.director) this.director.dispose(); super.dispose(); }
+
   _hide(a, hide) {
     a.targetable = !hide; a.invulnerable = hide; a.model.visible = !hide;
     if (a.unit && a === a.unit.root) a.unit.group.visible = !hide;
@@ -169,6 +184,7 @@ export class SurvivalMode extends CombatMode {
 
   _spawn(a) {
     const c = this.combat, w = this.s.world;
+    if (this.director) { const sp = this.director.spawnPoint(a); if (sp) return sp; }
     if (this.variant === "dm") {
       // 적들과 가장 먼 후보 지점
       let best = null, bd = -1;
@@ -192,6 +208,7 @@ export class SurvivalMode extends CombatMode {
   }
 
   _botGoal(a) {
+    if (this.director) { const g = this.director.botGoal(a); if (g) return g; if (a.ai.path || a.dormant) return null; }
     if (this.variant === "tdm") return this._hunt(a);
     if (this.variant !== "cargo" || a.ai.role !== "courier") return null;
     if (this.cargo.carried(a)) return this.padGoal[a.team];
@@ -217,13 +234,14 @@ export class SurvivalMode extends CombatMode {
   _onKill(a, k) {
     const h = this.s.hud, me = this.me;
     const drone = a.kind === "player" || a.kind === "bot";
+    const dir = this.director ? this.director.onKill(a, k) : false;   // 전선전 목표물(방어 지점·본진 코어 등)
     if (k && k !== a && (k.kind === "player" || k.kind === "bot")) {
-      const pts = a.kind === "core" ? 1500 : a.kind === "turret" ? 300 : this.cargo && this.cargo.carried(a) ? 150 : 100;
+      const pts = a.kind === "core" ? (dir && a.team === 0 ? 300 : 1500) : a.kind === "turret" ? 300 : this.cargo && this.cargo.carried(a) ? 150 : a.K && a.K.base ? a.K.score : 100;
       this._add(k, pts);
       h.feed(`${k.name} ▸ ${a.name}`, k === me ? "#ffd24a" : a === me ? "#ff6b5a" : "#cfd8e3");
       if (k === me) h.toast(`${a.name} 격파  +${pts}`, "#ffd24a", 1.2, 22);
     } else if (drone) h.feed(`${a.name} 추락`, "#9fb4c8");
-    if (a.kind === "core") {
+    if (a.kind === "core" && !dir) {
       if (!this.outposts || a.team === 0) { this.coreDown = a.team; this.endT = 2; }
       else {
         const left = this.outposts.filter((b) => b.core.alive).length;
@@ -245,6 +263,7 @@ export class SurvivalMode extends CombatMode {
       });
     }
     if (this.outposts) this._outposts();
+    if (this.director) this.director.update(dt);
     const bc = this.cfg.boss;
     if (bc && !this.bossA && !this.cut && this.time >= (bc.at ?? 60)) {
       const live = this.outposts ? this.outposts.filter((b) => b.core.alive) : [], c = this.combat;
@@ -272,19 +291,21 @@ export class SurvivalMode extends CombatMode {
     if (this.variant === "fleet") return this._endFleet(rec, board);
     if (this.variant === "dm") {
       const rank = (this.rank = 1 + c.board().filter((a) => a !== me && a.score > me.score).length);
+      const D = this.director;
       this.finish({
-        title: rank === 1 ? "승리!" : `${rank}위`, sub: VARIANTS.dm.name, win: rank === 1, record: rec, stars: Math.max(0, 4 - rank), board,
-        lines: [{ label: "내 점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey]}` }],
+        title: rank === 1 ? "승리!" : `${rank}위`, sub: VARIANTS.dm.name + (D && D.victory ? " · 적 본진 돌파" : ""), win: rank === 1, record: rec, stars: Math.max(0, 4 - rank), board,
+        lines: [{ label: "내 점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey]}` }, ...(D ? D.resultLines() : [])],
       });
     } else {
       const [a, b] = this.team.map(Math.round);
-      const win = this.coreDown !== undefined ? this.coreDown === 1 : a > b;
+      const D = this.director;
+      const win = D && D.victory ? true : this.coreDown !== undefined ? this.coreDown === 1 : a > b;
       this.won = win;
       const tk = [0, 1].map((t) => c.actors.filter((x) => x.team === t && (x.kind === "bot" || x.kind === "player")).reduce((q, x) => q + x.kills, 0));
       this.finish({
         title: win ? "승리!" : a === b && this.coreDown === undefined ? "무승부" : "패배", sub: `${VARIANTS[this.variant].name} · ${TN[0]} ${a} : ${b} ${TN[1]}`,
         win, record: rec, stars: win ? (a > b * 1.5 ? 3 : 2) : a > b * 0.7 ? 1 : 0, board,
-        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : [])],
+        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : []), ...(D ? D.resultLines() : [])],
       });
     }
   }
@@ -306,6 +327,7 @@ export class SurvivalMode extends CombatMode {
   // 임무 목표: 거점 / 화물 / 착륙장
   missionObjective(o) {
     const me = this.me;
+    if (this.director) return this.director.objective(o);
     if (this.outposts) {
       // 발견한 적 거점 가운데 아직 살아 있는 가장 가까운 코어
       let best = null, bd = 1e9;
@@ -328,6 +350,7 @@ export class SurvivalMode extends CombatMode {
     if (this.cut) return;
     this.hudCountdown(h);
     if (h.lvl === "off") return;
+    if (this.director) this.director.hud(h);
     const full = h.lvl === "full", dm = this.variant === "dm";
     const left = Math.max(0, this.duration - this.time);
     h.timer(fmtTime(left), left < 20 ? "#ff6b5a" : "#fff", "#ff3d5a");

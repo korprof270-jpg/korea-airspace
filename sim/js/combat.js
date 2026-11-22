@@ -31,7 +31,13 @@ export const KINDS = {
   gunship: { hp: 240, radius: 1.7, scale: 5, speed: 12, accel: 8, dmg: 8, rate: 6, range: 38, missiles: 6, score: 300 },
   jet: { hp: 60, radius: 1.3, scale: 1, speed: 34, accel: 16, dmg: 5, rate: 6, range: 44, missiles: 2, score: 180, model: buildJet, name: "전투기" },   // 빠르게 스쳐 지나가며 쏜다
   boss: { hp: 1500, radius: 5.5, scale: 17, speed: 8, accel: 4, dmg: 9, rate: 7, range: 55, missiles: 99, score: 2000 },
+  // 서바이벌 전선전(director.js)의 특수 기체. base: 외형을 빌려 올 기본 종류
+  shield: { hp: 150, radius: 1.1, scale: 3.0, speed: 15, accel: 11, dmg: 7, rate: 4, range: 20, missiles: 0, score: 220, name: "방패기", base: "grunt", turn: 1.3, front: 0.12 },   // 정면 에너지 방패: 앞에서 맞으면 피해 12%만
+  sniper: { hp: 80, radius: 1.0, scale: 2.8, speed: 16, accel: 12, dmg: 0, rate: 0, range: 130, missiles: 0, score: 250, name: "저격기", base: "ace", snipe: 34 },               // 1.2초 조준선 예고 후 강한 한 발
+  carrier: { hp: 420, radius: 2.0, scale: 5.4, speed: 9, accel: 6, dmg: 6, rate: 3, range: 60, missiles: 2, score: 400, name: "모함기", base: "gunship", brood: 3 },            // 소형 자폭기를 주기적으로 풀어 놓는다
+  stealth: { hp: 75, radius: 0.9, scale: 2.5, speed: 26, accel: 22, dmg: 8, rate: 5, range: 26, missiles: 1, score: 230, name: "스텔스기", base: "ace", cloak: 60 },             // 60m 밖에서는 거의 보이지 않고 레이더에도 없다
 };
+const SNIPE_T = 1.2, SNIPE_FREEZE = 0.9;   // 저격: 예고 시간 · 이 시각부터 조준선이 고정된다(옆으로 피하면 빗나간다)
 
 const HIT_T = 0.32;               // 조준선 명중 표시가 남는 시간(초)
 const LASER_SPEED = 170;         // 플레이어 레이저 탄속(m/s). 적 탄은 더 느려 보고 피할 수 있다
@@ -65,6 +71,31 @@ export const DODGE = { max: 2, cool: 6, iframe: 0.45, push: 26 };
 
 // 리스폰 직후 무적 시간(초)
 export const SPAWN_GOD = 3;
+
+// 특수 기체 외형 덧붙이기 (mergeStatic 전에): 방패기 = 앞쪽 반구 방패(따로 그림), 저격기 = 긴 포신, 모함기 = 배 아래 격납 포드
+function decorKind(model, kind, K) {
+  const s = K.scale / 2.6;
+  if (kind === "shield") {
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.5 * s, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      new THREE.MeshBasicMaterial({ color: 0x5fd8ff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    dome.rotation.x = -Math.PI / 2; dome.position.z = -0.35 * s; dome.userData.keep = true;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.5 * s * Math.sin(Math.PI * 0.42), 0.05 * s, 6, 28), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x7fe6ff).multiplyScalar(2) }));
+    rim.position.z = -0.35 * s - 1.5 * s * Math.cos(Math.PI * 0.42);
+    model.add(dome, rim);
+  } else if (kind === "sniper") {
+    const dark = new THREE.MeshLambertMaterial({ color: 0x1a1d24 }), eye = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2040).multiplyScalar(2.4) });
+    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * s, 0.1 * s, 2.6 * s, 8), dark); br.rotation.x = Math.PI / 2; br.position.set(0, -0.12 * s, -1.6 * s);
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.13 * s, 8, 6), eye); lens.position.set(0, 0.12 * s, -0.75 * s);
+    model.add(br, lens);
+  } else if (kind === "carrier") {
+    const dark = new THREE.MeshLambertMaterial({ color: 0x2a2e36 }), amb = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb300).multiplyScalar(2) });
+    for (const x of [-0.75, 0.75]) {
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(0.7 * s, 0.55 * s, 1.9 * s), dark); pod.position.set(x * s, -0.55 * s, 0);
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.72 * s, 0.1 * s, 1.92 * s), amb); st.position.set(x * s, -0.4 * s, 0);
+      model.add(pod, st);
+    }
+  }
+}
 
 export class Combat {
   // handlers: { ffa, onKill(victim, killer), onDamage(victim, amount, attacker), spawnPoint(actor), items(개수) }
@@ -114,6 +145,7 @@ export class Combat {
 
   // 적 무전: 내게 적대적인 가까운 기체만, 6.5~8초에 한 번 이하
   bark(a, kind) {
+    if (!this.barks) return false;   // 적 무전 패널은 쓰지 않는다 (사용자 요청). 다시 켜려면 combat.barks = true
     const p = this.player, t = this.s.time;
     if (!p || !a || !a.alive || t < this.barkNext || !this.hostile(a, p) || a.remote) return false;
     if (a.pos.distanceToSquared(p.pos) > 300 * 300) return false;
@@ -123,7 +155,8 @@ export class Combat {
     return true;
   }
 
-  hostile(a, b) { return a !== b && a.alive && b.alive && (this.ffa || a.team !== b.team); }
+  // 개인전(ffa)에서도 같은 squad 끼리는 적이 아니다 (전선전: 나와 내 편 오브젝트 · 전선의 적 부대)
+  hostile(a, b) { return a !== b && a.alive && b.alive && (this.ffa ? !(a.squad && a.squad === b.squad) : a.team !== b.team); }
   volAt(p) { return clamp(1.15 - this.s.camera.position.distanceTo(p) / 140, 0, 1); }
   // 소리의 좌우 위치(-1..1): 카메라 기준 오른쪽이 +
   panAt(p) {
@@ -168,12 +201,13 @@ export class Combat {
     const col = this.ffa ? [0xff2d3d, 0xffc400, 0xb44cff, 0x35ff7a, 0xff7a1a, 0x21d4fd, 0xff5ad6, 0xffffff, 0x9be15d][this.botN % 9] : TEAM_COLOR[team];
     // 적은 계급을 갖는다: 포인트 색·불빛·고리가 계급 색, 능력치도 계급만큼 오른다 (아군은 계급 없이 흰 고리)
     const enemy = this.ffa || team !== 0, rk = enemy ? rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.level, kind)) : null;
-    const look = botLook(kind, this.ffa ? 1 : team);
+    const look = botLook(K.base || kind, this.ffa ? 1 : team);
     if (rk) { const hex = "#" + rk.color.toString(16).padStart(6, "0"); look.accentColor = hex; look.ledColor = hex; look.propColor = hex; }
     // 에일(외계) 진영: 짙은 보라 생체 외피, 촉수형 프레임, 보랏빛 날개 (포인트 색은 계급 색 유지)
     if (enemy && this.s.cfg.faction === "ail") Object.assign(look, { frame: kind === "gunship" || kind === "boss" ? "hexa" : "tri", canopy: "pod", skin: "solid", frameColor: "#1c0d33", propColor: "#c060ff", ledColor: "#e0b0ff", ledMode: "blink" });
-    const fm = enemy && this.s.cfg.faction ? factionModel(this.s.cfg.faction, kind, rk ? rk.color : 0xff2d3d) : null;   // 진영 외형 (기계 병기 / 외계 생명체)
+    const fm = enemy && this.s.cfg.faction ? factionModel(this.s.cfg.faction, K.base || kind, rk ? rk.color : 0xff2d3d) : null;   // 진영 외형 (기계 병기 / 외계 생명체)
     const model = fm || (K.model ? K.model(rk ? rk.color : 0xe8f4ff) : buildDrone(look, K.scale, { halo: this.multi ? TEAM_COLOR[team] : rk ? rk.color : 0xe8f4ff }));   // 4팀전: 고리는 팀 색, 포인트는 계급 색
+    if (K.base) decorKind(model, kind, K);
     mergeStatic(model);   // 부품을 재질별로 합쳐 그리기 호출을 줄인다 (움직이는 부품은 그대로)
     this.w.scene.add(model);
     const skill = this.diff.bot * (o.skill || 1) * (rk ? rk.skill : 1), hpk = rk ? rk.hp : 1;
@@ -189,8 +223,27 @@ export class Combat {
     this.botN++;
     a.pos.copy(o.pos || this.randomPoint());
     model.position.copy(a.pos);
-    if (kind === "gunship" || kind === "boss") this.fitBody(a);
+    if (o.squad) a.squad = o.squad;
+    if (o.temp) a.temp = true;   // 죽으면 몇 초 뒤 목록에서 지운다 (재출격 없는 증원)
+    if (o.scaleK) a.model.scale.multiplyScalar(o.scaleK);
+    if (kind === "gunship" || kind === "boss" || kind === "carrier") this.fitBody(a);
     return a;
+  }
+
+  // 액터를 완전히 지운다 (임시 증원·끝난 목표물). 모델·재질 정리
+  removeActor(a) {
+    const i = this.actors.indexOf(a);
+    if (i >= 0) this.actors.splice(i, 1);
+    a.alive = false; a.respawns = false;
+    if (a.model && a.kind !== "player") {
+      this.w.scene.remove(a.model);
+      if (a.model.userData.dispose) a.model.userData.dispose();
+      else if (a.kind === "core" || a.kind === "turret") a.model.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    }
+    for (const k of ["collider", "collider2"]) if (a[k]) a[k].off = true;
+    if (this.lock === a) { this.lock = null; this.lockT = 0; }
+    if (this.aim === a) this.aim = null;
+    for (const o of this.actors) if (o.ai && o.ai.target === a) o.ai.target = null;
   }
 
   // 덩치 큰 드론(중간 보스·보스): 이동 충돌 반경을 실제 모델 크기에 맞춘다 (명중 판정 반경 a.radius 는 그대로)
@@ -380,7 +433,7 @@ export class Combat {
     const pl = this.s.player;
     let best = null, bestAng = maxAng;
     for (const o of this.actors) {
-      if (!this.hostile(this.player, o) || !o.targetable) continue;
+      if (!this.hostile(this.player, o) || !o.targetable || o.cloaked) continue;
       _a.copy(o.pos).sub(pl.aimPos);
       const d = _a.length();
       if (d > maxDist || d < 1) continue;
@@ -523,6 +576,20 @@ export class Combat {
     if (a.remote) return this._remoteHit(a, amount, attacker, point);           // 다른 사람의 기체·호스트 소유 오브젝트: 맞은 쪽에 보고
     if (a.isPlayer && (a.dodgeT > 0 || this.s.time < (a.spawnGodT || 0))) return;   // 고속 회피 중 · 리스폰 직후 3초는 맞지 않는다
     if (a.armor) amount *= a.armor;
+    if (a.K && a.K.cloak) a.revealT = 4;   // 스텔스기: 맞으면 4초 동안 드러난다
+    if (a.K && a.K.front && a.model && (point || attacker)) {
+      // 방패기: 기수(-Z) 쪽 ±70° 에서 온 공격은 방패가 막는다 → 옆·뒤로 돌아 들어가야 한다
+      _p1.copy(attacker && attacker !== a ? attacker.pos : point).sub(a.pos); _p2.set(0, 0, -1).applyQuaternion(a.model.quaternion);
+      if (_p1.lengthSq() > 1e-4 && _p1.normalize().dot(_p2) > 0.34) {
+        amount *= a.K.front;
+        a.shieldFx = 0.25;
+        if (attacker && attacker.isPlayer) {
+          this.fx.spark(point || a.pos, 0x7fe6ff, 6);
+          this.hitMark = HIT_T; this.hitKind = "shield"; this.hitAmt = amount;
+          if (!(this.frontT > this.s.time)) { this.frontT = this.s.time + 6; this.s.hud.toast("정면 방패! 옆이나 뒤를 노리세요", "#7fe6ff", 1.4, 18); }
+        }
+      }
+    }
     if (a.isPlayer) a.hurtAt = this.s.time;
     if (attacker && attacker.isPlayer && this.missiles && amount > 0 && this._mHit) { GP.ev("missileHit"); this._mHit = false; }
     if (attacker && attacker.kind !== "player" && a.isPlayer && !this._net && !attacker.remote) amount *= this.diff.dmg;
@@ -781,7 +848,7 @@ export class Combat {
         const hit = this.s.time - (p.hurtAt || -99) < 3 ? 0.25 : 0;
         const mus = this.s.game.music;
         if (mus && mus.setBoss) mus.setBoss(boss && !this.frozen);   // 보스가 살아 있으면 보스 곡
-        if (mus && mus.setIntensity) mus.setIntensity(this.frozen ? 0 : clamp(Math.min(near, 5) * 0.13 + hit + (hpK < 0.35 ? 0.2 : 0) + (boss ? 0.4 : 0), 0, 1));
+        if (mus && mus.setIntensity) mus.setIntensity(this.frozen ? 0 : clamp(Math.max(this.musicFloor || 0, Math.min(near, 5) * 0.13 + hit + (hpK < 0.35 ? 0.2 : 0) + (boss ? 0.4 : 0)), 0, 1));
       }
       // 재생 (장갑·배터리 단계 효과): 4초 동안 맞지 않으면
       if (this.L.regen && p.alive && p.hp < p.maxHp && this.s.time - (p.hurtAt || -99) > 4) p.hp = Math.min(p.maxHp, p.hp + this.L.regen * dt);
@@ -798,6 +865,7 @@ export class Combat {
       if (a.shieldT > 0) { a.shieldT -= dt; if (a.shieldT <= 0) { if (a.isPlayer && a.shield > 0 && a.alive) this.feel.emit("shieldDown"); a.shield = 0; } }
       if (!a.alive) {
         if (a.respawns && (a.respawnT -= dt) <= 0) this._respawn(a);
+        else if (a.temp && (a.goneT = (a.goneT || 0) + dt) > 3) (this._gone || (this._gone = [])).push(a);
         continue;
       }
       // 엔진 쪽을 맞은 드론: 꼬리에서 연기가 끌리고, 체력이 떨어질수록 짙고 굵어진다 (낮으면 불꽃도)
@@ -824,6 +892,8 @@ export class Combat {
       else if (a.kind === "core") { a.orb.rotation.y += dt * 0.8; a.rings[0].rotation.x += dt * 0.9; a.rings[1].rotation.y += dt * 0.7; a.rings[1].rotation.x = 1.2; }
     }
 
+    if (this._gone && this._gone.length) { for (const a of this._gone) this.removeActor(a); this._gone.length = 0; }
+    this._snipeDraw();
     if ((this._coordT -= dt) <= 0) { this._coordT = 0.7; this._coord(); }
     if (this.radio && (this.radio.t += dt) > 3.4) this.radio = null;
     for (const h of this.hurts) { h.age = (h.age || 0) + dt; if (h.who && h.who.alive) h.pos.copy(h.who.pos); }
@@ -1059,6 +1129,9 @@ export class Combat {
     }
     if ((ai.think -= dt) <= 0) this._think(a);
     if (ai.retreatT > 0 && (ai.retreatT -= dt) <= 0) { ai.goal = null; ai.think = 0; this.bark(a, "back"); }
+    if (K.cloak) this._cloak(a, dt);
+    if (K.brood) this._brood(a, dt);
+    if (a.shieldFx > 0) a.shieldFx -= dt;
     const speed = K.speed * (0.75 + ai.skill * 0.3) * (a.boostT > 0 ? 1.35 : 1);
     const t = ai.target;
     let face = null;
@@ -1070,7 +1143,8 @@ export class Combat {
       _a.copy(t.pos).sub(a.pos);
       const d = _a.length();
       face = t;
-      if (K.boom) { // 자폭 드론: 예상 위치로 돌진
+      if (K.snipe) this._sniperSteer(a, t, d, speed);
+      else if (K.boom) { // 자폭 드론: 예상 위치로 돌진
         this._lead(a.pos, t, speed, _b).sub(a.pos).normalize();
         _des.copy(_b).multiplyScalar(speed);
         if (d < a.radius + t.radius + 1.6) { a.boomed = true; this.splash(a.pos, 7, K.boom, a, null); this.kill(a, null); return; }
@@ -1144,7 +1218,8 @@ export class Combat {
     if (_b.x * _b.x + _b.z * _b.z > 0.5) {
       const want = Math.atan2(-_b.x, -_b.z);
       let dy = want - ai.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-      ai.yaw += clamp(dy, -4 * dt, 4 * dt);
+      const tr = (K.turn || 4) * dt;
+      ai.yaw += clamp(dy, -tr, tr);
       ai.yawErr = Math.abs(dy);
     }
     _y.copy(UP).addScaledVector(_a, 0.5 / Math.max(am, 1e-3) * 0.55).addScaledVector(a.vel, 0.012).normalize();
@@ -1166,6 +1241,7 @@ export class Combat {
 
     // 사격
     ai.cool -= dt; ai.mcool -= dt;
+    if (K.snipe) { this._snipe(a, t, dt); return; }
     if (t && !K.boom && ai.los && !ai.goal) {
       const d = a.pos.distanceTo(t.pos);
       if (d < K.range * 3.2 && (ai.yawErr || 0) < 0.45) {
@@ -1179,6 +1255,7 @@ export class Combat {
           _b.copy(a.pos).addScaledVector(_aim, a.radius + 0.4);
           const lc = this.ffa ? 0xff6a4d : a.team === 0 ? 0x66b8ff : 0xff5040;
           this.fireLaser(a, _b, _aim, K.dmg * (a.rk ? a.rk.dmg : 1) * (a.overT > 0 ? 2 : 1), lc, 92);
+          if (K.cloak) a.revealT = Math.max(a.revealT || 0, 0.7);   // 쏘는 순간은 윤곽이 드러난다
           this.fx.muzzle(_b, _aim, lc, K.scale * 0.6);
           this.snd.playAt("elaser", a.pos, this.s.camera, 0.7);
         }
@@ -1190,6 +1267,108 @@ export class Combat {
         }
       }
     }
+  }
+
+  // ── 특수 기체 ──
+  // 스텔스기: 내게서 60m 밖이고 최근에 맞지 않았으면 은신 (모델은 가끔 아른거리기만, 조준·락온·레이더에 안 잡힌다)
+  _cloak(a, dt) {
+    if (a.revealT > 0) a.revealT -= dt;
+    const p = this.player, d = p && p.alive ? a.pos.distanceTo(p.pos) : 1e9;
+    const cl = !(d < a.K.cloak || a.revealT > 0);
+    if (cl !== !!a.cloaked) {
+      a.cloaked = cl;
+      if (d < 260) { this.fx.ring(a.pos, 0x9fd8ff, 3.5, 0.35); this.fx.burst(a.pos, 0x9fd8ff, 10, 5, 0.35, 0.15, 0); }
+      if (!cl && p && d < a.K.cloak && !(this.decloakT > this.s.time)) { this.decloakT = this.s.time + 8; this.s.hud.toast("스텔스기 출현!", "#9fd8ff", 1.2, 20); this.snd.play("lock", 0.6); }
+      if (cl && this.lock === a) { this.lock = null; this.lockT = 0; }
+    }
+    if (a.model) a.model.visible = !cl || ((this.s.time * 2.3 + a.id * 0.37) % 1) < 0.05;
+  }
+
+  // 모함기: 가까운 표적이 있으면 9초마다 소형 자폭기 2~3기 (살아 있는 새끼는 3기까지, 전체 상한은 모드가 정한다)
+  _brood(a, dt) {
+    const ai = a.ai;
+    ai.broodT = (ai.broodT ?? 4 + Math.random() * 3) - dt;
+    if (ai.broodT > 0) return;
+    ai.broodT = 9 + Math.random() * 2;
+    const t = ai.target;
+    if (!t || !t.alive || t.pos.distanceToSquared(a.pos) > 230 * 230) return;
+    const kids = (ai.kids || (ai.kids = [])).filter((k) => k.alive);
+    ai.kids = kids;
+    let n = Math.min(2 + (Math.random() < 0.5 ? 1 : 0), a.K.brood - kids.length);
+    if (this.h.canSpawn) n = Math.min(n, this.h.canSpawn(n));
+    for (let i = 0; i < n; i++) {
+      _p1.set((Math.random() - 0.5) * 4, -(a.bodyR || a.radius) - 1.5, (Math.random() - 0.5) * 4).add(a.pos);
+      const k = this.spawnBot({ kind: "kamikaze", team: a.team, pos: _p1, hpScale: 0.6, name: "소형 자폭기", temp: true, squad: a.squad, scaleK: 0.7, rank: a.rk ? Math.max(0, a.rk.rank - 2) : undefined });
+      k.vel.set((Math.random() - 0.5) * 8, -4, (Math.random() - 0.5) * 8);
+      k.ai.target = t; k.ai.home = ai.home;
+      kids.push(k);
+    }
+    if (n > 0) { this.fx.ring(a.pos, 0xffb300, 6, 0.4); this.snd.playAt("missile", a.pos, this.s.camera, 0.5); }
+  }
+
+  // 저격기: 자리(perch, 높은 곳)를 지키며 표적을 바라본다. 너무 가까우면 물러난다
+  _sniperSteer(a, t, d, speed) {
+    const ai = a.ai, P = ai.perch;
+    if (d < 45) { _des.copy(a.pos).sub(t.pos).setLength(speed); _des.y += 4; return; }
+    if (P) { _des.copy(P).sub(a.pos).multiplyScalar(1.2); if (_des.length() > speed) _des.setLength(speed); return; }
+    _a.copy(t.pos).sub(a.pos).normalize();
+    const R = ai.range;
+    if (d > R + 40) _des.copy(_a).multiplyScalar(speed * 0.8);
+    else if (d < R - 30) _des.copy(_a).multiplyScalar(-speed * 0.7);
+    else _des.set(0, 0, 0);
+    _des.y += (t.pos.y + 12 - a.pos.y) * 0.5;
+  }
+  // 조준선 예고 1.2초 → 강한 한 발. 끝 0.3초는 조준선이 고정되고, 그 사이 고속 회피하거나 시야를 끊으면 조준이 풀린다
+  _snipe(a, t, dt) {
+    const ai = a.ai, K = a.K;
+    let sn = ai.sn;
+    if (!sn) {
+      if (!t || !t.alive || !ai.los || ai.cool > 0 || t.static) return;
+      const d = a.pos.distanceTo(t.pos);
+      if (d > 250 || d < 30) return;
+      sn = ai.sn = { t: 0, dir: new THREE.Vector3(), tgt: t };
+      if (t.isPlayer) this.snd.play("lock", 0.5);
+    }
+    sn.t += dt;
+    const tg = sn.tgt;
+    const broke = !tg.alive || (sn.t < SNIPE_FREEZE && !ai.los) || (tg.isPlayer && tg.dodgeT > 0);
+    if (broke) {
+      if (tg.isPlayer && tg.alive && tg.dodgeT > 0) this.s.hud.toast("저격 조준 해제!", "#7fe6ff", 1.0, 18);
+      ai.sn = null; ai.cool = 2 + Math.random(); return;
+    }
+    if (sn.t < SNIPE_FREEZE) this._lead(a.pos, tg, 260, sn.dir).sub(a.pos).normalize();
+    if (sn.t >= SNIPE_T) {
+      _b.copy(a.pos).addScaledVector(sn.dir, a.radius + 0.6);
+      this.fireLaser(a, _b, sn.dir, K.snipe * (a.rk ? a.rk.dmg : 1), 0xff3a5a, 260);
+      const sh = this.shots[this.shots.length - 1]; sh.life = 1.15; sh.wk = 2.6;
+      this.fx.muzzle(_b, sn.dir, 0xff3a5a, 4);
+      this.fx.flash(_b, 0xff6a7a, 4, 0.15);
+      this.snd.playAt("laser", a.pos, this.s.camera, 1, 0.55, 260);
+      ai.sn = null; ai.cool = 3.5 + Math.random() * 1.5;
+    }
+  }
+  // 저격 조준선: 가는 빨간 막대(메시 4개 재사용). 고정되면 밝아진다. 나를 노리는 조준은 HUD 경고용으로 기록
+  _snipeDraw() {
+    if (!this._snipeM) {
+      this._snipeGeo = new THREE.CylinderGeometry(0.16, 0.16, 1, 6, 1, true); this._snipeGeo.translate(0, 0.5, 0); this._snipeGeo.rotateX(Math.PI / 2);
+      this._snipeMat = [0.35, 0.85].map((o) => new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      this._snipeM = [0, 1, 2, 3].map(() => { const m = new THREE.Mesh(this._snipeGeo, this._snipeMat[0]); m.visible = false; m.frustumCulled = false; this.w.scene.add(m); return m; });
+    }
+    let n = 0;
+    this.snipeOnMe = 0; this.snipeFrom = null;
+    for (const a of this.actors) {
+      const sn = a.alive && a.ai && a.ai.sn;
+      if (!sn) continue;
+      if (sn.tgt === this.player && sn.t / SNIPE_T > this.snipeOnMe) { this.snipeOnMe = sn.t / SNIPE_T; this.snipeFrom = a; }
+      if ((this._snT = (this._snT || 0) + 1) % 2 === 0) this.fx.puff(a.pos, 0xff2040, 0.7 + sn.t * 0.6, 0.12, 0);   // 저격기 렌즈 섬광
+      if (n >= 4) continue;
+      const m = this._snipeM[n++], len = a.pos.distanceTo(sn.tgt.pos) + 40;
+      m.visible = true; m.position.copy(a.pos);
+      m.quaternion.setFromUnitVectors(_z.set(0, 0, 1), sn.dir);
+      m.scale.set(sn.t >= SNIPE_FREEZE ? 1.6 : 1, sn.t >= SNIPE_FREEZE ? 1.6 : 1, len);
+      m.material = this._snipeMat[sn.t >= SNIPE_FREEZE ? 1 : 0];
+    }
+    for (; n < 4; n++) this._snipeM[n].visible = false;
   }
 
   // 협공 조종: 미끼는 내 정면 사거리에서 좌우로 흔들며 시선을 끌고, 측면조는 크게 돌아 내 뒤로 파고든다
@@ -1261,6 +1440,7 @@ export class Combat {
     try { this.snd.lowHp(0); const mus = this.s.game.music; if (mus && mus.setIntensity) mus.setIntensity(0); if (mus && mus.setBoss) mus.setBoss(false); } catch (_) { /* 소리 끄기 실패는 무시 */ }
     const sc = this.w.scene;
     if (this.skill) this.skill.dispose();
+    if (this._snipeM) { for (const m of this._snipeM) sc.remove(m); this._snipeGeo.dispose(); for (const m of this._snipeMat) m.dispose(); }
     this.units.dispose();
     for (const a of this.actors) if (a.model && a.kind !== "player") { sc.remove(a.model); if (a.model.userData.dispose) a.model.userData.dispose(); }
     for (const m of this.missiles) { sc.remove(m.mesh); m.mesh.userData.glow.material.dispose(); }
