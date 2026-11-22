@@ -5,12 +5,13 @@ import { clamp } from "./config.js";
 import { rollRank, rankStats, clampRank } from "./ranks.js";
 import { decorateUnit } from "./factions.js";
 import { armorMat, chamferBox } from "./unitskin.js";
+import { mergeStatic } from "./mergemodel.js";
+import { makeMech } from "./titan.js";
 
 const V3 = THREE.Vector3;
 const _a = new V3(), _b = new V3(), _c = new V3(), _d = new V3(), _q = new THREE.Quaternion();
 const UP = new V3(0, 1, 0);
 const lam = (c) => armorMat(c);   // 패널 무늬 + 금속 광택 (툰 변환 뒤에도 유지)
-const lamB = (c) => armorMat(c, 0.05);   // 거대 기체용: 판을 크게
 const glow = (c, k = 2.2) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k) });
 function box(p, w, h, d, m, x = 0, y = 0, z = 0) { const me = new THREE.Mesh(chamferBox(w, h, d), m); me.position.set(x, y, z); me.castShadow = true; p.add(me); return me; }
 function cyl(p, r1, r2, h, m, x = 0, y = 0, z = 0, seg = 10) { const me = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), m); me.position.set(x, y, z); me.castShadow = true; p.add(me); return me; }
@@ -28,9 +29,9 @@ function vents(p, w, h, n, m, x, y, z, depth = 0.12) { for (let k = 0; k < n; k+
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const turn = (cur, want, max) => cur + clamp(wrap(want - cur), -max, max);
 
-export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇" };
+export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇", titan: "초거대로봇", siege: "아군 공성 로봇" };
 // 에일(외계) 진영 유닛 이름. 외피는 factions.js 의 decorateUnit
-export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체" };
+export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체", titan: "거신", siege: "공성 거신체" };
 
 export class Units {
   constructor(combat) {
@@ -38,14 +39,24 @@ export class Units {
     this.list = []; this.debris = [];
   }
 
-  // type: tank | aa | frigate | cruiser | mech.  o: { pos, name, hp(배율), scale, home, boss }
+  // type: tank | aa | frigate | cruiser | mech | titan | siege
+  // o: { pos, name, hp(배율), scale, home, boss, rank, team(기본 1, siege 는 0),
+  //      march: [점...] (V3·[x,z]·{x,z}) — 경로를 따라 걷는다, target: 액터 — 경로 끝에서 다가가 큰 피해(dmg, 기본 최대 체력 34%/찍기),
+  //      onReach(root, target), escort: m(siege: 플레이어가 이 거리 안에 있어야 전진), speed(배율), yaw }
+  // 행진 상태: root.march = { eta(초), progress(0..1), remaining(m), reached, done, halted, text("로봇 도달까지 N초") }
   spawn(type, o = {}) {
+    const base = BASE[type] || type;
     // 계급: 포인트 색(o.tc)과 내구도·화력·조준 배율
-    const rk = rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.c.level, type));
+    const rk = rankStats(o.rank !== undefined ? clampRank(o.rank) : rollRank(this.c.level, base));
     const ail = this.c.s.cfg.faction === "ail";
-    o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: `${rk.name} ${o.name || (ail ? AIL_NAME[type] : UNIT_NAME[type])}` });
+    const nm = o.name || (ail ? AIL_NAME[type] : UNIT_NAME[type]);
+    o = Object.assign({}, o, { rk, tc: rk.color, hp: (o.hp || 1) * rk.hp, name: type === "siege" ? nm : `${rk.name} ${nm}` });
     const u = MAKE[type](this, o);
-    if (this.c.s.cfg.faction) decorateUnit(u, type, this.c.s.cfg.faction);
+    if (this.c.s.cfg.faction) decorateUnit(u, base, this.c.s.cfg.faction);
+    if (u.relink) u.relink();
+    // 같은 재질 + 같이 움직이는 부품끼리 합쳐 그리기 호출을 줄인다 (움직이는 노드 = 모든 그룹)
+    if (u.merge) u.merge();
+    else { const L = []; u.group.traverse((q) => { if (!q.isMesh) L.push(q); }); u.group.userData.anim = L; mergeStatic(u.group); }
     u.rk = rk; u.root.rk = rk; for (const p of u.parts) p.rk = rk;
     u.type = type; u.t = Math.random() * 10; u.cool = {};
     this.list.push(u);
@@ -144,7 +155,7 @@ export class Units {
       if (!u.root.alive && !u.dead) { u.dead = true; u.deadT = 0; for (const p of u.parts) if (p.alive) c.kill(p, null); if (u.onDeath) u.onDeath(); }
       if (u.dead) { u.deadT += dt; if (u.dying) u.dying(dt); continue; }
       if (!u.root.targetable) continue;
-      if ((u.think = (u.think || 0) - dt) <= 0) { u.think = 0.35; u.target = this.pick(u, u.root.pos, u.range); }
+      if ((u.think = (u.think || 0) - dt) <= 0) { u.think = 0.35; u.target = u.pickTarget ? u.pickTarget() : this.pick(u, u.root.pos, u.range); }
       u.update(dt);
     }
     for (let i = this.debris.length - 1; i >= 0; i--) {
@@ -157,11 +168,13 @@ export class Units {
       } else if (Math.random() < dt * 3) c.fx.smoke(d.obj.position, 0.9, 1.6, 0.1, 0.6);
       if (d.life <= 0) { this.w.scene.remove(d.obj); this.debris.splice(i, 1); }
     }
+    if (this.tfx) this.tfx.update(dt);
   }
 
   dispose() {
     for (const u of this.list) this.w.scene.remove(u.group);
     for (const d of this.debris) this.w.scene.remove(d.obj);
+    if (this.tfx) { this.tfx.dispose(); this.tfx = null; }
   }
 }
 
@@ -344,7 +357,7 @@ function shipHull(g, Lh, Wd, Ht, big, hullM, dark, trim, eng, u) {
   box(mast, Wd * 0.45, 0.14, 0.14, steel, 0, Ht * 1.0, 0); box(mast, Wd * 0.3, 0.12, 0.12, steel, 0, Ht * 1.3, 0);
   u.radar = grp(mast, 0, Ht * 1.45, 0);
   box(u.radar, Wd * 0.38, 0.5, 0.12, steel, 0, 0.25, 0); box(u.radar, Wd * 0.36, 0.15, 0.14, trim, 0, 0.45, -0.02);
-  u.beacon = box(mast, 0.3, 0.3, 0.3, red, 0, Ht * 1.75, 0);
+  u.beacon = box(mast, 0.3, 0.3, 0.3, red, 0, Ht * 1.75, 0); u.beacon.userData.keep = true;   // 깜박이므로 합치지 않는다
   for (const sx of [-1, 1]) { cyl(mast, 0.04, 0.04, 2.4, dark, sx * Wd * 0.2, Ht * 1.15, 0, 4).rotation.z = sx * 0.3; box(mast, 0.12, 0.12, 0.12, win, sx * Wd * 0.22, Ht * 1.0, 0); }
   // 뒷갑판: 착함 표시 + 격납고 문
   box(g, Wd * 0.7, Ht * 0.65, 0.2, dark, 0, Ht * 0.1, Lh * 0.505);
@@ -443,181 +456,13 @@ function makeShip(U, o, big) {
   return u;
 }
 
-// ── 거대로봇 ───────────────────────────────────────────────
-// 부위: 머리(센서) · 왼팔(레이저 포) · 오른팔(미사일 포드) · 양다리 · 몸통 코어(본체)
-// 머리가 살아 있으면 코어가 단단하다. 팔을 부수면 그 무기가 사라지고, 다리를 부수면 무릎을 꿇어 느려지다 주저앉는다
-function makeMech(U, o) {
-  const S = o.scale || 1, w = U.w, c = U.c, g = new THREE.Group();
-  const armor = lamB(0x5a6478), plate = lamB(0x7a869c), dark = lamB(0x20242c), red = glow(o.tc), core = glow(0xffb02e, 2.4), eye = glow(o.tc, 2.6);
-  const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 45, 9 * S);
-  g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
-  const HIP = 11;
-  const pelvis = grp(g, 0, HIP, 0); box(pelvis, 5.2, 2.2, 3.4, dark, 0, 0, 0); box(pelvis, 2, 2.6, 1.2, armor, 0, -1.2, -1.6);
-  const legs = [-1, 1].map((sx) => {
-    const th = grp(pelvis, sx * 2.3, -0.4, 0); box(th, 2.0, 5.4, 2.4, armor, 0, -2.7, 0); box(th, 2.3, 1.6, 2.7, plate, 0, -1.2, -0.1);
-    const kn = grp(th, 0, -5.4, 0); cyl(kn, 1.3, 1.3, 2.5, dark, 0, 0, 0, 10).rotation.z = Math.PI / 2;
-    const shin = grp(kn); box(shin, 1.8, 4.8, 2.2, armor, 0, -2.6, 0.2); box(shin, 2.1, 2.4, 0.5, plate, 0, -2.2, -1.1); box(shin, 2.6, 0.9, 4.2, dark, 0, -5.0, -0.5);
-    return { sx, th, kn, shin, down: false };
-  });
-  const waist = grp(pelvis, 0, 1.4, 0); cyl(waist, 1.5, 1.9, 1.4, dark, 0, 0.4, 0, 10);
-  box(waist, 7.2, 6.4, 4.4, armor, 0, 4.6, 0); box(waist, 5.4, 3, 0.8, plate, 0, 5.6, -2.4); box(waist, 3.2, 3.4, 2.2, dark, 0, 5, 2.6);
-  const coreM = box(waist, 2.2, 2.2, 0.5, core, 0, 3.4, -2.35);
-  for (const sx of [-1, 1]) { box(waist, 2.6, 2.4, 3.6, plate, sx * 4.7, 6.6, 0); box(waist, 0.3, 0.3, 4.6, red, sx * 3.75, 7.9, 0); }
-  const head = grp(waist, 0, 8.6, -0.3); box(head, 2.6, 2.2, 2.6, plate); box(head, 2.0, 0.5, 0.3, eye, 0, 0.2, -1.35); cyl(head, 0.06, 0.06, 2.2, dark, 0.9, 2, 0.6, 5);
-  const arms = [-1, 1].map((sx) => {
-    const sh = grp(waist, sx * 5.2, 6.4, 0); box(sh, 1.8, 4.6, 2.0, armor, 0, -2.3, 0);
-    const fore = grp(sh, 0, -4.6, 0);
-    if (sx < 0) { box(fore, 2.2, 2.4, 6.2, dark, 0, -0.6, -2.4); cyl(fore, 0.55, 0.7, 2.4, plate, 0, -0.6, -6.2, 8).rotation.x = Math.PI / 2; box(fore, 0.4, 0.4, 5.6, red, 1.15, -0.6, -2.4); }
-    else { box(fore, 2.8, 2.8, 4.6, dark, 0, -0.6, -1.6); for (const mx of [-0.7, 0.7]) for (const my of [-1.2, 0]) cyl(fore, 0.42, 0.42, 0.5, red, mx, my, -4.0, 8).rotation.x = Math.PI / 2; }
-    return { sx, sh, fore, pitch: 0 };
-  });
-  // ── 세부: 관절·유압·발가락·흉부 환기구·등 추진기·어깨 장갑·머리 바이저 ──
-  {
-    const metal = lamB(0x8f98a8), steel = lamB(0x343a45), hazard = lamB(0xd9a21c), thr = glow(0x7fd8ff, 2.0);
-    cyl(pelvis, 1.0, 1.0, 5.6, steel, 0, -0.2, 0, 14).rotation.z = Math.PI / 2;              // 고관절 축
-    for (const sx of [-1, 1]) box(pelvis, 1.4, 2.2, 3.0, armor, sx * 3.3, -0.9, 0).rotation.z = sx * 0.12;   // 허리 치마 장갑
-    box(pelvis, 2.4, 1.6, 1.2, plate, 0, -0.9, 1.7);
-    legs.forEach((l) => {
-      const { th, kn, shin, sx } = l;
-      cyl(th, 1.15, 1.15, 2.7, metal, 0, 0, 0, 14).rotation.z = Math.PI / 2;                 // 엉덩 관절 캡
-      box(th, 2.5, 2.2, 0.5, plate, 0, -3.4, -1.25);                                         // 허벅지 앞판
-      vents(th, 1.5, 1.4, 3, dark, 0, -4.2, 1.25, 0.2);
-      piston(th, [sx * 1.15, -0.8, 1.1], [sx * 1.15, -5.0, 0.8], 0.32, steel, metal);
-      cyl(kn, 1.45, 1.45, 0.4, metal, sx * 1.35, 0, 0, 14).rotation.z = Math.PI / 2;         // 무릎 축 덮개
-      box(shin, 2.2, 1.6, 1.0, plate, 0, -0.5, -1.1).rotation.x = -0.25;                    // 무릎 보호대
-      piston(shin, [0, -0.8, 1.4], [0, -4.0, 1.1], 0.3, steel, metal);
-      box(shin, 2.3, 0.35, 2.5, hazard, 0, -4.35, 0.2);                                      // 발목 경고 띠
-      for (const tx of [-0.85, 0, 0.85]) box(shin, 0.7, 0.75, 1.6, steel, tx, -5.15, -2.9);  // 발가락 셋
-      box(shin, 1.4, 0.75, 1.2, steel, 0, -5.15, 1.9);                                        // 뒤꿈치
-    });
-    cyl(waist, 1.25, 1.25, 1.8, metal, 0, 1.2, 0, 14);                                       // 허리 회전부
-    vents(waist, 3.6, 1.6, 4, dark, 0, 6.2, -2.4, 0.3);                                       // 흉부 환기구
-    box(waist, 6.6, 0.4, 4.0, dark, 0, 1.5, 0); box(waist, 7.4, 0.5, 4.6, metal, 0, 7.9, 0);  // 몸통 위·아래 테
-    for (const sx of [-1, 1]) { box(waist, 0.35, 4.6, 3.2, plate, sx * 3.75, 4.4, 0); box(waist, 0.15, 1.8, 0.15, hazard, sx * 3.0, 2.2, -2.3); }
-    // 등 추진기 팩
-    box(waist, 4.4, 4.2, 1.8, dark, 0, 5.2, 3.3);
-    for (const sx of [-1, 1]) { cyl(waist, 0.7, 0.95, 1.6, steel, sx * 1.3, 3.0, 3.6, 12); cyl(waist, 0.55, 0.55, 0.15, thr, sx * 1.3, 2.15, 3.6, 12); }
-    vents(waist, 3.2, 1.6, 3, steel, 0, 6.4, 4.25, 0.2);
-    // 머리: 바이저 테·턱 장갑·볏·센서
-    box(head, 2.9, 0.4, 2.9, armor, 0, 1.2, 0); box(head, 2.3, 0.9, 0.5, dark, 0, -0.7, -1.2);
-    box(head, 0.35, 1.0, 2.4, armor, 0, 1.6, 0.1); box(head, 2.4, 0.7, 0.15, dark, 0, 0.2, -1.32);
-    for (const sx of [-1, 1]) cyl(head, 0.35, 0.35, 0.5, steel, sx * 1.45, 0, 0.2, 10).rotation.z = Math.PI / 2;
-    cyl(head, 0.04, 0.04, 1.2, dark, -0.9, 1.9, 0.6, 5); box(head, 0.14, 0.14, 0.14, eye, 0.9, 3.15, 0.6);
-    // 어깨 장갑·팔 유압
-    arms.forEach((a) => {
-      const { sh, fore, sx } = a;
-      cyl(sh, 1.2, 1.2, 2.3, metal, 0, 0, 0, 14).rotation.z = Math.PI / 2;
-      box(sh, 2.6, 1.0, 3.0, armor, sx * 0.25, 1.15, 0).rotation.z = -sx * 0.18;           // 어깨 덮개 위
-      box(sh, 0.5, 2.6, 2.6, plate, sx * 1.15, 0.0, 0);                                     // 어깨 옆판
-      box(sh, 0.12, 2.0, 0.12, hazard, sx * 1.42, 0.2, -1.0);
-      piston(sh, [0, -0.6, 1.15], [0, -4.0, 1.0], 0.26, steel, metal);
-      cyl(fore, 0.95, 0.95, 2.5, metal, 0, 0, 0, 12).rotation.z = Math.PI / 2;               // 팔꿈치
-      box(fore, 0.3, 1.8, 3.6, plate, sx * 1.35, -0.6, -2.0);
-    });
-    // 어깨 위 미사일 포드 + 몸통 발광선
-    const seam = glow(o.tc, 2.0);
-    for (const sx of [-1, 1]) {
-      const px = sx * 3.0, py = 9.1, pz = 0.8;   // 그룹 대신 메시로 (진영 장식이 그룹 위치로 부위를 찾으므로)
-      box(waist, 1.6, 1.2, 2.2, armor, px, py, pz); box(waist, 1.65, 0.12, 2.25, hazard, px, py + 0.62, pz);
-      for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) cyl(waist, 0.22, 0.22, 0.1, dark, px - 0.35 + i * 0.7, py + 0.2 - j * 0.45, pz - 1.12, 8).rotation.x = Math.PI / 2;
-      box(waist, 0.12, 3.6, 0.12, seam, sx * 2.1, 4.6, -2.15);
-    }
-    box(waist, 3.0, 0.12, 0.12, seam, 0, 2.6, -2.2);
-  }
-  // 충돌 상자: 몸통·골반·다리 (도우미 물체가 보이는 동안만 유효)
-  const hitT = grp(waist, 0, 4.6, 0), hitP = grp(pelvis), hitL = legs.map((l) => grp(l.th, 0, -5, 0));
-  const colT = [...w.rider(hitT, [[0, 0, 0, 3.5 * S, 3.1 * S, 2.1 * S]], "enemy"), ...w.rider(hitP, [[0, 0, 0, 2.5 * S, 1.1 * S, 1.6 * S]], "enemy")];
-  const colL = hitL.map((h) => w.rider(h, [[0, 0, 0, 1.0 * S, 5 * S, 1.2 * S]], "enemy"));
-
-  const hp = (o.hp || 1) * S;
-  const u = { group: g, parts: [], yaw: Math.random() * 6.28, home: p.clone(), roam: 50, range: 150, stuck: 0, goalT: 0, wy: 0, ph: 0, stag: 0, kneel: 0, lean: 0, burst: 0, legsDown: 0 };
-  u.root = U.actor(u, o.name || "거대로봇", 4.2 * S, 900 * hp, { score: 3000, armor: 0.35, cutR: 34 * S });
-  const P = {
-    head: U.actor(u, "머리 센서", 2.3 * S, 220 * hp, { score: 200 }),
-    armL: U.actor(u, "레이저 팔", 2.7 * S, 280 * hp, { score: 250 }), armR: U.actor(u, "미사일 팔", 2.7 * S, 280 * hp, { score: 250 }),
-    legL: U.actor(u, "왼다리", 2.8 * S, 320 * hp, { score: 250 }), legR: U.actor(u, "오른다리", 2.8 * S, 320 * hp, { score: 250 }),
-  };
-  u.parts.push(P.head, P.armL, P.armR, P.legL, P.legR);
-  U.own(colT, u.root); U.own(colL[0], P.legL); U.own(colL[1], P.legR);   // 몸통 상자 → 본체, 다리 상자 → 그 다리
-  const mz = new V3(), wp = new V3();
-  const stagger = (k = 1) => { u.stag = Math.max(u.stag, k); c.snd.play("bigkill", c.volAt(u.root.pos) * 0.7, c.panAt(u.root.pos), 0.6); };
-  const broke = (part, fn) => { if (!part.alive && !part.gone) { part.gone = true; fn(); stagger(1); c.s.hud.toast(`${u.root.name} — ${part.name} 파괴!`, "#ffd24a", 1.6, 22); } };
-
-  u.update = (dt) => {
-    // 부위 파괴 → 동작 변화
-    broke(P.head, () => { U.chunk(head, new V3((Math.random() - 0.5) * 6, 12, 6)); u.root.armor = 1; c.s.hud.toast("코어 노출 — 몸통을 공격하세요!", "#35ff7a", 2.2, 24); });
-    arms.forEach((a, i) => broke(i ? P.armR : P.armL, () => U.chunk(a.fore, new V3(a.sx * 7, 5, (Math.random() - 0.5) * 5), 2.5)));
-    legs.forEach((l, i) => broke(i ? P.legR : P.legL, () => { l.down = true; u.legsDown++; U.chunk(l.shin, new V3(l.sx * 4, 3, 3), 1.5); U.boom(_a.setFromMatrixPosition(l.kn.matrixWorld), 1.5); }));
-    const n = u.legsDown, spd = n === 0 ? 4 : n === 1 ? 1.3 : 0;
-    const v = U.walk(u, dt, spd, n === 2 ? 0.25 : 0.5, 12, 7 * S);
-    // 걷기: 다리를 번갈아 내딛고 골반이 출렁인다. 발 디딜 때 땅이 울린다
-    const pph = u.ph; u.ph += dt * (v > 0 ? (n ? 1.1 : 1.7) : 0);
-    if (v > 0 && Math.floor(u.ph / Math.PI) !== Math.floor(pph / Math.PI)) { c._blast(g.position, 0.9); c.snd.play("explode", c.volAt(g.position) * 0.35, c.panAt(g.position), 0.5); c.fx.smoke(g.position, 2, 1.4, 0.3, 3); }
-    legs.forEach((l, i) => {
-      const sw = Math.sin(u.ph + i * Math.PI) * (v > 0 ? 0.42 : 0);
-      l.th.rotation.x += ((l.down ? 1.25 : sw) - l.th.rotation.x) * Math.min(1, dt * 5);
-      l.kn.rotation.x += ((l.down ? 0 : Math.max(0, -sw) * 1.3 + (n && !l.down ? 0.9 : 0)) - l.kn.rotation.x) * Math.min(1, dt * 5);
-      if (l.down && Math.random() < dt * 5) c.fx.smoke(_a.setFromMatrixPosition(l.kn.matrixWorld), 1, 1.4, 0.1, 0.6);
-    });
-    // 무릎 꿇기: 한쪽이면 그쪽으로 기울고, 양쪽이면 주저앉는다
-    u.kneel += ((n === 0 ? 0 : n === 1 ? 3.6 : 6.4) - u.kneel) * Math.min(1, dt * 1.6);
-    const side = n === 1 ? (legs[0].down ? 1 : -1) : 0;
-    u.lean += (side * 0.2 - u.lean) * Math.min(1, dt * 1.6);
-    u.stag = Math.max(0, u.stag - dt * 0.9);
-    const sg = Math.sin(u.stag * Math.PI) * 0.35;
-    pelvis.position.y = HIP - u.kneel + Math.abs(Math.sin(u.ph)) * 0.35 + (u.stag > 0 ? Math.sin(u.t * 40) * 0.12 * u.stag : 0);
-    pelvis.rotation.z = u.lean; pelvis.rotation.x = n === 2 ? 0.12 : 0;
-    // 몸통: 목표를 향해 돌고, 맞으면 뒤로 젖혀진다
-    const t = u.target;
-    g.updateWorldMatrix(true, true);
-    u.root.pos.setFromMatrixPosition(hitT.matrixWorld);
-    if (t) { _a.copy(t.pos).sub(u.root.pos); u.wy = turn(u.wy, clamp(wrap(Math.atan2(-_a.x, -_a.z) - u.yaw), -1.3, 1.3), 0.9 * dt); }
-    waist.rotation.set(-sg + (n === 2 ? 0.1 : 0), u.wy, Math.sin(u.t * 0.7) * 0.015);
-    // 부위 위치 갱신
-    if (P.head.alive) P.head.pos.setFromMatrixPosition(head.matrixWorld);
-    arms.forEach((a, i) => { const pa = i ? P.armR : P.armL; if (pa.alive) pa.pos.setFromMatrixPosition(a.fore.matrixWorld); else if (Math.random() < dt * 5) { c.fx.smoke(_b.setFromMatrixPosition(a.sh.matrixWorld).add(_c.set(0, -4 * S, 0)), 1.1, 1.4, 0.1, 0.5); if (Math.random() < 0.25) c.fx.spark(_b, 0x9fe7ff, 6); } });
-    legs.forEach((l, i) => { const pl = i ? P.legR : P.legL; if (pl.alive) pl.pos.setFromMatrixPosition(l.kn.matrixWorld); });
-    if (!P.head.alive && Math.random() < dt * 4) c.fx.smoke(_b.setFromMatrixPosition(waist.matrixWorld).add(_c.set(0, 8.5 * S, 0)), 1.2, 1.6, 0.1, 0.5);
-    coreM.material.color.setScalar(1).multiplyScalar(P.head.alive ? 0.6 : 1.6 + Math.sin(u.t * 8) * 0.6).multiply(_col);
-    if (!t || u.stag > 0.25) return;
-    const dist = _a.length(), spread = P.head.alive ? 0.04 : 0.11;   // 머리(센서)를 잃으면 조준이 흐트러진다
-    // 팔을 목표 높이로 든다
-    arms.forEach((a, i) => { if (!(i ? P.armR : P.armL).alive) return; wp.setFromMatrixPosition(a.sh.matrixWorld); const want = clamp(Math.atan2(t.pos.y - wp.y, Math.hypot(t.pos.x - wp.x, t.pos.z - wp.z)), -1.2, 1.3) + Math.PI / 2; a.pitch += clamp(want - a.pitch, -1.5 * dt, 1.5 * dt); a.sh.rotation.x = a.pitch; });
-    const aligned = Math.abs(wrap(Math.atan2(-_a.x, -_a.z) - u.yaw - u.wy)) < 0.2;
-    // 왼팔 레이저 포: 8연사
-    if (P.armL.alive && aligned && !(u.cool.las > 0)) {
-      if (u.burst <= 0) u.burst = 8;
-      mz.set(0, -0.6, -7.6).applyMatrix4(arms[0].fore.matrixWorld);
-      if (U.clear(mz, t, u)) { U.laser(u, mz, U.aim(mz, t, 105, spread, _b, u), 6, 0xff3d6a, 105); u.burst--; u.cool.las = u.burst > 0 ? 0.11 : 3.2; } else { u.burst = 0; u.cool.las = 0.7; }
-    }
-    // 오른팔 미사일: 3발
-    if (P.armR.alive && aligned && dist > 25 && !(u.cool.msl > 0)) {
-      u.cool.msl = 7;
-      for (let k = 0; k < 3; k++) { mz.set((k - 1) * 0.7, -0.6, -4.6).applyMatrix4(arms[1].fore.matrixWorld); if (!u.cut) c.fireMissile(u.root, mz, _b.copy(_a).normalize().add(_c.set((k - 1) * 0.25, 0.35, 0)).normalize(), t, 30); }
-    }
-    // 머리 센서 광선: 강한 한 발
-    if (P.head.alive && aligned && !(u.cool.eye > 0)) { u.cool.eye = 4.2; mz.set(0, 0.2, -1.6).applyMatrix4(head.matrixWorld); if (U.clear(mz, t, u)) U.laser(u, mz, U.aim(mz, t, 120, 0.03, _b, u), 16, 0x5ad8ff, 120); }
-  };
-  u.onDeath = () => { stagger(1); u.fall = 0; u.dir = Math.random() < 0.5 ? 1 : -1; };
-  u.dying = (dt) => {   // 연쇄 폭발 → 무릎이 꺾이며 앞으로 쓰러진다
-    if (u.deadT < 2.6) {
-      waist.rotation.x = -0.25 + Math.sin(u.t * 30) * 0.03; pelvis.position.y += Math.sin(u.t * 45) * 0.05;
-      if (Math.random() < dt * 7) { _a.set((Math.random() - 0.5) * 7, 2 + Math.random() * 8, (Math.random() - 0.5) * 4).multiplyScalar(S).applyMatrix4(waist.matrixWorld); c.fx.explosion(_a, 1.3); c.snd.play("explode", c.volAt(_a) * 0.5, c.panAt(_a)); }
-      return;
-    }
-    if (u.fall < 1) {
-      u.fall = Math.min(1, u.fall + dt / 1.7); const e = u.fall * u.fall;
-      g.rotation.x = -1.45 * e; pelvis.position.y = HIP - u.kneel - 4 * e; for (const l of legs) { l.th.rotation.x = 1.0 * e + (l.down ? 1.25 : 0) * (1 - e); l.kn.rotation.x = 1.4 * e; }
-      if (u.fall >= 1) { _a.set(0, 2, -14 * S).applyQuaternion(g.quaternion).add(g.position); U.boom(_a, 5); for (const h of [hitT, hitP, ...hitL]) h.visible = false; c.s.feel.emit("blast", 1, _a); }
-      return;
-    }
-    if (u.deadT < 20 && Math.random() < dt * 6) { _a.set((Math.random() - 0.5) * 8, 2, -4 - Math.random() * 14).multiplyScalar(S).applyQuaternion(g.quaternion).add(g.position); c.fx.smoke(_a, 2, 2.6, 0.1, 1.5); }
-  };
-  return u;
-}
-const _col = new THREE.Color(0xffb02e);
-
-const MAKE = { tank: makeTank, aa: makeAA, frigate: (U, o) => makeShip(U, o, false), cruiser: (U, o) => makeShip(U, o, true), mech: makeMech };
+const MAKE = {
+  tank: makeTank, aa: makeAA, frigate: (U, o) => makeShip(U, o, false), cruiser: (U, o) => makeShip(U, o, true), mech: makeMech,
+  titan: (U, o) => makeMech(U, Object.assign({ scale: 2.4, boss: true }, o)),                                   // 초거대로봇: 큰 거대로봇
+  siege: (U, o) => makeMech(U, Object.assign({ scale: 1.5, team: 0, siege: true, speed: 1.4 }, o)),                        // 아군 공성 로봇 (호위하면 전진)
+};
+// 계급·이름·진영 외피는 같은 모델을 쓰는 기본 종류로
+const BASE = { titan: "mech", siege: "mech" };
 
 // ── 전투기 모델 (AI 드론 종류 "jet" 이 쓴다): 기수는 -Z ──
 export function buildJet(color) {
