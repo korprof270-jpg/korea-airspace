@@ -1,0 +1,172 @@
+{
+ "ail": {
+  "skip": [
+   [
+    13,
+    32
+   ]
+  ],
+  "loop": 93,
+  "alt": "ail_b"
+ },
+ "ail_b": {
+  "skip": [
+   [
+    96,
+    107
+   ],
+   [
+    131,
+    144
+   ]
+  ],
+  "loop": 46,
+  "alt": "ail"
+ },
+ "boss": {
+  "skip": [
+   [
+    93,
+    105
+   ],
+   [
+    125,
+    141
+   ]
+  ],
+  "loop": 48,
+  "alt": "boss_b"
+ },
+ "boss_b": {
+  "skip": [
+   [
+    95,
+    129
+   ]
+  ],
+  "loop": 30,
+  "alt": "boss"
+ },
+ "canyon": {
+  "skip": [],
+  "loop": 37
+ },
+ "city": {
+  "skip": [
+   [
+    111,
+    119
+   ]
+  ],
+  "loop": 72
+ },
+ "empire": {
+  "skip": [
+   [
+    104,
+    114
+   ],
+   [
+    128,
+    144
+   ]
+  ],
+  "loop": 30,
+  "alt": "empire_b"
+ },
+ "empire_b": {
+  "skip": [
+   [
+    106,
+    132
+   ]
+  ],
+  "loop": 36,
+  "alt": "empire"
+ },
+ "island": {
+  "skip": [],
+  "loop": 66
+ },
+ "menu": {
+  "skip": [
+   [
+    89,
+    97
+   ]
+  ],
+  "loop": 46
+ },
+ "race": {
+  "skip": [],
+  "loop": 88
+ },
+ "snow": {
+  "skip": [
+   [
+    113,
+    140
+   ]
+  ],
+  "loop": 37,
+  "alt": "snow_b"
+ },
+ "snow_b": {
+  "skip": [
+   [
+    114,
+    144
+   ]
+  ],
+  "loop": 40,
+  "alt": "snow"
+ },
+ "space": {
+  "skip": [
+   [
+    104,
+    112
+   ],
+   [
+    128,
+    141
+   ]
+  ],
+  "loop": 30,
+  "alt": "space_b"
+ },
+ "space_b": {
+  "skip": [
+   [
+    129,
+    144
+   ]
+  ],
+  "loop": 59,
+  "alt": "space"
+ },
+ "vault": {
+  "skip": [
+   [
+    100,
+    115
+   ],
+   [
+    129,
+    139
+   ]
+  ],
+  "loop": 58,
+  "alt": "vault_b"
+ },
+ "vault_b": {
+  "skip": [
+   [
+    123,
+    144
+   ]
+  ],
+  "loop": 62,
+  "alt": "vault"
+ }
+}

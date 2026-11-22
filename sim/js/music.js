@@ -78,6 +78,9 @@ function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 10139
 const LOOKAHEAD = 1.5;
 
 // ElevenLabs 로 만든 테마 곡(sim/audio/bgm/*.mp3): 맵·모드·대화 분위기 → 곡. 파일이 없으면 지금처럼 합성 음악
+// 곡별 분석값 { 곡: { skip: [[시작, 끝]...], loop: 반복 시작 초 } } (tools 의 분석 스크립트가 만든다)
+let BGM_INFO = null;
+fetch("audio/bgm/index.json").then((r) => (r.ok ? r.json() : null)).then((j) => { BGM_INFO = j; }).catch(() => { /* 없음 */ });
 const BGM = {
   menu: "menu", race: "race", boss: "boss",
   city: "city", airbase: "city", outpost: "city", arena: "race", stadium: "race",
@@ -253,28 +256,43 @@ export class Music {
     src.connect(g); g.connect(this.tone);   // 긴장도 음색 필터를 거친다
     src.start(now + 0.05);
     this.fileSrc = src; this.fileG = g; this.fileId = id; this._fromFile = true; this.theme = null;
-    this.fileBuf = buf; this.fileEnd = now + 0.05 + buf.duration;
+    this.fileBuf = buf; this.fileEnd = now + 0.05 + buf.duration; this.fileOff = 0; this.fileT0 = now + 0.05;
+    this.fileKey = BGM[id];
     void tgt;
   }
-  // 곡 끝이 다가오면 처음(조용한 도입부)으로 툭 돌아가지 않고, 도입부를 건너뛴 중반부터 겹쳐 이어 간다 (흐름이 끊기지 않게)
+  // 재생 위치 관리: ① 분석 파일(audio/bgm/index.json)에 적힌 단조로운 구간은 겹치며 건너뛴다
+  //               ② 곡 끝이 다가오면 처음(조용한 도입부)이 아니라 변화가 많은 지점(loop)으로 겹쳐 이어 간다
   _loopFile() {
     if (!this.fileSrc || !this.fileBuf) return;
-    const ctx = this.sound.ctx, now = ctx.currentTime, XF = 3;
-    if (now < this.fileEnd - XF - 0.3) return;
-    const buf = this.fileBuf, off = Math.min(buf.duration * 0.3, Math.max(0, buf.duration - 20));
-    const old = this.fileSrc, og = this.fileG;
+    const ctx = this.sound.ctx, now = ctx.currentTime, buf = this.fileBuf, XF = 2.5;
+    const info = (BGM_INFO && BGM_INFO[this.fileKey]) || {};
+    if (info.alt) this._loadFile(`audio/bgm/${info.alt}.mp3`);   // 다른 버전 미리 받기
+    const pos = this.fileOff + (now - this.fileT0);
+    for (const [a, b] of info.skip || []) {
+      if (pos >= a - XF && pos < a && b < buf.duration - 4) return this._jumpFile(b, XF);
+    }
+    if (now >= this.fileEnd - XF - 0.3) {
+      // 같은 테마의 다른 버전(B곡)이 있으면 그 곡으로 넘어간다 → 같은 곡만 되풀이되지 않게
+      const ab = info.alt && this._loadFile(`audio/bgm/${info.alt}.mp3`);
+      if (ab) { this.fileBuf = ab; this.fileKey = info.alt; return this._jumpFile(4, 3, true); }
+      const loop = info.loop ?? Math.min(buf.duration * 0.3, Math.max(0, buf.duration - 20));
+      this._jumpFile(loop, 3);
+    }
+  }
+  _jumpFile(off, XF) {
+    const ctx = this.sound.ctx, now = ctx.currentTime, buf = this.fileBuf, old = this.fileSrc, og = this.fileG;
     const g = ctx.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.9, now + XF);
     const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g); g.connect(this.tone); src.start(now, off);
     og.gain.cancelScheduledValues(now); og.gain.setValueAtTime(og.gain.value, now); og.gain.linearRampToValueAtTime(0, now + XF);
     setTimeout(() => { try { old.stop(); } catch (_) { /* 이미 멈춤 */ } og.disconnect(); }, XF * 1000 + 400);
-    this.fileSrc = src; this.fileG = g; this.fileEnd = now + (buf.duration - off);
+    this.fileSrc = src; this.fileG = g; this.fileOff = off; this.fileT0 = now; this.fileEnd = now + (buf.duration - off);
   }
   _stopFile(tc) {
     if (!this.fileSrc) return;
     const ctx = this.sound.ctx, now = ctx.currentTime, src = this.fileSrc, g = this.fileG;
     g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.setTargetAtTime(0, now, tc);
     setTimeout(() => { try { src.stop(); } catch (_) { /* 이미 멈춤 */ } g.disconnect(); }, tc * 6000 + 300);
-    this.fileSrc = null; this.fileG = null; this.fileId = null; this.fileBuf = null;
+    this.fileSrc = null; this.fileG = null; this.fileId = null; this.fileBuf = null; this.fileKey = null;
   }
 
   // 긴장도 → 레이어 음량 [A, B]
