@@ -54,7 +54,7 @@
     if (slot) {
       if (p.type === "motor") for (let k = 1; k <= 3; k++) leads += row("선 " + "①②③"[k - 1], w.motorWires[pos][k] && SIM.has("esc@" + pos) ? "ESC 단자 " + w.motorWires[pos][k] : "");
       if (p.type === "esc") leads += row("전원 커넥터", SIM.escPowered(pos) ? "PDB " + SIM.xtName(w.escPwr[pos]) : "") + row("신호선", w.plug["esc" + pos]) + row("통신선", w.escTelem[pos] ? "하네스" : "");
-      if (p.type === "pm") leads += row("FC 케이블", w.plug.pm) + row("출력선", pol(w.pmOut)) + row("입력", w.batt === "pm" && SIM.has("battery") ? "배터리" : "");
+      if (p.type === "pm") leads += row("FC 케이블", w.plug.pm) + row("출력 XT60", w.pmOut ? "PDB 주전원" : "") + row("입력", w.batt === "pm" && SIM.has("battery") ? "배터리" : "");
       if (p.type === "battery") leads += row("커넥터", w.batt === "pm" ? "PMU 입력" : w.batt === "pdb" ? "PDB 패드" : "");
       if (p.type === "gps") leads += row("굵은 선", w.plug.gps) + row("가는 선", w.plug.compass);
       if (["telem", "buzzer", "switch"].includes(p.type)) leads += row("케이블", w.plug[id]);
@@ -250,6 +250,7 @@
       if (type === "mount") { tone(150, 0, 0.14, "sine", 0.9).frequency.exponentialRampToValueAtTime(70, t0 + 0.12); click(0, 900, 0.05, 0.8); }
       else if (type === "plug") { click(0, 3200, 0.025, 1.2); tone(2200, 0.004, 0.03, "triangle", 0.25); }
       else if (type === "xt") { click(0, 2000, 0.03, 1.2); click(0.06, 2600, 0.035, 1.3); tone(420, 0.06, 0.06, "square", 0.08); }
+      else if (type === "powerup") { [880, 1109, 1319].forEach((f, i) => tone(f, i * 0.14, 0.12, "triangle", 0.3)); tone(1319, 0.8, 0.09, "triangle", 0.25); tone(1319, 1.0, 0.09, "triangle", 0.25); }
       else if (type === "bind") { tone(1400, 0, 0.09, "sine", 0.4); tone(2100, 0.11, 0.14, "sine", 0.4); }
     } catch (e) {}
   };

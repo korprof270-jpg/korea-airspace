@@ -223,8 +223,10 @@
       target(g, mesh(new T.BoxGeometry(0.02, 0.014, 0.016), HIT, 0, 0.0045, 0.03), { kind: "pmIn", part: part.id, label: "PMU 입력 커넥터" });
       o.pads.in = new T.Vector3(0, 0.0045, 0.037);
       lead(o, "fc", [-0.006, 0.006, -0.025], [-0.016, 0.016, -0.078], LEAD.r, 0.001, true); // FC 앞쪽 밖까지 나오는 긴 6핀 케이블
-      lead(o, "outR", [0.003, 0.005, -0.025], [0.004, 0.004, -0.04], LEAD.r, 0.0019);
-      lead(o, "outK", [0.008, 0.005, -0.025], [0.009, 0.004, -0.04], LEAD.k, 0.0019);
+      // 출력: 빨강·검정 선 끝 XT60M (PDB 주전원 XT60F에 꽂는다)
+      lead(o, "out", [0.004, 0.005, -0.025], [0.006, 0.005, -0.046], LEAD.r, 0.0018);
+      { const k2 = new T.CatmullRomCurve3([new T.Vector3(0.008, 0.005, -0.025), new T.Vector3(0.0095, 0.007, -0.036), new T.Vector3(0.0085, 0.005, -0.046)]); g.add(new T.Mesh(new T.TubeGeometry(k2, 8, 0.0018, 6), LEAD.k)); }
+      g.add(box(0.008, 0.0055, 0.0075, M.yellow, 0.007, 0.005, -0.0505));
     } else if (part.type === "battery") {
       g.add(roundBox(0.046, 0.034, 0.135, mat(0x2b62c4, { roughness: 0.35 }), 0, 0.017, 0, 0.007), roundBox(0.0468, 0.012, 0.1365, M.dark, 0, 0.017, 0, 0.007));
       const nl = nameplate("배터리", 0.04, 0.016, null, "#ffffff"); nl.position.set(0, 0.0345, -0.02); g.add(nl);
@@ -232,8 +234,9 @@
     } else if (part.type === "gps") {
       g.add(cyl(0.003, 0.07, M.carbon, 0, 0.035, 0, 8), cyl(0.012, 0.003, M.carbon, 0, 0.0015, 0), cyl(0.03, 0.012, M.dark, 0, 0.076, 0, 32));
       const d = arrowDecal(0.03, 0.045, "GPS", "#1b1e22"); d.position.y = 0.0822; g.add(d);
-      lead(o, "gps", [0.003, 0.004, -0.004], [0.013, 0.003, -0.036], LEAD.l, 0.0013, true);
-      lead(o, "compass", [-0.003, 0.004, -0.004], [-0.013, 0.003, -0.036], LEAD.v, 0.0011, true);
+      // 마스트 아래에서 양옆으로 나와 FC에 가리지 않는 케이블 끝 (굵은 6핀 / 가는 4핀)
+      lead(o, "gps", [0.003, 0.006, 0.0], [0.036, 0.004, -0.006], LEAD.l, 0.0013, true);
+      lead(o, "compass", [-0.003, 0.006, 0.0], [-0.036, 0.004, -0.006], LEAD.v, 0.0011, true);
     } else if (part.type === "rx") {
       g.add(roundBox(0.024, 0.01, 0.04, mat(0x3a3f45, { roughness: 0.5 }), 0, 0.005, 0, 0.004), box(0.02, 0.0006, 0.012, M.white, 0, 0.0104, 0));
       const a1 = cyl(0.0008, 0.07, M.dark, -0.006, 0.03, 0.022, 6); a1.rotation.x = 0.5;
@@ -243,10 +246,14 @@
       // 핀 헤더: 채널 1–8, SBUS (뒤쪽 끝)
       RX_COLS.forEach((c, i) => { const x = rxColX(i); g.add(box(0.0022, 0.004, 0.003, M.dark, x, 0.012, -0.0175)); const lb = nameplate(c === "SB" ? "B" : c, 0.0024, 0.0024, null, "#ffffff"); lb.position.set(x, 0.0104, -0.0135); g.add(lb); });
       // 바인딩 버튼과 상태 LED
-      const bb = cyl(0.0022, 0.0018, M.white, 0.0095, 0.0108, -0.006, 12); g.add(bb);
-      const bh = mesh(new T.BoxGeometry(0.008, 0.006, 0.008), HIT, 0.0095, 0.011, -0.006); bh.userData.bind = part.id; g.add(bh);
-      const bl = nameplate("BIND", 0.007, 0.0022, null, "#ffffff"); bl.position.set(0.0095, 0.0104, -0.0015); g.add(bl);
-      o.led = new T.Mesh(new T.SphereGeometry(0.0016, 10, 8), new T.MeshBasicMaterial({ color: 0x333333 })); o.led.position.set(-0.0095, 0.0108, -0.006); g.add(o.led);
+      g.add(cyl(0.0042, 0.0012, M.dark, 0.0075, 0.0106, -0.004, 20)); // 버튼 받침
+      o.bindBtn = cyl(0.0033, 0.0022, mat(0xd8382e, { roughness: 0.35 }), 0.0075, 0.0118, -0.004, 20); g.add(o.bindBtn); // 바인드 버튼
+      const bh = mesh(new T.BoxGeometry(0.011, 0.008, 0.011), HIT, 0.0075, 0.012, -0.004); bh.userData.bind = part.id; g.add(bh);
+      const bl = nameplate("BIND", 0.008, 0.0026, null, "#ffffff"); bl.position.set(0.0075, 0.0104, 0.0012); g.add(bl);
+      o.led = new T.Mesh(new T.SphereGeometry(0.0024, 14, 10), new T.MeshBasicMaterial({ color: 0x333333 })); o.led.position.set(-0.0075, 0.0112, -0.004); g.add(o.led);
+      o.ledGlow = new T.Sprite(new T.SpriteMaterial({ map: canvasTex(64, 64, (c) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.45)"); gr.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); }), transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
+      o.ledGlow.scale.set(0.016, 0.016, 1); o.ledGlow.position.copy(o.led.position); o.ledGlow.raycast = () => {}; g.add(o.ledGlow);
+      const ll = nameplate("LED", 0.006, 0.0024, null, "#ffffff"); ll.position.set(-0.0075, 0.0104, 0.0012); g.add(ll);
       // 3선 커넥터의 FC 쪽 끝
       const hh = new T.Mesh(new T.SphereGeometry(0.0065, 8, 6), HIT); hh.position.set(0, 0.004, -0.04); hh.userData.tip = { part: part.id, key: "sig" }; g.add(hh);
       o.tips.sig = new T.Vector3(0, 0.004, -0.04);
@@ -321,6 +328,7 @@
   const PADS = { batt: { plus: [-0.014, 0.088], minus: [0.014, 0.088] } };
   for (const id of SIM.POS_IDS) { const p = SIM.POS[id], dx = p.x * S2, dz = p.z * S2; PADS[id] = { plus: [dx * 0.088 - dz * 0.027, dz * 0.088 + dx * 0.027], minus: [dx * 0.088 + dz * 0.027, dz * 0.088 - dx * 0.027] }; }
   const HARNESS = [-0.048, 0.0015, -0.03];
+  const PDB_MAIN = new T.Vector3(0, 0.005, 0.112); // 주전원 XT60F (하판 뒤쪽 끝)
   const armDir = (pid) => { const p = SIM.POS[pid]; return [p.x * S2, p.z * S2]; };
   // XT60F 위치: 붐대 양옆 (i=0 → 오른쪽 옆, 1 → 왼쪽 옆)
   const xtRoot = (pid, i) => { const [dx, dz] = armDir(pid), s = i ? 1 : -1; return new T.Vector3(dx * 0.066 - dz * 0.03 * s, 0.002, dz * 0.066 + dx * 0.03 * s); };
@@ -340,13 +348,18 @@
       target(g, mesh(new T.BoxGeometry(0.015, 0.012, 0.015), HIT, c.x, 0.004, c.z), { kind: "xt", part: o.id, xt, pos: pid, label: "PDB " + SIM.xtName(xt) });
       const nl = nameplate(xt.slice(2), 0.006, 0.004, null, "#ffffff"); nl.position.set(a.x, 0.0012, a.z); g.add(nl);
     }));
-    for (const key of ["batt"]) for (const sgn of ["plus", "minus"]) {
-      const a = PADS[key][sgn];
+    // 주전원: +/− 패드에 납땜된 굵은 선 끝 XT60F (배터리 또는 PMU 출력 XT60M을 꽂는다)
+    for (const sgn of ["plus", "minus"]) {
+      const a = PADS.batt[sgn];
       g.add(box(0.014, 0.0012, 0.014, sgn === "plus" ? M.copper : M.steel, a[0], 0.001, a[1]));
-      target(g, mesh(new T.BoxGeometry(0.016, 0.008, 0.016), HIT, a[0], 0.003, a[1]), { kind: "pdb", part: o.id, group: key, sign: sgn, label: "PDB " + (sgn === "plus" ? "＋" : "－") + " 패드" });
-      const s = silk(sgn === "plus" ? "+" : "−"), k = 1 + 0.016 / Math.hypot(a[0], a[1]);
-      s.position.set(a[0] * k, 0.0011, a[1] * k); g.add(s);
+      g.add(cyl(0.004, 0.002, M.steel, a[0], 0.0022, a[1], 12)); // 납땜
+      const s = silk(sgn === "plus" ? "+" : "−"); s.position.set(a[0] + (sgn === "plus" ? -0.012 : 0.012), 0.0011, a[1]); g.add(s);
+      const cv = new T.CatmullRomCurve3([new T.Vector3(a[0], 0.003, a[1]), new T.Vector3(a[0] * 0.6, 0.008, a[1] + 0.014), new T.Vector3(PDB_MAIN.x + (sgn === "plus" ? -0.002 : 0.002), PDB_MAIN.y, PDB_MAIN.z - 0.006)]);
+      g.add(new T.Mesh(new T.TubeGeometry(cv, 10, 0.0022, 6), sgn === "plus" ? LEAD.r : LEAD.k));
     }
+    g.add(box(0.009, 0.006, 0.01, M.yellow, PDB_MAIN.x, PDB_MAIN.y, PDB_MAIN.z));
+    target(g, mesh(new T.BoxGeometry(0.018, 0.014, 0.018), HIT, PDB_MAIN.x, PDB_MAIN.y, PDB_MAIN.z), { kind: "pdbMain", part: o.id, label: "PDB 주전원 XT60" });
+    const ml = nameplate("MAIN", 0.01, 0.0035, null, "#ffffff"); ml.position.set(PDB_MAIN.x, 0.0011, PDB_MAIN.z - 0.012); g.add(ml);
     const pn = nameplate("PDB", 0.024, 0.008, null, "#e6efe9"); pn.position.set(0.045, 0.0011, 0.05); g.add(pn);
     const hb = new T.Group(); hb.position.set(...HARNESS); g.add(hb);
     hb.add(box(0.02, 0.006, 0.012, M.plug, 0, 0.003, 0));
@@ -504,11 +517,12 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       curMeta = { label: (SIM.CABLES[c].name) + " → FC " + w.plug[c], tip: { part: t[0], key: t[1] } };
       link(tipPos(t[0], t[1]), fcPortPos(w.plug[c]), /^esc[A-Z]/.test(c) ? 0xf2f2f2 : CABLE_COL[c], 0.0013);
     }
-    curMeta = { label: "PMU 출력선 → PDB 주전원 패드", tip: { part: "pm", key: "outR" } };
-    if (SIM.has("pm") && w.pmOut) { const rv = w.pmOut === "rev"; link(tipPos("pm", "outR"), padPos("batt", rv ? "minus" : "plus"), RED, 0.0021); link(tipPos("pm", "outK"), padPos("batt", rv ? "plus" : "minus"), BLK, 0.0021); }
-    curMeta = { label: "배터리 커넥터 → " + (w.batt === "pm" ? "PMU 입력" : "PDB 패드"), tip: { part: "battery", key: "xt" } };
+    const mainAt = () => toDrone(objs.frameBot, PDB_MAIN.clone().add(new T.Vector3(0, 0, 0.005)));
+    curMeta = { label: "PMU 출력 XT60 → PDB 주전원 XT60", tip: { part: "pm", key: "out" } };
+    if (SIM.has("pm") && w.pmOut && SIM.has("frameBot")) { const a0 = tipPos("pm", "out"), b0 = mainAt(); link(a0, b0, RED, 0.0024); link(a0.clone().add(new T.Vector3(0.002, 0, 0.002)), b0.clone().add(new T.Vector3(0.002, 0, 0)), BLK, 0.0024); }
+    curMeta = { label: "배터리 XT60 → " + (w.batt === "pm" ? "PMU 입력 XT60" : "PDB 주전원 XT60"), tip: { part: "battery", key: "xt" } };
     if (SIM.has("battery") && w.batt === "pm" && SIM.has("pm")) link(tipPos("battery", "xt"), toDrone(objs.pm, objs.pm.pads.in), RED, 0.003);
-    if (SIM.has("battery") && w.batt === "pdb") { link(tipPos("battery", "xt"), padPos("batt", "plus"), RED, 0.0026); link(tipPos("battery", "xt"), padPos("batt", "minus"), BLK, 0.0026); }
+    if (SIM.has("battery") && w.batt === "pdb" && SIM.has("frameBot")) { const a0 = tipPos("battery", "xt"), b0 = mainAt(); link(a0, b0, RED, 0.003); link(a0.clone().add(new T.Vector3(0.002, 0, 0.002)), b0.clone().add(new T.Vector3(0.002, 0, 0)), BLK, 0.003); }
   }
 
   function rebuildExpect() {
@@ -731,7 +745,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     else if (/^ph\d$/.test(k)) w.motorWires[pos][k[2]] = "";
     else if (k === "pwr") w.escPwr[pos] = "";
     else if (k === "tel") w.escTelem[pos] = "";
-    else if (k === "outR" || k === "outK") w.pmOut = "";
+    else if (k === "out") w.pmOut = "";
     else if (k === "xt") w.batt = "";
     else { const c = tipCable(tip); if (c) w.plug[c] = ""; }
   }
@@ -754,7 +768,14 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     return best;
   }
   sc.disconnectTip = (tip) => { disconnect(tip); SIM.emit(); };
-  sc.cancelPick = () => { sc.pick = null; sc.wireDrag = false; if (liveWire) { liveWire.geometry.dispose(); drone.remove(liveWire); liveWire = null; } if (sc.onHover) sc.onHover(""); };
+  // 카메라를 부드럽게 옮긴다: FC 확대 → 포트를 꽂거나 취소하면 원래 시점으로
+  function zoomFc() {
+    const g = objs.fc.group, c = new T.Box3().setFromObject(g).getCenter(new T.Vector3());
+    if (!sc.camPrev) sc.camPrev = { target: orbit.target.clone(), dist: orbit.dist, phi: orbit.phi, theta: orbit.theta };
+    sc.camGoal = { target: c, dist: 0.75 * KS, phi: 0.42, theta: Math.PI }; sc.fcZoom = true; // 앞쪽 위에서 내려다보아 뒤쪽 GPS에 가리지 않게
+  }
+  function restoreCam() { if (sc.camPrev) { sc.camGoal = sc.camPrev; sc.camPrev = null; } sc.fcZoom = false; }
+  sc.cancelPick = () => { if (sc.fcZoom) restoreCam(); sc.pick = null; sc.wireDrag = false; if (liveWire) { liveWire.geometry.dispose(); drone.remove(liveWire); liveWire = null; } if (sc.onHover) sc.onHover(""); };
   function startPick(tip) {
     disconnect(tip);
     sc.pick = tip;
@@ -771,13 +792,11 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       const escPos = SIM.state.install[tg.part].split("@")[1];
       if (escPos !== pos) return say("선이 닿지 않습니다.");
       w.motorWires[pos][tip.key[2]] = tg.pad; ok("plug");
-    } else if (tg.kind === "pdb") {
-      const red = tip.key === "pwrR" || tip.key === "outR";
-      const pol = (tg.sign === "plus") === red ? "ok" : "rev";
-      if (part.type === "pm" && (tip.key === "outR" || tip.key === "outK")) w.pmOut = pol;
+    } else if (tg.kind === "pdbMain") { // XT60은 모양이 맞아 거꾸로 꽂히지 않는다
+      if (part.type === "pm" && tip.key === "out") w.pmOut = "ok";
       else if (part.type === "battery") w.batt = "pdb";
-      else return say("이 선은 PDB 패드에 연결하지 않습니다.");
-      ok("plug");
+      else return say("커넥터가 맞지 않습니다.");
+      ok("xt");
     } else if (tg.kind === "xt") {
       if (!(part.type === "esc" && tip.key === "pwr")) return say("커넥터가 맞지 않습니다.");
       if (tg.pos !== pos) return say("선이 닿지 않습니다.");
@@ -792,12 +811,13 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       const c = tipCable(tip);
       if (!c) return say("이 선은 FC에 꽂지 않습니다.");
       if (SIM.CABLES[c].conn !== SIM.portType(tg.port)) return say("커넥터 모양이 맞지 않아 " + tg.port + "에 들어가지 않습니다.");
-      SIM.setPlug(c, tg.port); ok("plug");
-    } else if (tg.kind === "fc") {
+      SIM.setPlug(c, tg.port); ok("plug"); restoreCam();
+    } else if (tg.kind === "fc") { // 선을 든 채 FC를 누르면 FC를 크게 보여 주고, 포트를 고르게 한다
       const c = tipCable(tip);
       if (!c) return say("이 선은 FC에 꽂지 않습니다.");
-      sc.cancelPick(); SIM.emit();
-      if (sc.onFcCable) sc.onFcCable(c);
+      if (SIM.has("canopy") && /^deck:/.test(SIM.state.install.fc || "")) return say("케이스를 먼저 벗기세요.");
+      zoomFc(); sc._keep = true; sc.wireDrag = false;
+      SIM.toast("꽂을 포트를 누르세요");
       return;
     }
     sc.cancelPick(); SIM.emit();
@@ -830,7 +850,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
         if (best) return best;
       }
       const see = sc.xray || !!sc.pick;
-      if (sc.pick && tipCableOf(sc.pick)) { const np = nearestPort(e.clientX, e.clientY); if (np) return { target: np, point: null }; }
+      if (sc.pick && sc.fcZoom && tipCableOf(sc.pick)) { const np = nearestPort(e.clientX, e.clientY); if (np) return { target: np, point: null }; } // 확대했을 때만 가장 가까운 포트로
       let soft = null; // 넉넉한 클릭 영역(작은 부품·선): 바로 뒤에 단자·선 끝이 있으면 그쪽을 고른다
       const hard = (h, res) => res; // 선 끝·단자·포트는 넓은 클릭 영역(부품 상자·선·판)에 가려지지 않는다
       const fcCableTip = (t) => { const pt = SIM.part(t.part); return pt && (["pm", "gps", "rx", "telem", "buzzer", "switch"].includes(pt.type) && ["fc", "gps", "compass", "sig"].includes(t.key)); };
@@ -959,7 +979,8 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       if (sc.wireDrag) { // 끌던 선을 놓은 자리
         const h = pickAt(e); down = null;
         if (h.target) finishPick(h.target); else { sc.cancelPick(); SIM.emit(); }
-        if (sc.pick) { sc.cancelPick(); SIM.emit(); }
+        if (sc.pick && !sc._keep) { sc.cancelPick(); SIM.emit(); }
+        sc._keep = false;
         return;
       }
       down = null;
@@ -988,7 +1009,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       if (h.hole) { if (SIM.state.screws[h.hole]) { const err = SIM.takeScrew(h.hole); if (err) SIM.toast(err, "bad"); } else if (sc.onPick) sc.onPick(h.hole.split(":")[0]); return; }
       if (h.tip) return startPick(h.tip);
       if (h.wire) { if (sc.onWire) sc.onWire(h.wire, e.clientX, e.clientY); return; }
-      if (h.bind) { if (!SIM.state.install.rx) { if (sc.onPick) sc.onPick("rx"); return; } const r = SIM.bindRx(); SIM.toast(BIND_MSG[r] !== undefined ? BIND_MSG[r] : r, BIND_MSG[r] !== undefined ? "" : "bad"); return; }
+      if (h.bind) { sc.bindPressUntil = performance.now() + 250; if (SIM.sfx) SIM.sfx("plug"); if (!SIM.state.install.rx) { SIM.toast("수신기를 기체에 장착하고 전원을 넣은 뒤 누르세요."); return; } const r = SIM.bindRx(); SIM.toast(BIND_MSG[r] !== undefined ? BIND_MSG[r] : r, BIND_MSG[r] !== undefined ? "" : "bad"); return; }
       if (sc.onPick) sc.onPick(h.part || null);
     };
     canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
@@ -1015,7 +1036,15 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     if (perfT > 3) { const avg = perfT / perfN; perfT = 0; perfN = 0;
       if (avg > 1 / 24) { perfLow = true; renderer.setPixelRatio(1); renderer.shadowMap.type = T.PCFShadowMap; sun.shadow.mapSize.set(1024, 1024); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } window.dispatchEvent(new Event("resize")); } }
   }
+  function tweenCam(dt) {
+    const gl = sc.camGoal; if (!gl) return;
+    const k = 1 - Math.exp(-7 * dt);
+    orbit.target.lerp(gl.target, k); orbit.dist += (gl.dist - orbit.dist) * k; orbit.phi += (gl.phi - orbit.phi) * k;
+    let dth = gl.theta - orbit.theta; dth = Math.atan2(Math.sin(dth), Math.cos(dth)); orbit.theta += dth * k;
+    if (orbit.target.distanceTo(gl.target) < 0.002 && Math.abs(gl.dist - orbit.dist) < 0.002 && Math.abs(gl.phi - orbit.phi) < 0.002) sc.camGoal = null;
+  }
   sc.update = function (dt) {
+    tweenCam(dt);
     adaptQuality(dt);
     const k = 1 - Math.exp(-12 * dt);
     for (const part of SIM.PARTS) {
@@ -1048,7 +1077,10 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     }
     for (const p of SIM.PARTS) if (!SIM.state.install[p.id] && objs[p.id].disc) objs[p.id].disc.material.opacity = 0;
     if (selBox.visible && SIM.selected) selBox.setFromObject(objs[SIM.selected].group);
-    { const led = SIM.rxLed(), t = performance.now(); objs.rx.led.material.color.setHex(led === "green" ? 0x33ff66 : led === "red" ? 0xff3322 : led === "blink" ? (t % 1000 < 500 ? 0xff3322 : 0x330000) : led === "fast" ? (t % 200 < 100 ? 0xff3322 : 0x330000) : 0x222222); }
+    { const led = SIM.rxLed(), t = performance.now(), on = led === "green" || led === "red" || (led === "fast" && t % 200 < 100);
+      const col = led === "green" ? 0x33ff66 : led === "off" ? 0x222222 : on ? 0xff3322 : 0x330000;
+      objs.rx.led.material.color.setHex(col); objs.rx.ledGlow.material.color.setHex(led === "green" ? 0x33ff66 : 0xff3322); objs.rx.ledGlow.visible = on;
+      if (objs.rx.bindBtn) objs.rx.bindBtn.position.y += ((performance.now() < (sc.bindPressUntil || 0) ? 0.0105 : 0.0118) - objs.rx.bindBtn.position.y) * 0.5; }
     const tm = sc.topPlate.material, want = sc.env === "bench" && (sc.xray || sc.pick) ? 0.22 : 1;
     tm.opacity += (want - tm.opacity) * k; tm.depthWrite = tm.opacity > 0.9;
 

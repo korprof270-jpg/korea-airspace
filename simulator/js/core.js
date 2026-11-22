@@ -195,7 +195,7 @@
         escTelem: { FR: "", RR: "", RL: "", FL: "" }, // ESC 통신선 → "harness" 
         batt: "", // 배터리 커넥터: "", "pm", "pdb"
         rxEnd: "", rxRevRx: false, rxRevFc: false, // 수신기 3선 커넥터: 수신기 쪽 핀("1"…"8", "SB")과 양쪽 방향
-        pmOut: "", // PMU 출력선 → PDB 배터리 패드: "", "ok", "rev"
+        pmOut: "", // PMU 출력 XT60M → PDB 주전원 XT60F: "", "ok"
       },
       params,
       cal: { accel: false, compass: false, radio: false, esc: false },
@@ -372,6 +372,7 @@
     const now = Date.now(), powered = SIM.rxPowered(), fc = SIM.power().fcBatt;
     if (powered && !SIM._rxWas && SIM.state.bindHeld) { SIM.state.bindHeld = false; SIM.binding = now; SIM.bindUntil = now + 10000; }
     if (SIM._fcWas && !fc && SIM.state.needReboot) { SIM.state.needReboot = false; }
+    const pdbNow = SIM.power().pdb; if (pdbNow && !SIM._pdbWas && SIM.sfx) SIM.sfx("powerup"); SIM._pdbWas = pdbNow; // 전원이 들어오면 ESC 시작음
     SIM._rxWas = powered; SIM._fcWas = fc;
     if (!SIM.bindUntil) return;
     if (!powered || now > SIM.bindUntil) { SIM.binding = 0; SIM.bindUntil = 0; SIM.emit(); return; }
@@ -483,9 +484,8 @@
     else add("ok", "배터리 커넥터", "PMU 입력");
     if (!SIM.has("pm")) add("bad", "PMU", "장착되지 않았습니다.");
     else {
-      if (w.pmOut === "rev") add("bad", "PMU 출력선", "PDB 배터리 패드에 극성이 반대로 연결되어 있습니다.");
-      else if (!w.pmOut) add("bad", "PMU 출력선", "PDB 배터리 패드에 연결되지 않았습니다.");
-      else add("ok", "PMU 출력선", "PDB 배터리 패드, 극성 일치");
+      if (!w.pmOut) add("bad", "PMU 출력 커넥터", "XT60이 PDB 주전원에 꽂혀 있지 않습니다.");
+      else add("ok", "PMU 출력 커넥터", "PDB 주전원 XT60");
       if (w.plug.pm !== "POWER") add("bad", "PMU 케이블", w.plug.pm ? w.plug.pm + " 포트에 꽂혀 있습니다. POWER 포트여야 합니다." : "FC에 연결되지 않았습니다.");
       else add("ok", "PMU 케이블", "POWER 포트");
     }
