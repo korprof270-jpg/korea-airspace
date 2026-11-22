@@ -135,7 +135,7 @@ void main() {
 }`;
 
 export class PostFX {
-  constructor(renderer, w, h) {
+  constructor(renderer, w, h, opt = {}) {
     this.renderer = renderer;
     // 절반 해상도 음영 버퍼는 반정밀도 부동소수 렌더 타깃이 필요하다. 없으면 예전처럼 최종 패스에서 전체 해상도로 계산
     const ex = renderer.extensions;
@@ -143,7 +143,8 @@ export class PostFX {
     if (this.half) {
       this.lookRT = new THREE.WebGLRenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
     }
-    this.sceneRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(w, h) });
+    // opt.samples: 다중 샘플 안티에일리어싱(MSAA). 타일 방식 모바일 GPU 에서는 거의 공짜로 계단 현상을 없앤다
+    this.sceneRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(w, h), samples: opt.samples || 0 });
     this.ldrRT = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.6, 0.9);
     this.bloom.blendToInput = false;
