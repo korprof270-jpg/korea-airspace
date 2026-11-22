@@ -6,9 +6,11 @@
   const K = (sc.K = 3.6); // 20L급 농업용 4축(축간 약 1.6m) 크기
   const KS = K / 2.2; // 작업대·시점 배율
   const ARM_R = 0.225, S2 = Math.SQRT1_2, LEG = 0.128, REST_Y = LEG * K;
+  // 작업대 위 기체 높이: 스키드가 있으면 스키드로 서고, 없으면 하판(또는 아래 배터리)이 작업대에 닿는다
+  const restY = () => (SIM.has("skid") ? REST_Y : SIM.has("under") ? 0.05 * K : 0.018 * K);
   // 부품별 모형 배율 (프레임 대비 잘 보이도록 키움)
   const PS = { bottom: 1, top: 1, arm: 1, skid: 1, motor: 2.0, prop: 1.2, esc: 1.55, fc: 1.75, pm: 1.7, battery: 1.3, gps: 1.6, rx: 1.95, telem: 1.85, buzzer: 2.4, switch: 2.4 };
-  let stand, renderer, scene, camera, drone, benchGroup, fieldGroup, partsRoot, wires, expectGroup, selBox, sun, snapRing, liveWire, stageEl;
+  let renderer, scene, camera, drone, benchGroup, fieldGroup, partsRoot, wires, expectGroup, selBox, sun, snapRing, liveWire, stageEl;
   const air = {}, targets = [];
   const orbit = (sc.orbit = { theta: 0.3, phi: 0.86, dist: 2.75 * KS, target: new T.Vector3(0, 0.2 * KS, 0.16 * KS) });
   const poseQ = new T.Quaternion();
@@ -533,7 +535,6 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
       g.userData.tq = xfQuat(x);
     }
     rebuildWires(); rebuildExpect(); syncScrews();
-    if (stand) stand.visible = sc.env === "bench" && !SIM.has("skid");
     const sel = SIM.selected && objs[SIM.selected];
     selBox.visible = !!sel && sc.env === "bench";
     if (sel) selBox.setFromObject(sel.group);
@@ -545,7 +546,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
     fieldGroup.visible = env === "field";
     sc.cancelPick();
     applyTheme();
-    if (env === "bench") { orbit.target.set(0, 0.2 * KS, 0.16 * KS); orbit.dist = 2.75 * KS; orbit.theta = 0.3; orbit.phi = 0.86; sc.setPose("level"); drone.position.set(0, REST_Y, 0); drone.quaternion.identity(); }
+    if (env === "bench") { orbit.target.set(0, 0.2 * KS, 0.16 * KS); orbit.dist = 2.75 * KS; orbit.theta = 0.3; orbit.phi = 0.86; sc.setPose("level"); drone.position.set(0, restY(), 0); drone.quaternion.identity(); }
     else { orbit.dist = 6 * KS; orbit.phi = 1.25; orbit.theta = 0.25; }
     sc.sync();
   };
@@ -623,10 +624,6 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
 
     drone = new T.Group(); sc.drone = drone;
     drone.position.set(0, REST_Y, 0); drone.scale.setScalar(K);
-    // 스키드가 없을 때 기체를 받쳐 두는 조립 거치대
-    stand = new T.Group();
-    for (const sx of [-1, 1]) { stand.add(cyl(0.012, REST_Y - 0.004, M.steel, sx * 0.09 * K, (REST_Y - 0.004) / 2, 0, 16)); stand.add(cyl(0.05, 0.012, M.dark, sx * 0.09 * K, 0.006, 0, 24)); }
-    benchGroup.add(stand);
     wires = new T.Group(); expectGroup = new T.Group();
     drone.add(wires, expectGroup);
     partsRoot = new T.Group(); partsRoot.scale.setScalar(K);
@@ -1033,7 +1030,7 @@ const BIND_MSG = { held: "바인드 버튼을 누르고 있습니다. 이 상태
         poseQ.premultiply(tmpQ); sc.poseName = "free"; sc.lift = 0.75;
       }
       drone.quaternion.slerp(poseQ, k);
-      drone.position.lerp(new T.Vector3(0, REST_Y + sc.lift, 0), k);
+      drone.position.lerp(new T.Vector3(0, restY() + sc.lift, 0), k);
     }
     // 모터·프로펠러 회전 표시 (방향이 보이도록 눈에 보이는 속도는 제한)
     for (const id of SIM.POS_IDS) {
