@@ -601,7 +601,7 @@ const CACHE = "hgfpv-mapthumb-3:";
 
 export class Thumbs {
   constructor() {
-    this.mode = {}; this.map = {};
+    this.mode = {}; this.map = {}; this.frame = {}; this.canopy = {};
     this.jobs = []; this.r = null; this.stage = null; this.timer = 0;
     this.listeners = new Set();
     for (const id of Object.keys(MAPS)) { try { const v = localStorage.getItem(CACHE + id); if (v) this.map[id] = v; } catch (_) { /* 저장소 없음 */ } }
@@ -636,10 +636,10 @@ export class Thumbs {
     const job = this.jobs.shift();
     if (!job) return this._release();
     let url = null;
-    try { url = job.kind === "mode" ? this._modeShot(job.id) : this._mapShot(job.id); }
+    try { url = job.kind === "mode" ? this._modeShot(job.id) : job.kind === "frame" || job.kind === "canopy" ? this._frameShot(job.id, job.kind) : this._mapShot(job.id); }
     catch (e) { console.warn("썸네일을 만들지 못했습니다", job, e); }
     if (url) { this[job.kind][job.id] = url; this._emit(job.kind, job.id, url); }
-    if (this.jobs.length) this.timer = setTimeout(() => this._pump(), this.jobs[0].kind === "map" ? 250 : 16);
+    if (this.jobs.length) this.timer = setTimeout(() => this._pump(), this.jobs[0].kind === "map" ? 250 : this.jobs[0].kind === "frame" || this.jobs[0].kind === "canopy" ? 30 : 16);
     else this.timer = setTimeout(() => this._release(), 1500);
   }
 
@@ -651,6 +651,25 @@ export class Thumbs {
     const r = this._renderer(480, 300);
     r.render(st.scene, st.camera);
     return r.domElement.toDataURL("image/jpeg", 0.86);
+  }
+
+  // 격납고 프레임 카드: 같은 색(중립 회색 + 주황)으로 형상만 비교되게 비스듬히 위에서 찍는다
+  _frameShot(id, kind = "frame") {
+    const r = this._renderer(200, 128);
+    const sc = new THREE.Scene(); sc.background = new THREE.Color(0x141c30);
+    sc.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a3040, 1.4));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(2, 4, 1.5); sc.add(sun);
+    const look = { frame: kind === "frame" ? id : "x", canopy: kind === "canopy" ? id : "racer", props: 3, skin: "solid", frameColor: "#4a5262", accentColor: "#ff6a2a", propColor: "#7fdcff", ledColor: "#3dff7c", ledMode: "solid" };
+    const d = buildDrone(look, 1);
+    d.userData.tick(0.016, 0, 0);
+    sc.add(d);
+    const box = new THREE.Box3().setFromObject(d), c = box.getCenter(new THREE.Vector3()), rad = box.getSize(new THREE.Vector3()).length() / 2;
+    const cam = new THREE.PerspectiveCamera(30, 200 / 128, 0.01, 10);
+    cam.position.set(c.x + rad * 1.5, c.y + rad * 2.1, c.z + rad * 2.3); cam.lookAt(c);
+    r.render(sc, cam);
+    const url = r.domElement.toDataURL("image/jpeg", 0.85);
+    d.userData.dispose();
+    return url;
   }
 
   _mapShot(id) {
