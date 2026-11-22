@@ -83,11 +83,16 @@ export class Music {
     this.theme = null; this.want = "menu";
     this.step = 0; this.next = 0;
     this.amb = [];
+    this.int = 0; this.iv = 0;   // 전투 긴장도: 목표값 · 부드럽게 따라가는 현재값 (0..1)
     // 음악 예약: 게임 프레임이 무거워 타이머가 늦게 와도 끊기지 않도록 약 1.5초 앞까지 미리 예약한다
     setInterval(() => this._tick(), 100);
   }
 
   setTheme(id) { this.want = THEMES[id] ? id : "menu"; }
+  // 전투 긴장도(0..1): 높아지면 추진 베이스·16분 하이햇·탐(0.25~), 두 배 킥·크래시·스네어 롤·상승음(0.6~)이 차례로 들어오고
+  // 전체 음색 필터가 열린다. 오를 때는 1~2초, 가라앉을 때는 6초쯤 걸려 따라간다. 메뉴·대화 분위기 곡에서는 무시한다
+  setIntensity(k) { this.int = k > 0 ? (k < 1 ? k : 1) : 0; }
+  get intensity() { return this.iv; }
   // 대화 장면 분위기: null = 맵·메뉴 곡으로 복귀, "-" = 무음, 그 밖에는 MOODS 키
   setMood(k) { this.mood = k == null ? null : k === "-" || MOODS[k] ? k : null; }
   get moodPlaying() { return this.theme && this.theme.startsWith("m:") ? this.theme.slice(2) : null; }
@@ -102,7 +107,10 @@ export class Music {
     this.comp.threshold.value = -18; this.comp.ratio.value = 3; this.comp.attack.value = 0.006; this.comp.release.value = 0.15;
     this.comp.connect(this.out);
     this.drive = ctx.createGain(); this.drive.gain.value = 0.4;
-    const sat = ctx.createWaveShaper(); sat.curve = this._curve(1.4); this.drive.connect(sat); sat.connect(this.comp);
+    const sat = ctx.createWaveShaper(); sat.curve = this._curve(1.4); this.drive.connect(sat);
+    // 긴장도 음색 필터: 조용할 때 살짝 닫히고 격해질수록 열린다 (메뉴·대화 곡에서는 완전히 열린 상태)
+    this.tone = ctx.createBiquadFilter(); this.tone.type = "lowpass"; this.tone.frequency.value = 20000; this.tone.Q.value = 0.4;
+    sat.connect(this.tone); this.tone.connect(this.comp);
     this.bus = ctx.createGain(); this.bus.connect(this.drive);
     // 공간감: 짧은 슬랩백 지연(관악·건반에만 보낸다)
     this.delay = ctx.createDelay(1.5); this.fb = ctx.createGain(); this.fb.gain.value = 0.22;
@@ -122,6 +130,10 @@ export class Music {
     this.bus.connect(this.drive);
     // 킥에 맞춰 살짝 눌리는 버스(과하지 않게)
     this.duck = ctx.createGain(); this.duck.connect(this.bus);
+    // 긴장도 레이어 버스 (곡마다 새로 — 곡이 바뀌면 같이 사라진다)
+    const [la, lb] = this._levels(mood ? 0 : this.iv);
+    this.hypeA = ctx.createGain(); this.hypeA.gain.value = la; this.hypeA.connect(this.duck);
+    this.hypeB = ctx.createGain(); this.hypeB.gain.value = lb; this.hypeB.connect(this.duck);
     this.bassDrive = ctx.createWaveShaper(); this.bassDrive.curve = this._curve(T.style === "hiphop" ? 2.2 : 3.5); this.bassDrive.connect(this.bus);
     this.spb = 60 / T.bpm / 4;
     this.delay.delayTime.setTargetAtTime(this.spb * (T.style === "funk" ? 1.5 : 3), now, 0.2);
@@ -189,9 +201,41 @@ export class Music {
     if (settings.musicVolume <= 0.01 || settings.mute || !tgt) { if (this.theme) { this._fadeOut(tgt ? 0.2 : 0.8); this.theme = null; } return; }
     if (tgt !== this.theme) this._start(tgt);
     const now = s.ctx.currentTime;
+    this._intensity(now, tgt === "menu" || tgt.startsWith("m:"));
     if (this.next < now - 1.5) this.next = now + 0.05;          // 아주 오래 멈췄을 때(탭 숨김 등)만 건너뛴다
     else if (this.next < now) this.next = now + 0.02;            // 조금 늦었으면 박자를 잃지 않고 바로 이어서
     while (this.next < now + LOOKAHEAD) { this._play(this.step, this.next); this.step++; this.next += this.spb; }
+  }
+
+  // 긴장도 → 레이어 음량 [A, B]
+  _levels(k) { const ss = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); }; return [ss(0.2, 0.6, k), ss(0.55, 0.9, k)]; }
+  // 100ms 마다: 현재 긴장도를 목표로 부드럽게 옮기고 레이어 음량·필터·드라이브에 반영
+  _intensity(now, neutral) {
+    const tgtK = neutral ? 0 : this.int, tc = tgtK > this.iv ? 1.2 : 6;
+    this.iv += (tgtK - this.iv) * (1 - Math.exp(-0.1 / tc));
+    if (Math.abs(this.iv - tgtK) < 0.002) this.iv = tgtK;
+    const k = this.iv, [la, lb] = this._levels(k);
+    if (this.hypeA) { this.hypeA.gain.setTargetAtTime(la, now, 0.25); this.hypeB.gain.setTargetAtTime(lb, now, 0.25); }
+    this.tone.frequency.setTargetAtTime(neutral ? 20000 : 6500 * Math.pow(20000 / 6500, Math.min(1, k * 1.6)), now, 0.3);
+    this.drive.gain.setTargetAtTime(0.4 + 0.12 * k, now, 0.3);
+  }
+
+  // 긴장도 레이어 연주 (맵 곡만). 음량이 거의 0 이면 노드를 만들지 않는다
+  _hype(step, t, s16, bar, ch, funk) {
+    if (bar < 2) return;
+    const [la, lb] = this._levels(this.iv), spb = this.spb, A = this.hypeA, B = this.hypeB, T = this.T;
+    if (la > 0.02) {
+      if (s16 % 2 === 1) this._noise(t, 0.035, 0.11, 9500, "highpass", 0.8, 0, A);               // 16분 하이햇 채우기
+      if (s16 % 2 === 0) this._tone("sawtooth", this.note(T, ch[0], -1), t, spb * 0.75, 0.05, 520 + 500 * la, 0.003, 0, A);   // 8분 추진 베이스
+      if (s16 === 7 || s16 === 15) this._kick(t, 230, 120, 0.14, 0.16, A);                          // 탐
+    }
+    if (lb > 0.02) {
+      if (s16 === 6 || s16 === 10 || (s16 === 14 && !funk)) this._kick(t, 140, 50, 0.18, 0.5, B);   // 두 배 킥
+      if (s16 === 0 && bar % 4 === 0) this._noise(t, 1.1, 0.16, 6000, "highpass", 0.5, 0, B);       // 크래시
+      if (bar % 4 === 3 && s16 === 0) this._noise(t, spb * 16, 0.07, 700, "bandpass", 1.3, 7000, B); // 4마디째 상승음
+      if (bar % 4 === 3 && s16 >= 8) this._noise(t, 0.06, 0.06 + (s16 - 8) * 0.02, 1700, "bandpass", 1, 0, B);   // 스네어 롤
+      if (s16 === 4 || s16 === 12) this._noise(t, 0.09, 0.12, 2200, "bandpass", 0.9, 0, B);         // 스네어 보강
+    }
   }
 
   _play(step, t0) {
@@ -242,6 +286,7 @@ export class Music {
       const nt = this.hook[step % this.hook.length];
       if (nt) this._lead(T.lead, this.note(T, nt.deg, 1), t, spb * nt.len, 0.3);
     }
+    this._hype(step, t, s16, bar, ch, funk);
   }
 
   // ── 분위기 곡 연주 ──
@@ -316,22 +361,22 @@ export class Music {
     o.start(t); o.stop(t + dur + 0.05);
     return o;
   }
-  _noise(t, dur, vol, freq, type, q, f1 = 0) {
+  _noise(t, dur, vol, freq, type, q, f1 = 0, dest = this.bus) {
     const ctx = this.sound.ctx, s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
     s.buffer = this.sound.noiseBuf; f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
     if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
     this._env(g, t, 0.002, dur, vol);
-    s.connect(f); f.connect(g); g.connect(this.bus); s.start(t, Math.random() * 0.5, dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(dest); s.start(t, Math.random() * 0.5, dur + 0.05);
     return g;
   }
 
   // ── 타악 ──
-  _kick(t, f0, f1, dur, vol) {
+  _kick(t, f0, f1, dur, vol, dest = this.bus) {
     const ctx = this.sound.ctx, o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + 0.06);
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.002); g.gain.setValueAtTime(vol * 0.9, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    o.connect(g); g.connect(this.bus); o.start(t); o.stop(t + dur + 0.05);
-    this._noise(t, 0.012, vol * 0.25, 2800, "bandpass", 0.9);   // 비터 소리
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+    this._noise(t, 0.012, vol * 0.25, 2800, "bandpass", 0.9, 0, dest);   // 비터 소리
   }
   // 클랩: 짧은 잡음 세 번 + 꼬리. 힙합은 스네어 몸통을 더한다
   _clap(t, vol, body) {

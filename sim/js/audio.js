@@ -17,6 +17,9 @@ export class Sound {
     this.ei = 0;
     this.last = {};          // 이름별 마지막 재생 시각
     this.onPlay = null;      // (name, vol, pan) → 화면 효과 관리자가 사건을 유추
+    this._sp = { vol: 0, pan: 0, cut: 20000, d: 0, behind: 0 };   // spatial() 결과 (재사용)
+    this._fb = { seen: new WeakSet(), ends: [-1, -1, -1], last: -1, lx: 0, ly: 0, lz: 0, vx: 0, vy: 0, vz: 0, lt: -1 };   // 스쳐 지나감 상태
+    this._hb = { k: 0, next: 0, seen: 0, alarm: 0 };   // 빈사 심장 박동
     const unlock = () => this._init();
     addEventListener("pointerdown", unlock, { once: false });
     addEventListener("keydown", unlock, { once: false });
@@ -149,13 +152,20 @@ export class Sound {
     this.muffle.frequency.setTargetAtTime(20000 * Math.pow(0.03, Math.min(1, Math.max(0, muffle))), t, 0.08);
   }
 
-  _dest(pan) {
-    const out = this._route || this.bus;
-    if (!pan || !this.ctx.createStereoPanner) return out;
-    const p = this.ctx.createStereoPanner();
-    p.pan.value = pan < -1 ? -1 : pan > 1 ? 1 : pan;
-    p.connect(out);
-    return p;
+  // 효과음 한 번(play 한 번)이 쓰는 출력: 패닝·뒤쪽 먹먹함 노드를 소리 하나당 한 벌만 만들어 모든 부분음이 같이 쓴다
+  _dest() { return this._out || this._route || this.bus; }
+  _chain(base, pan, cut) {
+    let out = base;
+    if (pan && this.ctx.createStereoPanner) {
+      const p = this.ctx.createStereoPanner();
+      p.pan.value = pan < -1 ? -1 : pan > 1 ? 1 : pan;
+      p.connect(out); out = p;
+    }
+    if (cut && cut < 18000) {
+      const f = this.ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = cut; f.Q.value = 0.5;
+      f.connect(out); out = f;
+    }
+    return out;
   }
 
   _voice(end) { this.ends[this.ei] = end; this.ei = (this.ei + 1) & 63; }
@@ -171,7 +181,7 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + Math.min(atk, dur * 0.4));
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this._dest(pan));
+    o.connect(g); g.connect(this._dest());
     this._voice(t + dur);
     o.start(t); o.stop(t + dur + 0.02);
   }
@@ -186,7 +196,7 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + Math.min(atk, dur * 0.5));
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(this._dest(pan));
+    s.connect(f); f.connect(g); g.connect(this._dest());
     this._voice(t + dur);
     s.start(t, Math.random() * 0.5, dur + 0.05);
   }
@@ -200,7 +210,7 @@ export class Sound {
   // 화면 효과 관리자(feel.js)가 덧붙이는 효과음 — onPlay 를 다시 부르지 않는다
   cue(name, vol = 1, pan = 0, pitch = 1) { this._synth(name, vol, pan, pitch); }
 
-  _synth(name, vol, pan, p) {
+  _synth(name, vol, pan, p, cut = 0) {
     // 컨텍스트가 멈춰 있는 동안 쌓인 소리가 한꺼번에 터지지 않게 건너뛴다 (메뉴 클릭음만 예외)
     if (!this.ok || vol <= 0.02 || settings.mute || (this.ctx.state !== "running" && !UI_NOW.has(name))) return;
     const voice = VOICE.has(name);
@@ -211,7 +221,160 @@ export class Sound {
     const T = (type, f0, f1, dur, v, delay, atk) => this._tone(type, f0 * p, f1 * p, dur, v * vol, delay, pan, atk);
     const N = (dur, v, f0, f1, delay, ft, q, atk) => this._noise(dur, v * vol, f0, f1, delay, pan, ft, q, atk);
     this._route = voice ? this.voice : null;
-    try { this._cases(name, T, N); } finally { this._route = null; }
+    this._out = this._chain(this._route || this.bus, pan, cut);
+    try { this._cases(name, T, N); } finally { this._route = null; this._out = null; }
+  }
+
+  // ── 공간 소리 ──
+  // 월드 위치 → 카메라 기준 {vol(거리 감쇠 0..1), pan(-1..1), cut(뒤쪽 먹먹함 저역통과 Hz), d(거리), behind(0..1)}
+  // range: 이 거리(m)쯤에서 거의 안 들린다. 0 이면 거리 감쇠 없이 방향만 (내 기체가 맞은 소리 등). out 객체는 재사용된다
+  spatial(pos, camera, range = 140, out = this._sp) {
+    const c = camera.position, q = camera.quaternion;
+    const dx = pos.x - c.x, dy = pos.y - c.y, dz = pos.z - c.z, d = Math.hypot(dx, dy, dz);
+    out.d = d;
+    out.vol = range > 0 ? Math.min(1, Math.max(0, 1.15 - d / range)) : 1;
+    if (d < 0.5) { out.pan = 0; out.cut = 20000; out.behind = 0; return out; }
+    const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
+    // 카메라 오른쪽(+x)·앞쪽(-z) 단위벡터
+    const rx = 1 - 2 * (qy * qy + qz * qz), ry = 2 * (qx * qy + qw * qz), rz = 2 * (qx * qz - qw * qy);
+    const fx = -2 * (qx * qz + qw * qy), fy = -2 * (qy * qz - qw * qx), fz = -(1 - 2 * (qx * qx + qy * qy));
+    const side = (dx * rx + dy * ry + dz * rz) / d, front = (dx * fx + dy * fy + dz * fz) / d;
+    out.pan = Math.max(-1, Math.min(1, side)) * 0.85;
+    out.behind = front < 0 ? -front : 0;
+    out.cut = 20000 * Math.pow(0.16, out.behind);   // 정면 20k → 바로 뒤 ~3.2kHz
+    if (range > 0) out.vol *= 1 - out.behind * 0.2;   // 뒤쪽은 조금 작게
+    return out;
+  }
+
+  // 월드 위치에서 나는 효과음: 왼쪽에서 맞으면 왼쪽에서, 뒤에서 나면 살짝 먹먹하게 들린다
+  playAt(name, pos, camera, vol = 1, pitch = 1, range = 140) {
+    if (!pos || !camera) return this.play(name, vol, 0, pitch);
+    const sp = this.spatial(pos, camera, range), v = vol * sp.vol;
+    if (this.onPlay) this.onPlay(name, v, sp.pan);
+    this._synth(name, v, sp.pan, pitch, sp.cut);
+  }
+
+  // 귀(카메라) 속도: 프레임마다 위치 차분으로 추정한다
+  _ear(camera) {
+    const F = this._fb, c = camera.position, t = performance.now() / 1000, dt = t - F.lt;
+    if (F.lt < 0 || dt > 0.3) { F.vx = F.vy = F.vz = 0; }
+    else if (dt > 0.004) { const k = Math.min(1, dt * 8); F.vx += ((c.x - F.lx) / dt - F.vx) * k; F.vy += ((c.y - F.ly) / dt - F.vy) * k; F.vz += ((c.z - F.lz) / dt - F.vz) * k; }
+    else return;
+    F.lx = c.x; F.ly = c.y; F.lz = c.z; F.lt = t;
+  }
+
+  // 탄·미사일 한 발이 곧 귀 옆을 스쳐 갈지 보고, 그렇다면 도플러가 걸린 휙 소리를 미리 예약한다
+  // pos: 월드 위치, vel: 속도(m/s) 벡터, kind: "laser" | "missile", key: 같은 물체를 두 번 울리지 않게 하는 객체(선택)
+  // 반환: 소리를 냈으면 true
+  flyby(pos, vel, camera, kind = "laser", key = null, vol = 1) {
+    if (!this.ok || settings.mute || settings.volume <= 0.01 || this.ctx.state !== "running") return false;
+    if (key && this._fb.seen.has(key)) return false;
+    this._ear(camera);
+    const F = this._fb, c = camera.position, missile = kind === "missile";
+    const px = pos.x - c.x, py = pos.y - c.y, pz = pos.z - c.z;
+    const ux = vel.x - F.vx, uy = vel.y - F.vy, uz = vel.z - F.vz, uu = ux * ux + uy * uy + uz * uz;
+    if (uu < 100) return false;   // 상대 속도 10m/s 미만은 "스침"이 아니다
+    const tca = -(px * ux + py * uy + pz * uz) / uu;               // 가장 가까워지는 시각
+    const LEAD = missile ? 0.5 : 0.3, R = missile ? 14 : 7;
+    if (tca <= 0.02 || tca > LEAD) return false;
+    const mx = px + ux * tca, my = py + uy * tca, mz = pz + uz * tca, miss = Math.hypot(mx, my, mz);
+    if (miss > R || Math.hypot(px, py, pz) < 2.5) return false;
+    // 동시 3음 + 최소 간격
+    const now = this.ctx.currentTime;
+    if (now - F.last < (missile ? 0.12 : 0.06)) return false;
+    let slot = -1; for (let i = 0; i < F.ends.length; i++) if (F.ends[i] < now) { slot = i; break; }
+    if (slot < 0) return false;
+    if (key) F.seen.add(key);
+    F.last = now;
+    const tail = missile ? 0.55 : 0.3, dur = tca + tail;
+    F.ends[slot] = now + dur + 0.05;
+    this._voice(now + dur);
+    this._flybyVoice(px, py, pz, ux, uy, uz, Math.sqrt(uu), tca, dur, miss / R, camera, missile, vol);
+    return true;
+  }
+
+  // 프레임마다 탄 목록을 훑어 스쳐 가는 것에 소리를 붙인다. list 항목: {pos, vel} 또는 {pos, dir, speed}. skip(o) 가 true 면 건너뛴다
+  updateFlybys(list, camera, kind = "laser", skip = null) {
+    if (!this.ok || !list || !camera) return;
+    this._ear(camera);
+    if (!list.length) return;
+    const v = this._fbV || (this._fbV = { x: 0, y: 0, z: 0 });
+    for (let i = 0; i < list.length; i++) {
+      const o = list[i];
+      if (!o || !o.pos || (skip && skip(o)) || this._fb.seen.has(o)) continue;
+      if (o.vel) { v.x = o.vel.x; v.y = o.vel.y; v.z = o.vel.z; }
+      else if (o.dir) { const sp = o.speed || 0; v.x = o.dir.x * sp; v.y = o.dir.y * sp; v.z = o.dir.z * sp; }
+      else continue;
+      this.flyby(o.pos, v, camera, kind, o);
+    }
+  }
+
+  _flybyVoice(px, py, pz, ux, uy, uz, speed, tca, dur, near, camera, missile, vol) {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.005, q = camera.quaternion;
+    const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
+    const rx = 1 - 2 * (qy * qy + qz * qz), ry = 2 * (qx * qy + qw * qz), rz = 2 * (qx * qz - qw * qy);
+    const fx = -2 * (qx * qz + qw * qy), fy = -2 * (qy * qz - qw * qx), fz = -(1 - 2 * (qx * qx + qy * qy));
+    const C = 343, base = missile ? 620 : 1500, tone0 = missile ? 150 : 900;
+    const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = missile ? 1.1 : 2.2;
+    const o = ctx.createOscillator(); o.type = missile ? "sawtooth" : "triangle";
+    const og = ctx.createGain(); og.gain.value = missile ? 0.35 : 0.22;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 0.5;
+    const g = ctx.createGain();
+    const pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    src.connect(bp); o.connect(og); og.connect(bp); bp.connect(lp); lp.connect(g);
+    if (pn) { g.connect(pn); pn.connect(this.bus); } else g.connect(this.bus);
+    const peak = (missile ? 0.34 : 0.26) * vol * (1.25 - near * 0.5), N = 9;
+    g.gain.setValueAtTime(0.0001, t0);
+    for (let k = 0; k <= N; k++) {
+      const tt = (dur * k) / N, x = px + ux * tt, y = py + uy * tt, z = pz + uz * tt, d = Math.max(1, Math.hypot(x, y, z));
+      const vr = (x * ux + y * uy + z * uz) / d;                     // + 멀어짐, - 다가옴
+      const dop = Math.min(2.2, Math.max(0.45, C / (C + vr)));
+      const side = (x * rx + y * ry + z * rz) / d, front = (x * fx + y * fy + z * fz) / d;
+      const at = t0 + tt;
+      // 음량: 가까울수록 크게(거리 제곱 반비례 비슷하게), 끝은 0으로
+      const env = k === N ? 0.0001 : Math.max(0.0001, peak * Math.min(1, 9 / (d * d * 0.35 + 9)) * (k === 0 ? 0.25 : 1));
+      const fq = Math.min(12000, base * dop), ft = Math.min(8000, tone0 * dop), cut = 20000 * Math.pow(0.18, front < 0 ? -front : 0);
+      if (k === 0) { bp.frequency.setValueAtTime(fq, at); o.frequency.setValueAtTime(ft, at); lp.frequency.setValueAtTime(cut, at); if (pn) pn.pan.setValueAtTime(side * 0.9, at); }
+      else {
+        bp.frequency.linearRampToValueAtTime(fq, at); o.frequency.linearRampToValueAtTime(ft, at); lp.frequency.linearRampToValueAtTime(cut, at);
+        g.gain.linearRampToValueAtTime(env, at);
+        if (pn) pn.pan.linearRampToValueAtTime(Math.max(-1, Math.min(1, side * 0.9)), at);
+      }
+    }
+    src.start(t0, Math.random() * 0.4, dur + 0.05); o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+
+  // ── 빈사 상태 ──
+  // k: 0(정상)..1(빈사). 프레임마다 부른다 — 부르지 않으면 박동이 저절로 멈춘다. 심장 박동은 k 에 따라 빨라지고 커지며,
+  // k > 0.6 이면 조용한 경보음이 섞인다. 먹먹함 필터를 거치지 않고 귀 바로 앞에서 들린다
+  lowHp(k) {
+    const H = this._hb;
+    H.k = k > 0 ? Math.min(1, k) : 0;
+    if (!this.ok || H.k < 0.02 || settings.mute || settings.volume <= 0.01 || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    if (H.next < now - 0.5) H.next = now + 0.05;
+    if (H.next > now + 0.15) return;
+    const t = Math.max(H.next, now + 0.01), k2 = H.k, v = 0.1 + 0.22 * k2;
+    this._thump(t, 66, 42, 0.13, v); this._thump(t + 0.19 - k2 * 0.04, 58, 38, 0.15, v * 0.7);
+    H.next = t + 60 / (58 + 62 * k2);
+    if (k2 > 0.6 && t >= H.alarm) {   // 2음 경보: 아주 작게, 박동 2~3번에 한 번
+      const av = 0.018 + (k2 - 0.6) * 0.06;
+      this._beep(t + 0.32, 1240, 0.09, av); this._beep(t + 0.44, 930, 0.11, av);
+      H.alarm = t + 1.8 - k2 * 0.5;
+    }
+  }
+  _thump(t, f0, f1, dur, vol) {
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.comp); this._voice(t + dur); o.start(t); o.stop(t + dur + 0.02);
+  }
+  _beep(t, f, dur, vol) {
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine"; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.comp); o.start(t); o.stop(t + dur + 0.02);
   }
 
   _cases(name, T, N) {
