@@ -100,7 +100,9 @@ export class Music {
     setInterval(() => this._tick(), 100);
   }
 
-  setTheme(id) { this.want = THEMES[id] || BGM[id] ? id : "menu"; }
+  setTheme(id) { this.want = THEMES[id] || BGM[id] ? id : "menu"; this._pre(this.want); }
+  // 곡 파일 미리 받기 (메뉴에서 고른 맵 곡을 비행 시작 전에)
+  _pre(id) { if (this.sound.ok && BGM[id]) this._loadFile(`audio/bgm/${BGM[id]}.mp3`); }
   // 보스전: 보스가 살아 있는 동안 보스 곡 (곡 파일이 있을 때만)
   setBoss(on) { this.boss = !!on; }
   // 전투 긴장도(0..1): 높아지면 추진 베이스·16분 하이햇·탐(0.25~), 두 배 킥·크래시·스네어 롤·상승음(0.6~)이 차례로 들어오고
@@ -217,6 +219,12 @@ export class Music {
     const ftgt = this.boss && !tgt.startsWith("m:") && tgt !== "menu" ? "boss" : tgt;
     const url = BGM[ftgt] ? `audio/bgm/${BGM[ftgt]}.mp3` : null, fb = url ? this._loadFile(url) : false;
     if (fb) { if (this.fileId !== ftgt) this._startFile(ftgt, fb, tgt); this._intensity(s.ctx.currentTime, tgt === "menu" || tgt.startsWith("m:")); return; }
+    // 녹음 곡이 정해진 곳에서는 예전 합성 음악을 틀지 않는다: 불러오는 동안(또는 불러오지 못하면) 조용히 기다린다
+    if (url) {
+      if (this.theme) { this._fadeOut(0.4); this.theme = null; }
+      if (this.fileId && this.fileId !== ftgt) this._stopFile(0.6);
+      return;
+    }
     if (this.fileId) this._stopFile(0.8);
     if (tgt !== this.theme || this._fromFile) { this._fromFile = false; this._start(tgt); }
     const now = s.ctx.currentTime;
