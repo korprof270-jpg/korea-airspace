@@ -23,6 +23,8 @@ const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode
 // 다른 모듈이 새 게임 모드를 붙일 때 (예: 점령전 AOS): registerMode("aos", AosMode)
 export const registerMode = (id, cls) => { MODES[id] = cls; };
 
+const SLOWMO_OFF = true;   // 격추·보스 등장 때의 슬로모션·히트스톱을 모두 끈다
+
 export class Session {
   constructor(game, cfg) {
     this.game = game;
@@ -53,7 +55,7 @@ export class Session {
   // 히트스톱/슬로모션: dur 초 동안 시간을 min 배로 (hold 비율만큼 머물렀다가 부드럽게 원래대로)
   // '움직임 줄이기' 설정이면 하지 않는다. 더 강한(느린) 요청이 이미 진행 중이면 무시
   slowMo(dur, min, hold = 0.35) {
-    if ((settings.fx && settings.fx.reduceMotion) || this.cfg.net) return;   // 온라인 경기는 시간을 멈추거나 늦추지 않는다
+    if (SLOWMO_OFF || (settings.fx && settings.fx.reduceMotion) || this.cfg.net) return;   // 슬로모션은 쓰지 않는다(사용자 요청). 온라인 경기도 마찬가지
     const s = this._slow;
     if (s && s.t < s.dur && s.min <= min) return;
     this._slow = { t: 0, dur, min, hold };
