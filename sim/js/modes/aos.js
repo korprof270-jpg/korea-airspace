@@ -5,7 +5,7 @@
 //  · 타워는 사거리 안의 적을 쏜다: 미니언 먼저, 타워 밑에서 아군 드론을 공격한 적 드론은 바로 노린다
 //  · 안쪽 타워는 같은 라인의 바깥 타워가 무너져야, 코어는 어느 한 라인의 타워 둘이 모두 무너져야 공격할 수 있다 (그 전에는 보호막)
 //  · 30초마다 양쪽 기지에서 미니언이 라인마다 날아 나가 서로 싸우며 타워를 민다
-//  · 정글 캠프(60초마다 부활)와 가운데 보스(3분마다 부활): 잡으면 포인트, 보스는 팀 전체에 60초 강화(피해 +25% · 초당 회복)
+//  · 감시자 캠프(60초마다 부활)와 가운데 보스(3분마다 부활): 잡으면 포인트, 보스는 팀 전체에 60초 강화(피해 +25% · 초당 회복)
 //  · 숨은 상자: 구조물 속(떠 있는 판 밑·터널 안·LED 탑 꼭대기·아치 속)에서 경기 동안만 쓰는 부품 획득
 //  · 전장 포인트(ⓟ): 미니언·정글·드론 격추·도움·타워 파괴·상자, 그리고 초당 2. 기지 원 안에서 왼쪽 위 포인트 판(또는 아이템 키)으로 업그레이드 창을 열어 화력·장갑·기동·스킬을 Lv5 까지 강화
 //  · 코어 체력은 다른 모드의 4배(6400) · 공격받는 아군 타워·코어는 전장 지도에 붉은 경보로 뜬다
@@ -16,7 +16,7 @@
 //    경보 동안(12초, 적이 안에 있으면 계속) 방어 포탑이 깨어나 빨리 쏘고 사거리가 늘며, 가까운 아군 봇 셋이 기지로 돌아온다
 //  · 승리 (셋 중 하나): ① 적 코어(본진) 파괴 — 즉시 승리  ② 팀 전장 점수가 목표(기본 60 · 40/60/80)에 먼저 닿으면 즉시 승리
 //    ③ 시간 종료 — 전장 점수가 높은 팀 (같으면 부순 타워 수 → 코어 체력 → 무승부)
-//  · 팀 전장 점수(SCORE): 드론 격추 +1 · 라인 타워 파괴 +5 · 기지 방어 포탑 +3 · 중앙 보스 +5 · 정글 캠프 정리 +1 (ⓟ 와는 별개)
+//  · 팀 전장 점수(SCORE): 드론 격추 +1 · 라인 타워 파괴 +5 · 기지 방어 포탑 +3 · 중앙 보스 +5 · 감시자 캠프 정리 +1 (ⓟ 와는 별개)
 //
 // ── 네트워크 (js/net/README.md 의 NetGame 사용, 동기화 세부는 aos-net.js) ──
 //  this.ng = new NetGame(this, cfg.net)   cfg.net 이 없으면 오프라인(봇과 혼자). cfg.pvp 가 있으면 PVP 메뉴에서 온 경기
@@ -59,7 +59,7 @@ export const PARTS = {
 export const PART_KEYS = Object.keys(PARTS);
 export const PTS = { passive: 2, minion: 14, minionShare: 5, camp: 28, elite: 70, boss: 150, kill: 120, assist: 50, tower: 150, towerLast: 60, cache: 60, def: 80 };
 // 팀 전장 점수 (승리 조건 ②③) — 이긴 쪽 팀에 더한다
-export const SCORE = { kill: 1, tower: 5, def: 3, boss: 5, camp: 1 };
+export const SCORE = { kill: 1, tower: 5, def: 3, boss: 5, camp: 2 };
 export const GOALS = [40, 60, 80], GOAL_DEF = 60;
 export const WIN_WHY = { core: "본진 파괴", score: "목표 점수 달성", time: "시간 종료 — 점수 우세", tie: "시간 종료 — 타워·코어 우세", draw: "시간 종료 — 무승부" };
 const WHY_CODE = ["", "core", "score", "time", "tie", "draw"];
@@ -67,6 +67,8 @@ const WAVE_T = 30, FIRST_WAVE = 6, WAVE_N = 4, CAMP_FIRST = 20, CAMP_RE = 60, BO
 const TOWER_HP = { outer: 900, inner: 1100 }, TOWER_RANGE = 72, CORE_HP = 6400 /* 4× — 코어 공성은 긴 싸움 */, CORE_RANGE = 64;
 const HERO_HP = 150, MINION_HP = 75, HEAVY_HP = 200, LANE_Y = 13;
 const BUFF_T = 60, LEASH = 80, BOSS_LEASH = 100;
+// 감시자: 경기 시간 1/3 마다 전차형 → 비행형 → 함대형으로 바뀐다. 잡으면 ⓟ 를 많이 주지만, 감시자를 많이 잡은 진영을 기억했다가 그쪽을 노린다
+const W_NAME = ["전차형 감시자", "비행 감시자", "감시 함대"], W_PTS = [40, 55, 90], W_ELITE = [110, 130, 220];
 // 기지 방어 포탑 · 침입 경보
 const DEF_HP = 1300, DEF_RANGE = 88, DEF_BOOST_R = 14, DEF_SHOT = [0.55, 0.3], DEF_DMG = [6, 8], DEF_MINION = 4, ALARM_T = 12, FRONT_COS = Math.cos(42 * Math.PI / 180);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -74,7 +76,7 @@ const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 // 인스턴싱으로 그리는 액터 종류 (전투 시스템의 KINDS 에 덧붙인다: 모델은 대리 Object3D)
 const SW = {};
 KINDS.minion = { hp: MINION_HP, radius: 0.85, scale: 1, speed: 15, accel: 13, dmg: 3.2, rate: 3, range: 22, missiles: 0, score: 0, name: "미니언", model: () => SW.minion.proxy() };
-KINDS.sentinel = { hp: 90, radius: 1.2, scale: 1, speed: 13, accel: 12, dmg: 4.5, rate: 3, range: 26, missiles: 0, score: 0, name: "정글 감시자", model: () => SW.sentinel.proxy() };
+KINDS.sentinel = { hp: 90, radius: 1.2, scale: 1, speed: 13, accel: 12, dmg: 4.5, rate: 3, range: 26, missiles: 0, score: 0, name: "비행 감시자", model: () => SW.sentinel.proxy() };
 
 export class AosMode extends CombatMode {
   constructor(session, cfg) {
@@ -168,7 +170,7 @@ export class AosMode extends CombatMode {
     for (const t of this.teams) { this._bubble(t.core, 13); for (const a of t.towers) if (a.invulnerable) this._bubble(a, 7); for (const a of t.defs) this._bubble(a, 6.5); }
     this._makeFields();
     this.net.setup();
-    // 정글 캠프 · 상자
+    // 감시자 캠프 · 상자
     A.camps.forEach((d, i) => this.camps.push({ i, d, home: new THREE.Vector3(d.p[0], w.h(d.p[0], d.p[1]) + 9, d.p[1]), members: [], alive: false, t: CAMP_FIRST, aggro: null, aggroT: 0 }));
     this._makeCaches();
     // 가속 고리: 라인의 빛 고리를 자기 팀 쪽 절반에서 통과하면 3초 가속
@@ -491,9 +493,38 @@ export class AosMode extends CombatMode {
   }
 
   // ── 정글 ──
-  _spawnCamp(camp) {
-    const c = this.combat, d = camp.d, n = this.ng.online ? 2 : 3;   // 온라인은 프레즌스 예산 때문에 캠프당 둘
+  _wStage() { const f = this.time / Math.max(1, this.duration); return f < 1 / 3 ? 0 : f < 2 / 3 ? 1 : 2; }
+  // 감시자 캠프의 표적 진영: 감시자에게서 ⓟ 를 더 많이 가져간 쪽 (단계가 오를수록 적게 가져가도 노린다)
+  _wHunt(camp, st) {
+    const g = camp.grudge || (camp.grudge = [0, 0]), need = [160, 60, 1][st];
+    const t = g[0] === g[1] ? -1 : g[0] > g[1] ? 0 : 1;
+    camp.hunt = t >= 0 && g[t] >= need ? t : null;
+    if (camp.hunt !== null && camp.hunt === this.me.team && !this._wWarned) { this._wWarned = this.time; }
+    if (camp.hunt !== null) this._hint(camp.hunt === this.me.team ? `${W_NAME[st]}가 아군 진영을 노리고 다가옵니다!` : `${W_NAME[st]}가 ${this.teams[camp.hunt].name}을 노립니다`, camp.hunt === this.me.team ? "#ff8a5a" : "#c8a0ff", 4);
+  }
+  // 전차형(1단계) · 함대형(3단계) 감시자: 지상 전차 / 전투함 유닛 (온라인이 아닐 때만)
+  _spawnCampUnit(camp, st) {
+    const c = this.combat, d = camp.d;
     camp.members.length = 0;
+    const list = st === 0 ? (d.big ? ["tank", "tank"] : ["tank"]) : [d.big ? "cruiser" : "frigate"];
+    list.forEach((type, i) => {
+      const elite = d.big && i === 0;
+      const r = c.units.spawn(type, { pos: camp.home.clone().add(_v.set(i * 9 - 4, 0, i * 6)), near: true, hp: (st === 0 ? 0.9 : 0.55) * (elite ? 1.6 : 1) * (1 + this.size * 0.08), rank: 2 + st * 3 + (elite ? 2 : 0), scale: elite && st === 0 ? 1.25 : 1 });
+      const u = r.unit;
+      r.team = 2; for (const q of u.parts) q.team = 2;
+      r.isNeutral = true; r.camp = camp; r.elite = elite; r.wStage = st; r.wUnit = u;
+      r.name = (elite ? "정예 " : "") + W_NAME[st];
+      u.home = camp.home.clone(); u.home.y = this.s.world.h(u.home.x, u.home.z);
+      camp.members.push(r); this._reg(r);
+    });
+    camp.alive = true; camp.aggro = null; camp.aggroT = 0; camp.stage = st;
+    this._wHunt(camp, st);
+  }
+  _spawnCamp(camp) {
+    const st0 = this.ng.online ? 1 : this._wStage();
+    if (st0 !== 1) return this._spawnCampUnit(camp, st0);
+    const c = this.combat, d = camp.d, n = this.ng.online ? 2 : 3;   // 온라인은 프레즌스 예산 때문에 캠프당 둘
+    camp.members.length = 0; camp.stage = 1;
     for (let i = 0; i < n; i++) {
       const elite = d.big && i === 0;
       const a = camp.pool && camp.pool[i] ? camp.pool[i] : null;
@@ -507,14 +538,23 @@ export class AosMode extends CombatMode {
       const ang = (i / n) * Math.PI * 2;
       m.home = camp.home.clone().add(_v.set(Math.cos(ang) * 5, i * 1.2, Math.sin(ang) * 5));
       m.pos.copy(m.home); m.vel.set(0, 0, 0); m.model.position.copy(m.pos);
-      m.elite = elite; m.hp = m.maxHp = elite ? 420 : 110;
+      m.elite = elite; m.wStage = 1; m.hp = m.maxHp = elite ? 520 : 150;
       m.K = elite ? (this._eliteK || (this._eliteK = Object.assign({}, KINDS.sentinel, { dmg: 8, rate: 3.5, range: 30 }))) : KINDS.sentinel;
       m.model.scale.setScalar(SW.sentinel.scale * (elite ? 1.9 : 1)); m.radius = elite ? 2.2 : 1.2;
-      m.name = elite ? "정예 감시자" : "정글 감시자";
+      m.name = elite ? "정예 비행 감시자" : "비행 감시자";
       camp.members.push(m);
       this.net.shareNeutral(m, `c${camp.i}_${i}_${(camp.gen = (camp.gen || 0) + 1) % 1000}`);
     }
     camp.alive = true; camp.aggro = null; camp.aggroT = 0;
+    if (!this.ng.online) this._wHunt(camp, 1);
+  }
+  // 감시자가 노리는 진영의 가장 가까운 표적: 부술 수 있는 타워·방어 포탑·코어, 없으면 그 진영 드론
+  _wTarget(team, from) {
+    const t = this.teams[team];
+    let best = null, bd = 1e9;
+    for (const o of [...t.towers, ...t.defs, t.core]) { if (!o || !o.alive || o.invulnerable) continue; const d = o.pos.distanceTo(from); if (d < bd) { bd = d; best = o; } }
+    for (const o of this.heroes) { if (!o.alive || o.team !== team) continue; const d = o.pos.distanceTo(from) * 0.8; if (d < bd) { bd = d; best = o; } }
+    return best;
   }
   _spawnBoss() {
     const c = this.combat, A = this.A, w = this.s.world;
@@ -562,6 +602,10 @@ export class AosMode extends CombatMode {
   }
   _neutralAI(a) {
     const cp = a.camp, k = cp.aggro, R = a.isBoss ? BOSS_LEASH : LEASH;
+    if (cp.hunt != null && !a.isBoss) {   // 보복: 표적 진영으로 날아가 타워·드론을 친다
+      const t = this._wTarget(cp.hunt, a.pos);
+      if (t) { if (t.pos.distanceTo(a.pos) < 55) return this._engage(a, t); a.ai.target = null; return (a.goal2 || (a.goal2 = new THREE.Vector3())).copy(t.pos).setY(Math.max(t.pos.y + 10, 16)); }
+    }
     if (k && cp.aggroT > 0 && k.alive && k.targetable && k.pos.distanceTo(a.home) < R) return this._engage(a, k);
     a.ai.target = null;
     if (a.pos.distanceTo(a.home) < 10) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.06);   // 쫓던 적을 놓치면 제자리로 돌아가 서서히 회복
@@ -748,8 +792,9 @@ export class AosMode extends CombatMode {
         this.s.game.sound.play("bigkill");
         return;
       }
-      const cr = this._credit(a, k), pts = a.elite ? PTS.elite : PTS.camp;
-      if (a.camp && a.camp.members && !a.camp.members.some((m) => m !== a && m.alive)) { const tm = cr ? cr.team : k.team; if (tm === 0 || tm === 1) this._score(tm, SCORE.camp, "정글 캠프"); }
+      const st = a.wStage ?? 1, cr = this._credit(a, k), pts = (a.elite ? W_ELITE : W_PTS)[st];
+      { const tm = cr ? cr.team : k.team; if ((tm === 0 || tm === 1) && a.camp) { const g = a.camp.grudge || (a.camp.grudge = [0, 0]); g[tm] += pts; } }   // 감시자가 기억하는 원한
+      if (a.camp && a.camp.members && !a.camp.members.some((m) => m !== a && m.alive)) { const tm = cr ? cr.team : k.team; if (tm === 0 || tm === 1) this._score(tm, SCORE.camp, "감시자 캠프"); }
       if (cr) { this._give(cr, pts); for (const o of this.heroes) if (o !== cr && o.alive && o.team === cr.team && o.pos.distanceTo(a.pos) < 80) this._give(o, pts / 2); }
       if (cr === me) h.toast(`${a.name}  +${pts}ⓟ`, "#c8a0ff", 1, 18);
       return;
@@ -890,6 +935,14 @@ export class AosMode extends CombatMode {
     // 공정성: 전투 시스템은 액터 목록 순서대로 움직이고 쏘므로(뒤에 있는 쪽이 갓 움직인 표적을 노려 조금 더 잘 맞힌다) 1초마다 목록을 뒤집는다
     if ((this.flipT = (this.flipT || 0) - dt) <= 0) { this.flipT = 1; this.combat.actors.reverse(); }
     for (const cp of this.camps) {
+      if (cp.hunt != null && cp.alive) for (const m of cp.members) {   // 전차·함대형: 집 좌표를 표적 진영 쪽으로 옮겨 진군
+        if (!m.alive || !m.wUnit) continue;
+        const t = this._wTarget(cp.hunt, m.pos), h = m.wUnit.home;
+        if (!t) continue;
+        _v.copy(t.pos).sub(h).setY(0);
+        const L = _v.length(), sp = (m.wStage === 0 ? 5 : 8) * dt;
+        if (L > 25) { h.addScaledVector(_v.normalize(), Math.min(sp, L - 25)); h.y = this.s.world.h(h.x, h.z); }
+      }
       if (cp.aggroT > 0) cp.aggroT -= dt;
       if (cp.alive) { if (!cp.members.some((m) => m.alive)) { cp.alive = false; cp.t = CAMP_RE; } }
       else if ((cp.t -= dt) <= 0) this._spawnCamp(cp);
@@ -1088,5 +1141,5 @@ function densify(pts, step) {
 }
 
 registerMode("aos", AosMode);
-registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "세 라인을 밀어 상대 본진을 부수거나, 목표 전장 점수에 먼저 닿거나, 시간 종료 때 점수가 앞서면 승리. 미니언·타워·정글·보스, 경기 내 업그레이드", session: "aos",
+registerPvpMode("aos", { name: "기지전", en: "BASE WARS", icon: "🏯", desc: "세 라인을 밀어 상대 본진을 부수거나, 목표 전장 점수에 먼저 닿거나, 시간 종료 때 점수가 앞서면 승리. 미니언·타워·감시자·보스, 경기 내 업그레이드", session: "aos",
   teams: true, teamCounts: [2], maps: ["stadium"], time: [480, 720, 900], goal: GOALS, goalDef: GOAL_DEF, random: false });

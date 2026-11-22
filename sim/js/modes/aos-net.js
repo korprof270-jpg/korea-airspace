@@ -184,7 +184,7 @@ export class AosNet {
   _proxy(kind, id, d, owner) {
     const m = this.m, sw = kind === "mn" ? m.swarms[0] : m.swarms[1], f = d[4] | 0, big = !!(f & 2), team = kind === "mn" ? f & 1 : 2;
     const hp = kind === "mn" ? (big ? 200 : 75) : big ? 420 : 110;
-    const a = this.ng.makeProxy(id, { owner, team, name: kind === "mn" ? (big ? "중형 미니언" : "미니언") : big ? "정예 감시자" : "정글 감시자", radius: kind === "mn" ? (big ? 1.3 : 0.85) : big ? 2.2 : 1.2, model: sw.proxy(), hp: +d[3] || hp, maxHp: hp });
+    const a = this.ng.makeProxy(id, { owner, team, name: kind === "mn" ? (big ? "중형 미니언" : "미니언") : big ? "정예 비행 감시자" : "비행 감시자", radius: kind === "mn" ? (big ? 1.3 : 0.85) : big ? 2.2 : 1.2, model: sw.proxy(), hp: +d[3] || hp, maxHp: hp });
     a.isMinion = kind === "mn"; a.isNeutral = kind === "nt"; a.heavy = big;
     a.model.scale.setScalar(sw.scale * (big ? (kind === "mn" ? 1.6 : 1.9) : 1));
     a.tgt = new THREE.Vector3(+d[0] || 0, +d[1] || 0, +d[2] || 0); a.pos.copy(a.tgt); a.alive = +d[3] > 0; a.model.visible = a.alive; a.model.position.copy(a.pos);

@@ -10,7 +10,7 @@ import { VARIANTS } from "./modes/survival.js";
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
   assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "전반 공격 5분 · 후반 수비 5분. 구역마다 침투·격파·점령·침투 저지 임무, 승수가 같으면 총점으로 최종 승부" },
-  aos: { name: "기지전 (AOS)", icon: "🏯", variant: "aos", size: "매우 큰 맵", fit: (mp) => mp.size >= 400, desc: "라인·타워·정글·보스가 있는 5:5 팀전. 상대 본진 파괴 · 목표 점수 달성 · 시간 종료 때 점수 우세 중 하나로 승리" },
+  aos: { name: "기지전 (AOS)", icon: "🏯", variant: "aos", size: "매우 큰 맵", fit: (mp) => mp.size >= 400, desc: "라인·타워·감시자·보스가 있는 5:5 팀전. 상대 본진 파괴 · 목표 점수 달성 · 시간 종료 때 점수 우세 중 하나로 승리" },
 };
 import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
@@ -713,7 +713,7 @@ export class UI {
       }).join("");
       if (s.variant === "aos") {
         opts += `<div class="opt"><label>팀 인원</label>${this.seg("teamSize", [[1, "1:1"], [3, "3:3"], [5, "5:5"]], s.teamSize || 5)}<div class="hint">내 팀은 나 + AI, 상대 팀은 모두 AI. 맵은 드론 리그 스타디움으로 고정됩니다.</div></div>`;
-        opts += `<div class="opt"><label>목표 점수</label>${this.seg("aosGoal", [[40, "40"], [60, "60"], [80, "80"]], s.aosGoal || 60)}<div class="hint">승리 조건 (셋 중 하나): ① 적 본진(코어) 파괴 ② 팀 전장 점수 목표 먼저 달성 ③ 시간 종료 때 점수 우세.<br>전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 중앙 보스 +5 · 정글 캠프 +1</div></div>`;
+        opts += `<div class="opt"><label>목표 점수</label>${this.seg("aosGoal", [[40, "40"], [60, "60"], [80, "80"]], s.aosGoal || 60)}<div class="hint">승리 조건 (셋 중 하나): ① 적 본진(코어) 파괴 ② 팀 전장 점수 목표 먼저 달성 ③ 시간 종료 때 점수 우세.<br>전장 점수: 격추 +1 · 타워 +5 · 방어 포탑 +3 · 중앙 보스 +5 · 감시자 캠프 +2<br>감시자: 시간이 지나면 전차형 → 비행형 → 함대형으로 강해지고, 감시자를 많이 잡은 진영을 찾아가 공격합니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("aosTime", [[480, "8분"], [720, "12분"], [900, "15분"]], s.aosTime || 720)}</div>` + this._diff();
       } else if (s.variant === "fleet") {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;

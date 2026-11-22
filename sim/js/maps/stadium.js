@@ -51,7 +51,7 @@ const TOUR = [
   G("ring", [BASES[0][0], 15, BASES[0][1]], { r: 5 }),
 ];
 const TRACKS = [
-  { id: "center", name: "센터 서킷", level: 1, laps: 3, desc: "보스 구덩이 둘레를 높고 낮게 번갈아 도는 입문 코스. 정글 탑 사이로 경기장 전체가 보인다", gates: CENTER },
+  { id: "center", name: "센터 서킷", level: 1, laps: 3, desc: "보스 구덩이 둘레를 높고 낮게 번갈아 도는 입문 코스. 감시자 탑 사이로 경기장 전체가 보인다", gates: CENTER },
   { id: "tour", name: "그랜드 투어", level: 3, laps: 1, desc: "가운데 라인의 빛 고리를 꿰어 홍팀 기지 한가운데를 관통하고, 위 라인을 따라 경기장 가장자리를 돌아오는 긴 코스", gates: TOUR },
 ];
 
@@ -81,7 +81,7 @@ function build(w) {
 export default {
   id: "stadium",
   name: "드론 리그 스타디움",
-  desc: "밤하늘 아래 네온이 번지는 미래의 야외 드론 경기장. 보통 맵의 네 배 넓이에 두 팀 기지와 세 라인, 정글과 보스 구덩이, 관중석과 대형 전광판이 둘러싼다",
+  desc: "밤하늘 아래 네온이 번지는 미래의 야외 드론 경기장. 보통 맵의 네 배 넓이에 두 팀 기지와 세 라인, 감시자 구역과 보스 구덩이, 관중석과 대형 전광판이 둘러싼다",
   size: HALF,
   ceiling: 220,
   seed: 2087,
