@@ -39,12 +39,18 @@ export class Sound {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     try {
-      const ctx = (this.ctx = new AC());
+      // 휴대폰·태블릿: 오디오 버퍼를 넉넉히(balanced) — 기기가 바쁠 때 소리가 지지직 끊기는 것을 줄인다
+      let ctx;
+      try { ctx = new AC({ latencyHint: matchMedia("(pointer: coarse)").matches ? "balanced" : "interactive" }); } catch (_) { ctx = new AC(); }
+      this.ctx = ctx;
       // 출력 경로: 효과음·모터 → bus → 먹먹함 필터 → 컴프레서 → sfx(효과음 음량) → master(음소거)
       //          대사 소리 → voice(대사 음량) → master,  음악 → (music.js) → master
       this.master = ctx.createGain();
       this.master.gain.value = settings.mute ? 0 : 1;
-      this.master.connect(ctx.destination);
+      // 마지막 리미터: 음악 + 효과음이 겹쳐 0dB 를 넘으면 찢어지는 소리(클리핑)가 나므로 바로 앞에서 눌러 준다
+      this.limit = ctx.createDynamicsCompressor();
+      this.limit.threshold.value = -3; this.limit.knee.value = 2; this.limit.ratio.value = 20; this.limit.attack.value = 0.002; this.limit.release.value = 0.12;
+      this.master.connect(this.limit); this.limit.connect(ctx.destination);
       this.sfx = ctx.createGain(); this.sfx.gain.value = settings.volume; this.sfx.connect(this.master);
       this.voice = ctx.createGain(); this.voice.gain.value = settings.voiceVolume ?? 0.7; this.voice.connect(this.master);
       this.comp = ctx.createDynamicsCompressor();
@@ -134,6 +140,9 @@ export class Sound {
     if (!this.ok) return;
     if (on) this._motorIdle(false); else this._motorIdle(true);
     const t = this.ctx.currentTime;
+    // 자동화 이벤트를 매 프레임 쌓지 않는다: 1/30초마다, 또는 추력이 크게 바뀔 때만
+    if (on && this._mt !== undefined && t - this._mt < 0.033 && Math.abs(thrust - this._mth) < 0.08) return;
+    this._mt = t; this._mth = thrust;
     // 날개 통과 주파수: 공회전 ~125Hz → 전개 ~520Hz. 올릴 때는 빠르게, 내릴 때는 조금 느리게 따라간다
     const f = 125 + Math.pow(Math.max(0, thrust), 0.75) * 395, tc = f > this.mf ? 0.035 : 0.09;
     this.mf = f;
@@ -153,6 +162,9 @@ export class Sound {
   layers(staticLevel, muffle) {
     if (!this.ok) return;
     const t = this.ctx.currentTime;
+    const key = Math.round(staticLevel * 40) * 100 + Math.round(muffle * 40);
+    if (this._lt !== undefined && t - this._lt < 0.033 && key === this._lk) return;   // 같은 값이면 1/30초 안에 다시 넣지 않는다
+    this._lt = t; this._lk = key;
     this.sGain.gain.setTargetAtTime(Math.min(0.16, staticLevel * 0.16), t, 0.04);
     this.muffle.frequency.setTargetAtTime(20000 * Math.pow(0.03, Math.min(1, Math.max(0, muffle))), t, 0.08);
   }
