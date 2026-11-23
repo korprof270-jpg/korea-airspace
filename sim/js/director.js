@@ -210,6 +210,28 @@ export class Director {
     this._support(dt);
     this._tier(dt);
     if (this.bannerT > 0) this.bannerT -= dt;
+    this._guideTick(dt);
+  }
+  // 목표 안내: 하나씩 5초 동안 (주 목표가 먼저). 목표 자리에는 빛 기둥
+  _guideTick(dt) {
+    let G = this.guide;
+    if (G && (G.t -= dt) <= 0 || G && G.o.state !== "run") { G = this.guide = null; if (this.guideM) this.guideM.visible = false; }
+    if (!G && this.guideQ && this.guideQ.length) {
+      this.guideQ.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0));
+      const o = this.guideQ.shift();
+      if (o.state === "run") G = this.guide = { o, t: 5, T: 5 };
+    }
+    if (!G) return;
+    const mk = G.o.marks && G.o.marks[0];
+    if (!mk) return;
+    if (!this.guideM) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 160, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      this.w.scene.add(m); this.gfx.push(m); this.guideM = m;
+    }
+    const m = this.guideM, k = G.t / G.T;
+    m.visible = true; m.position.set(mk.pos.x, mk.pos.y + 80, mk.pos.z);
+    m.material.color.set(mk.color || "#ffd24a"); m.material.opacity = 0.35 * Math.min(1, (G.T - G.t) * 3) * Math.min(1, G.t * 1.5) * (0.8 + 0.2 * Math.sin(this.s.time * 8));
+    void k;
   }
 
   // 단계 시작
@@ -307,6 +329,7 @@ export class Director {
     if (!o.marks) o.marks = [];
     if (!o.clean) o.clean = () => {};
     this.objs.push(o);
+    (this.guideQ || (this.guideQ = [])).push(o);   // 새 목표: 방향 안내선 + 위치 표시 5초
     this.total++;
     return o;
   }
@@ -1047,6 +1070,28 @@ export class Director {
     }
     // 숨은 발견물: 신호를 감지한 것만 흐린 물음표
     if (me.alive) for (const f of this.finds) if (f.hint && !f.found && (f.type !== "elite")) { const d = f.pos.distanceTo(me.pos); if (d < 140) h.marker(f.pos, cam, "rgba(199,125,255,0.8)", f.type === "turret" ? (f.rep > 0 ? `수리 ${Math.round(f.rep / 2.5 * 100)}%` : "? 파손된 포탑") : "?", d); }
+    // 새 목표 안내: 화면 가운데에서 목표 쪽으로 점선 + 큰 화살표, 목표 자리에는 맥동하는 고리 (5초)
+    const G = this.guide, gm = G && G.o.marks && G.o.marks[0];
+    if (G && gm && me.alive) {
+      const col = gm.color || "#ffd24a", a = Math.min(1, (G.T - G.t) * 3, G.t * 1.5), d = gm.pos.distanceTo(me.pos);
+      const sp = h.project(gm.pos, cam, this._gs || (this._gs = {})), cx = h.W / 2, cy = h.H / 2;
+      const ang = sp.on ? Math.atan2(sp.y - cy, sp.x - cx) : h._dirAngle(sp);
+      const R0 = 64 * u, R1 = sp.on ? Math.max(R0, Math.hypot(sp.x - cx, sp.y - cy) - 30 * u) : Math.min(h.W, h.H) * 0.36;
+      const g = h.g; h.fade(a);
+      g.save(); g.setLineDash([7 * u, 7 * u]); g.lineDashOffset = -s.time * 40 * u; g.strokeStyle = col; g.lineWidth = 2.5 * u;
+      if (R1 > R0) { g.beginPath(); g.moveTo(cx + Math.cos(ang) * R0, cy + Math.sin(ang) * R0); g.lineTo(cx + Math.cos(ang) * R1, cy + Math.sin(ang) * R1); g.stroke(); }
+      g.restore();
+      for (let i = 0; i < 3; i++) { const r = R0 - 18 * u + i * 14 * u + ((s.time * 30 * u) % (14 * u)); h.chevron(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r, ang, (10 - i * 1.5) * u, col, 1.5); }
+      if (sp.on) {
+        const pr = (14 + 6 * Math.sin(s.time * 8)) * u;
+        g.strokeStyle = col; g.lineWidth = 3 * u; g.beginPath(); g.arc(sp.x, sp.y, pr, 0, Math.PI * 2); g.stroke();
+        g.lineWidth = 1.5 * u; g.beginPath(); g.arc(sp.x, sp.y, pr * 1.8, 0, Math.PI * 2); g.stroke();
+      }
+      h.plate(cx - 150 * u, cy + 72 * u, 300 * u, 44 * u, { skew: 0.08, fill: "rgba(8,14,28,0.78)", accent: col });
+      h.text(`${G.o.primary ? "새 목표" : "보조 목표"} ▸ ${G.o.name}`, cx, cy + 86 * u, { size: 16, align: "center", bold: true, color: col });
+      h.text(`${gm.label} · ${Math.round(d)}m${sp.on ? "" : sp.front ? "" : " (뒤쪽)"}`, cx, cy + 106 * u, { size: 13, align: "center", color: "#e8f4ff" });
+      h.fade(1);
+    }
     // 배너 · 포격 경고
     if (this.bannerT > 0 && this.banner) { h.fade(Math.min(1, this.bannerT * 2)); h.banner(this.banner.text, h.H * 0.78, this.banner.col, 20); h.fade(1); }
     if (this.shells && this.shells.some((q) => !q.owner && me.alive && Math.hypot(q.pos.x - me.pos.x, q.pos.z - me.pos.z) < q.r + 4) && Math.floor(s.time * 6) % 2) h.banner("☄ 포격 경보 — 원 밖으로!", h.H * 0.6, "#ff3040", 18);

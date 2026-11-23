@@ -77,41 +77,12 @@ export class Cockpit {
     this.jolt = Math.max(0, this.jolt - dt * 4.5);
     const jo = calm ? 0 : this.jolt * this.jolt * 14 * u;
     g.save(); g.translate(W / 2, H / 2); g.rotate(sw.r + Math.sin(this.t * 43) * jo * 0.0012); g.translate(-W / 2 + jx + sw.x + this.joltDir * jo, -H / 2 + jy + sw.y + Math.sin(this.t * 57) * jo * 0.5);
-    const fw = 16 * u, top = 30 * u;
-    this._dash(h, s, W, H, u, thr, kmh, agl, me);   // 계기판(글레어 실드): 아래쪽 HUD 계기가 이 위에 얹힌다
-    g.fillStyle = "rgba(14,18,26,0.86)";
-    // 위 아치
-    g.beginPath(); g.moveTo(-10, -10); g.lineTo(W + 10, -10); g.lineTo(W + 10, top * 0.4);
-    g.quadraticCurveTo(W / 2, top * 1.6, -10, top * 0.4); g.closePath(); g.fill();
-    // 왼쪽·오른쪽 기둥 (아래로 갈수록 바깥으로 벌어진다)
-    for (const sd of [-1, 1]) {
-      const x0 = sd < 0 ? 0 : W;
-      g.beginPath();
-      g.moveTo(x0, top * 0.3); g.lineTo(x0 + sd * -W * 0.085, top * 0.9);
-      g.lineTo(x0 + sd * -W * 0.034, H * 0.62); g.lineTo(x0 + sd * -fw * 0.9, H + 10); g.lineTo(x0 + sd * 10, H + 10); g.closePath();
-      g.fill();
-      // 기둥 안쪽 모서리 빛
-      g.strokeStyle = "rgba(120,200,255,0.22)"; g.lineWidth = 1.5 * u;
-      g.beginPath(); g.moveTo(x0 + sd * -W * 0.085, top * 0.9); g.lineTo(x0 + sd * -W * 0.034, H * 0.62); g.lineTo(x0 + sd * -fw * 0.9, H); g.stroke();
-      // 기둥 손잡이(그립 바)
-      g.strokeStyle = "rgba(40,46,58,0.95)"; g.lineWidth = 5 * u; g.lineCap = "round";
-      g.beginPath(); g.moveTo(x0 + sd * -W * 0.062, H * 0.2); g.lineTo(x0 + sd * -W * 0.045, H * 0.44); g.stroke();
-      g.strokeStyle = "rgba(150,170,195,0.25)"; g.lineWidth = 1.2 * u;
-      g.beginPath(); g.moveTo(x0 + sd * -W * 0.062 - sd * 1.5 * u, H * 0.2); g.lineTo(x0 + sd * -W * 0.045 - sd * 1.5 * u, H * 0.44); g.stroke(); g.lineCap = "butt";
-      // 리벳
-      g.fillStyle = "rgba(160,180,200,0.35)";
-      for (let i = 1; i < 6; i++) { const k = i / 6, x = x0 + sd * -(W * 0.085 * (1 - k) + W * 0.034 * k) * 0.55, y = top * 0.9 + (H * 0.62 - top * 0.9) * k; g.beginPath(); g.arc(x, y, 1.6 * u, 0, TAU); g.fill(); }
-      g.fillStyle = "rgba(14,18,26,0.86)";
-    }
-    g.strokeStyle = "rgba(120,200,255,0.18)"; g.lineWidth = 1.5 * u;
-    g.beginPath(); g.moveTo(W * 0.085, top * 0.9); g.quadraticCurveTo(W / 2, top * 1.6 + 1, W * 0.915, top * 0.9); g.stroke();
-    // 캐노피 앞 기둥(가운데 위 프레임 연결부) + 백미러 자리
-    g.fillStyle = "rgba(14,18,26,0.9)";
-    g.beginPath(); g.moveTo(W / 2 - 34 * u, top * 1.1); g.lineTo(W / 2 + 34 * u, top * 1.1); g.lineTo(W / 2 + 22 * u, top * 1.62); g.lineTo(W / 2 - 22 * u, top * 1.62); g.closePath(); g.fill();
-    g.strokeStyle = "rgba(120,200,255,0.2)"; g.lineWidth = 1 * u; g.stroke();
-
-    // 유리: 가장자리 옅은 청록 틴트 + 얼룩·잔기스 (한 번 그려 둔 그림을 얹는다)
+    const top = 30 * u;
+    this._visor(h, W, H, u, thr);                    // 미래형 바이저: 얇게 빛나는 틀선 · 모서리 브래킷 · 눈금 호
+    this._dash(h, s, W, H, u, thr, kmh, agl, me);   // 홀로그램 계기판: 아래쪽 HUD 계기가 이 위에 뜬다
+    // 유리: 가장자리 육각 격자 · 색수차 테 (한 번 그려 둔 그림) + 위아래로 지나가는 주사선
     g.drawImage(this._glass(W, H, u), 0, 0);
+    if (!calm) { const sy = ((this.t * 0.18) % 1) * H; const sl = g.createLinearGradient(0, sy - 30 * u, 0, sy + 30 * u); sl.addColorStop(0, "rgba(90,220,255,0)"); sl.addColorStop(0.5, "rgba(90,220,255,0.035)"); sl.addColorStop(1, "rgba(90,220,255,0)"); g.fillStyle = sl; g.fillRect(0, sy - 30 * u, W, 60 * u); }
     // 4) 유리 반사광: 기수 방향·롤에 따라 미끄러지는 사선 빛
     const yaw = b.heading || 0, roll = this.sway.r * 20;
     const gx = ((yaw * 0.9 + roll * 0.6) / TAU % 1 + 1) % 1 * (W * 1.6) - W * 0.3;
@@ -147,11 +118,13 @@ export class Cockpit {
     const ground = agl < 3.5 && b.vel.y < -4.5 && !b.onGround;
     const boost = me && (me.dodgeT > 0 || me.boostT > 0);
     const blink = Math.floor(this.t * 6) % 2 === 0;
-    const lamp = (x, col, on, label) => {
-      g.fillStyle = on ? col : "rgba(60,66,78,0.9)";
-      g.beginPath(); g.arc(x, top * 0.75, 4.5 * u, 0, TAU); g.fill();
-      if (on) { g.globalAlpha = 0.35; g.beginPath(); g.arc(x, top * 0.75, 11 * u, 0, TAU); g.fill(); g.globalAlpha = 1; }
-      if (on && label) h.text(label, x, top * 0.75 + 17 * u, { size: 10, align: "center", color: col, shadow: false });
+    const lamp = (x, col, on, label) => {   // 홀로그램 표시등: 작은 사다리꼴 칩
+      const y = top * 0.62, w2 = 9 * u, hh = 3.2 * u;
+      g.beginPath(); g.moveTo(x - w2, y - hh); g.lineTo(x + w2, y - hh); g.lineTo(x + w2 - 2.5 * u, y + hh); g.lineTo(x - w2 + 2.5 * u, y + hh); g.closePath();
+      g.fillStyle = on ? col : "rgba(90,200,255,0.10)"; g.fill();
+      g.strokeStyle = on ? col : "rgba(90,200,255,0.35)"; g.lineWidth = 1 * u; g.stroke();
+      if (on) { g.save(); g.globalAlpha = 0.3; g.shadowColor = col; g.shadowBlur = 12 * u; g.fill(); g.restore(); }
+      if (on && label) h.text(label, x, y + 15 * u, { size: 10, align: "center", color: col, shadow: false });
     };
     lamp(W * 0.38, "#ff3b3b", mis && blink, mis ? "MISSILE" : "");
     lamp(W * 0.46, "#ffb02e", ground && blink, ground ? "PULL UP" : "");
@@ -179,89 +152,124 @@ export class Cockpit {
     if (mis) { g.fillStyle = `rgba(255,40,40,${blink ? 0.07 : 0.02})`; g.fillRect(0, 0, W, H); }
   }
 
-  // 계기판: 화면 아래를 가로지르는 글레어 실드. 가운데가 솟은 덮개, 윗면 테두리 빛, 상태등, 스위치, 유리에 비친 계기 불빛
-  _dash(h, s, W, H, u, thr, kmh, agl, me) {
-    const g = h.g, cy = H - Math.min(132 * u, H * 0.2), sy = H - Math.min(86 * u, H * 0.13), t = this.t;
-    // 유리에 비친 계기 불빛 (덮개 위로 번지는 청록 반사)
-    const rf = g.createLinearGradient(0, cy - 70 * u, 0, cy + 6 * u);
-    rf.addColorStop(0, "rgba(60,200,255,0)"); rf.addColorStop(1, "rgba(60,200,255,0.07)");
-    g.fillStyle = rf; g.fillRect(W * 0.2, cy - 70 * u, W * 0.6, 76 * u);
-    // 몸체
-    const path = () => {
-      g.beginPath(); g.moveTo(-10, H + 10); g.lineTo(-10, sy + 14 * u); g.lineTo(W * 0.16, sy);
-      g.bezierCurveTo(W * 0.3, sy - 4 * u, W * 0.32, cy, W * 0.4, cy);
-      g.lineTo(W * 0.6, cy); g.bezierCurveTo(W * 0.68, cy, W * 0.7, sy - 4 * u, W * 0.84, sy);
-      g.lineTo(W + 10, sy + 14 * u); g.lineTo(W + 10, H + 10); g.closePath();
-    };
-    const pg = g.createLinearGradient(0, cy, 0, H);
-    pg.addColorStop(0, "rgba(30,36,48,0.97)"); pg.addColorStop(0.18, "rgba(16,20,28,0.97)"); pg.addColorStop(1, "rgba(8,10,15,0.98)");
-    path(); g.fillStyle = pg; g.fill();
-    // 윗면 테두리: 가는 빛줄 + 아래 그림자
-    g.save(); path(); g.clip();
-    g.strokeStyle = "rgba(0,0,0,0.55)"; g.lineWidth = 6 * u; path(); g.stroke();
-    // 덮개 안쪽 무늬(가로 홈)
-    g.strokeStyle = "rgba(255,255,255,0.035)"; g.lineWidth = 1 * u;
-    for (let i = 1; i < 5; i++) { const y = cy + i * 9 * u; g.beginPath(); g.moveTo(W * 0.41, y); g.lineTo(W * 0.59, y); g.stroke(); }
-    g.restore();
-    // 윗면(두께감): 테두리 바로 아래 밝은 띠 → 앞면으로 꺾이는 모서리
-    g.save(); path(); g.clip();
-    const tb = g.createLinearGradient(0, cy, 0, cy + 22 * u);
-    tb.addColorStop(0, "rgba(70,82,104,0.9)"); tb.addColorStop(0.7, "rgba(40,48,62,0.6)"); tb.addColorStop(1, "rgba(0,0,0,0)");
-    g.translate(0, 0); g.fillStyle = tb; g.fillRect(0, cy - 2, W, 24 * u + (sy - cy));
-    g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = 2 * u; g.translate(0, 18 * u); path(); g.stroke();
-    g.restore();
-    path(); g.strokeStyle = "rgba(110,210,255,0.55)"; g.lineWidth = 1.6 * u; g.stroke();
-    // 덮개 위 상태등 줄: 스로틀만큼 차는 막대 + 깜빡이는 점
-    const n = 14, x0 = W * 0.42, dx = (W * 0.16) / (n - 1), lit = Math.round(thr * n);
-    for (let i = 0; i < n; i++) {
-      const on = i < lit, col = i > n * 0.85 ? "#ffb02e" : "#3dff8c";
-      g.fillStyle = on ? col : "rgba(60,70,84,0.9)";
-      g.fillRect(x0 + i * dx - 2.2 * u, cy + 6 * u, 4.4 * u, 3 * u);
-    }
-    h.text("THR", x0 - 12 * u, cy + 8 * u, { size: 8, align: "right", base: "middle", color: "rgba(150,170,195,0.7)", shadow: false });
-    h.text(`${Math.round(kmh)}`, W * 0.6 + 12 * u, cy + 8 * u, { size: 8, base: "middle", mono: true, color: "rgba(150,210,255,0.75)", shadow: false });
-    // 양옆 날개: 토글 스위치 · 작은 표시등 (깜빡임은 느리게)
+  // 바이저 틀: 위아래 가장자리를 따라 휘어진 얇은 빛줄, 네 모서리 브래킷, 위쪽 눈금 호. 가장자리는 옅게 어두워져 깊이감
+  _visor(h, W, H, u, thr) {
+    const g = h.g, t = this.t, C = "rgba(90,220,255,", top = 30 * u;
+    // 가장자리 어둠 (양옆·위)
     for (const sd of [-1, 1]) {
-      const bx = sd < 0 ? W * 0.205 : W * 0.795;
-      for (let i = 0; i < 4; i++) {
-        const x = bx + sd * (i - 1.5) * 13 * u, y = sy - 4 * u + Math.abs(i - 1.5) * 0.8 * u;
-        g.fillStyle = "rgba(70,78,92,0.95)"; g.fillRect(x - 3 * u, y - 1 * u, 6 * u, 5 * u);
-        g.fillStyle = "rgba(190,200,215,0.8)"; g.fillRect(x - 1 * u, y - 5 * u, 2 * u, 5 * u);
-        const on = ((i + (sd > 0 ? 2 : 0)) % 3 !== 0) || Math.floor(t * 1.3 + i) % 2 === 0;
-        g.fillStyle = on ? (i === 3 && me && me.hp < me.maxHp * 0.35 ? "#ff4a4a" : "#5ab4ff") : "rgba(50,60,74,0.9)";
-        g.beginPath(); g.arc(x, y + 9 * u, 1.6 * u, 0, TAU); g.fill();
-      }
+      const x0 = sd < 0 ? 0 : W, eg = g.createLinearGradient(x0, 0, x0 - sd * W * 0.1, 0);
+      eg.addColorStop(0, "rgba(4,10,20,0.55)"); eg.addColorStop(1, "rgba(4,10,20,0)");
+      g.fillStyle = eg; g.fillRect(sd < 0 ? 0 : W - W * 0.1, 0, W * 0.1, H);
     }
-    // 낮은 고도면 덮개 끝에 주황 띠
-    if (agl < 6) { g.fillStyle = `rgba(255,170,40,${0.25 + 0.2 * Math.sin(t * 10)})`; g.fillRect(W * 0.4, cy - 1 * u, W * 0.2, 2 * u); }
+    const tg = g.createLinearGradient(0, 0, 0, top * 2.2); tg.addColorStop(0, "rgba(4,10,20,0.6)"); tg.addColorStop(1, "rgba(4,10,20,0)");
+    g.fillStyle = tg; g.fillRect(0, 0, W, top * 2.2);
+    // 위쪽 바이저 선: 가운데가 처진 호 + 겹선
+    g.save(); g.shadowColor = "rgba(90,220,255,0.8)"; g.shadowBlur = 8 * u;
+    g.strokeStyle = C + "0.75)"; g.lineWidth = 1.6 * u;
+    g.beginPath(); g.moveTo(W * 0.04, top * 0.55); g.quadraticCurveTo(W / 2, top * 1.7, W * 0.96, top * 0.55); g.stroke();
+    g.restore();
+    g.strokeStyle = C + "0.25)"; g.lineWidth = 1 * u;
+    g.beginPath(); g.moveTo(W * 0.1, top * 0.95); g.quadraticCurveTo(W / 2, top * 2.05, W * 0.9, top * 0.95); g.stroke();
+    // 눈금 호: 가운데 위, 스로틀만큼 밝아지는 짧은 눈금
+    const n = 31;
+    for (let i = 0; i < n; i++) {
+      const k = i / (n - 1), x = W * (0.3 + 0.4 * k), y = top * 0.55 + (top * 1.15) * (1 - Math.pow(2 * k - 1, 2)) * 0.5 + 5 * u;
+      const on = k <= thr, big = i % 5 === 0;
+      g.strokeStyle = on ? "rgba(120,255,200,0.85)" : C + "0.3)"; g.lineWidth = (big ? 1.6 : 1) * u;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + (big ? 7 : 4) * u); g.stroke();
+    }
+    // 네 모서리 브래킷 (숨 쉬듯 밝기 변화)
+    const br = 0.45 + 0.2 * Math.sin(t * 2), m = 14 * u, L = 34 * u;
+    g.strokeStyle = C + br + ")"; g.lineWidth = 2 * u;
+    for (const [x, y, sx, sy] of [[m, top * 1.3, 1, 1], [W - m, top * 1.3, -1, 1], [m, H * 0.74, 1, -1], [W - m, H * 0.74, -1, -1]]) {
+      g.beginPath(); g.moveTo(x, y + sy * L); g.lineTo(x, y); g.lineTo(x + sx * L, y); g.stroke();
+      g.fillStyle = C + (br * 0.8) + ")"; g.fillRect(x + sx * 4 * u - (sx < 0 ? 3 * u : 0), y + sy * 4 * u - (sy < 0 ? 3 * u : 0), 3 * u, 3 * u);
+    }
+    // 양옆 세로 눈금줄 (고도·속도 느낌의 장식)
+    for (const sd of [-1, 1]) {
+      const x = sd < 0 ? W * 0.035 : W * 0.965, y0 = H * 0.3, y1 = H * 0.62, off = (t * 18 * u) % (12 * u);
+      g.strokeStyle = C + "0.22)"; g.lineWidth = 1 * u;
+      g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke();
+      for (let y = y0 + off; y < y1; y += 12 * u) { g.beginPath(); g.moveTo(x, y); g.lineTo(x - sd * 5 * u, y); g.stroke(); }
+    }
   }
 
-  // 유리 얼룩: 화면 크기가 바뀔 때만 새로 그린다
+  // 홀로그램 계기판: 아래를 가로지르는 반투명 빛 패널(윤곽선 + 옅은 육각 무늬 + 위로 번지는 빛). 가운데 스로틀 호, 양옆 시스템 표시
+  _dash(h, s, W, H, u, thr, kmh, agl, me) {
+    const g = h.g, cy = H - Math.min(124 * u, H * 0.19), sy = H - Math.min(80 * u, H * 0.12), t = this.t, C = "rgba(90,220,255,";
+    const path = () => {
+      g.beginPath(); g.moveTo(-10, sy + 18 * u); g.lineTo(W * 0.14, sy);
+      g.lineTo(W * 0.33, sy); g.lineTo(W * 0.39, cy); g.lineTo(W * 0.61, cy); g.lineTo(W * 0.67, sy);
+      g.lineTo(W * 0.86, sy); g.lineTo(W + 10, sy + 18 * u); g.lineTo(W + 10, H + 10); g.lineTo(-10, H + 10); g.closePath();
+    };
+    // 패널: 짙은 남색 반투명 + 위쪽으로 번지는 청록 빛
+    const pg = g.createLinearGradient(0, cy, 0, H);
+    pg.addColorStop(0, "rgba(20,60,90,0.42)"); pg.addColorStop(0.25, "rgba(6,16,30,0.62)"); pg.addColorStop(1, "rgba(3,8,16,0.78)");
+    path(); g.fillStyle = pg; g.fill();
+    g.save(); path(); g.clip();
+    g.globalAlpha = 0.5; g.drawImage(this._hex(W, H, u), 0, 0); g.globalAlpha = 1;
+    // 패널 위를 가로지르는 빛줄기
+    const sx = ((t * 0.25) % 1.4 - 0.2) * W, sg = g.createLinearGradient(sx - 60 * u, 0, sx + 60 * u, 0);
+    sg.addColorStop(0, "rgba(120,240,255,0)"); sg.addColorStop(0.5, "rgba(120,240,255,0.08)"); sg.addColorStop(1, "rgba(120,240,255,0)");
+    g.fillStyle = sg; g.fillRect(0, cy, W, H - cy);
+    g.restore();
+    // 윤곽선: 빛나는 테 + 안쪽 겹선
+    g.save(); g.shadowColor = "rgba(90,220,255,0.9)"; g.shadowBlur = 10 * u;
+    path(); g.strokeStyle = C + "0.85)"; g.lineWidth = 1.5 * u; g.stroke(); g.restore();
+    g.save(); g.translate(0, 6 * u); g.beginPath(); g.moveTo(W * 0.335, sy); g.lineTo(W * 0.392, cy); g.lineTo(W * 0.608, cy); g.lineTo(W * 0.665, sy);
+    g.strokeStyle = C + "0.3)"; g.lineWidth = 1 * u; g.stroke(); g.restore();
+    // 가운데: 스로틀 막대(빛 칸) + 속도 숫자
+    const n = 18, x0 = W * 0.41, dx = (W * 0.18) / n, lit = Math.round(thr * n);
+    for (let i = 0; i < n; i++) {
+      const on = i < lit, col = i >= n - 3 ? "rgba(255,190,80," : "rgba(110,255,210,";
+      g.fillStyle = on ? col + "0.9)" : C + "0.12)";
+      g.beginPath(); g.moveTo(x0 + i * dx + 1.5 * u, cy + 9 * u); g.lineTo(x0 + (i + 1) * dx - 0.5 * u, cy + 9 * u); g.lineTo(x0 + (i + 1) * dx - 2 * u, cy + 14 * u); g.lineTo(x0 + i * dx, cy + 14 * u); g.closePath(); g.fill();
+    }
+    h.text("PWR", x0 - 8 * u, cy + 11.5 * u, { size: 8, align: "right", base: "middle", color: C + "0.75)", shadow: false });
+    h.text(`${Math.round(thr * 100)}%`, W * 0.59 + 8 * u, cy + 11.5 * u, { size: 8, base: "middle", mono: true, color: C + "0.85)", shadow: false });
+    // 양옆: 시스템 상태 글자 (깜빡이는 커서)
+    const hp = me ? me.hp / me.maxHp : 1, st = hp < 0.35 ? ["HULL CRIT", "#ff5a5a"] : agl < 6 ? ["ALT LOW", "#ffb02e"] : ["SYS NOMINAL", "rgba(110,255,210,0.85)"];
+    const cur = Math.floor(t * 2) % 2 ? "_" : " ";
+    h.text(`${st[0]}${cur}`, W * 0.16, sy + 10 * u, { size: 9, base: "middle", mono: true, color: st[1], shadow: false });
+    h.text(`SPD ${String(Math.round(kmh)).padStart(3, "0")}  ALT ${String(Math.round(agl)).padStart(3, "0")}`, W * 0.84, sy + 10 * u, { size: 9, align: "right", base: "middle", mono: true, color: C + "0.75)", shadow: false });
+  }
+
+  // 육각 격자 무늬 (계기판 안쪽용, 화면 크기가 바뀔 때만)
+  _hex(W, H, u) {
+    if (this._hx && this._hx.width === W && this._hx.height === H) return this._hx;
+    const c = this._hx || (this._hx = document.createElement("canvas")); c.width = W; c.height = H;
+    const g = c.getContext("2d"), r = 9 * u, dx = r * 1.732, dy = r * 1.5;
+    g.clearRect(0, 0, W, H); g.strokeStyle = "rgba(90,220,255,0.12)"; g.lineWidth = Math.max(0.6, 0.8 * u);
+    for (let row = 0, y = H * 0.75; y < H + r; row++, y += dy) for (let x = (row % 2) * dx / 2; x < W + dx; x += dx) {
+      g.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; k ? g.lineTo(px, py) : g.moveTo(px, py); } g.closePath(); g.stroke();
+    }
+    return c;
+  }
+
+  // 바이저 유리: 가장자리 옅은 청록 틴트 · 구석의 육각 격자 · 가장자리 색수차(분홍/청록 얇은 테)
   _glass(W, H, u) {
     if (this._gl && this._gl.width === W && this._gl.height === H) return this._gl;
     const c = this._gl || (this._gl = document.createElement("canvas"));
     c.width = W; c.height = H;
     const g = c.getContext("2d");
     g.clearRect(0, 0, W, H);
-    const tg = g.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.35, W / 2, H * 0.45, Math.hypot(W, H) * 0.6);
-    tg.addColorStop(0, "rgba(80,200,220,0)"); tg.addColorStop(1, "rgba(80,200,220,0.07)");
+    const tg = g.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.38, W / 2, H * 0.45, Math.hypot(W, H) * 0.6);
+    tg.addColorStop(0, "rgba(60,180,255,0)"); tg.addColorStop(1, "rgba(60,180,255,0.08)");
     g.fillStyle = tg; g.fillRect(0, 0, W, H);
-    let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    // 잔기스: 가장자리 쪽에 짧고 흐린 선
-    g.lineCap = "round";
-    for (let i = 0; i < 70; i++) {
-      const edge = r() < 0.5, x = edge ? (r() < 0.5 ? r() * W * 0.18 : W - r() * W * 0.18) : r() * W, y = edge ? r() * H : (r() < 0.6 ? r() * H * 0.2 : H * 0.62 + r() * H * 0.2);
-      const a = r() * TAU, L = (6 + r() * 22) * u;
-      g.strokeStyle = `rgba(255,255,255,${0.03 + r() * 0.05})`; g.lineWidth = 0.6 * u + r() * 0.6;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
+    // 구석 육각 격자: 모서리에서 멀어질수록 사라진다
+    const r = 11 * u, dx = r * 1.732, dy = r * 1.5;
+    for (const [cx, cy] of [[0, 0], [W, 0], [0, H * 0.8], [W, H * 0.8]]) {
+      for (let row = -8; row <= 8; row++) for (let col = -8; col <= 8; col++) {
+        const x = cx + col * dx + (row % 2) * dx / 2, y = cy + row * dy, d = Math.hypot(x - cx, y - cy) / (r * 9);
+        if (d > 1 || x < -r || x > W + r || y < -r || y > H + r) continue;
+        g.strokeStyle = `rgba(90,220,255,${0.1 * (1 - d)})`; g.lineWidth = Math.max(0.6, 0.8 * u);
+        g.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; k ? g.lineTo(px, py) : g.moveTo(px, py); } g.closePath(); g.stroke();
+      }
     }
-    // 물방울·먼지 얼룩
-    for (let i = 0; i < 26; i++) {
-      const x = r() < 0.5 ? r() * W * 0.22 : W - r() * W * 0.22, y = r() * H * 0.85, rr = (3 + r() * 10) * u;
-      const sg = g.createRadialGradient(x, y, 0, x, y, rr);
-      sg.addColorStop(0, "rgba(255,255,255,0.05)"); sg.addColorStop(1, "rgba(255,255,255,0)");
-      g.fillStyle = sg; g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill();
-    }
+    // 색수차 테: 화면 가장자리 안쪽으로 분홍·청록 얇은 선
+    g.lineWidth = 1 * u;
+    g.strokeStyle = "rgba(255,80,200,0.12)"; g.strokeRect(5 * u, 5 * u, W - 10 * u, H - 10 * u);
+    g.strokeStyle = "rgba(80,240,255,0.12)"; g.strokeRect(7 * u, 7 * u, W - 14 * u, H - 14 * u);
     return c;
   }
 
