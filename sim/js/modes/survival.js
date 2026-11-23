@@ -9,7 +9,7 @@ import { rankStats, clampRank } from "../ranks.js";
 import { Director, directorWanted } from "../director.js";
 
 export const VARIANTS = {
-  assault: { name: "공방전", icon: "🛡️", desc: "전반 5분은 공격, 후반 5분은 수비. 구역마다 침투·격파·점령·침투 저지 임무를 이어 가며, 적 본진 코어를 부수거나 공격 점수 6000을 먼저 모으면 공격 성공. 승수가 같으면 총점이 높은 쪽이 최종 승리" },
+  assault: { name: "공방전", icon: "🛡️", desc: "공격과 수비를 동시에 진행하는 6분 전선전. 적 본진 파괴 또는 점수 6000 먼저, 아니면 시간 종료 때 점수로 승부" },
   dm: { name: "데스매치", icon: "💥", desc: "모두가 적! 레이저·미사일·아이템으로 제한 시간 동안 가장 높은 점수를 얻으세요", hidden: true },
   tdm: { name: "팀 파이트", icon: "⚔️", desc: "아군 편대와 함께 적 편대와 맞붙는 팀전. 제한 시간이 끝날 때 팀 점수(격추·피해)가 높은 쪽이 이깁니다", hidden: true },
   fleet: { name: "함대전", icon: "🛸", desc: "하늘을 메운 아군 드론 함대와 함께 적 드론 함대와 맞붙는 대규모 공중전. 증원까지 모두 꺾어 적 함대 전력을 0으로 만들거나, 시간이 끝날 때 함대 전력이 앞서면 승리", hidden: true },   // 메뉴에서 뺌 (스토리 결전의 드론 함대는 그대로)
@@ -27,7 +27,7 @@ export class SurvivalMode extends CombatMode {
   constructor(session, cfg) {
     super(session, cfg);
     if (cfg.variant === "assault" || cfg.assault) {   // 공방전: 팀전(아군 편대 대 적 편대) 위에 공격/수비 역할을 얹는다
-      cfg.assault = cfg.assault || { half: 1, role: "atk", wins: [0, 0], total: [0, 0], halves: [] };
+      cfg.assault = cfg.assault || { half: 1, role: "both", wins: [0, 0], total: [0, 0], halves: [] };   // 동시 공방전 (전·후반 교대는 하지 않는다)
       cfg.variant = "tdm";
     }
     this.variant = VARIANTS[cfg.variant] ? cfg.variant : "dm";
@@ -36,7 +36,7 @@ export class SurvivalMode extends CombatMode {
     if (this.variant === "fleet") { this.duration = cfg.time || 300; if (!cfg.faction) cfg.faction = "eia"; }   // 함대전: 적은 에이아 기계 함대
     this.team = [0, 0];
     this.recKey = `survival:${this.variant}:${session.map.id}`;
-    if (cfg.assault) { this.title = `서바이벌 · 공방전 (${cfg.assault.half === 1 ? "전반 공격" : "후반 수비"})`; this.recKey = `survival:assault:${session.map.id}`; this.duration = cfg.time || 300; }
+    if (cfg.assault) { this.title = cfg.assault.role === "both" ? "서바이벌 · 공방전" : `서바이벌 · 공방전 (${cfg.assault.half === 1 ? "전반 공격" : "후반 수비"})`; this.recKey = `survival:assault:${session.map.id}`; this.duration = cfg.time || 300; }
     this.delivered = [0, 0];
     this.endT = -1;
   }
@@ -317,6 +317,17 @@ export class SurvivalMode extends CombatMode {
   _endAssault() {
     if (this._halfDone) return; this._halfDone = true;
     const A = this.cfg.assault, D = this.director, me = this.me;
+    if (A.role === "both") {   // 동시 공방전: 한 판으로 끝
+      const [a, b] = this.team.map(Math.round), win = D && D.victory ? true : D && D.lost ? false : a > b, draw = !(D && (D.victory || D.lost)) && a === b;
+      this.won = win;
+      const rec = submitRecord(this.recKey, a);
+      const how = D && D.victory ? (D.byScore ? "점수 6000 달성" : "적 본진 파괴") : D && D.lost ? (D.byScore ? "적 점수 6000 달성" : "아군 본진 함락") : "시간 종료 · 점수 비교";
+      this.finish({
+        title: draw ? "무승부" : win ? "승리!" : "패배", sub: `공방전 · ${how} · ${a} : ${b}`, win, record: rec, stars: win ? (D && D.victory && !D.byScore ? 3 : 2) : a > b * 0.7 ? 1 : 0,
+        lines: [{ label: "점수 (아군 : 적군)", value: `${a} : ${b}` }, { label: "내 점수", value: `${Math.round(me.score)}` }, { label: "내 격추 / 피격추", value: `${me.kills} / ${me.deaths}` }, ...(D ? D.resultLines() : []), { label: "최고 기록", value: `${records[this.recKey] || a}` }],
+      });
+      return;
+    }
     const win = A.role === "atk" ? !!(D && D.victory) : !(D && D.lost);   // 공격: 본진 파괴·점수 달성해야 승 / 수비: 본진을 지키면 승
     const pts = this.team.map(Math.round);
     const wins = A.wins.slice(), total = A.total.map((v, i) => v + pts[i]);

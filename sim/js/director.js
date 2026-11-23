@@ -43,6 +43,7 @@ export class Director {
     this.ffa = this.c.ffa;
     this.A2 = mode.cfg.assault || null;               // 공방전: { half, role: "atk" | "def", wins, total }
     this.def = !!(this.A2 && this.A2.role === "def");
+    this.sim = !!(this.A2 && this.A2.role === "both");   // 동시 공방전: 전선 하나를 두고 공격·수비 임무가 함께 돌아간다
     if (this.ffa) this.me.squad = "p";                // 개인전: 내 편 오브젝트(방어 지점·호위선·수리 포탑)는 나와 같은 squad
     this.cap = CAP[this.s.game.q] || CAP.med;
     this.objs = []; this.done = 0; this.failed = 0; this.total = 0; this.cleared = 0; this.maxTier = 1; this.tier = 1;
@@ -137,7 +138,8 @@ export class Director {
   _plan() {
     const d = this.m.duration, N = this.N, tdm = !this.ffa;
     let P;
-    if (this.A2 && this.def) P = [{ sec: 2, name: "전초 사수", objs: ["hold"], alt: ["defend", "dintercept"], side: ["dintercept"] },
+    if (this.sim) P = [{ sec: 1, name: "공방전", objs: [], side: [] }];
+    else if (this.A2 && this.def) P = [{ sec: 2, name: "전초 사수", objs: ["hold"], alt: ["defend", "dintercept"], side: ["dintercept"] },
       { sec: 1, name: "송신탑 방어", objs: ["defend"], alt: ["hold", "dintercept"], side: ["dintercept"] },
       { sec: 0, name: "침투 저지", objs: ["dintercept"], alt: ["hold", "defend"], side: [] },
       { sec: 0, name: "본진 사수", objs: ["hq"], side: [] }];
@@ -163,6 +165,22 @@ export class Director {
 
   start() {
     const c = this.c, last = this.secs[this.N - 1];
+    if (this.sim) {   // 동시 공방전: 양쪽 본진 모두 방어막. 전선이 끝까지 밀리면 그쪽 방어막이 꺼진다
+      const hp = c.units.groundSpot(this.A.x, this.A.z, 30, 9);
+      const hq = (this.hq = this.m.buildBase(hp.x, hp.z, 0, 4, 9000));
+      hq.core.name = "아군 본진 코어"; hq.core.dir = true; hq.core.invulnerable = true; hq.core.squad = "p"; hq.core.tag = "hq";
+      for (const t of hq.turrets) { t.hp = t.maxHp = 600; t.squad = "p"; t.name = "아군 본진 포탑"; t.dir = true; }
+      const mk = (pos, col) => { const d = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 12), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); d.position.copy(pos); this.w.scene.add(d); this.gfx.push(d); return d; };
+      this.hqDome = mk(hq.core.pos, 0x5aa9ff);
+      const bp = c.units.groundSpot(this.B.x, this.B.z, 30, 9);
+      const base = (this.base = this.m.buildBase(bp.x, bp.z, 1, 4, 4500));
+      base.core.name = "적 본진 코어"; base.core.dir = true; base.core.invulnerable = true; base.core.squad = "e";
+      for (const t of base.turrets) { t.hp = t.maxHp = 600; t.squad = "e"; t.name = "적 본진 포탑"; t.dir = true; }
+      this.baseDome = mk(base.core.pos, 0xff5a66);
+      this.secI = 1; this.front = 1; this.atkN = 0; this.defN = 0; this.atkT = 2; this.defT = 14; this.atkOk = 0; this.defOk = 0;
+      this._finds();
+      return;
+    }
     if (this.def) {   // 수비: 적 본진 대신 아군 본진(뒤쪽 끝). 마지막 방어선이 무너질 때까지 방어막
       const hp = c.units.groundSpot(this.A.x, this.A.z, 30, 9);
       const hq = (this.base = this.m.buildBase(hp.x, hp.z, 0, 4, 9000));
@@ -190,6 +208,7 @@ export class Director {
     this.weather.update(dt);
     this._fx(dt);
     if (m.state !== "run" || m.cut) return;
+    if (this.sim) return this._simUpdate(dt);
     if (this.si < 0) this._stage(0);
     this.stageT += dt;
     if (this.stormT > 0 && (this.stormT -= dt) <= 0) this.weather.storm(true, 55);
@@ -212,6 +231,84 @@ export class Director {
     if (this.bannerT > 0) this.bannerT -= dt;
     this._guideTick(dt);
   }
+  // ── 동시 공방전 ──
+  // 공격 임무: 지금 전선 구역의 적 쪽. 성공하면 전선 전진, 끝까지 가면 적 본진 방어막 해제
+  // 수비 임무: 지금 전선 구역의 아군 쪽. 실패하면 전선 후퇴, 끝까지 밀리면 아군 본진이 노출된다
+  _simUpdate(dt) {
+    const m = this.m;
+    if (this.si < 0) {
+      this.si = 0; this.stageT = 0;
+      { const sp = this.spawnPoint(this.me); this.m.placePlayer(sp.pos, sp.yaw); }   // 가운데 전선 뒤에서 출발
+      for (const a of this.c.actors) if (a.kind === "bot" && a.alive && a.ai && a.team === 1) a.ai.home = this.secs[1].c;
+      this._banner("작전 개시 — 공격과 수비를 동시에!", "#8cc4ff", 3.6);
+      this.say("작전 개시. 적 거점을 치면서 우리 거점도 지켜야 해요. 전선을 밀어붙여요!", 3);
+      this.s.game.sound.play("go");
+    }
+    this.stageT += dt;
+    const left = m.duration - m.time;
+    if (!this.allOut && left <= this.finalT && !this.victory && !this.lost) this._allOut();
+    if (!this.victory && !this.lost && m.endT < 0) {
+      if (m.team[0] >= ASSAULT_GOAL) { this.victory = true; this.byScore = true; m.endT = 3; this._banner("공격 점수 달성 — 승리!", "#35ff7a", 4); }
+      else if (m.team[1] >= ASSAULT_GOAL) { this.lost = true; this.byScore = true; m.endT = 3; this._banner("적 점수 달성 — 패배", "#ff6b5a", 4); }
+    }
+    for (const o of this.objs) if (o.state === "run") { o.t += dt; o.upd(dt); if (o.state === "run" && o.limit && o.t >= o.limit) o.timeout ? o.timeout() : this._end(o, false); }
+    for (let i = this.objs.length - 1; i >= 0; i--) { const o = this.objs[i]; if (o.state !== "run" && (o.gone = (o.gone || 0) + dt) > 4) { o.clean(); this.objs.splice(i, 1); } }
+    // 날씨: 1/3 지점 폭풍, 2/3 지점 밤
+    const f = m.time / m.duration;
+    if (!this.stormDone && f > 0.33) { this.stormDone = true; this.weather.storm(true, 55); }
+    if (!this.nightDone && f > 0.66) { this.nightDone = true; this.weather.night(true); }
+    const N = this.N, run = (side) => this.objs.find((o) => o.state === "run" && o.side2 === side);
+    // 끝난 임무 판정 → 전선 이동
+    for (const o of this.objs) {
+      if (o.state === "run" || o.judged || !o.side2) continue;
+      o.judged = true;
+      if (o.side2 === "atk") { this.atkT = 9; if (o.state === "ok") { this.atkOk++; this._move(+1); } }
+      else { this.defT = 11; if (o.state === "ok") this.defOk++; else if (o.state === "fail") this._move(-1); }
+    }
+    if (!run("atk") && (this.atkT -= dt) <= 0 && !this.victory && !this.lost) {
+      const t = this.front >= N ? "base" : ["capture", "strike", "datacore"][this.atkN++ % 3];
+      if (t !== "base" || !this.baseOpen) { if (t === "base") this.baseOpen = true; const o = this._add(t, true, this.secs[clamp(this.front, 0, N - 1)]); if (o) { o.side2 = "atk"; o.name = "공격 · " + o.name; } }
+      else this.atkT = 5;
+    }
+    if (!run("def") && (this.defT -= dt) <= 0 && !this.victory && !this.lost) {
+      const t = this.front < 0 ? "hq" : ["hold", "defend", "dintercept"][this.defN++ % 3];
+      if (t !== "hq" || !this.hqOpen) { if (t === "hq") this.hqOpen = true; const o = this._add(t, true, this.secs[clamp(this.front, 0, N - 1)]); if (o) { o.side2 = "def"; o.name = "수비 · " + o.name; } }
+      else this.defT = 5;
+    }
+    this._spawner(dt);
+    this._findTick(dt);
+    this._support(dt);
+    this._tier(dt);
+    if (this.bannerT > 0) this.bannerT -= dt;
+    this._guideTick(dt);
+  }
+  _move(d) {
+    const N = this.N, prev = this.front;
+    this.front = clamp(this.front + d, -1, N);
+    if (this.front === prev) return;
+    this.secI = clamp(this.front, 0, N - 1);
+    const sc = this.secs[this.secI];
+    if (d > 0) {
+      this.cleared++;
+      if (this.front >= N) { this._banner("전선 돌파 — 적 본진 방어막 해제 임박!", "#35ff7a", 3.6); this.say("적 전선을 뚫었어요! 다음은 적 본진이에요!", 3); }
+      else { this._banner(`전선 전진 — 제${this.front + 1} 구역`, "#35ff7a"); this._advanceFx(sc); }
+      this.s.game.sound.play("lap");
+    } else {
+      if (this.front < 0) { this._banner("방어선 붕괴 — 아군 본진이 위험하다!", "#ff3d5a", 3.6); this.say("방어선이 무너졌어요! 본진을 지켜야 해요!", 4); this.s.game.sound.play("warn"); }
+      else { this._banner(`전선 후퇴 — 제${this.front + 1} 구역`, "#ff8a5a"); this.s.game.sound.play("warn"); }
+      // 수비가 다시 성공하면 본진 노출이 풀리게: 전선이 다시 0 이상이 되면 다음 수비부터 일반 임무
+    }
+    // 전선이 되돌아가면 열렸던 본진 방어막을 다시 친다
+    const reshield = (type, B, domeKey) => {
+      for (const o of this.objs) if (o.state === "run" && o.type === type) this._end(o, null);
+      B.core.invulnerable = true;
+      if (this[domeKey] && B.core.alive) this.w.scene.add(this[domeKey]);
+    };
+    if (d < 0 && this.baseOpen && this.front < N) { this.baseOpen = false; reshield("base", this.base, "baseDome"); this.s.hud.toast("적 본진 방어막 복구", "#ff8a5a", 1.6, 20); this.atkT = 6; }
+    if (d > 0 && this.hqOpen && this.front >= 0) { this.hqOpen = false; reshield("hq", this.hq, "hqDome"); this.s.hud.toast("아군 본진 방어막 복구", "#5aa9ff", 1.6, 20); this.defT = 8; }
+    for (const a of this.c.actors) if (a.kind === "bot" && a.alive && a.ai && a.team === 1 && a.squad !== "p") a.ai.home = sc.c;
+  }
+
   // 목표 안내: 하나씩 5초 동안 (주 목표가 먼저). 목표 자리에는 빛 기둥
   _guideTick(dt) {
     let G = this.guide;
@@ -302,7 +399,7 @@ export class Director {
   // 마지막 60초: 총력전 — 아직 본진 단계가 아니면 전선을 본진으로 밀어 올린다
   _allOut() {
     this.allOut = true;
-    if (this.def) {   // 수비: 전선은 그대로, 적 증원만 거세진다
+    if (this.def || this.sim) {   // 수비·동시 공방전: 전선은 그대로, 적 증원만 거세진다
       this._banner("적 총공세 — 1분만 버텨라!", "#ff3d5a", 4.5);
       this.say("남은 시간 1분! 적이 총공세로 나옵니다. 버텨요!", 4);
       this.s.game.sound.play("warn");
@@ -320,8 +417,8 @@ export class Director {
   }
 
   // ── 목표 ──
-  _add(type, primary) {
-    const sc = this.secs[this.secI], f = this["_o_" + type];
+  _add(type, primary, scO) {
+    const sc = scO || this.secs[this.secI], f = this["_o_" + type];
     if (!f) return null;
     const o = f.call(this, sc);
     if (!o) return null;
@@ -664,9 +761,9 @@ export class Director {
 
   // 본진 사수(수비 마지막): 방어막이 내려간 아군 본진 코어를 시간 끝까지 지킨다
   _o_hq() {
-    const core = this.base.core;
+    const core = (this.hq || this.base).core;
     core.invulnerable = false;
-    if (this.baseDome) this.w.scene.remove(this.baseDome);
+    if (this.sim) { if (this.hqDome) this.w.scene.remove(this.hqDome); } else if (this.baseDome) this.w.scene.remove(this.baseDome);
     this.c.fx.ring(core.pos, 0x5aa9ff, 18, 0.8);
     const o = { name: "아군 본진 사수", pts: 1500, keep: true, wave: 3, okLine: "" };
     this.say("본진 방어막이 꺼졌어요! 끝까지 코어를 지켜요!", 4);
@@ -911,7 +1008,7 @@ export class Director {
   _tier(dt) {
     if (this.failBoostT > 0) this.failBoostT -= dt;
     const n = this.plan.length;
-    let t = 1 + Math.round(this.si / Math.max(1, n - 1) * 3);
+    let t = this.sim ? 1 + Math.round(clamp(this.m.time / Math.max(1, this.m.duration), 0, 1) * 3) : 1 + Math.round(this.si / Math.max(1, n - 1) * 3);
     if (this.failBoostT > 0) t++;
     if (this.allOut) t = 5;
     this.tier = clamp(t, 1, 5);
@@ -1031,16 +1128,17 @@ export class Director {
     const N = this.N, bw = 40 * u, gap = 4 * u, tw = N * bw + (N - 1) * gap + 26 * u, x0 = L.cx - tw / 2, y0 = L.subY + 2 * u;
     for (let i = 0; i < N; i++) {
       const x = x0 + i * (bw + gap), cur = i === this.secI, done = this.def ? i > this.secI : i < this.secI, sc = this.secs[i];
-      const col = cur ? "#ffd24a" : done ? (this.def ? "#ff6b5a" : "#35ff7a") : "#5b6880";
+      const col = this.sim ? (cur ? "#ffd24a" : i < this.secI ? "#5aa9ff" : "#ff6b5a") : cur ? "#ffd24a" : done ? (this.def ? "#ff6b5a" : "#35ff7a") : "#5b6880";
       h.plate(x, y0, bw, 16 * u, { skew: 0.25, fill: cur ? "rgba(60,48,10,0.9)" : "rgba(12,18,34,0.85)", accent: cur ? col : null });
       h.text(done ? (this.def ? "✖" : "✔") : `${i + 1}${sc.kind === "dense" ? "▦" : sc.kind === "high" ? "▲" : "〰"}`, x + bw / 2, y0 + 8.5 * u, { size: 10.5, align: "center", base: "middle", color: col, shadow: false });
     }
     const bx = x0 + N * (bw + gap);
+    if (this.sim) h.text("⌂", x0 - 14 * u, y0 + 8.5 * u, { size: 14, align: "center", base: "middle", color: this.hq.core.alive ? (this.front < 0 ? "#ff6b5a" : "#5aa9ff") : "#ff6b5a" });
     if (this.def) h.text("⌂", x0 - 14 * u, y0 + 8.5 * u, { size: 14, align: "center", base: "middle", color: this.base.core.alive ? "#5aa9ff" : "#ff6b5a" });
     else h.text("⌂", bx + 10 * u, y0 + 8.5 * u, { size: 14, align: "center", base: "middle", color: this.base.core.alive ? "#ff5a66" : "#35ff7a" });
     if (this.A2) {   // 공방전: 전·후반 · 역할 · 승수 · 공격 점수
       const A = this.A2, atk = Math.round(this.m.team[this.def ? 1 : 0]);
-      h.text(`${A.half === 1 ? "전반" : "후반"} · ${this.def ? "수비" : "공격"}   승 ${A.wins[0]} : ${A.wins[1]}   공격 점수 ${atk} / ${ASSAULT_GOAL}`, L.cx, y0 + 28 * u, { size: 11.5, align: "center", base: "middle", bold: true, color: this.def ? "#8cc4ff" : "#ffd24a" });
+      h.text(this.sim ? `점수 아군 ${Math.round(this.m.team[0])} : ${Math.round(this.m.team[1])} 적군   목표 ${ASSAULT_GOAL}` : `${A.half === 1 ? "전반" : "후반"} · ${this.def ? "수비" : "공격"}   승 ${A.wins[0]} : ${A.wins[1]}   공격 점수 ${atk} / ${ASSAULT_GOAL}`, L.cx, y0 + 28 * u, { size: 11.5, align: "center", base: "middle", bold: true, color: this.def ? "#8cc4ff" : "#ffd24a" });
     }
     const tc = TIER_COL[this.tier - 1];
     h.plate(x0 + tw + 8 * u, y0 - 1 * u, 74 * u, 18 * u, { skew: 0.2, fill: "rgba(12,18,34,0.9)", accent: tc });
@@ -1101,7 +1199,8 @@ export class Director {
   resultLines() {
     return [
       { label: "완료한 목표", value: `${this.done} / ${this.total}` },
-      this.def ? { label: "지켜 낸 방어선", value: `${this.N - (this.N - 1 - this.secI) - (this.si >= this.plan.length - 1 ? 1 : 0)} / ${this.N}${this.lost ? " · 본진 함락" : ""}` }
+      this.sim ? { label: "공격 성공 / 수비 성공", value: `${this.atkOk} / ${this.defOk}${this.victory && !this.byScore ? " · 적 본진 파괴" : this.lost && !this.byScore ? " · 아군 본진 함락" : ""}` }
+        : this.def ? { label: "지켜 낸 방어선", value: `${this.N - (this.N - 1 - this.secI) - (this.si >= this.plan.length - 1 ? 1 : 0)} / ${this.N}${this.lost ? " · 본진 함락" : ""}` }
         : { label: "돌파한 전선", value: `${this.cleared + (this.victory ? 1 : 0)} / ${this.N}${this.victory ? (this.byScore ? " · 공격 점수 달성" : " · 적 본진 파괴") : ""}` },
       { label: "최고 위협 단계", value: `${ROMAN[this.maxTier - 1]} · ${TIER_NAME[this.maxTier - 1]}` },
       { label: "숨은 발견물", value: `${this.foundN} / ${this.finds.length}` },
