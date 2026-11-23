@@ -9,7 +9,7 @@ import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "전반 공격 5분 · 후반 수비 5분. 구역마다 침투·격파·점령·침투 저지 임무, 승수가 같으면 총점으로 최종 승부" },
+  assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "6분 동안 공격과 수비를 동시에. 적 거점을 치면 전선이 전진, 우리 거점이 뚫리면 후퇴. 적 본진 파괴 또는 점수 6000 먼저, 아니면 시간 종료 때 점수로 승부" },
   aos: { name: "기지전 (AOS)", icon: "🏯", variant: "aos", size: "매우 큰 맵", fit: (mp) => mp.size >= 400, desc: "라인·타워·감시자·보스가 있는 5:5 팀전. 상대 본진 파괴 · 목표 점수 달성 · 시간 종료 때 점수 우세 중 하나로 승리" },
 };
 import { MISSIONS } from "./modes/challenge.js";
@@ -721,7 +721,7 @@ export class UI {
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
-        opts += `<p class="hint2">전반 공격 5분 → 공수 교대 → 후반 수비 5분. 승수가 같으면 총점(침투·격파·격추)으로 최종 승부 · 적 수와 난이도는 실력에 맞춰 자동 조절됩니다.</p>`;
+        opts += `<p class="hint2">공격 임무와 수비 임무가 항상 하나씩 동시에 진행됩니다. 공격 성공 → 전선 전진, 수비 실패 → 전선 후퇴. 전선을 끝까지 밀면 적 본진 방어막이 꺼집니다 · 적 수와 난이도는 실력에 맞춰 자동 조절됩니다.</p>`;
       }
     } else {
       const list = cmMissions(s.map);
@@ -780,7 +780,7 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
