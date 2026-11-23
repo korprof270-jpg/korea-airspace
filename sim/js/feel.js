@@ -337,16 +337,18 @@ export class Feel {
         warn = c.warn > 0;
         // 조준선에 적이 들어옴
         this.aimCool -= dt;
-        if (c.aim && c.aim !== this.prevAim && this.aimCool <= 0) { this.aimCool = 0.25; this.cue("aim"); this.rumble(0, 0.14, 25); }
+        // 조준음: 아무것도 없다가 처음 걸릴 때만 (표적끼리 옮겨 갈 때·락온 신호음이 나는 중에는 울리지 않는다)
+        const locking = c.lock && p.missiles > 0 && c.lockT > 0;
+        if (c.aim && !this.prevAim && this.aimCool <= 0 && !locking) { this.aimCool = 0.6; this.cue("aim", 0.7); this.rumble(0, 0.14, 25); }
         this.prevAim = c.aim;
         // 락온 진행: 0.7초에 가까워질수록 빨라지고 높아지는 신호음, 완료 후에는 잔잔한 유지음
         if (c.lock && p.missiles > 0 && c.lockT > 0) {
           if (c.lockT < 0.7) {
             const k = c.lockT / 0.7;
-            if ((this.lockBeepT -= dt) <= 0) { this.lockBeepT = 0.19 - 0.13 * k; this.cue("lockbeep", 0.8, 0, 1 + k * 0.5); }
-            this.lockToneT = 0.45;
-          } else if ((this.lockToneT -= dt) <= 0) { this.lockToneT = 0.45; this.cue("locktone", 0.7); }
-        } else { this.lockBeepT = 0; this.lockToneT = 0.45; }
+            if ((this.lockBeepT -= dt) <= 0) { this.lockBeepT = 0.26 - 0.14 * k; this.cue("lockbeep", 0.5, 0, 1 + k * 0.5); }
+            this.lockToneT = 0.9;
+          } else if ((this.lockToneT -= dt) <= 0) { this.lockToneT = 0.9; this.cue("locktone", 0.35); }   // 유지음은 잔잔하게, 드물게
+        } else { this.lockBeepT = Math.max(this.lockBeepT, 0); this.lockToneT = 0.9; }
       } else this.prevAim = null;
     } else this.prevAim = null;
 

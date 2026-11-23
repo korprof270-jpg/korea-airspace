@@ -516,10 +516,13 @@ export class Combat {
     // 락온
     const cand = this._aimTarget(0.17 * 1.15, this.lockRange);
     if (cand && cand === this.lock && this._vis(pl.aimPos, cand)) {
-      const was = this.lockT < 0.7;
-      this.lockT += dt;
-      if (was && this.lockT >= this.lockNeed) this.snd.play("lock");
-    } else { this.lock = cand; this.lockT = 0; }
+      const was = this.lockT < this.lockNeed;
+      this.lockT += dt; this.lockLost = 0;
+      // 락온 완료음: 같은 표적을 방금(2초 안) 잡았던 거면 다시 울리지 않는다
+      if (was && this.lockT >= this.lockNeed && !(this.lockSndT > this.s.time && this.lockSndA === cand)) { this.snd.play("lock"); this.lockSndT = this.s.time + 2; this.lockSndA = cand; }
+    } else if (this.lock && this.lock.alive && (this.lockLost = (this.lockLost || 0) + dt) < 0.25) {
+      // 조준이 잠깐(0.25초) 흔들려 빠진 것은 봐준다: 락온이 처음부터 다시 시작되며 신호음이 겹쳐 나는 것을 막는다
+    } else { this.lock = cand; this.lockT = 0; this.lockLost = 0; }
     const autoMissile = auto && this.lockT >= this.lockNeed + 0.2 && p.missiles > 0 && p.missileT <= 0;
     if (inp.take("missile") || autoMissile) {
       if (p.missiles > 0 && p.missileT <= 0) {
