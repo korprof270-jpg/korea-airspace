@@ -10,7 +10,7 @@ import { VARIANTS } from "./modes/survival.js";
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
   assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "6분 동안 공격과 수비를 동시에. 적 거점을 치면 전선이 전진, 우리 거점이 뚫리면 후퇴. 적 본진 파괴 또는 점수 6000 먼저, 아니면 시간 종료 때 점수로 승부" },
-  aos: { name: "기지전 (AOS)", icon: "🏯", variant: "aos", size: "매우 큰 맵", fit: (mp) => mp.size >= 400, desc: "라인·타워·감시자·보스가 있는 5:5 팀전. 상대 본진 파괴 · 목표 점수 달성 · 시간 종료 때 점수 우세 중 하나로 승리" },
+  // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
 import { MISSIONS } from "./modes/challenge.js";
 import * as TR from "./training.js";
