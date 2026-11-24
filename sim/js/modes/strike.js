@@ -32,9 +32,9 @@ const BOSS = {
   gunMid: { bot: "gunship", hp: 2.2, name: "강습선" },
   turtle: { unit: "heavytank", scale: 1.7, hp: 3.5, name: "철갑 거북" },
   sniperK: { unit: "sniperbot", scale: 1.5, hp: 3, name: "저격 대장" },
-  giant: { unit: "mech", hp: 0.9, name: "강철 거인" },
+  giant: { unit: "mech", scale: 1.5, hp: 0.9, name: "강철 거인" },
   msltank: { unit: "missiletank", scale: 1.5, hp: 3, name: "미사일 포대장" },
-  twin: { unit: "mech", scale: 1.9, hp: 1.2, name: "쌍포 거인" },
+  twin: { unit: "mech", scale: 2.85, hp: 1.2, name: "쌍포 거인" },
   aceK: { bot: "ace", hp: 4, n: 2, name: "붉은 에이스" },
   gunK: { bot: "gunship", hp: 4.5, name: "강습선 편대장" },
   destK: { unit: "destroyer", hp: 1.6, name: "구축함 '송곳'" },
@@ -42,10 +42,10 @@ const BOSS = {
   shieldK: { unit: "shieldbot", scale: 1.5, hp: 2.5, n: 2, name: "방패 대장" },
   cruiser: { unit: "cruiser", hp: 1.5, name: "순양함 '철벽'" },
   mortarK: { unit: "mortarbot", scale: 1.5, hp: 2.5, n: 2, name: "포격 대장" },
-  titan: { unit: "titan", scale: 2.4, hp: 1.1, name: "초거대 로봇 '골리앗'" },
+  titan: { unit: "titan", scale: 3.6, hp: 1.1, name: "초거대 로봇 '골리앗'" },
   fortress: { unit: "flagship", hp: 1.4, name: "공중 요새 '심판'" },
   flag: { unit: "flagship", hp: 1.6, name: "기함 '폭군'" },
-  omega: { unit: "titan", scale: 3.0, hp: 1.5, name: "최종 병기 '오메가'" },
+  omega: { unit: "titan", scale: 4.5, hp: 1.5, name: "최종 병기 '오메가'" },
 };
 // 작전 단계 (한 맵 안의 구역들). pos 는 시작할 때 맵을 읽어 정한다
 const PLAN = [
@@ -242,6 +242,7 @@ export class StrikeMode extends CombatMode {
       if (!a) continue;
       a.name = B.name + (n > 1 ? ` ${i + 1}` : "");
       if (isBoss) a.isStageBoss = true; else a.isMidBoss = true;
+      if (a.unit) for (const q of a.unit.parts) { q.noTarget = true; q.bossPart = a; }   // 부위는 따로 조준되지 않는다 (맞히면 본체에도 피해)
       if (final) a.stBoss = true;
       const type = B.unit ? (SHIPS.has(B.unit) ? "ship" : "ground") : "air";
       this.brains.push(new BossBrain(this, a, type, { center: C, stage: isBoss, extras: this.extras }));
@@ -326,6 +327,8 @@ export class StrikeMode extends CombatMode {
   }
 
   _onDmg(a, amt, k) {
+    // 보스 부위에 맞은 피해는 본체에도 60% 들어간다 (부위를 따로 노리지 않아도 보스 체력이 깎이게)
+    if (a.bossPart && a.bossPart.alive && amt > 0 && !this._fwd) { this._fwd = true; this.combat.damage(a.bossPart, (amt * 0.6) / (a.bossPart.armor || 1), k, a.pos); this._fwd = false; }   // 본체 장갑과 무관하게 60%
     if (k !== this.me || !(amt > 0)) return;
     if (a.wk === this.wk && (a.isStageBoss || a.isMidBoss || a.unit)) this.myBossDmg[a.sx] = (this.myBossDmg[a.sx] || 0) + amt;
   }

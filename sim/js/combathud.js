@@ -72,7 +72,7 @@ export function drawCombatHud(c, h, o = {}) {
 
   // 적·아군 표시
   const locked = c.lockT >= LOCK_T;
-  for (const a of c.actors) {
+  for (const a of c.actors) { if (a.noTarget) continue;   // 보스 부위: 사각 표시·이름표 없음
     if (!a.alive || a === p || !a.targetable || a.cloaked) continue;   // 은신한 스텔스기는 표시하지 않는다
     const d = a.pos.distanceTo(cam.position);
     const enemy = c.hostile(p, a) || !p.alive && (c.ffa ? !(a.squad && a.squad === p.squad) : a.team !== p.team);

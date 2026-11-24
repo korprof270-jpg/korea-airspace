@@ -454,7 +454,7 @@ export class Combat {
     const pl = this.s.player;
     let best = null, bestAng = maxAng;
     for (const o of this.actors) {
-      if (!this.hostile(this.player, o) || !o.targetable || o.cloaked) continue;
+      if (!this.hostile(this.player, o) || !o.targetable || o.cloaked || o.noTarget) continue;   // noTarget: 보스 부위 — 조준·락온 대상은 아니지만 맞으면 피해는 들어간다
       _a.copy(o.pos).sub(pl.aimPos);
       const d = _a.length();
       if (d > maxDist || d < 1) continue;

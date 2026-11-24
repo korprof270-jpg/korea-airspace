@@ -19,7 +19,7 @@ export class BossBrain {
     this.m = mode; this.c = mode.combat; this.w = mode.s.world; this.a = a; this.type = type;
     this.stage = !!o.stage; this.extras = o.extras || [];
     this.center = o.center.clone();
-    const R = type === "ship" ? 55 : type === "air" ? 45 : 38;
+    const sc = (a.unit && a.unit.group.scale.x) || 1, R = type === "ship" ? 55 : type === "air" ? 45 : 32 + sc * 9;   // 큰 보스일수록 넓게 움직인다
     this.anchors = [0, 1, 2, 3].map((i) => {
       const ang = (i / 4) * Math.PI * 2 + 0.4, x = this.center.x + Math.cos(ang) * R, z = this.center.z + Math.sin(ang) * R;
       const p = type === "ground" && this.c.units ? this.c.units.groundSpot(x, z, 25, 8).clone() : new V3(x, this.w.h(x, z), z);
