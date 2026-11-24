@@ -19,7 +19,7 @@ export class BossBrain {
     this.m = mode; this.c = mode.combat; this.w = mode.s.world; this.a = a; this.type = type;
     this.stage = !!o.stage; this.extras = o.extras || [];
     this.center = o.center.clone();
-    const sc = (a.unit && a.unit.group.scale.x) || 1, R = type === "ship" ? 55 : type === "air" ? 45 : 32 + sc * 9;   // 큰 보스일수록 넓게 움직인다
+    const sc = (a.unit && a.unit.group.scale.x) || 1, R = type === "ship" ? 55 : type === "air" ? 45 : Math.min(32 + sc * 9, 95);   // 큰 보스일수록 넓게 움직인다
     this.anchors = [0, 1, 2, 3].map((i) => {
       const ang = (i / 4) * Math.PI * 2 + 0.4, x = this.center.x + Math.cos(ang) * R, z = this.center.z + Math.sin(ang) * R;
       const p = type === "ground" && this.c.units ? this.c.units.groundSpot(x, z, 25, 8).clone() : new V3(x, this.w.h(x, z), z);
@@ -80,7 +80,7 @@ export class BossBrain {
     if (this.act && this.act.k === "charge") return;
     if (this.type === "ground" && u) {
       const g = u.group; _v.copy(goal).sub(g.position).setY(0);
-      const L = _v.length(), sp = (u.type === "titan" ? 5 : 6.5) * dt;
+      const big = g.scale.x, L = _v.length(), sp = (u.type === "titan" ? 4 + big * 0.6 : 6.5) * dt;   // 초거대일수록 보폭이 크다
       if (L > 2) { g.position.addScaledVector(_v.normalize(), Math.min(sp, L)); g.position.y = this.w.h(g.position.x, g.position.z); const yaw = Math.atan2(-_v.x, -_v.z); if (u.yaw !== undefined) u.yaw = yaw; g.rotation.y = yaw; }
       if (u.home) u.home.copy(goal);
       u.goal = goal.clone();
@@ -118,7 +118,7 @@ export class BossBrain {
         return true;
       } };
     } else if (k === "slam") {
-      const p = this._pos().clone(), R = this.ph >= 2 ? 40 : 32;
+      const big = (a.unit && a.unit.group.scale.x) || 1, p = this._pos().clone(), R = (this.ph >= 2 ? 40 : 32) * Math.min(2.2, Math.max(1, big / 3));   // 초거대 보스는 충격파도 크다
       this.act = { k, t: 0, step() {
         if (this.t < 1.3) { if (Math.random() < 0.4) c.fx.ring(p.clone().setY(self.w.h(p.x, p.z) + 1), 0xff5a3a, R, 0.3); return true; }
         c.fx.explosion(p, 3); c.fx.ring(p.clone().setY(self.w.h(p.x, p.z) + 1), 0xffb03a, R, 0.6); c._blast(p, 3); self.m.s.game.sound.play("explode");
