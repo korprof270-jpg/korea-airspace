@@ -51,7 +51,7 @@ export class Hud {
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, matchMedia("(pointer: coarse)").matches ? 1.5 : 2);   // 휴대폰: HUD 캔버스 픽셀 수를 줄여 2D 그리기 부담 ↓
     this.W = this.cv.clientWidth || innerWidth; this.H = this.cv.clientHeight || innerHeight;
     this.cv.width = Math.round(this.W * dpr); this.cv.height = Math.round(this.H * dpr);
     this.dpr = dpr;
