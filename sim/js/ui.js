@@ -9,7 +9,7 @@ import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "6개 지역 원정", fit: (mp) => mp.id === "canyon", desc: "붉은 협곡에서 출발해 지역(맵)을 옮겨 가며 기계제국 수도의 최종 병기까지. 구역마다 중간 보스·스테이지 보스, 갈림길은 루트 A·B·C 입구로, Lv1 에서 ⓟ로 업그레이드" },
+  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "보통 크기 이상 맵", fit: (mp) => mp.size >= 230 && mp.size < 400, desc: "고른 맵 안의 구역을 하나씩 깨며 적 본진의 최종 병기까지. 구역마다 중간 보스·스테이지 보스, 갈림길은 루트 A·B·C 입구가 각각 다른 구역으로. Lv1 에서 ⓟ로 업그레이드" },
   // 공방전은 메뉴에서 뺐다 (사용자 요청)
   // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
@@ -27,7 +27,6 @@ import { CAMERA_NAMES } from "./player.js";
 import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
 import { connect, getNick } from "./net.js";
-import { STRIKE_FIRST_MAP } from "./modes/strike.js";
 import { isFighter } from "./fighters.js";
 
 const MODE_META = {
@@ -410,7 +409,7 @@ export class UI {
     const C = this._coop;
     this._coopStarted = g.t; clearInterval(this._coopIv);
     const s = this.sel;
-    this.game.startSession({ mode: "strike", map: STRIKE_FIRST_MAP, difficulty: "normal",
+    this.game.startSession({ mode: "strike", map: s.map, difficulty: "normal",
       coop: { ids: g.ids.slice(0, 4), host: hostId, seed: g.sd, name: this._coopName },
       net: { room: C.r, me: C.me, mid: `strike-${g.t}`, host: hostId === C.me, client: null, elapsed: 0 } });
   }
@@ -827,7 +826,7 @@ export class UI {
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else if (s.variant === "strike") {
         opts += `<div class="opt"><label>인원</label>${this.seg("party", [["solo", "혼자 (AI 윙맨 3기)"], ["coop", "협동 (최대 4인)"]], s.party || "solo")}<div class="hint">협동: 같은 맵 협동 방에 모인 사람과 한 스테이지를 같이 시작합니다. 온라인 협동은 claude.ai 링크에서 됩니다.</div></div>`;
-        opts += `<p class="hint2">6개 지역 원정: 붉은 협곡 → 석양의 항만 → (루트별 지역) → 설원 통신기지 → (루트별 지역) → 기계제국 수도. 지역마다 진입 지점에서 교전 구역까지 이동하며 서브미션(보급 캡슐·정찰기·비행 고리)을 하고, 구역을 확보하면 5초 정비 뒤 다음 지역으로 갑니다. 격납고 파츠 능력치 없이 Lv1 로 시작해 격추·보스·서브미션으로 모은 ⓟ로 업그레이드합니다.<br>구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 구역마다 중간 보스와 스테이지 보스가 나옵니다 · 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
+        opts += `<p class="hint2">맵 안의 6개 구역을 지그재그로 옮겨 가며 진행합니다. 구역을 확보하면 5초 정비 뒤 빛 고리·빛 기둥·화살표가 다음 구역을 안내하고, 가는 길에 서브미션(보급 캡슐·정찰기·비행 고리)이 있습니다. 보스는 자리를 옮기며 미사일 일제 사격·레이저 휩쓸기·충격파·포격 비·소환·돌진·실드 발생기 패턴을 씁니다. 격납고 파츠 능력치 없이 Lv1 로 시작해 ⓟ로 업그레이드합니다.<br>구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 구역마다 중간 보스와 스테이지 보스가 나옵니다 · 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -891,7 +890,7 @@ export class UI {
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
     else if (s.mode === "survival" && s.variant === "strike" && s.party === "coop") return this.show("coop");
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike", map: STRIKE_FIRST_MAP } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike" } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
