@@ -63,7 +63,7 @@ export class SurvivalMode extends CombatMode {
       }
       c.scatterPickups(11);
       // 지상 위협: 전차와 대공 로봇이 맵 어딘가를 돌아다닌다 (모두의 적)
-      for (const type of n >= 7 ? ["tank", "aa", "tank"] : ["tank", "aa"]) c.units.spawn(type, { pos: c.randomPoint(3, 5, 0.6) });
+      for (const cls of n >= 7 ? ["tank", "robot", "tank"] : ["tank", "robot"]) c.units.spawn(c.units.pickKind(cls), { pos: c.randomPoint(3, 5, 0.6) });   // 전차·로봇은 종류가 섞인다
       this._direct();
       return;
     }
@@ -98,7 +98,8 @@ export class SurvivalMode extends CombatMode {
         b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
       }
       c.scatterPickups(11);
-      c.units.spawn("tank", { pos: c.randomPoint(3, 5, 0.6) });
+      c.units.spawn(c.units.pickKind("tank"), { pos: c.randomPoint(3, 5, 0.6) });
+      c.units.spawn(c.units.pickKind("robot"), { pos: c.randomPoint(3, 5, 0.6) });
       this._direct();
       if (!this.director && !this.cfg.story && !this.cfg.net) this.tfe = new TFEvents(this);   // 팀 파이트: 중반 돌발 이벤트
       return;
@@ -146,7 +147,7 @@ export class SurvivalMode extends CombatMode {
         b.name = "적 거점 " + "ABCDE"[ops.length]; b.found = false; b.core.name = b.name;
         ops.push(b);
         // 거점마다 수비대: 전차·대공 로봇이 번갈아, 세 번째 거점 상공에는 전투함
-        b.guards = [c.units.spawn(ops.length % 2 ? "tank" : "aa", { pos: p.clone() })];
+        b.guards = [c.units.spawn(c.units.pickKind(ops.length % 2 ? "tank" : "robot"), { pos: p.clone() })];
         if (ops.length === 3) b.guards.push(c.units.spawn("frigate", { pos: new THREE.Vector3(p.x, 0, p.z), near: true }));
         for (const a of [b.core, ...b.turrets, ...b.guards.flatMap((r) => [r, ...r.unit.parts])]) this._hide(a, true);
       }

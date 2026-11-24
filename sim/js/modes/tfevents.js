@@ -124,16 +124,17 @@ export class TFEvents {
     const c = this.c, ships = [];
     for (const team of [0, 1]) {
       const p = this._mid(team ? 0.72 : 0.28, rnd(-40, 40));
-      const r = c.units.spawn("frigate", { pos: p, near: true, hp: 1.5, rank: 4, name: team ? "적 전투함" : "아군 전투함" });
+      const kind = c.units.pickKind("ship"), nm = { frigate: "전투함", destroyer: "구축함" }[kind] || "전투함";
+      const r = c.units.spawn(kind, { pos: p, near: true, hp: 1.5, rank: 4, name: (team ? "적 " : "아군 ") + nm });
       r.team = team; for (const q of r.unit.parts) q.team = team;
-      r.name = team ? "적 전투함" : "아군 전투함"; r.tfShip = team;
+      r.name = (team ? "적 " : "아군 ") + nm; r.tfShip = team;
       r.unit.home = this._mid(team ? 0.58 : 0.42, rnd(-30, 30));
       ships.push(r);
     }
     const ev = { title: "함대 지원전 — 적 전투함을 격침하라!", say: "양측 전투함 진입! 적 전투함을 격침하고 우리 전투함을 지켜요!", col: "#5ab4ff", limit: 50, ships, label: "적 전투함" };
     ev.upd = () => {
       const [a, b] = ships;
-      ev.text = `아군 함 ${a.alive ? Math.ceil(a.hp / a.maxHp * 100) + "%" : "격침"} · 적 함 ${b.alive ? Math.ceil(b.hp / b.maxHp * 100) + "%" : "격침"}`;
+      ev.text = `아군 ${a.name.slice(3)} ${a.alive ? Math.ceil(a.hp / a.maxHp * 100) + "%" : "격침"} · 적 함 ${b.alive ? Math.ceil(b.hp / b.maxHp * 100) + "%" : "격침"}`;
       if (!b.alive) return this._finish(0, 1200, "적 전투함 격침!  +1200");
       if (!a.alive) return this._finish(1, 1200, "아군 전투함이 격침됐습니다");
     };

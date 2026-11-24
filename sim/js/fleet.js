@@ -39,9 +39,13 @@ export function fleetWanted(mode) {
 }
 
 // ── 이름 · 색 ──
-const ALLY_NAMES = ["연합 기함 한빛", "호위함 청룡", "호위함 백호", "호위함 현무"];
-const EIA_NAMES = ["에이아 기함 ‘철혈’", "에이아 순양함 ‘붉은 눈’", "에이아 구축함 ‘톱니’", "에이아 구축함 ‘망치’"];
-const AIL_NAMES = ["에일 모함 ‘심연의 노래’", "에일 순항체 ‘보랏빛 촉수’", "에일 순항체 ‘가시 포자’", "에일 순항체 ‘물결’"];
+const ALLY_NAMES = ["연합 기함 한빛", "순양함 청룡", "구축함 백호", "초계함 현무"];
+// 함종별 특징: 무기 재사용 시간 배율(작을수록 자주)과 추가 미사일 수
+//  기함: 주포 빔·대형 탄막 (기본) / 순양함: 탄막 포격이 잦다 / 구축함: 미사일 일제 사격이 잦고 많다 / 초계함: 근접 방어 사격이 잦다
+const ROLE = { flag: {}, cruiser: { barr: 0.55, broad: 1.1 }, destroyer: { msl: 0.5, mslN: 2, broad: 0.85 }, picket: { pd: 0.5, broad: 0.9, barr: 1.3 } };
+const ROLE_OF = (i) => (i === 0 ? "flag" : ["cruiser", "destroyer", "picket"][(i - 1) % 3]);
+const EIA_NAMES = ["에이아 기함 ‘철혈’", "에이아 순양함 ‘붉은 눈’", "에이아 구축함 ‘톱니’", "에이아 초계함 ‘망치’"];
+const AIL_NAMES = ["에일 모함 ‘심연의 노래’", "에일 포격체 ‘보랏빛 촉수’", "에일 쾌속체 ‘가시 포자’", "에일 초계체 ‘물결’"];
 const COL = { ally: { tracer: 0x7fd0ff, beam: 0x5ab4ff, msl: 0x9fd8ff, shell: 0xbfe8ff }, eia: { tracer: 0xff6a4a, beam: 0xff3040, msl: 0xffa070, shell: 0xffb070 }, ail: { tracer: 0xd070ff, beam: 0xc060ff, msl: 0xff8ae0, shell: 0xff9af0 } };
 
 // 탄착 경고 구역 (구 하나 = 그리기 1회): 가장자리가 밝은 붉은 구 + 아래에서 차오르는 수위선(탄착까지 남은 시간).
@@ -112,7 +116,7 @@ export class Fleet {
         w.scene.add(model);
         const ud = model.userData;
         const off = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 82 * (side ? -1 : 1);   // 기함을 가운데 두고 양옆으로
-        const sh = { side, big, model, sc, i, style, name: (side ? (style === "ail" ? AIL_NAMES : EIA_NAMES) : ALLY_NAMES)[i] || `함선 ${i + 1}`,
+        const sh = { side, big, model, sc, i, style, role: ROLE_OF(i), name: (side ? (style === "ail" ? AIL_NAMES : EIA_NAMES) : ALLY_NAMES)[i] || `함선 ${i + 1}`,
           C, depth: (i % 2 ? 18 : -10) * sg, axis: axis.clone().multiplyScalar(sg), off, ph: side ? PI : 0,
           A: 0, R: (ud.L * sc) / 2, L: ud.L * sc, W: ud.W * sc, H: ud.H * sc, cool: { broad: rnd(1, 3), beam: rnd(3, 6), msl: rnd(4, 9), pd: 0, flak: 2, barr: rnd(5, 9) + i * 2 },
           smokeT: 0, dead: false, deadT: 0, pos: new V3(), vel: new V3(), goal: new V3(), yaw: 0, roll: 0, pitch: 0, fs: 1,
@@ -409,7 +413,7 @@ export class Fleet {
   }
 
   _fire(sh, dt, me) {
-    const c = sh.cool, col = COL[sh.style];
+    const c = sh.cool, col = COL[sh.style], RK = ROLE[sh.role] || {};
     for (const k in c) c[k] -= dt;
     const slow = sh.retreat ? 1.6 : 1, tk = Math.max(0.15, sh.turK);
     const tgt = sh.tgt && !sh.tgt.dead && Math.random() > dt * 0.1 ? sh.tgt : (sh.tgt = this._pickTarget(sh));
@@ -417,7 +421,7 @@ export class Fleet {
       _d.copy(tgt.pos).sub(sh.pos); const dist = _d.length(); _d.normalize();
       // 현측 포열: 목표 쪽 옆구리의 포가 연달아 쏜다 (부서진 포대는 빠진다)
       if (!(c.broad > 0)) {
-        c.broad = rnd(2.4, 3.6) * (sh.big ? 1 : 1.3) * slow;
+        c.broad = rnd(2.4, 3.6) * (sh.big ? 1 : 1.3) * slow * (RK.broad || 1);
         const rx = Math.cos(sh.yaw), rz = -Math.sin(sh.yaw), sideTo = rx * _d.x + rz * _d.z > 0 ? 1 : -1;
         let gi = 0;
         for (const tr of sh.turrets) {
@@ -441,14 +445,14 @@ export class Fleet {
       }
       // 미사일 일제 사격
       if (!(c.msl > 0)) {
-        c.msl = rnd(9, 13) * (sh.big ? 1 : 1.4) * slow;
-        const n = sh.big ? 6 : 3;
+        c.msl = rnd(9, 13) * (sh.big ? 1 : 1.4) * slow * (RK.msl || 1);
+        const n = (sh.big ? 6 : 3) + (RK.mslN || 0);
         for (let k = 0; k < n; k++) this._missile(sh, tgt, col.msl, k * 0.18);
       }
     }
     // 함포 탄막 (포물선 포탄): 적은 가까운 플레이어 쪽에도 쏜다 — 탄착 원으로 먼저 알린다
     if (!(c.barr > 0)) {
-      c.barr = rnd(9, 13) * (sh.big ? 1 : 1.6) * slow / tk;
+      c.barr = rnd(9, 13) * (sh.big ? 1 : 1.6) * slow / tk * (RK.barr || 1);
       const meOk = sh.side && me && me.alive && this.s.time > (me.spawnGodT || 0) && me.pos.distanceTo(sh.pos) < 280;
       if (meOk && Math.random() < 0.6) this._barrage(sh, null, me);
       else if (tgt) this._barrage(sh, tgt, null);
@@ -458,7 +462,7 @@ export class Fleet {
       const d = me.pos.distanceTo(sh.pos);
       if (!(c.pd > 0)) {
         if (d < 130) {
-          c.pd = rnd(0.9, 1.4) / Math.max(0.35, tk);
+          c.pd = rnd(0.9, 1.4) / Math.max(0.35, tk) * (RK.pd || 1);
           const tr = this._nearestTurret(sh, me.pos);
           if (tr) {
             const from = this._muzzle(sh, tr, new V3()), dir = new V3();

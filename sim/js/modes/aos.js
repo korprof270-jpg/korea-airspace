@@ -506,7 +506,7 @@ export class AosMode extends CombatMode {
   _spawnCampUnit(camp, st) {
     const c = this.combat, d = camp.d;
     camp.members.length = 0;
-    const list = st === 0 ? (d.big ? ["tank", "tank"] : ["tank"]) : [d.big ? "cruiser" : "frigate"];
+    const U = this.combat.units, list = st === 0 ? (d.big ? ["heavytank", U.pickKind("tank")] : [U.pickKind("tank")]) : [d.big ? "cruiser" : U.pickKind("ship")];   // 전차·함선 종류가 섞인다
     list.forEach((type, i) => {
       const elite = d.big && i === 0;
       const r = c.units.spawn(type, { pos: camp.home.clone().add(_v.set(i * 9 - 4, 0, i * 6)), near: true, hp: (st === 0 ? 0.9 : 0.55) * (elite ? 1.6 : 1) * (1 + this.size * 0.08), rank: 2 + st * 3 + (elite ? 2 : 0), scale: elite && st === 0 ? 1.25 : 1 });

@@ -29,9 +29,38 @@ function vents(p, w, h, n, m, x, y, z, depth = 0.12) { for (let k = 0; k < n; k+
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const turn = (cur, want, max) => cur + clamp(wrap(want - cur), -max, max);
 
-export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇", titan: "초거대로봇", siege: "아군 공성 로봇" };
+export const UNIT_NAME = { tank: "전차", aa: "대공 로봇", frigate: "전투함", cruiser: "순양함", mech: "거대로봇", titan: "초거대로봇", siege: "아군 공성 로봇",
+  lighttank: "경전차", heavytank: "중전차", missiletank: "미사일 전차", sniperbot: "저격 로봇", shieldbot: "방패 로봇", mortarbot: "포격 로봇",
+  destroyer: "구축함", carrier: "항모", flagship: "기함" };
 // 에일(외계) 진영 유닛 이름. 외피는 factions.js 의 decorateUnit
-export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체", titan: "거신", siege: "공성 거신체" };
+export const AIL_NAME = { tank: "갑각체", aa: "포자탑", frigate: "순항체", cruiser: "모함", mech: "거신체", titan: "거신", siege: "공성 거신체",
+  lighttank: "질주 갑각체", heavytank: "철갑 갑각체", missiletank: "포자 발사체", sniperbot: "가시탑", shieldbot: "껍질탑", mortarbot: "포자 박격탑",
+  destroyer: "쾌속 순항체", carrier: "둥지 모함", flagship: "여왕 모함" };
+// 유닛 종류별 특징 (같은 몸체를 쓰되 크기·속도·화력·전술이 다르다)
+export const UNIT_INFO = {
+  tank: "균형형 주력 전차", lighttank: "빠르게 측면을 돌며 3연사", heavytank: "느리지만 전면 장갑이 두껍고 한 방이 크다", missiletank: "거리를 두고 미사일 4발 일제 사격",
+  aa: "연사 대공포 + 미사일", sniperbot: "멀리서 충전 저격 — 빛줄기가 보이면 피하라", shieldbot: "정면 방패로 피해 대부분 차단 — 뒤나 옆을 노려라", mortarbot: "포격 경고 원 뒤 곡사 포탄",
+  frigate: "균형형 전투함", destroyer: "빠르게 돌며 어뢰형 미사일 연사", cruiser: "포탑 다수 + 미사일", carrier: "자폭·소형 드론을 계속 띄운다", flagship: "주포 빔 · 근접 방공 · 두꺼운 장갑",
+};
+const VT = {   // 전차 변형
+  tank: {},
+  lighttank: { S: 0.8, speed: 8, turn: 1.6, hp: 0.55, color: 0x8a7a48, burst: 3, dmg: 8, cool: 2.2, score: 200 },
+  heavytank: { S: 1.3, speed: 2.6, turn: 0.5, hp: 2.4, color: 0x3a3f46, dmg: 34, cool: 3.8, front: 0.35, score: 450 },
+  missiletank: { S: 1.0, speed: 3.6, hp: 0.9, color: 0x584a6a, salvo: 4, cool: 9, score: 350, range: 150 },
+};
+const VR = {   // 두 발 보행 로봇 변형
+  aa: {},
+  sniperbot: { hp: 0.8, color: 0x3d5a4a, snipe: true, range: 175, score: 350 },
+  shieldbot: { hp: 1.5, color: 0x4a4a62, shield: true, score: 350 },
+  mortarbot: { hp: 1.1, color: 0x6a5a3a, mortar: true, range: 160, score: 350 },
+};
+const VS = {   // 함선 변형 (big: 큰 선체)
+  frigate: {},
+  destroyer: { L: 0.8, speed: 2.2, hp: 0.7, slots: 2, torp: true, score: 650 },
+  cruiser: {},
+  carrier: { big: true, L: 1.1, hp: 1.2, slots: 2, carrier: true, score: 1600 },
+  flagship: { big: true, L: 1.45, hp: 2.6, slots: 7, beam: true, pd: true, armor: 0.45, score: 2500 },
+};
 
 export class Units {
   constructor(combat) {
@@ -62,7 +91,16 @@ export class Units {
     u.rk = rk; u.root.rk = rk; for (const p of u.parts) p.rk = rk;
     u.type = type; u.t = Math.random() * 10; u.cool = {};
     this.list.push(u);
+    // 처음 보는 종류: 특징을 전투 기록에 한 줄 (판마다 한 번)
+    const seen = this.seen || (this.seen = new Set());
+    if (UNIT_INFO[type] && !seen.has(type) && type !== "siege" && this.c.s.hud) { seen.add(type); this.c.s.hud.feed(`신규 적 · ${UNIT_NAME[type]} — ${UNIT_INFO[type]}`, "#ffb02e"); }
     return u.root;
+  }
+
+  // 무작위 변형: "tank" | "robot" | "ship" | "bigship"
+  pickKind(cls) {
+    const L = { tank: ["tank", "tank", "lighttank", "heavytank", "missiletank"], robot: ["aa", "sniperbot", "shieldbot", "mortarbot"], ship: ["frigate", "destroyer", "destroyer"], bigship: ["cruiser", "carrier", "flagship"] }[cls] || [cls];
+    return L[Math.floor(Math.random() * L.length)];
   }
 
   // 평평하고 비어 있는 지상 자리 (x,z 주변 rad 안)
@@ -181,8 +219,8 @@ export class Units {
 }
 
 // ── 전차 ──────────────────────────────────────────────────
-function makeTank(U, o) {
-  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x4a5a3a), dark = lam(0x23272f), red = glow(o.tc);
+function makeTank(U, o, vk = "tank") {
+  const V = VT[vk] || {}, S = (o.scale || 1) * (V.S || 1), w = U.w, g = new THREE.Group(), body = lam(V.color || 0x4a5a3a), dark = lam(0x23272f), red = glow(o.tc);
   const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 30, 5 * S);
   g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
   box(g, 3.4, 1.0, 5.6, body, 0, 1.0, 0); box(g, 3.0, 0.5, 4.6, body, 0, 1.7, 0.2);
@@ -214,11 +252,18 @@ function makeTank(U, o) {
   }
   const hit = grp(g), hitC = w.rider(hit, [[0, 1.2 * S, 0, 1.9 * S, 1.2 * S, 2.9 * S]], "enemy");
   const u = { group: g, parts: [], yaw: Math.random() * 6.28, home: p.clone(), roam: 35, range: 95, stuck: 0, goalT: 0, ty: 0, tp: 0 };
-  u.root = U.actor(u, o.name || "전차", 2.9 * S, 300 * S * (o.hp || 1), { score: 250, cutR: 13 * S });
+  u.root = U.actor(u, o.name || "전차", 2.9 * S, 300 * S * (o.hp || 1) * (V.hp || 1), { score: V.score || 250, cutR: 13 * S });
   U.own(hitC, u.root);
+  if (V.range) u.range = V.range;
+  if (V.salvo) { gun.visible = false; const L = grp(tur, 0, 1.1, 0.1); box(L, 1.9, 0.9, 1.6, dark); for (let i = 0; i < 4; i++) cyl(L, 0.18, 0.18, 0.12, glow(o.tc, 1.6), -0.6 + (i % 2) * 1.2, 0.2 + Math.floor(i / 2) * 0.35 - 0.2, -0.82, 8).rotation.x = Math.PI / 2; u.launcher = L; }
+  if (V.front) { const pl = lam(0x6a707a); box(g, 3.6, 1.3, 0.35, pl, 0, 1.2, -3.0); box(tur, 2.6, 1.0, 0.3, pl, 0, 0.5, -1.45); }   // 중전차: 앞 증가장갑
+  if (vk === "lighttank") { box(tur, 0.2, 0.2, 1.4, lam(0x15181e), 0.5, 1.05, -0.3); }
   const muzzle = new V3();
   u.update = (dt) => {
-    U.walk(u, dt, 4.5, 0.8, 7, 3.2 * S);
+    U.walk(u, dt, V.speed || 4.5, V.turn || 0.8, 7, 3.2 * S);
+    if (V.front) {   // 정면에서 맞으면 장갑이 대부분 막는다
+      const me = U.c.player; if (me) { _a.copy(me.pos).sub(g.position); const f = -Math.sin(u.yaw) * _a.x - Math.cos(u.yaw) * _a.z; u.root.armor = f > _a.length() * 0.5 ? V.front : 1; }
+    }
     u.root.pos.copy(g.position); u.root.pos.y += 1.5 * S;
     const t = u.target;
     if (t) {
@@ -227,7 +272,16 @@ function makeTank(U, o) {
       tur.rotation.y = u.ty; gun.rotation.x = u.tp;
       if (!(u.cool.gun > 0) && Math.abs(wrap(Math.atan2(-_a.x, -_a.z) - u.yaw - u.ty)) < 0.1) {
         gun.updateWorldMatrix(true, false); muzzle.set(0, 0, -4.2).applyMatrix4(gun.matrixWorld);
-        if (U.clear(muzzle, t, u)) { u.cool.gun = 2.6; U.laser(u, muzzle, U.aim(muzzle, t, 75, 0.03, _b, u), 20, 0xffb84a, 75); U.c.fx.flash(muzzle, 0xffd9a0, 2.2, 0.15); }
+        if (V.salvo) {   // 미사일 전차: 4발 일제 사격 (포 대신)
+          if (!u.cut) { u.launcher.updateWorldMatrix(true, false); for (let i = 0; i < V.salvo; i++) { muzzle.set(-0.6 + (i % 2) * 1.2, 0.4, -0.9).applyMatrix4(u.launcher.matrixWorld); U.c.fireMissile(u.root, muzzle, _b.set(0, 0.6, 0).addScaledVector(_a.clone().normalize(), 1).normalize(), t, 24); } }
+          u.cool.gun = V.cool;
+        } else if (U.clear(muzzle, t, u)) {
+          const n = V.burst || 1;
+          u.burstN = u.burstN > 0 ? u.burstN - 1 : n - 1;
+          u.cool.gun = u.burstN > 0 ? 0.22 : (V.cool || 2.6);
+          U.laser(u, muzzle, U.aim(muzzle, t, 75, V.burst ? 0.05 : 0.03, _b, u), V.dmg || 20, vk === "heavytank" ? 0xff7a2a : 0xffb84a, vk === "heavytank" ? 60 : 75);
+          U.c.fx.flash(muzzle, 0xffd9a0, vk === "heavytank" ? 3.4 : 2.2, 0.15);
+        }
       }
     }
   };
@@ -237,8 +291,8 @@ function makeTank(U, o) {
 }
 
 // ── 대공 로봇 (두 발 보행) ─────────────────────────────────
-function makeAA(U, o) {
-  const S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(0x55607a), dark = lam(0x22262e), eye = glow(o.tc);
+function makeAA(U, o, vk = "aa") {
+  const V = VR[vk] || {}, S = o.scale || 1, w = U.w, g = new THREE.Group(), body = lam(V.color || 0x55607a), dark = lam(0x22262e), eye = glow(o.tc);
   const p = U.groundSpot(o.pos ? o.pos.x : 0, o.pos ? o.pos.z : 0, 30, 4 * S);
   g.position.copy(p); g.scale.setScalar(S); w.scene.add(g);
   const hip = grp(g, 0, 3.6, 0);
@@ -275,10 +329,29 @@ function makeAA(U, o) {
   }
   const hit = grp(g), hitC = w.rider(hit, [[0, 4.4 * S, 0, 1.5 * S, 1.1 * S, 1.4 * S]], "enemy");
   const u = { group: g, parts: [], yaw: Math.random() * 6.28, home: p.clone(), roam: 30, range: 110, stuck: 0, goalT: 0, ty: 0, ph: 0, burst: 0 };
-  u.root = U.actor(u, o.name || "대공 로봇", 2.5 * S, 230 * S * (o.hp || 1), { score: 250, cutR: 14 * S });
+  u.root = U.actor(u, o.name || "대공 로봇", 2.5 * S, 230 * S * (o.hp || 1) * (V.hp || 1), { score: V.score || 250, cutR: 14 * S });
   U.own(hitC, u.root);
-  const mz = new V3();
+  if (V.range) u.range = V.range;
+  let shieldM = null;
+  if (V.shield) {   // 방패 로봇: 몸 앞에 육각 에너지 방패
+    shieldM = new THREE.Mesh(new THREE.CircleGeometry(2.6, 6), new THREE.MeshBasicMaterial({ color: 0x5ab4ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+    shieldM.position.set(0, 0.9, -2.2); top.add(shieldM);
+  }
+  if (V.snipe) { for (const pd of pods) pd.visible = false; const rail = grp(top, 0, 1.0, -0.4); box(rail, 0.5, 0.5, 1.6, dark); cyl(rail, 0.12, 0.12, 5.2, dark, 0, 0, -3.2, 6).rotation.x = Math.PI / 2; u.rail = rail; }
+  if (V.mortar) { for (const pd of pods) pd.visible = false; const tube = grp(top, 0, 1.4, 0.3); cyl(tube, 0.5, 0.55, 2.2, dark, 0, 1.0, 0, 10); tube.rotation.x = -0.6; u.tube = tube; }
+  const mz = new V3(), beamM = V.snipe ? new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: 0xff3040, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })) : null;
+  if (beamM) { beamM.visible = false; w.scene.add(beamM); }
+  const shells = [];
   u.update = (dt) => {
+    // 포격 탄: 경고 원 → 낙하 → 범위 피해
+    for (let i = shells.length - 1; i >= 0; i--) {
+      const sh = shells[i]; sh.t -= dt;
+      if (sh.t <= 0) {
+        shells.splice(i, 1); U.boom(sh.p, 1.4);
+        for (const a of U.c.actors) if (a.alive && a.targetable && U.c.hostile(u.root, a)) { const d = a.pos.distanceTo(sh.p); if (d < 11) U.c.damage(a, 26 * (1 - d / 13), u.root, sh.p); }
+      } else if (Math.random() < dt * 8) U.c.fx.ring(sh.p, 0xff5a3a, 11, 0.3);
+    }
+    if (shieldM) { const me = U.c.player; if (me) { _a.copy(me.pos).sub(u.root.pos); const fw = new V3(0, 0, -1).applyAxisAngle(new V3(0, 1, 0), u.yaw + u.ty); u.root.armor = fw.dot(_a.normalize()) > 0.35 ? 0.15 : 1; } shieldM.material.opacity = 0.25 + 0.12 * Math.sin(u.t * 6); }
     const v = U.walk(u, dt, 3.2, 1.2, 6, 2.6 * S);
     u.ph += dt * (v > 0 ? 5 : 0);
     legs.forEach((l, i) => { const a = Math.sin(u.ph + i * Math.PI) * (v > 0 ? 0.5 : 0); l.th.rotation.x = a; l.kn.rotation.x = Math.max(0, -a) * 1.2; });
@@ -289,7 +362,21 @@ function makeAA(U, o) {
     _a.copy(t.pos).sub(u.root.pos);
     const want = Math.atan2(-_a.x, -_a.z) - u.yaw, pit = clamp(Math.atan2(_a.y, Math.hypot(_a.x, _a.z)), -0.3, 1.35);
     u.ty = turn(u.ty, want, 2.4 * dt); top.rotation.y = u.ty; for (const pd of pods) pd.rotation.x = pit;
-    if (Math.abs(wrap(want - u.ty)) > 0.12) return;
+    if (Math.abs(wrap(want - u.ty)) > 0.12) { if (beamM) beamM.visible = false; return; }
+    if (V.snipe) {   // 충전 1.3초(빨간 조준선) → 강한 한 발
+      u.rail.updateWorldMatrix(true, false); mz.set(0, 0, -5.8).applyMatrix4(u.rail.matrixWorld);
+      if (!(u.cool.gun > 0) && U.clear(mz, t, u)) {
+        u.charge = (u.charge || 0) + dt;
+        beamM.visible = true; const L = mz.distanceTo(t.pos); beamM.scale.set(1, L, 1); beamM.position.copy(mz).lerp(t.pos, 0.5); beamM.lookAt(t.pos); beamM.rotateX(Math.PI / 2);
+        beamM.material.opacity = 0.25 + 0.5 * Math.min(1, u.charge / 1.3);
+        if (u.charge >= 1.3) { u.charge = 0; u.cool.gun = 5; beamM.visible = false; if (!(t.isPlayer && t.dodgeT > 0)) U.laser(u, mz, U.aim(mz, t, 220, 0.012, _b, u), 30, 0xff3040, 220); }
+      } else { u.charge = 0; beamM.visible = false; }
+      return;
+    }
+    if (V.mortar) {   // 목표 발밑에 경고 원 → 1.8초 뒤 낙하
+      if (!(u.cool.gun > 0) && !u.cut) { u.cool.gun = 4.2; const p = t.pos.clone(); p.y = w.h(p.x, p.z) + 1; p.x += (Math.random() - 0.5) * 6; p.z += (Math.random() - 0.5) * 6; shells.push({ p, t: 1.8 }); U.c.fx.ring(p, 0xff5a3a, 11, 0.6); U.c.snd.play("warn", U.c.volAt(p) * 0.5, U.c.panAt(p)); }
+      return;
+    }
     if (!(u.cool.gun > 0)) {
       if (u.burst <= 0) u.burst = 6;
       const pd = pods[u.burst % 2]; pd.updateWorldMatrix(true, false); mz.set(0, 0, -3).applyMatrix4(pd.matrixWorld);
@@ -297,7 +384,7 @@ function makeAA(U, o) {
     }
     if (!(u.cool.msl > 0) && _a.length() > 28) { u.cool.msl = 7.5; rack.updateWorldMatrix(true, false); mz.set(0, 0.8, 0).applyMatrix4(rack.matrixWorld); if (!u.cut) U.c.fireMissile(u.root, mz, _b.set(0, 1, 0).addScaledVector(_a.normalize(), 0.6).normalize(), t, 26); }
   };
-  u.onDeath = () => { for (const pd of pods) U.chunk(pd, new V3((Math.random() - 0.5) * 8, 8, (Math.random() - 0.5) * 8)); hit.visible = false; };
+  u.onDeath = () => { for (const pd of pods) if (pd.visible) U.chunk(pd, new V3((Math.random() - 0.5) * 8, 8, (Math.random() - 0.5) * 8)); hit.visible = false; if (beamM) { beamM.visible = false; w.scene.remove(beamM); } if (shieldM) shieldM.visible = false; };
   u.dying = (dt) => {   // 무릎이 꺾이며 앞으로 고꾸라진다
     const k = Math.min(1, u.deadT / 0.9), e = k * k;
     hip.position.y = 3.6 - 2.3 * e; hip.rotation.x = -1.1 * e; for (const l of legs) { l.th.rotation.x = 0.9 * e; l.kn.rotation.x = 1.5 * e; }
@@ -380,18 +467,23 @@ function shipHull(g, Lh, Wd, Ht, big, hullM, dark, trim, eng, u) {
   }
 }
 
-function makeShip(U, o, big) {
-  const w = U.w, g = new THREE.Group(), hullM = lam(big ? 0x3a4458 : 0x4a5568), dark = lam(0x1f2430), trim = glow(o.tc, 1.8), eng = glow(0x5ad8ff, 2.6);
-  const Lh = big ? 46 : 28, Wd = big ? 9 : 6.5, Ht = big ? 5 : 4;
+function makeShip(U, o, big, vk) {
+  const V = VS[vk || (big ? "cruiser" : "frigate")] || {};
+  const w = U.w, g = new THREE.Group(), hullM = lam(vk === "flagship" ? 0x2a2f3c : vk === "carrier" ? 0x40485a : big ? 0x3a4458 : 0x4a5568), dark = lam(0x1f2430), trim = glow(o.tc, 1.8), eng = glow(vk === "destroyer" ? 0xffb040 : 0x5ad8ff, 2.6);
+  const kL = V.L || 1, Lh = (big ? 46 : 28) * kL, Wd = (big ? 9 : 6.5) * Math.sqrt(kL), Ht = (big ? 5 : 4) * Math.sqrt(kL);
   const home = o.home || o.pos || new V3(0, 0, 0), alt = Math.max(w.h(home.x, home.z) + (big ? 46 : 36), (o.pos ? o.pos.y : 0));
   const u = { group: g, parts: [], home: new V3(home.x, Math.min(alt, w.ceiling - 12), home.z), ang: Math.random() * 6.28, R: Math.min(w.size * 0.45, big ? 85 : 65), range: 130, yaw: 0 };
   w.scene.add(g);
   shipHull(g, Lh, Wd, Ht, big, hullM, dark, trim, eng, u);
   const hit = grp(g), hitC = w.rider(hit, [[0, 0, 0, Wd * 0.5, Ht * 0.5, Lh * 0.4], [0, Ht * 0.9, Lh * 0.12, Wd * 0.25, Ht * 0.5, Lh * 0.08], [0, 0, -Lh * 0.44, Wd * 0.36, Ht * 0.4, Lh * 0.11]], "enemy");
-  u.root = U.actor(u, o.name || (big ? "순양함" : "전투함"), big ? 9 : 6.5, (big ? 1300 : 650) * (o.hp || 1), { score: big ? 1500 : 700, armor: 0.6, cutR: big ? 52 : 36 });
+  u.root = U.actor(u, o.name || (big ? "순양함" : "전투함"), (big ? 9 : 6.5) * kL, (big ? 1300 : 650) * (o.hp || 1) * (V.hp || 1), { score: V.score || (big ? 1500 : 700), armor: V.armor || 0.6, cutR: (big ? 52 : 36) * kL });
   U.own(hitC, u.root);   // 선체 어디를 맞혀도 본체 피해 (함포가 남아 있는 동안은 장갑 0.6배)
   // 포탑(부위): 갑판 위·아래
-  const slots = big ? [[0, 1, -0.32], [0, 1, -0.1], [0, -1, -0.2], [0, -1, 0.15], [0, 1, 0.3]] : [[0, 1, -0.25], [0, -1, 0], [0, 1, 0.3]];
+  let slots = big ? [[0, 1, -0.32], [0, 1, -0.1], [0, -1, -0.2], [0, -1, 0.15], [0, 1, 0.3]] : [[0, 1, -0.25], [0, -1, 0], [0, 1, 0.3]];
+  if (V.slots === 7) slots = [[0, 1, -0.38], [0, 1, -0.2], [0, 1, 0.05], [0, 1, 0.3], [0, -1, -0.25], [0, -1, 0.05], [0, -1, 0.3]];
+  else if (V.slots) slots = slots.slice(0, V.slots);
+  if (V.carrier) { const deckM = lam(0x2a303c); box(g, Wd * 1.25, 0.5, Lh * 0.8, deckM, 0, Ht * 0.55, 0.05 * Lh); for (let i = 0; i < 6; i++) box(g, 0.3, 0.06, 2.2, glow(0xffd24a, 1.4), 0, Ht * 0.55 + 0.3, -Lh * 0.32 + i * Lh * 0.12); }   // 비행갑판
+  if (vk === "flagship") { box(g, Wd * 0.45, Ht * 1.2, Lh * 0.12, hullM, 0, Ht * 1.3, Lh * 0.12); const mainG = grp(g, 0, Ht * 0.75, -Lh * 0.44); cyl(mainG, 0.9, 1.1, 7, dark, 0, 0, -3.5, 10).rotation.x = Math.PI / 2; u.mainG = mainG; }   // 기함: 높은 함교 + 함수 주포
   u.turrets = slots.map(([x, sy, z], i) => {
     const tg = grp(g, x, sy * (Ht * 0.5 + 0.1), z * Lh); if (sy < 0) tg.rotation.z = Math.PI;
     const base = grp(tg); cyl(base, 1.3, 1.5, 0.7, dark, 0, 0.35, 0, 10);
@@ -417,8 +509,9 @@ function makeShip(U, o, big) {
     return Math.min(y, top);
   };
   u.alt = safeAlt(u.ang);
+  const drones = [];
   u.update = (dt) => {
-    u.ang += (5.5 / u.R) * dt;
+    u.ang += (5.5 * (V.speed || 1) / u.R) * dt;
     const px = u.home.x + Math.cos(u.ang) * u.R, pz = u.home.z + Math.sin(u.ang) * u.R;
     if ((u.altT = (u.altT || 0) - dt) <= 0) { u.altT = 0.3; u.altWant = Math.max(safeAlt(u.ang), safeAlt(u.ang + 18 / u.R), safeAlt(u.ang + 36 / u.R)); }
     u.alt += clamp(u.altWant - u.alt, -6 * dt, 9 * dt);   // 앞에 산·건물이 있으면 미리 떠오르고, 지나가면 천천히 내려온다
@@ -427,7 +520,7 @@ function makeShip(U, o, big) {
     if (u.radar) { u.radar.rotation.y += dt * 1.6; u.beacon.visible = Math.sin(u.t * 5) > 0.3; }
     u.root.pos.copy(g.position);
     const alive = u.turrets.filter((t) => t.a.alive).length;
-    u.root.armor = alive ? 0.6 : 1;
+    u.root.armor = alive ? (V.armor || 0.6) : V.armor ? 0.8 : 1;   // 기함은 포탑이 다 부서져도 장갑이 남는다
     const t = u.target;
     g.updateWorldMatrix(true, true);
     for (const tr of u.turrets) {
@@ -445,7 +538,25 @@ function makeShip(U, o, big) {
         if (U.clear(mz, t, u)) { tr.cool = 1.5; U.laser(u, mz, U.aim(mz, t, 100, 0.045, _b, u), 7, 0xff4a5a, 100); } else tr.cool = 0.5;
       }
     }
-    if (big && t && !(u.cool.msl > 0)) { u.cool.msl = 6.5; for (const sx of [-1, 1]) { mz.set(sx * Wd * 0.4, Ht * 0.7, -Lh * 0.1).applyMatrix4(g.matrixWorld); if (!u.cut) U.c.fireMissile(u.root, mz, _b.set(sx * 0.4, 1, 0).normalize(), t, 28); } }
+    if (big && !V.carrier && t && !(u.cool.msl > 0)) { u.cool.msl = 6.5; for (const sx of [-1, 1]) { mz.set(sx * Wd * 0.4, Ht * 0.7, -Lh * 0.1).applyMatrix4(g.matrixWorld); if (!u.cut) U.c.fireMissile(u.root, mz, _b.set(sx * 0.4, 1, 0).normalize(), t, 28); } }
+    // 구축함: 함수에서 어뢰형 미사일 2발 연사 (자주)
+    if (V.torp && t && !(u.cool.torp > 0) && !u.cut) { u.cool.torp = 4; for (const sx of [-1, 1]) { mz.set(sx * 1.2, 0, -Lh * 0.55).applyMatrix4(g.matrixWorld); U.c.fireMissile(u.root, mz, _b.set(-Math.sin(u.yaw), -0.1, -Math.cos(u.yaw)).normalize(), t, 30); } }
+    // 항모: 소형 드론을 띄운다 (동시에 최대 4기)
+    if (V.carrier && !(u.cool.launch > 0) && !u.cut) {
+      u.cool.launch = 9;
+      for (let i = drones.length - 1; i >= 0; i--) if (!drones[i].alive) drones.splice(i, 1);
+      if (drones.length < 4 && U.c.spawnBot) { mz.set(0, Ht * 0.8, Lh * 0.3).applyMatrix4(g.matrixWorld); const b = U.c.spawnBot({ kind: Math.random() < 0.5 ? "kamikaze" : "grunt", team: u.root.team, pos: mz.clone(), temp: true, name: "함재 드론" }); if (b) { drones.push(b); U.c.fx.ring(mz, 0xffd24a, 5, 0.4); } }
+    }
+    // 기함: 함수 주포 빔 (경고 1초 뒤 굵은 빔) + 근접 방공(가까운 미사일을 떨어뜨린다)
+    if (V.beam && t && u.mainG && !u.cut) {
+      u.mainG.updateWorldMatrix(true, false); mz.set(0, 0, -7.5).applyMatrix4(u.mainG.matrixWorld);
+      if (!(u.cool.beam > 0) && !u.beamT && U.clear(mz, t, u)) { u.beamT = 1; U.c.fx.flash(mz, 0xff3040, 5, 1); U.c.snd.play("warn", U.c.volAt(mz) * 0.6, U.c.panAt(mz)); }
+      if (u.beamT && (u.beamT -= dt) <= 0) { u.beamT = 0; u.cool.beam = 7; U.laser(u, mz, U.aim(mz, t, 260, 0.02, _b, u), 40, 0xff3040, 260); U.c.fx.flash(mz, 0xffb0b0, 6, 0.3); }
+    }
+    if (V.pd && !(u.cool.pd > 0)) {
+      u.cool.pd = 0.6;
+      for (const m of U.c.missiles || []) if (m.alive !== false && m.owner && m.owner.isPlayer && m.pos && m.pos.distanceTo(g.position) < Lh * 0.9 && Math.random() < 0.45) { m.life = 0; U.c.fx.explosion(m.pos, 0.6); break; }
+    }
   };
   u.onDeath = () => { u.vy = 0; u.rollV = (Math.random() < 0.5 ? -1 : 1) * 0.35; U.boom(g.position, 3); };
   u.dying = (dt) => {   // 불타며 기울어 추락
@@ -460,12 +571,15 @@ function makeShip(U, o, big) {
 
 const MAKE = {
   tank: makeTank, aa: makeAA, frigate: (U, o) => makeShip(U, o, false), cruiser: (U, o) => makeShip(U, o, true), mech: makeMech,
+  lighttank: (U, o) => makeTank(U, o, "lighttank"), heavytank: (U, o) => makeTank(U, o, "heavytank"), missiletank: (U, o) => makeTank(U, o, "missiletank"),
+  sniperbot: (U, o) => makeAA(U, o, "sniperbot"), shieldbot: (U, o) => makeAA(U, o, "shieldbot"), mortarbot: (U, o) => makeAA(U, o, "mortarbot"),
+  destroyer: (U, o) => makeShip(U, o, false, "destroyer"), carrier: (U, o) => makeShip(U, o, true, "carrier"), flagship: (U, o) => makeShip(U, o, true, "flagship"),
   titan: (U, o) => makeMech(U, Object.assign({ scale: 2.4, boss: true }, o)),                                   // 초거대로봇: 큰 거대로봇
   siege: (U, o) => makeMech(U, Object.assign({ scale: 1.5, team: 0, siege: true, speed: 1.4 }, o)),                        // 아군 공성 로봇 (호위하면 전진)
 };
 // 계급·이름·진영 외피는 같은 모델을 쓰는 기본 종류로
-const BASE = { titan: "mech", siege: "mech" };
-const FAR = { titan: 230, mech: 190, frigate: 170, cruiser: 190 };   // 등장 최소 거리(m)
+const BASE = { titan: "mech", siege: "mech", lighttank: "tank", heavytank: "tank", missiletank: "tank", sniperbot: "aa", shieldbot: "aa", mortarbot: "aa", destroyer: "frigate", carrier: "cruiser", flagship: "cruiser" };
+const FAR = { titan: 230, mech: 190, frigate: 170, cruiser: 190, destroyer: 160, carrier: 200, flagship: 230 };   // 등장 최소 거리(m)
 
 // ── 전투기 모델 (AI 드론 종류 "jet" 이 쓴다): 기수는 -Z ──
 export function buildJet(color) {
