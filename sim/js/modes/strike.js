@@ -9,6 +9,10 @@ import { CombatMode } from "./combatmode.js";
 import { drawCombatHud } from "../combathud.js";
 import { clamp, fmtTime, submitRecord, records } from "../config.js";
 import { registerMode } from "../session.js";
+import { NetGame } from "../netgame.js";
+// 같은 씨앗이면 모두 같은 수열: 협동에서 모든 화면에 같은 적이 같은 자리에 나오게
+const mul32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const KINDS = { tank: ["tank", "tank", "lighttank", "heavytank", "missiletank"], robot: ["aa", "sniperbot", "shieldbot", "mortarbot"], ship: ["frigate", "destroyer", "destroyer"] };
 
 const V3 = THREE.Vector3, _v = new V3();
 const rnd = (a, b) => a + Math.random() * (b - a), pick = (L) => L[Math.floor(Math.random() * L.length)];
@@ -45,12 +49,20 @@ export class StrikeMode extends CombatMode {
     this.duration = 3600; this.title = "서바이벌 · 돌파 작전";
     this.recKey = `strike:${session.map.id}`;
     this.lives = LIVES; this.si = -1; this.phase = "go"; this.list = []; this.wave = 0; this.route = [];
+    // 협동: cfg.coop = { ids: [참가자 peer…], host, seed, name }. 방장이 진행(구역 진입·갈림길·다음 파)을 정하고 모두 따른다
+    this.co = cfg.coop || null;
+    this.ng = new NetGame(this, cfg.net || null);
+    this.auth = !this.co || !this.ng.online || this.co.host === this.ng.myId;
+    this.seed = this.co ? this.co.seed : Math.floor(Math.random() * 1e9);
+    this.km = new Set(); this.bd = {}; this.myBossDmg = {}; this.out = false; this.wk = -1; this.syncT = 0;
     this.gfx = []; this.gates = null; this.endT = -1; this.cleared = 0; this.kills = 0; this.bossDead = false; this.noHit = true;
   }
 
   start() {
     const s = this.s, w = s.world, mc = s.map.combat;
-    const c = this.initCombat({ onKill: (a, k) => this._onKill(a, k), spawnPoint: (a) => this._spawn(a) });
+    const c = this.initCombat({ onKill: (a, k) => this._onKill(a, k), onDamage: (a, amt, k) => this._onDmg(a, amt, k), spawnPoint: (a) => this._spawn(a) });
+    this.ng.attach(c);
+    if (this.co) this.me.name = this.co.name || "파일럿";
     const A = new V3(mc.blue[0], 0, mc.blue[1]), B = new V3(mc.red[0], 0, mc.red[1]), lim = w.size - 25;
     const axis = B.clone().sub(A).setY(0); const L = axis.length(); axis.normalize();
     const side = new V3(-axis.z, 0, axis.x), half = Math.min(w.size * 0.55, Math.max(60, L * 0.32));
@@ -69,6 +81,11 @@ export class StrikeMode extends CombatMode {
     ];
     const sp = this._spawn(this.me); this.placePlayer(sp.pos, sp.yaw);
     c.scatterPickups(4);
+    // 혼자면 AI 윙맨 3기가 함께 (4기 편대)
+    if (!this.co || this.co.ids.length <= 1) for (let i = 0; i < 3; i++) {
+      const b = c.spawnBot({ kind: "ace", team: 0, respawns: true, hpScale: 1.4, leader: this.me, slot: i, name: ["윙맨 매", "윙맨 송골", "윙맨 참매"][i] });
+      b.pos.copy(this._spawn(b).pos); b.model.position.copy(b.pos);
+    }
     this._next();
   }
 
@@ -137,7 +154,9 @@ export class StrikeMode extends CombatMode {
     this._spawnWave(st.waves[0]);
   }
   // 보스 한 마리(또는 n 마리): 스테이지 보스는 등장 연출, 중간 보스는 알림 + 체력 막대
+  _rng() { this.R = mul32((this.seed ^ (this.si * 7919 + this.wave * 104729)) >>> 0); const r = this.R; this.rr = (a, b) => a + r() * (b - a); this.rp = (L) => L[Math.floor(r() * L.length)]; }
   _spawnBoss(key, isBoss, final) {
+    this._rng(); const rnd = this.rr;
     const c = this.combat, C = this.target, B = BOSS[key], st = this.plan[this.si], lvl = 1 + this.si * 0.06;
     const n = B.n || 1, out = [];
     for (let i = 0; i < n; i++) {
@@ -161,14 +180,16 @@ export class StrikeMode extends CombatMode {
   }
   _spawnWave(spec) {
     const c = this.c || this.combat, C = this.target, st = this.plan[this.si], lvl = this.si * 0.08;
-    if (spec && !Array.isArray(spec)) { this.list = this._spawnBoss(spec.boss || spec.mid, !!spec.boss, !!spec.final); this.wave++; return; }
+    this.wk = this.si * 100 + this.wave; this.km.clear();
+    if (spec && !Array.isArray(spec)) { this.list = this._spawnBoss(spec.boss || spec.mid, !!spec.boss, !!spec.final); this.list.forEach((a, i) => { a.sx = i; a.wk = this.wk; }); this.wave++; return; }
+    this._rng(); const rnd = this.rr, pick = this.rp;
     for (let i = 0; i < spec.length; i += 2) {
       const kind = spec[i], n = spec[i + 1];
       for (let j = 0; j < n; j++) {
         const p = C.clone().addScaledVector(this.axis, rnd(25, 70)).add(new V3(rnd(-45, 45), 0, rnd(-45, 45)));
         let a = null;
         if (kind === "tank" || kind === "robot" || kind === "ship" || kind === "carrier" || kind === "mech") {
-          const type = kind === "tank" ? c.units.pickKind("tank") : kind === "robot" ? c.units.pickKind("robot") : kind === "ship" ? c.units.pickKind("ship") : kind;
+          const type = KINDS[kind] ? pick(KINDS[kind]) : kind;
           p.y = this.s.world.h(p.x, p.z);
           a = c.units.spawn(type, { pos: p, near: true, home: p.clone(), hp: kind === "mech" ? 1.1 : 1 });
           if (kind === "mech") this.bossIntro(a, a.name, `${st.name} · 중간 보스`, true);
@@ -179,18 +200,27 @@ export class StrikeMode extends CombatMode {
           if (a && a.ai) a.ai.home = C;
           if (bk === "gunship") this.bossIntro(a, a.name, st.name, true);
         }
-        if (a) this.list.push(a);
+        if (a) { a.sx = this.list.length; a.wk = this.wk; this.list.push(a); }
       }
     }
     this.wave++;
     if (this.wave > 1) this.s.hud.toast(`적 ${this.wave}파`, "#ff8a3a", 1.2, 22);
   }
+  _onDmg(a, amt, k) {
+    if (k === this.me && amt > 0 && a.wk === this.wk && (a.isStageBoss || a.isMidBoss || a.unit)) this.myBossDmg[a.sx] = (this.myBossDmg[a.sx] || 0) + amt;
+  }
   _onKill(a, k) {
     const h = this.s.hud, me = this.me;
+    if (a.wk === this.wk && a.sx !== undefined) this.km.add(a.sx);   // 협동: 이 적은 모두의 화면에서 사라진다
+    if (a.remoteKill) { if (a.stBoss) { this.bossDead = true; this.endT = 3.5; h.toast("최종 보스 격파 — 작전 성공!", "#35ff7a", 3, 32); } return; }
     if (a === me) {
       this.lives--; this.noHit = false;
       h.toast(this.lives > 0 ? `격추! 남은 목숨 ${this.lives}` : "목숨을 모두 잃었습니다", "#ff6b5a", 2, 26);
-      if (this.lives <= 0) { me.respawns = false; this.endT = 2.2; }
+      if (this.lives <= 0) {
+        me.respawns = false;
+        if (this.co && this.ng.online) { this.out = true; this.ng.setField("out", 1); h.toast("목숨 소진 — 팀원을 관전합니다", "#ff8a3a", 2.4, 22); }
+        else this.endT = 2.2;
+      }
       return;
     }
     if (k === me && a.team !== 0) {
@@ -207,16 +237,20 @@ export class StrikeMode extends CombatMode {
     super.update(dt);
     if (this.state !== "run") return;
     const me = this.me, st = this.plan[this.si];
+    this.ng.update(dt);
+    if (this.co && this.ng.online && (this.syncT -= dt) <= 0) { this.syncT = 0.25; this._coop(); }
+    if (this.out) this._spectate(dt);
     if (this.endT > 0 && (this.endT -= dt) <= 0) return this._end();
     if (!st || this.endT > 0) return;
     const t = this.s.time;
     for (const m of this.gfx) if (m.geometry.type === "TorusGeometry") m.rotation.z += dt * 0.8;
     if (this.phase === "go") {
-      if (me.alive && Math.hypot(me.pos.x - this.target.x, me.pos.z - this.target.z) < 38) this._enter(st);
+      if (me.alive && Math.hypot(me.pos.x - this.target.x, me.pos.z - this.target.z) < 38) { if (this.auth) this._enter(st); else this.ng.setField("en", this.si); }
     } else if (this.phase === "fork") {
       for (const g of this.gates) {
         g.ring.material.opacity = 0.6 + 0.3 * Math.sin(t * 4);
         if (me.alive && Math.hypot(me.pos.x - g.p.x, me.pos.z - g.p.z) < 17 && Math.abs(me.pos.y - g.p.y) < 30) {
+          if (!this.auth) { this.ng.setField("gk", [this.si, g.k]); continue; }
           this.route.push(g.k);
           this.s.hud.toast(`루트 ${g.k} · ${ROUTE[g.k].name} 진입!`, ROUTE[g.k].css, 2.2, 28); this.s.game.sound.play("gate");
           this.gates = null; this._next(); return;
@@ -225,7 +259,7 @@ export class StrikeMode extends CombatMode {
     } else if (this.phase === "fight") {
       const left = this.list.filter((a) => a.alive).length;
       this.left = left;
-      if (!left && !this.cut) {
+      if (!left && !this.cut && this.auth) {
         if (st.waves && this.wave < st.waves.length) this._spawnWave(st.waves[this.wave]);
         else if (st.kind !== "boss") {
           this.cleared++; me.score += 500;
@@ -235,6 +269,63 @@ export class StrikeMode extends CombatMode {
         }
       }
     }
+  }
+
+  // ── 협동 동기화 (0.25초마다) ──
+  _coop() {
+    const ng = this.ng, me = this.me, c = this.combat, ids = this.co.ids, others = ng.players().filter((p) => !p.me);
+    // 방장이 나가면 내가 이어서 진행
+    if (!this.auth) { if (!others.some((p) => p.id === this.co.host)) { this.hostGone = (this.hostGone || 0) + 0.25; if (this.hostGone > 5) { this.auth = true; this.s.hud.toast("방장이 나가 이어서 진행합니다", "#ffb02e", 2.2, 20); } } else this.hostGone = 0; }
+    // 내 상태 싣기
+    ng.setField("kl", [this.wk, [...this.km]]);
+    ng.setField("bd", [this.wk, this.myBossDmg]);
+    ng.setField("sc", Math.round(me.score));
+    // 다른 사람이 잡은 적은 내 화면에서도 격추 / 보스 체력은 모두가 준 피해를 합쳐서
+    const tot = {};
+    for (const [k, v] of Object.entries(this.myBossDmg)) tot[k] = v;
+    for (const p of others) {
+      const kl = ng.field(p.id, "kl");
+      if (Array.isArray(kl) && kl[0] === this.wk && Array.isArray(kl[1])) for (const i of kl[1]) { const a = this.list[i | 0]; if (a && a.alive) { a.remoteKill = true; c.kill(a, null); } }
+      const bd = ng.field(p.id, "bd");
+      if (Array.isArray(bd) && bd[0] === this.wk && bd[1] && typeof bd[1] === "object") for (const [k, v] of Object.entries(bd[1])) tot[k] = (tot[k] || 0) + Math.max(0, Math.min(1e6, +v || 0));
+    }
+    for (const [k, d] of Object.entries(tot)) { const a = this.list[k | 0]; if (a && a.alive) { const want = a.maxHp - d; if (want < a.hp) a.hp = Math.max(0, want); if (a.hp <= 0.5) c.kill(a, null); } }
+    if (this.auth) {
+      // 방장: 다른 사람이 구역에 들어갔거나 갈림길 입구에 들어갔는지
+      const st = this.plan[this.si];
+      if (st && this.phase === "go" && others.some((p) => ng.field(p.id, "en") === this.si)) this._enter(st);
+      if (st && this.phase === "fork") for (const p of others) { const gk = ng.field(p.id, "gk"); if (Array.isArray(gk) && gk[0] === this.si && ROUTE[gk[1]]) { this.route.push(gk[1]); this.s.hud.toast(`루트 ${gk[1]} · ${ROUTE[gk[1]].name} 진입!`, ROUTE[gk[1]].css, 2.2, 28); this.gates = null; this._next(); break; } }
+      // 모두 목숨을 잃었으면 실패
+      const live = [me, ...others.map((p) => p.actor)].filter((a, i) => (i === 0 ? !this.out : !ng.field(others[i - 1].id, "out"))).length;
+      if (!live && this.endT < 0) this.endT = 2.5;
+      ng.setField("pg", { si: this.si, w: this.wave, ph: this.phase, rt: this.route.slice(), fin: this.bossDead ? 1 : 0, fail: !live ? 1 : 0 });
+      return;
+    }
+    // 손님: 방장 진행을 따라간다
+    const pg = ng.field(this.co.host, "pg");
+    if (!pg || typeof pg !== "object") return;
+    if (Array.isArray(pg.rt)) this.route = pg.rt.filter((r) => ROUTE[r]).slice(0, 2);
+    let guard = 0;
+    while (pg.si > this.si && guard++ < 10) { if (this.phase === "fight") this.cleared++; this._next(); }
+    const st = this.plan[this.si];
+    if (st && pg.si === this.si && pg.ph === "fight" && this.phase !== "fight") this._enter(st);
+    if (st && this.phase === "fight" && st.waves) while (pg.w > this.wave && this.wave < st.waves.length && guard++ < 10) this._spawnWave(st.waves[this.wave]);
+    if (pg.fin && !this.bossDead) { this.bossDead = true; this.endT = 3.5; this.s.hud.toast("최종 보스 격파 — 작전 성공!", "#35ff7a", 3, 32); }
+    if (pg.fail && this.endT < 0) this.endT = 2.5;
+  }
+  // 목숨을 다 쓴 사람: 살아 있는 팀원 뒤를 따라다니며 본다
+  _spectate(dt) {
+    const s = this.s, pl = s.player, b = pl.body, me = this.me;
+    pl.frozen = true; if (pl.model) pl.model.visible = false; me.targetable = false;
+    const mates = this.ng.players().filter((p) => !p.me && p.actor && !this.ng.field(p.id, "out")).map((p) => p.actor);
+    if (s.game.input.take("fire")) this.specI = (this.specI || 0) + 1;
+    const t = mates.length ? mates[(this.specI || 0) % mates.length] : null;
+    this.specT = t;
+    if (!t) return;
+    _v.set(0, 0, 1).applyQuaternion(t.quat || b.quat); _v.y = 0; if (_v.lengthSq() < 0.01) _v.set(0, 0, 1); _v.normalize();
+    const want = t.pos.clone().addScaledVector(_v, 10).add(new V3(0, 4, 0));
+    b.pos.lerp(want, Math.min(1, dt * 3)); b.vel.set(0, 0, 0);
+    const m = new THREE.Matrix4().lookAt(b.pos, t.pos, new V3(0, 1, 0)); b.quat.setFromRotationMatrix(m);
   }
 
   missionObjective(o) {
@@ -257,6 +348,11 @@ export class StrikeMode extends CombatMode {
     const cw = st && st.waves ? st.waves[Math.max(0, this.wave - 1)] : null, tag = cw && !Array.isArray(cw) ? (cw.boss ? " · 스테이지 보스" : " · 중간 보스") : "";
     const sub = this.phase === "fight" ? `남은 적 ${this.left ?? 0}${st && st.waves ? ` · ${Math.min(this.wave, st.waves.length)}/${st.waves.length}파${tag}` : ""}` : this.phase === "go" ? "빛 고리를 따라 다음 구역으로" : "입구에 들어가면 그 루트로 진행";
     h.text(`${"❤".repeat(Math.max(0, this.lives))}${"♡".repeat(Math.max(0, LIVES - this.lives))}  ${sub}  ·  ${fmtTime(this.time).replace(/\.\d+$/, "")}  ·  ${Math.round(me.score)}점`, cx, y0 + 34 * u, { size: 11.5, align: "center", base: "middle", color: "#ffb4a8", shadow: false });
+    if (this.co && this.ng.online) {
+      const ps = this.ng.players();
+      h.text(ps.map((p) => `${p.me ? "★" : "·"}${p.name}${this.ng.field(p.id, "out") || (p.me && this.out) ? "(관전)" : ""} ${p.me ? Math.round(me.score) : this.ng.field(p.id, "sc") || 0}`).join("   "), cx, y0 + 76 * u, { size: 11, align: "center", color: "#cfe8ff" });
+    } else if (!this.co) h.text("혼자 · AI 윙맨 3기와 함께", cx, y0 + 76 * u, { size: 10.5, align: "center", color: "#9aa8bc" });
+    if (this.out) h.text(`관전 중${this.specT ? ` · ${this.specT.name}` : ""} · [발사] 다른 팀원`, cx, h.H * 0.8, { size: 15, align: "center", bold: true, color: "#9fd8ff" });
     // 지나온 루트
     if (this.route.length) h.text(this.route.map((r) => `루트 ${r}`).join(" → "), cx, y0 + 62 * u, { size: 11, align: "center", color: "#9fd8ff" });
     // 갈림길 입구 표지
@@ -275,7 +371,7 @@ export class StrikeMode extends CombatMode {
     });
   }
 
-  dispose() { this._clearGfx(); super.dispose(); }
+  dispose() { this._clearGfx(); if (this.ng) this.ng.dispose(); super.dispose(); }
 }
 
 registerMode("strike", StrikeMode);

@@ -350,6 +350,71 @@ export class UI {
     if (HUB[v]) { this._group = v; this.show("group"); }
   }
   // ── 하위 메뉴: 연습(비행훈련·자유 비행) / 게임(레이싱·트래킹·프리스타일·서바이벌) ──
+  // ── 돌파 작전 협동 대기실: 같은 맵 방에 모여 방장이 시작 (최대 4인) ──
+  s_coop() {
+    const map = MAPS[this.sel.map];
+    setTimeout(() => this._coopJoin(), 0);
+    return `<div class="screen hub group" style="--c:#35ff7a">
+      <header class="hhead"><button class="back" data-a="coopleave">← 나가기</button><h2><span class="en">CO-OP · 돌파 작전</span>협동 대기실</h2></header>
+      <div style="margin:0 24px;max-width:560px">
+        <p class="hint2">맵: <b>${esc(map.name)}</b> · 최대 4인 · 먼저 들어온 사람이 방장입니다. 방장이 시작하면 모두 같은 스테이지로 출격합니다.</p>
+        <div data-coopst class="hint2">연결 중…</div>
+        <ol data-cooplist style="font:600 15px 'Noto Sans KR',sans-serif;line-height:1.9;margin:10px 0 14px 18px"></ol>
+        <button class="primary" data-a="coopgo" data-coopgo disabled>출격 시작 →</button>
+      </div>
+    </div>`;
+  }
+  async _coopJoin() {
+    const room = `fpv-strike-${this.sel.map}`.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+    this._coopName = (getNick && getNick()) || "파일럿";
+    let t = null; try { t = await connect(); } catch (_) { t = null; }
+    const st = () => this.root.querySelector("[data-coopst]");
+    if (!t || typeof t.join !== "function") { if (st()) st().textContent = "온라인 방을 쓸 수 없습니다 — 혼자(AI 윙맨)로 출격합니다"; this._coop = { offline: true }; this._coopDraw(); return; }
+    let r = null; try { r = await Promise.race([t.join(room), new Promise((res) => setTimeout(() => res(null), 8000))]); } catch (_) { r = null; }
+    if (!r) { if (st()) st().textContent = "방에 들어가지 못했습니다 — 혼자(AI 윙맨)로 출격합니다"; this._coop = { offline: true }; this._coopDraw(); return; }
+    const me = t.me();
+    this._coop = { t, r, me, j: Date.now() };
+    r.presence({ n: this._coopName, j: this._coop.j, cs: 1 });
+    clearInterval(this._coopIv);
+    this._coopIv = setInterval(() => { if (this.screen !== "coop") { clearInterval(this._coopIv); return; } this._coopDraw(); }, 400);
+    this._coopDraw();
+  }
+  _coopPeers() {
+    const C = this._coop; if (!C || !C.r) return [];
+    return C.r.peers().filter((p) => p.presence && p.presence.cs).map((p) => ({ id: p.peer, n: String(p.presence.n || "파일럿").slice(0, 16), j: +p.presence.j || 0, go: p.presence.go, me: p.sameTab || p.peer === C.me })).sort((a, b) => a.j - b.j || (a.id < b.id ? -1 : 1));
+  }
+  _coopDraw() {
+    const C = this._coop, list = this.root.querySelector("[data-cooplist]"), btn = this.root.querySelector("[data-coopgo]"), st = this.root.querySelector("[data-coopst]");
+    if (!list || !btn) return;
+    if (C && C.offline) { list.innerHTML = `<li>${esc(this._coopName || "나")} (나) + AI 윙맨 3기</li>`; btn.disabled = false; btn.textContent = "혼자 출격 →"; return; }
+    const ps = this._coopPeers(), four = ps.slice(0, 4), host = four[0], meIn = four.some((p) => p.me);
+    list.innerHTML = four.map((p, i) => `<li>${esc(p.n)}${p.me ? " (나)" : ""}${i === 0 ? " · 방장" : ""}</li>`).join("") + (ps.length > 4 ? `<li style="opacity:.6">대기 ${ps.length - 4}명 (가득 참)</li>` : "");
+    const amHost = host && host.me;
+    if (st) st.textContent = !meIn ? "방이 가득 찼습니다 (4인). 자리가 나면 들어갑니다" : amHost ? `참가자 ${four.length}명 — 준비되면 출격을 누르세요${four.length === 1 ? " (혼자면 AI 윙맨 3기)" : ""}` : "방장이 출격을 누르면 시작합니다";
+    btn.disabled = !amHost; btn.textContent = amHost ? `출격 시작 (${four.length}명) →` : "방장 대기 중…";
+    // 방장이 출격을 누르면: go = { t, sd, ids } → 모두 같은 설정으로 시작
+    const g = host && host.go;
+    if (g && meIn && g.ids && g.ids.includes(C.me) && g.t !== this._coopStarted && Date.now() - g.t < 15000) this._coopStart(g, host.id);
+  }
+  a_coopgo() {
+    const C = this._coop;
+    if (C && C.offline) { this.sel.party = "solo"; return this.a_start(); }
+    const four = this._coopPeers().slice(0, 4);
+    if (!C || !four.length || !four[0].me) return;
+    const g = { t: Date.now(), sd: Math.floor(Math.random() * 1e9), ids: four.map((p) => p.id) };
+    C.r.presence({ n: this._coopName, j: C.j, cs: 1, go: g });
+    this._coopStart(g, C.me);
+  }
+  _coopStart(g, hostId) {
+    const C = this._coop;
+    this._coopStarted = g.t; clearInterval(this._coopIv);
+    const s = this.sel;
+    this.game.startSession({ mode: "strike", map: s.map, difficulty: "normal",
+      coop: { ids: g.ids.slice(0, 4), host: hostId, seed: g.sd, name: this._coopName },
+      net: { room: C.r, me: C.me, mid: `strike-${g.t}`, host: hostId === C.me, client: null, elapsed: 0 } });
+  }
+  a_coopleave() { const C = this._coop; clearInterval(this._coopIv); if (C && C.r) { try { C.r.presence({ cs: 0, go: null }); C.r.leave(); } catch (_) { /* 이미 나감 */ } } this._coop = null; this.show("setup"); }
+
   // ── 레이드: 참가 / 관전 ──
   s_raid() {
     const now = Date.now(), left = 3600 - Math.floor((now % 3600000) / 1000), wv = Math.floor(((now % 3600000) / 1000) / 600) + 1;
@@ -760,6 +825,7 @@ export class UI {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else if (s.variant === "strike") {
+        opts += `<div class="opt"><label>인원</label>${this.seg("party", [["solo", "혼자 (AI 윙맨 3기)"], ["coop", "협동 (최대 4인)"]], s.party || "solo")}<div class="hint">협동: 같은 맵 협동 방에 모인 사람과 한 스테이지를 같이 시작합니다. 온라인 협동은 claude.ai 링크에서 됩니다.</div></div>`;
         opts += `<p class="hint2">구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 구역마다 중간 보스와 스테이지 보스가 나옵니다 · 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
@@ -800,7 +866,7 @@ export class UI {
     const k = el.dataset.k;
     // 기지전에서 다른 방식으로 바꾸면, 기지전 때문에 바뀌었던 경기장 맵을 원래 맵으로 되돌린다
     if (k === "variant" && this.sel.variant === "aos" && v !== "aos" && this.sel.map === "stadium") this.sel.map = MAPS[this.sel.mapPrev] && this.sel.mapPrev !== "stadium" ? this.sel.mapPrev : MAP_LIST[0].id;
-    this.sel[k] = ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime"].includes(k) ? +v : v;
+    this.sel[k] = k === "party" ? v : ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
     if (k === "bwho") this.sel.bep = null;
@@ -823,6 +889,7 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
+    else if (s.mode === "survival" && s.variant === "strike" && s.party === "coop") return this.show("coop");
     else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike" } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
