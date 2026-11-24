@@ -54,7 +54,7 @@ const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", 
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
-  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival", "raid"] },
+  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },   // 레이드는 메뉴에서 뺐다 (사용자 요청)
   survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve"], back: "game", hidden: true },   // PVP 메뉴 제외
 };
 const SUB = {
@@ -760,7 +760,7 @@ export class UI {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else if (s.variant === "strike") {
-        opts += `<p class="hint2">구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
+        opts += `<p class="hint2">구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 구역마다 중간 보스와 스테이지 보스가 나옵니다 · 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
