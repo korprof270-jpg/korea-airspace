@@ -7,6 +7,7 @@ import { submitRecord, records, fmtTime, DIFFICULTY, clamp } from "../config.js"
 import { drawCombatHud } from "../combathud.js";
 import { rankStats, clampRank } from "../ranks.js";
 import { Director, directorWanted } from "../director.js";
+import { TFEvents } from "./tfevents.js";
 
 export const VARIANTS = {
   assault: { name: "공방전", icon: "🛡️", desc: "공격과 수비를 동시에 진행하는 6분 전선전. 적 본진 파괴 또는 점수 6000 먼저, 아니면 시간 종료 때 점수로 승부" },
@@ -99,6 +100,7 @@ export class SurvivalMode extends CombatMode {
       c.scatterPickups(11);
       c.units.spawn("tank", { pos: c.randomPoint(3, 5, 0.6) });
       this._direct();
+      if (!this.director && !this.cfg.story && !this.cfg.net) this.tfe = new TFEvents(this);   // 팀 파이트: 중반 돌발 이벤트
       return;
     }
 
@@ -159,7 +161,7 @@ export class SurvivalMode extends CombatMode {
     const sp = this.director.spawnPoint(this.me);
     this.placePlayer(sp.pos, sp.yaw);
   }
-  dispose() { if (this.director) this.director.dispose(); super.dispose(); }
+  dispose() { if (this.director) this.director.dispose(); if (this.tfe) this.tfe.dispose(); super.dispose(); }
 
   _hide(a, hide) {
     a.targetable = !hide; a.invulnerable = hide; a.model.visible = !hide;
@@ -185,7 +187,7 @@ export class SurvivalMode extends CombatMode {
 
   _add(a, pts) {
     a.score += pts;
-    if (this.variant !== "dm") this.team[a.team] += pts;
+    if (this.variant !== "dm" && (a.team === 0 || a.team === 1)) this.team[a.team] += pts;   // 제3세력(팀 2) 점수는 세지 않는다
   }
 
   _spawn(a) {
@@ -215,6 +217,7 @@ export class SurvivalMode extends CombatMode {
 
   _botGoal(a) {
     if (this.director) { const g = this.director.botGoal(a); if (g) return g; if (a.ai.path || a.dormant) return null; }
+    if (this.tfe) { const g = this.tfe.botGoal(a); if (g) return g; }
     if (this.variant === "tdm") return this._hunt(a);
     if (this.variant !== "cargo" || a.ai.role !== "courier") return null;
     if (this.cargo.carried(a)) return this.padGoal[a.team];
@@ -241,6 +244,7 @@ export class SurvivalMode extends CombatMode {
     const h = this.s.hud, me = this.me;
     const drone = a.kind === "player" || a.kind === "bot";
     const dir = this.director ? this.director.onKill(a, k) : false;   // 전선전 목표물(방어 지점·본진 코어 등)
+    if (this.tfe) this.tfe.onKill(a, k);
     if (k && k !== a && (k.kind === "player" || k.kind === "bot")) {
       const pts = a.pts ? a.pts : a.kind === "core" ? (dir && a.team === 0 ? 300 : 1500) : a.kind === "turret" ? 300 : this.cargo && this.cargo.carried(a) ? 150 : a.K && a.K.base ? a.K.score : 100;
       this._add(k, pts);
@@ -270,6 +274,7 @@ export class SurvivalMode extends CombatMode {
     }
     if (this.outposts) this._outposts();
     if (this.director) this.director.update(dt);
+    if (this.tfe) this.tfe.update(dt);
     if (this.cfg.dda) this._dda(dt);
     const bc = this.cfg.boss;
     if (bc && !this.bossA && !this.cut && this.time >= (bc.at ?? 60)) {
@@ -380,7 +385,7 @@ export class SurvivalMode extends CombatMode {
       this.finish({
         title: win ? "승리!" : a === b && this.coreDown === undefined ? "무승부" : "패배", sub: `${VARIANTS[this.variant].name} · ${TN[0]} ${a} : ${b} ${TN[1]}`,
         win, record: rec, stars: win ? (a > b * 1.5 ? 3 : 2) : a > b * 0.7 ? 1 : 0, board,
-        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : []), ...(D ? D.resultLines() : [])],
+        lines: [{ label: "내 점수", value: `${sc}` }, ...(this.variant === "tdm" ? [{ label: "팀 격추 (아군 : 적군)", value: `${tk[0]} : ${tk[1]}` }] : []), ...(this.tfe && this.tfe.log.length ? [{ label: "돌발 상황 (아군 우세)", value: `${this.tfe.log.filter((x) => x.win === 0).length} / ${this.tfe.log.length}` }] : []), ...(this.outposts ? [{ label: "부순 적 거점", value: `${this.outposts.filter((b) => !b.core.alive).length} / ${this.outposts.length}` }] : []), ...(this.cargo ? [{ label: "배달 (청 : 홍)", value: `${this.delivered[0]} : ${this.delivered[1]}` }] : []), ...(D ? D.resultLines() : [])],
       });
     }
   }
@@ -403,6 +408,7 @@ export class SurvivalMode extends CombatMode {
   missionObjective(o) {
     const me = this.me;
     if (this.director) return this.director.objective(o);
+    if (this.tfe) { const r = this.tfe.objective(o); if (r) return r; }
     if (this.outposts) {
       // 발견한 적 거점 가운데 아직 살아 있는 가장 가까운 코어
       let best = null, bd = 1e9;
@@ -426,6 +432,7 @@ export class SurvivalMode extends CombatMode {
     this.hudCountdown(h);
     if (h.lvl === "off") return;
     if (this.director) this.director.hud(h);
+    if (this.tfe) this.tfe.hud(h);
     const full = h.lvl === "full", dm = this.variant === "dm";
     const left = Math.max(0, this.duration - this.time);
     h.timer(fmtTime(left), left < 20 ? "#ff6b5a" : "#fff", "#ff3d5a");
