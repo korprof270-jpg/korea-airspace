@@ -42,10 +42,10 @@ const BOSS = {
   shieldK: { unit: "shieldbot", scale: 1.5, hp: 2.5, n: 2, name: "방패 대장" },
   cruiser: { unit: "cruiser", hp: 1.5, name: "순양함 '철벽'" },
   mortarK: { unit: "mortarbot", scale: 1.5, hp: 2.5, n: 2, name: "포격 대장" },
-  titan: { unit: "titan", scale: 3.6, hp: 1.1, name: "초거대 로봇 '골리앗'" },
+  titan: { unit: "titan", scale: 6.5, hp: 1.1, name: "초거대 로봇 '골리앗'" },
   fortress: { unit: "flagship", hp: 1.4, name: "공중 요새 '심판'" },
   flag: { unit: "flagship", hp: 1.6, name: "기함 '폭군'" },
-  omega: { unit: "titan", scale: 4.5, hp: 1.5, name: "최종 병기 '오메가'" },
+  omega: { unit: "titan", scale: 7.3, hp: 1.5, name: "최종 병기 '오메가'" },
 };
 // 작전 단계 (한 맵 안의 구역들). pos 는 시작할 때 맵을 읽어 정한다
 const PLAN = [
