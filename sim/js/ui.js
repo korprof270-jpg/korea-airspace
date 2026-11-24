@@ -9,7 +9,8 @@ import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  assault: { name: "공방전", icon: "🛡️", variant: "assault", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "6분 동안 공격과 수비를 동시에. 적 거점을 치면 전선이 전진, 우리 거점이 뚫리면 후퇴. 적 본진 파괴 또는 점수 6000 먼저, 아니면 시간 종료 때 점수로 승부" },
+  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "중간 이상 맵", fit: (mp) => mp.size >= 240 && mp.size < 400, desc: "구역을 하나씩 깨며 적 본진까지 전진. 갈림길에서는 루트 A·B·C 입구 중 들어가는 쪽으로 진행, 목숨 3개, 마지막에 최종 보스" },
+  // 공방전은 메뉴에서 뺐다 (사용자 요청)
   // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
 import { MISSIONS } from "./modes/challenge.js";
@@ -704,7 +705,7 @@ export class UI {
     const cmMissions = (id) => MISSIONS.filter((x) => x.map === id);
     if (s.mode === "challenge" && !cmMissions(s.map).length) s.map = (MISSIONS.find((x) => x.id === s.mission) || MISSIONS[0]).map;
     // 서바이벌: ① 미션 종류 → ② 그 종류에 맞는 크기의 맵만
-    const svT = s.mode === "survival" ? SV_TYPES[s.svType] || SV_TYPES[(s.svType = "assault")] : null;
+    const svT = s.mode === "survival" ? SV_TYPES[s.svType] || SV_TYPES[(s.svType = "strike")] : null;
     if (svT) {
       s.variant = svT.variant;
       const ok = MAP_LIST.filter((mp) => mp.combat && svT.fit(mp));
@@ -758,6 +759,8 @@ export class UI {
       } else if (s.variant === "fleet") {
         opts += `<div class="opt"><label>함대 규모</label>${this.seg("fleetSize", [[0.7, "소규모"], [1, "보통"], [1.3, "대규모"]], s.fleetSize || 1)}<div class="hint">양쪽 드론 함대의 크기. 그래픽 품질이 낮거나 휴대폰이면 자동으로 줄어듭니다. 난이도가 높을수록 적 함대와 증원이 커집니다.</div></div>`;
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
+      } else if (s.variant === "strike") {
+        opts += `<p class="hint2">구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 목숨 3개 · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -820,7 +823,7 @@ export class UI {
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike" } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
