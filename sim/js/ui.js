@@ -25,6 +25,7 @@ import { portrait, hasArt } from "./portraits.js";
 import { CAMERA_NAMES } from "./player.js";
 import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
+import { connect, getNick } from "./net.js";
 import { isFighter } from "./fighters.js";
 
 const MODE_META = {
@@ -52,13 +53,14 @@ const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", 
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
-  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },
+  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival", "raid"] },
   survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve"], back: "game", hidden: true },   // PVP 메뉴 제외
 };
 const SUB = {
   training: { img: "7-training" },
   trick: { name: "트릭 연습", en: "TRICKS", c: "#ff5ad6", img: "3-freestyle", desc: "롤·플립·스핀·루프를 시범으로 보고 스틱 타이밍대로 따라 해 봅니다." },
   free: { name: "자유 비행", en: "FREE FLIGHT", c: "#21d4fd", img: "8-snow", desc: "원하는 맵을 시간 제한 없이 마음껏 날아다니며 연습합니다." },
+  raid: { name: "레이드", en: "RAID · 우주 전쟁", c: "#b44cff", img: "4-story", desc: "매시 정각부터 1시간 동안 열리는 공동 보스전. 초거대 함대·초거대 로봇에 맞서 언제든 참가하거나 관전하세요." },
   race: { img: "1-race" }, tracking: { img: "5-tracking" }, freestyle: { img: "3-freestyle" }, survival: { img: "2-combat" },
   pve: { name: "PVE", en: "PVE · AI 대전", c: "#ff3d5a", img: "2-combat", desc: "AI 드론과 싸우는 서바이벌. 데스매치·팀전·4팀 점령전, 격납고 파츠 능력치가 그대로 적용됩니다." },
   pvp: { name: "PVP", en: "PVP · 대인전", c: "#21d4fd", img: "9-empire", desc: "다른 플레이어와 실시간 대전. 배틀넷 랜덤 매칭 또는 커스텀 방. 파츠 능력치 미적용 · 스킬 피해 60%." },
@@ -335,7 +337,7 @@ export class UI {
   s_main() {
     const sp = progress(), tp = TR.progress();
     const hubs = Object.entries(HUB).filter(([, h]) => !h.hidden).map(([id, h], i) => this._hcard("hub", id, Object.assign({}, h,
-      id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => MODE_META[k].name) }), i)).join("");
+      id === "story" ? { badge: `${sp} / ${story().flat.length} 단계` } : id === "practice" ? { badge: `훈련 ${tp} / ${TR.LESSONS.length}`, list: h.items.map((k) => SUB[k].name || MODE_META[k].name) } : { list: h.items.map((k) => (MODE_META[k] || SUB[k] || {}).name) }), i)).join("");
     return `<div class="screen hub">
       <header class="hhead"><div class="logo"><b>FPV</b> PROJECT</div>
         <span class="hicons"><button class="hpts" data-a="gq" title="포인트 · 퀘스트">◆ ${GP.points().toLocaleString()}P${(() => { const q = GP.quests(); const n = [...q.daily, ...q.weekly].filter((x) => !x.done).length; return n ? `<i>${n}</i>` : ""; })()}</button><button class="hic" data-a="go" data-v="hangar" title="격납고 (커스텀·업그레이드)" aria-label="격납고">🛠</button><button class="hic" data-a="go" data-v="settings" title="설정" aria-label="설정">⚙</button><button class="hic" data-a="go" data-v="help" title="조작법" aria-label="조작법">🎮</button></span></header>
@@ -347,6 +349,42 @@ export class UI {
     if (HUB[v]) { this._group = v; this.show("group"); }
   }
   // ── 하위 메뉴: 연습(비행훈련·자유 비행) / 게임(레이싱·트래킹·프리스타일·서바이벌) ──
+  // ── 레이드: 참가 / 관전 ──
+  s_raid() {
+    const now = Date.now(), left = 3600 - Math.floor((now % 3600000) / 1000), wv = Math.floor(((now % 3600000) / 1000) / 600) + 1;
+    const cards = [
+      ["join", { name: "참가", en: "JOIN RAID", c: "#ff3d4d", img: "2-combat", desc: "지금 진행 중인 레이드에 바로 합류. 맞히고 격추해 모은 ⓟ로 화력·장갑·기동·스킬을 강화합니다.", list: ["언제든 참가·이탈", "ⓟ 업그레이드", "연속 격추 궤도 폭격"] }],
+      ["spec", { name: "관전", en: "SPECTATE", c: "#21d4fd", img: "4-story", desc: "싸우지 않고 보스와 참가자들을 따라다니며 지켜봅니다. [발사] 버튼으로 대상을 바꿉니다.", list: ["보스·참가자 시점 전환", "피해 순위판"] }],
+    ].map(([k, o], i) => this._hcard("raidgo", k, o, i)).join("");
+    setTimeout(() => this._raidStatus(), 0);
+    return `<div class="screen hub group" style="--c:#b44cff">
+      <header class="hhead"><button class="back" data-a="back">← 뒤로</button><h2><span class="en">RAID · 우주 전쟁</span>레이드</h2></header>
+      <p class="hint2" style="margin:0 24px 10px">이번 레이드: 웨이브 ${wv}/6 진행 중 · 정각까지 ${Math.floor(left / 60)}분 ${left % 60}초 · 10분마다 보스 교대(초거대 함대 ↔ 초거대 로봇 → 합동 공세 → 최종 병기)<br><span data-raidst>온라인 방 확인 중…</span></p>
+      <nav class="hcards wide n2" aria-label="레이드">${cards}</nav>
+    </div>`;
+  }
+  async _raidStatus() {
+    const el = this.root.querySelector("[data-raidst]"); if (!el) return;
+    let t = null; try { t = await connect(); } catch (_) { t = null; }
+    const el2 = this.root.querySelector("[data-raidst]"); if (!el2) return;
+    el2.textContent = t && t.kind === "room" ? `온라인 방 연결 가능 · 지금 접속 ${t.lobby.peers().length}명 — 같은 링크로 들어온 사람과 함께 싸웁니다` : t ? "같은 브라우저의 다른 탭끼리만 연결됩니다 (온라인 방은 claude.ai 링크에서)" : "온라인 방을 쓸 수 없어 AI 윙맨과 혼자 진행합니다 (온라인은 claude.ai 링크에서)";
+  }
+  async a_raidgo(v) {
+    if (this._raidBusy) return; this._raidBusy = true;
+    const st = this.root.querySelector("[data-raidst]"); if (st) st.textContent = "레이드 방에 들어가는 중…";
+    let net = null;
+    try {
+      const t = await connect();
+      if (t && typeof t.join === "function") {
+        const room = await Promise.race([t.join("fpv-raid"), new Promise((r) => setTimeout(() => r(null), 8000))]);
+        const me = t.me ? t.me() : null;
+        if (room && me) net = { room, me, mid: "raid-" + Math.floor(Date.now() / 3600000), host: true, client: null, elapsed: 0 };
+      }
+    } catch (_) { net = null; }
+    this._raidBusy = false;
+    this.game.startSession({ mode: "raid", map: "orbit", difficulty: "normal", raid: { spectate: v === "spec", name: (getNick && getNick()) || "파일럿" }, net });
+  }
+
   s_group() {
     const g = HUB[this._group] || HUB.game;
     const cards = g.items.map((k, i) => { const m = MODE_META[k] || {}; return this._hcard("sub", k, Object.assign({ name: m.name, en: m.en, c: m.c, desc: m.desc }, SUB[k]), i); }).join("");
@@ -356,6 +394,7 @@ export class UI {
     </div>`;
   }
   a_sub(v) {
+    if (v === "raid") return this.show("raid");
     if (v === "survival") v = "pve";   // PVP 는 당분간 뺐다: 서바이벌은 바로 AI 대전 설정으로
     if (v === "pvp") return;   // PVP 는 당분간 막아 둠
     if (v === "pve") v = "survival";
@@ -384,6 +423,7 @@ export class UI {
     if (this.game.state === "pause") return this.show("pause");
     if (this.screen === "setup" && this._group) return this.show("group");   // 하위 메뉴에서 들어왔으면 그리로
     if (this.screen === "pvp") return this._pvBack();
+    if (this.screen === "raid") return this.show("group");
     if (this.screen === "group" && HUB[this._group] && HUB[this._group].back) { this._group = HUB[this._group].back; return this.show("group"); }
     this._group = this.screen === "group" ? null : this._group;
     this.show("main");
