@@ -9,6 +9,7 @@ import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
 import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌 · 매우 큰 맵
+import "./modes/strike.js";   // 서바이벌 · 돌파 작전 (단계형, 루트 갈림길)
 import "./modes/raid.js";   // 레이드 · 우주 전쟁 (1시간 공동 보스전, 참가·관전)
 import { UI } from "./ui.js";
 import { PadUI } from "./padui.js";
