@@ -33,6 +33,9 @@ class Game {
     const glc = document.getElementById("gl");
     // 안티에일리어싱은 후처리(FXAA)가 맡는다. 톤매핑은 toon.js 가 넣은 평면 색용 함수(낮음 품질의 직접 렌더링에도 적용)
     this.renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: false, powerPreference: "high-performance" });
+    // 휴대폰에서 그래픽 메모리가 모자라 WebGL 이 끊기면 화면이 통째로 검게 된다 → 되살려 달라고 하고, 돌아오면 품질 설정을 다시 적용
+    glc.addEventListener("webglcontextlost", (e) => { e.preventDefault(); this._ctxLost = true; if (this.hud) this.hud.toast("그래픽 재시작 중…", "#ffb02e", 2.5, 20); });
+    glc.addEventListener("webglcontextrestored", () => { this._ctxLost = false; if (this._autoTier === "high" || this._autoTier === "med") this._autoTier = "low"; try { this.applyQuality(); } catch (_) { /* 다음 프레임에 다시 */ } });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.CustomToneMapping;
     this.composer = null;

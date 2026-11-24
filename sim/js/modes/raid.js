@@ -61,6 +61,7 @@ export class RaidMode extends CombatMode {
     // 아군 모함: 출격·정비 지점 (무적). 근처에서 체력이 빠르게 찬다
     const mp = A.clone(); mp.y = w.h(mp.x, mp.z) + 40;
     this.mother = c.units.spawn("flagship", { pos: mp, near: true, home: mp, name: "아군 모함 '한빛'" });
+    this._lift(this.mother.unit.group);
     this.mother.team = 0; for (const q of this.mother.unit.parts) q.team = 0;
     this.mother.name = "아군 모함 '한빛'"; this.mother.invulnerable = true; this.mother.targetable = false;
     for (const q of this.mother.unit.parts) { q.invulnerable = true; q.targetable = false; }
@@ -120,6 +121,7 @@ export class RaidMode extends CombatMode {
       const p = C.clone().add(new V3(rnd(-40, 40), 0, rnd(-40, 40)));
       const r = c.units.spawn(kind, Object.assign({ pos: p, near: true, home: p.clone() }, o));
       r.maxHp = r.hp = P * share; r.raidBoss = true; r.raidShare = share;
+      this._lift(r.unit.group);
       this.bossRoots.push(r);
       return r;
     };
@@ -130,11 +132,30 @@ export class RaidMode extends CombatMode {
       r.name = om ? "최종 병기 '오메가'" : "초거대 로봇 '골리앗'";
     }
     this.boss = { type, name: WNAME[type], t: 0 };
-    if (type === "fleet" || type === "omega") for (const k of ["carrier", "destroyer", "destroyer"]) c.units.spawn(k, { pos: C.clone().add(new V3(rnd(-90, 90), 0, rnd(-90, 90))), near: true });
+    if (type === "fleet" || type === "omega") for (const k of ["carrier", "destroyer", "destroyer"]) { const e = c.units.spawn(k, { pos: C.clone().add(new V3(rnd(-90, 90), 0, rnd(-90, 90))), near: true }); this._lift(e.unit.group); }
     this.s.game.sound.play("warn");
     const first = this.bossRoots[0];
     if (first && this.time > 1) this.bossIntro(first, this.boss.name, `웨이브 ${i % WAVES.length + 1} / ${WAVES.length}`, false);
     else this.s.hud.toast(`⚠ ${this.boss.name} 출현`, "#ff3d4d", 3, 30);
+  }
+  // 우주 맵은 조명이 어두워 큰 기체가 검은 덩어리로 보인다 → 재질마다 자체 발광을 더해 윤곽과 색이 보이게
+  _lift(g) {
+    const done = new Map();
+    g.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const one = (m) => {
+        if (!m || !m.emissive || m.blending === THREE.AdditiveBlending) return m;
+        let c = done.get(m);
+        if (!c) {
+          c = m.clone();
+          const base = m.vertexColors ? new THREE.Color(0x9aa6bc) : m.color.clone();
+          c.emissive = base.multiplyScalar(0.42).add(new THREE.Color(0x1a2030));
+          done.set(m, c);
+        }
+        return c;
+      };
+      o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);
+    });
   }
   _bossHp() { let h = 0, m = 0; for (const r of this.bossRoots) { m += r.maxHp; if (r.alive) h += r.hp; } return { h, m }; }
 
