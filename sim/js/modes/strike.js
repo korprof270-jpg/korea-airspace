@@ -24,7 +24,7 @@ const ROUTE = {
   B: { name: "공중전", col: 0x5ab4ff, css: "#5ab4ff", desc: "드론·전투기 편대" },
   C: { name: "함대 강습", col: 0xffd24a, css: "#ffd24a", desc: "구축함·항모 전단" },
 };
-const LIVES = 5, REST = 5, LIFE_COST = 500, LIFE_MAX = 9;   // 목숨 5개 · 500ⓟ로 하나 더 (최대 9)
+const LIVES = 5, REST = 5, LIFE_COST = 500, LIFE_MAX = 9, REVIVE_COST = 500;   // 협동: 500ⓟ로 관전 중인 팀원 살리기   // 목숨 5개 · 500ⓟ로 하나 더 (최대 9)
 const UP_COST = [80, 140, 220, 320, 450];
 const PTS = { drone: 10, unit: 25, mid: 120, boss: 250, final: 600, clear: 100 };
 // 보스 목록: unit = 지상·함선 유닛, bot = 드론형. hp 는 배율, n 은 마릿수
@@ -117,6 +117,12 @@ export class StrikeMode extends CombatMode {
       btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.buyLife(); });
       const help = this.shop.el.querySelector("[data-help]");
       this.shop.el.insertBefore(btn, help);
+      // 협동: 관전 중인 팀원 살리기
+      const rb = (this.reviveBtn = document.createElement("button"));
+      rb.style.cssText = btn.style.cssText.replace("#5a2a3a", "#2a5a3a").replace("#2a1220", "#12261a") + ";display:none";
+      rb.innerHTML = `<span style="color:#8cff4a;width:62px">🤝 구조</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b style="color:#ffd24a;min-width:64px;text-align:right">${REVIVE_COST}ⓟ</b>`;
+      rb.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.reviveMate(); });
+      this.shop.el.insertBefore(rb, help);
     }
     this._go(0);
   }
@@ -171,7 +177,29 @@ export class StrikeMode extends CombatMode {
     this.s.hud.toast(`목숨 +1 (남은 목숨 ${this.lives})`, "#ff6b8a", 1.4, 22); this.s.game.sound.play("pickup");
     return true;
   }
+  // 협동: 관전 중인 팀원 하나를 살린다 (그 팀원 화면에서 목숨 1개로 다시 출격)
+  _downMates() { return this.co && this.ng.online ? this.ng.players().filter((p) => !p.me && this.ng.field(p.id, "out") && !(this.rvPend && this.rvPend[p.id] > this.s.time)) : []; }
+  reviveMate() {
+    const D = this.me.aos, list = this._downMates();
+    if (!list.length) { this.s.hud.toast("관전 중인 팀원이 없습니다", "#9fb4c8", 1.2, 18); return false; }
+    if (!(D.pts >= REVIVE_COST)) { this.s.hud.toast(`ⓟ가 부족합니다 (${REVIVE_COST}ⓟ 필요)`, "#ffb02e", 1.2, 18); this.s.game.sound.play("click"); return false; }
+    const t = list[0];
+    D.pts -= REVIVE_COST; this.rvN = (this.rvN || 0) + 1;
+    (this.rvPend || (this.rvPend = {}))[t.id] = this.s.time + 4;   // 응답이 오기 전 같은 팀원을 두 번 사지 않게
+    this.ng.setField("rv", [t.id, this.rvN]);
+    this.s.hud.toast(`${t.name} 구조 요청 — 곧 다시 출격합니다`, "#8cff4a", 1.6, 22); this.s.game.sound.play("pickup");
+    return true;
+  }
+  _revived(by) {
+    if (!this.out) return;
+    const me = this.me, pl = this.s.player;
+    this.out = false; this.lives = 1; this.ng.setField("out", 0);
+    me.respawns = true; me.targetable = true; me.respawnT = 0.6; pl.frozen = false;
+    this.s.hud.toast(`${by}님이 살려 줬습니다! 목숨 1개로 다시 출격`, "#8cff4a", 2.4, 26); this.s.game.sound.play("lap");
+  }
   _lifeDraw() {
+    const rb = this.reviveBtn;
+    if (rb) { const L = this._downMates(); rb.style.display = L.length ? "flex" : "none"; if (L.length) { rb.querySelector("[data-lv]").textContent = `${L[0].name} 살리기${L.length > 1 ? ` (관전 ${L.length}명)` : ""}`; rb.style.opacity = this.me.aos.pts >= REVIVE_COST ? "1" : "0.55"; } }
     const b = this.lifeBtn; if (!b) return;
     const can = this.me.aos.pts >= LIFE_COST && this.lives < LIFE_MAX;
     b.querySelector("[data-lv]").textContent = `지금 ${this.lives}개 · 하나 더 사기${this.lives >= LIFE_MAX ? " (최대)" : ""}`;
@@ -421,6 +449,10 @@ export class StrikeMode extends CombatMode {
     ng.setField("kl", [this.wk, [...this.km]]);
     ng.setField("bd", [this.wk, this.myBossDmg]);
     ng.setField("sc", Math.round(me.score));
+    for (const p of others) {   // 팀원이 나를 살렸는지
+      const rv = ng.field(p.id, "rv");
+      if (Array.isArray(rv) && rv[0] === ng.myId && +rv[1] > ((this.rvSeen || (this.rvSeen = {}))[p.id] || 0)) { this.rvSeen[p.id] = +rv[1]; this._revived(p.name); }
+    }
     const tot = Object.assign({}, this.myBossDmg);
     for (const p of others) {
       const kl = ng.field(p.id, "kl");
@@ -518,7 +550,8 @@ export class StrikeMode extends CombatMode {
     if (this.phase === "fork" && this.gates && me.alive) for (const g of this.gates) { const R = ROUTE[g.k]; h.marker(g.p, s.camera, R.css, `루트 ${g.k} · ${R.name} → ${g.where}`, g.p.distanceTo(me.pos)); }
     // 보스 패턴 경고
     for (const b of this.brains) if (b.warnT > 0 && b.warn) { h.banner(`⚠ ${b.a.name} · ${b.warn}`, h.H * 0.24, "#ff5a3a", 18); break; }
-    if (this.out) h.text(`관전 중${this.specT ? ` · ${this.specT.name}` : ""} · [발사] 다른 팀원`, cx, h.H * 0.8, { size: 15, align: "center", bold: true, color: "#9fd8ff" });
+    if (this.out) { h.text(`관전 중${this.specT ? ` · ${this.specT.name}` : ""} · [발사] 다른 팀원`, cx, h.H * 0.8, { size: 15, align: "center", bold: true, color: "#9fd8ff" }); h.text(`팀원이 ${REVIVE_COST}ⓟ로 살려 주면 다시 출격합니다`, cx, h.H * 0.8 + 20 * u, { size: 12, align: "center", color: "#8cff4a" }); }
+    else if (this.co && this.ng.online && (this.hudN % 2 === 0 ? (this._dmC = this._downMates().length) : this._dmC)) h.text(`🤝 관전 중인 팀원 ${this._dmC}명 — 업그레이드 창에서 ${REVIVE_COST}ⓟ로 살리기`, cx, h.H * 0.7, { size: 13, align: "center", bold: true, color: "#8cff4a" });
   }
 
   _end() {
