@@ -3,7 +3,7 @@
 //  · 이동: 빛 고리 길 + 빛 기둥 + 화면 화살표(5초)로 다음 구역 방향·위치 안내, 가는 길에 서브미션
 //  · 교전: 적 1파 · 중간 보스 · 적 2파 · 스테이지 보스 (보스는 bossbrain.js: 이동·패턴 7종·실드 기믹·체력 단계)
 //  · 구역 확보 → 5초 정비(업그레이드 창). 격납고 파츠 능력치 없이 Lv1 시작, ⓟ로 화력·장갑·기동·스킬 강화
-//  · 목숨 3개. 1~4인 협동(방장 기준 진행, 같은 적, 격추·보스 체력 공유), 혼자면 AI 윙맨 3기
+//  · 목숨 5개(500ⓟ로 하나 더). 1~4인 협동(방장 기준 진행, 같은 적, 격추·보스 체력 공유), 혼자면 AI 윙맨 3기
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode } from "./combatmode.js";
 import { drawCombatHud } from "../combathud.js";
@@ -24,7 +24,7 @@ const ROUTE = {
   B: { name: "공중전", col: 0x5ab4ff, css: "#5ab4ff", desc: "드론·전투기 편대" },
   C: { name: "함대 강습", col: 0xffd24a, css: "#ffd24a", desc: "구축함·항모 전단" },
 };
-const LIVES = 3, REST = 5;
+const LIVES = 5, REST = 5, LIFE_COST = 500, LIFE_MAX = 9;   // 목숨 5개 · 500ⓟ로 하나 더 (최대 9)
 const UP_COST = [80, 140, 220, 320, 450];
 const PTS = { drone: 10, unit: 25, mid: 120, boss: 250, final: 600, clear: 100 };
 // 보스 목록: unit = 지상·함선 유닛, bot = 드론형. hp 는 배율, n 은 마릿수
@@ -109,6 +109,15 @@ export class StrikeMode extends CombatMode {
     c.scatterPickups(4);
     this.shop = new AosShop(this);
     { const t = this.shop.el.querySelector("b"); if (t) t.textContent = "돌파 작전 · 업그레이드"; }
+    // 업그레이드 창에 '목숨 +1' 칸
+    {
+      const btn = (this.lifeBtn = document.createElement("button"));
+      btn.style.cssText = "display:flex;width:100%;align-items:center;gap:8px;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid #5a2a3a;background:#2a1220;color:#fff;font:inherit;cursor:pointer;text-align:left";
+      btn.innerHTML = `<span style="color:#ff6b8a;width:62px">❤ 목숨</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b data-cost style="color:#ffd24a;min-width:64px;text-align:right">${LIFE_COST}ⓟ</b>`;
+      btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.buyLife(); });
+      const help = this.shop.el.querySelector("[data-help]");
+      this.shop.el.insertBefore(btn, help);
+    }
     this._go(0);
   }
 
@@ -152,6 +161,21 @@ export class StrikeMode extends CombatMode {
     L.thrust = (L0.thrust || 0) + 0.06 * u.move; L.gauge = (L0.gauge || 0) + 0.15 * u.skill; L.mCap = (L0.mCap || 0) + u.skill;
     const mh = PLAYER_HP * (1 + (L0.hp || 0)) * (1 + 0.15 * u.armor), d = mh - me.maxHp;
     me.maxHp = mh; me.hp = init ? mh : clamp(me.hp + Math.max(0, d), 0, mh);
+  }
+  // 500ⓟ → 목숨 +1
+  buyLife() {
+    const D = this.me.aos;
+    if (this.lives >= LIFE_MAX) { this.s.hud.toast(`목숨은 최대 ${LIFE_MAX}개까지`, "#ffb02e", 1.2, 18); return false; }
+    if (!(D.pts >= LIFE_COST)) { this.s.hud.toast(`ⓟ가 부족합니다 (${LIFE_COST}ⓟ 필요)`, "#ffb02e", 1.2, 18); this.s.game.sound.play("click"); return false; }
+    D.pts -= LIFE_COST; this.lives++;
+    this.s.hud.toast(`목숨 +1 (남은 목숨 ${this.lives})`, "#ff6b8a", 1.4, 22); this.s.game.sound.play("pickup");
+    return true;
+  }
+  _lifeDraw() {
+    const b = this.lifeBtn; if (!b) return;
+    const can = this.me.aos.pts >= LIFE_COST && this.lives < LIFE_MAX;
+    b.querySelector("[data-lv]").textContent = `지금 ${this.lives}개 · 하나 더 사기${this.lives >= LIFE_MAX ? " (최대)" : ""}`;
+    b.style.opacity = can ? "1" : "0.55";
   }
   _give(n, why) { if (this.out) return; this.me.aos.pts += n; if (why) this.s.hud.toast(`${why}  +${n}ⓟ`, "#ffd24a", 1.1, 18); }
 
@@ -357,7 +381,7 @@ export class StrikeMode extends CombatMode {
   update(dt) {
     super.update(dt);
     this.hudN++;
-    if (this.shop) this.shop.update(dt);
+    if (this.shop) { this.shop.update(dt); if (this.shop.open) this._lifeDraw(); }
     this.ng.update(dt);
     if (this.co && this.ng.online && (this.syncT -= dt) <= 0) { this.syncT = 0.25; this._coop(); }
     if (this.out) this._spectate(dt);
@@ -464,7 +488,7 @@ export class StrikeMode extends CombatMode {
     const sub = this.phase === "fight" ? `남은 적 ${this.left ?? 0} · ${Math.min(this.wave, st.waves.length)}/${st.waves.length}파${tag}`
       : this.phase === "travel" ? `다음 구역 ${dist}m${this.sub && !this.sub.done ? ` · 서브미션 ${this.sub.name} ${this.sub.got}/${this.sub.need}` : ""}`
       : this.phase === "rest" ? `정비 시간 · ${Math.ceil(this.restT)}초` : "갈림길 — 입구에 들어가면 그 루트로";
-    h.text(`${"❤".repeat(Math.max(0, this.lives))}${"♡".repeat(Math.max(0, LIVES - this.lives))}  ${sub}  ·  ${Math.round(me.score)}점`, cx, y0 + 34 * u, { size: 11.5, align: "center", base: "middle", color: "#ffb4a8", shadow: false });
+    h.text(`${this.lives > LIVES ? `❤×${this.lives}` : "❤".repeat(Math.max(0, this.lives)) + "♡".repeat(Math.max(0, LIVES - this.lives))}  ${sub}  ·  ${Math.round(me.score)}점`, cx, y0 + 34 * u, { size: 11.5, align: "center", base: "middle", color: "#ffb4a8", shadow: false });
     let ly = y0 + 62 * u;
     if (this.route.length) { h.text(this.route.map((r) => `루트 ${r}`).join(" → "), cx, ly, { size: 11, align: "center", color: "#9fd8ff" }); ly += 14 * u; }
     if (this.co && this.ng.online) h.text(this.ng.players().map((p) => `${p.me ? "★" : "·"}${p.name}${this.ng.field(p.id, "out") || (p.me && this.out) ? "(관전)" : ""} ${p.me ? Math.round(me.score) : this.ng.field(p.id, "sc") || 0}`).join("   "), cx, ly, { size: 11, align: "center", color: "#cfe8ff" });
@@ -505,7 +529,7 @@ export class StrikeMode extends CombatMode {
       title: win ? "작전 성공!" : "작전 실패", sub: `돌파 작전 · ${this.s.map.name} · ${this.si + 1}/${PLAN.length} 구역${this.route.length ? " · " + this.route.map((r) => "루트 " + r).join(" → ") : ""}`, win, record: rec,
       stars: win ? (this.lives >= 3 ? 3 : this.lives >= 2 ? 2 : 1) : 0,
       lines: [{ label: "점수", value: `${sc}${win ? ` (남은 목숨 +${this.lives * 1000})` : ""}` }, { label: "확보한 구역", value: `${this.cleared + (win ? 1 : 0)} / ${PLAN.length}` },
-        { label: "격추", value: `${this.kills}` }, { label: "업그레이드", value: UP_KEYS.map((k) => `${UP[k].name} ${me.aos.up[k] + 1}`).join(" · ") },
+        { label: "격추", value: `${this.kills}` }, { label: "남은 목숨", value: `${this.lives}` }, { label: "업그레이드", value: UP_KEYS.map((k) => `${UP[k].name} ${me.aos.up[k] + 1}`).join(" · ") },
         { label: "걸린 시간", value: fmtTime(this.time) }, { label: "최고 기록", value: `${records[this.recKey] || sc}` }],
     });
   }
