@@ -14,6 +14,7 @@ import { NetGame } from "../netgame.js";
 import { UP, UP_KEYS, UP_MAX } from "./aos.js";
 import { AosShop } from "./aos-hud.js";
 import { BossBrain } from "./bossbrain.js";
+import { buildSite, SITE_NAMES, SITE_KEYS } from "./strikesites.js";
 
 // 같은 씨앗이면 모두 같은 수열: 협동에서 모든 화면에 같은 적이 같은 자리에 나오게
 const mul32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -92,14 +93,47 @@ export class StrikeMode extends CombatMode {
     this.L0 = Object.assign({}, c.L);
     this._applyStats(true);
     this._liftAll = s.map.id === "orbit" || s.map.id === "moon";
-    // 구역 배치: 우리 기지 → 적 기지 쪽으로 지그재그. 갈림길 루트는 서로 다른 세 곳
-    const A = new V3(mc.blue[0], 0, mc.blue[1]), B = new V3(mc.red[0], 0, mc.red[1]), lim = w.size - 35;
-    const axis = B.clone().sub(A).setY(0); const L = axis.length(); axis.normalize();
-    const side = new V3(-axis.z, 0, axis.x), half = Math.min(w.size * 0.62, Math.max(70, L * 0.42));
-    const at = (t, v) => { const p = A.clone().addScaledVector(axis, L * t).addScaledVector(side, v * half); p.x = clamp(p.x, -lim, lim); p.z = clamp(p.z, -lim, lim); const g = c.units.groundSpot(p.x, p.z, 40, 10); return g.clone(); };
-    this.at = at; this.axis = axis;
-    this.home = at(0.02, 0);
-    this.spots = { z1: at(0.18, -0.55), z2: at(0.34, 0.55), r1: { A: at(0.52, -0.75), B: at(0.5, 0), C: at(0.52, 0.75) }, z4: at(0.68, 0), r2: { A: at(0.84, -0.75), B: at(0.82, 0), C: at(0.84, 0.75) }, fin: at(0.96, 0) };
+    // 작전 구역 확장: 맵 경계를 넓혀(원래 반경 + 최대 200m, 지형이 있는 범위 안) 바깥 지대까지 쓴다. 섬·우주처럼 바깥이 허공인 맵은 그대로
+    if (!w.def.land) w.size = w.size + Math.min(200, Math.max(120, w.size * 0.7));
+    // 구역 배치: 우리 기지에서 출발해 맵을 반 바퀴 크게 돌아 반대편 적 본진까지 (같은 곳을 다시 지나지 않는다)
+    const A = new V3(mc.blue[0], 0, mc.blue[1]), lim = w.size - 40;
+    const RE = w.size - 70, r0 = Math.max(70, Math.hypot(A.x, A.z)), aS = Math.atan2(A.z, A.x);
+    this._rng(7); const sg = this.R() < 0.5 ? 1 : -1;
+    // t: 진행(0 출발 → 1 본진), da: 각도 어긋남, dr: 반지름 어긋남(바깥이 +)
+    const at = (t, da = 0, dr = 0) => {
+      const k = t * t * (3 - 2 * t), ang = aS + sg * (Math.PI * 1.05 * t + da), r = clamp(r0 + (RE - r0) * Math.min(1, k * 1.4) + dr, 60, RE);
+      const x = clamp(Math.cos(ang) * r, -lim, lim), z = clamp(Math.sin(ang) * r, -lim, lim);
+      return c.units.groundSpot(x, z, 30, 10).clone();
+    };
+    // 이미 놓은 지점들과 120m 넘게 떨어질 때까지 각도·반지름을 조금씩 바꿔 가며 놓는다 (같은 곳에서 두 번 싸우지 않게)
+    const placed = [A.clone()], GAP = 120;
+    const place = (t, da = 0, dr = 0) => {
+      let best = null, bestD = -1;
+      for (let i = 0; i < 24; i++) {
+        const step = Math.ceil(i / 2) * (i % 2 ? 1 : -1);
+        const p = at(t, da + step * 0.05, dr + (i >= 12 ? -60 : 0));
+        const d = Math.min(...placed.map((q) => Math.hypot(q.x - p.x, q.z - p.z)));
+        if (d > bestD) { bestD = d; best = p; }
+        if (d >= GAP) break;
+      }
+      placed.push(best);
+      return best;
+    };
+    // 갈림길 세 루트: 안쪽·가운데·바깥, 각도도 벌려서
+    const fork = (t) => ({ A: place(t, -0.22, -170), B: place(t, 0, -70), C: place(t, 0.22, 0) });
+    this.at = at;
+    const fin = at(1);
+    this.axis = fin.clone().sub(A).setY(0).normalize();
+    this.home = A.clone(); this.home.y = w.h(A.x, A.z);
+    placed.push(fin);
+    this.spots = { z1: place(0.16), z2: place(0.33), r1: fork(0.5), z4: place(0.67), r2: fork(0.84), fin };
+    // 구역마다 다른 적 시설 (씨앗으로 섞어 협동에서도 같게)
+    const keys = SITE_KEYS.slice(); for (let i = keys.length - 1; i > 0; i--) { const j = Math.floor(this.R() * (i + 1)); [keys[i], keys[j]] = [keys[j], keys[i]]; }
+    let ki = 0; this.siteOf = new Map(); this.siteGone = [];
+    const put = (pt, key) => { this.siteOf.set(pt, key); this.siteGone.push(buildSite(w, pt.clone().addScaledVector(_v.copy(pt).normalize(), 18), key, Math.atan2(pt.x, pt.z))); };
+    for (const k of ["z1", "z2", "z4"]) put(this.spots[k], keys[ki++ % keys.length]);
+    for (const r of ["r1", "r2"]) for (const k of ["A", "B", "C"]) put(this.spots[r][k], keys[ki++ % keys.length]);
+    put(fin, "fort");
     this.cur = this.home.clone();
     const sp = this._spawn(me); this.placePlayer(sp.pos, sp.yaw);
     if (!this.co || this.co.ids.length <= 1) for (let i = 0; i < 3; i++) {
@@ -129,7 +163,9 @@ export class StrikeMode extends CombatMode {
 
   // 구역 이름: 맵 가운데 기준 방위 + 지형 성격 (건물이 빽빽 · 높낮이 큼 · 트임)
   _name(p, final) {
-    if (final) return "적 본진 · 최종 결전";
+    if (final) return "적 본진 요새 · 최종 결전";
+    const site = this.siteOf && this.siteOf.get(p);
+    if (site) { const ang = Math.atan2(-p.z, p.x), dir = COMPASS[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]; return `${dir}쪽 ${SITE_NAMES[site]}`; }
     const w = this.s.world, ang = Math.atan2(-p.z, p.x), dir = COMPASS[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8];
     let blk = 0, hmin = 1e9, hmax = -1e9;
     for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, r = 12 + (i % 4) * 9, x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r, h = w.h(x, z); hmin = Math.min(hmin, h); hmax = Math.max(hmax, h); if (w.col.blocked(_v.set(x, h + 6, z), 2)) blk++; }
@@ -601,6 +637,7 @@ export class StrikeMode extends CombatMode {
   }
 
   dispose() {
+    if (this.siteGone) for (const f of this.siteGone) f();
     if (this.revBtn) { this.revBtn.remove(); this.revBtn = null; }
     this._clearGfx();
     if (this.arena) for (const m of this.arena) this.s.world.scene.remove(m);
