@@ -5,7 +5,7 @@
 //    탈취: 점령 원 안에 머물러 게이지 100% · 마지막: 작전 1~3 본진 앞 결전(최종 보스), 작전 4~5 요새 공성전(포대 → 실드 발생기 → 핵심)
 //  · 안내: 목표 위치에 큰 빛 기둥 + 위에서 내리꽂는 화살표 + 화면 화살표(방향·거리)
 //  · 작전 3 이상 승리 → 훈장(🎖): 격납고에서 최대 단계 파츠·스킬 한계 돌파
-//  · Lv1 시작, ⓟ로 화력·장갑·기동·스킬 강화 · 목숨 5개(500ⓟ로 하나 더) · 1~4인 협동(방장 기준 진행) · 혼자면 AI 윙맨 3기
+//  · ⓟ로 8가지 업그레이드(레이저·미사일·장갑·실드 발생기·자가 수리·기동·스킬·냉각), 다음 작전으로 이어 가면 ⓟ·업그레이드 유지 · 목숨 7개(500ⓟ로 하나 더) · 1~4인 협동(방장 기준 진행) · 혼자면 AI 윙맨 3기
 import * as THREE from "../../vendor/three.module.min.js";
 import { CombatMode } from "./combatmode.js";
 import { drawCombatHud } from "../combathud.js";
@@ -13,7 +13,6 @@ import { clamp, fmtTime, submitRecord, records, save } from "../config.js";
 import { PLAYER_HP } from "../combat.js";
 import { registerMode } from "../session.js";
 import { NetGame } from "../netgame.js";
-import { UP, UP_KEYS, UP_MAX } from "./aos.js";
 import { AosShop } from "./aos-hud.js";
 import { BossBrain } from "./bossbrain.js";
 import { buildSite, SITE_NAMES, CITADEL_TOWERS } from "./strikesites.js";
@@ -22,9 +21,23 @@ import * as GP from "../garage.js";
 const mul32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const KINDS = { tank: ["tank", "tank", "lighttank", "heavytank", "missiletank"], robot: ["aa", "sniperbot", "shieldbot", "mortarbot"], ship: ["frigate", "destroyer", "destroyer"] };
 const V3 = THREE.Vector3, _v = new V3();
-const LIVES = 5, REST = 5, LIFE_COST = 500, LIFE_MAX = 9, REVIVE_COST = 200, PICK_T = 15;
+const LIVES = 7, REST = 5, LIFE_COST = 500, LIFE_MAX = 12, REVIVE_COST = 200, PICK_T = 15;
 const UP_COST = [80, 140, 220, 320, 450];
-const PTS = { drone: 10, unit: 25, mid: 120, boss: 250, final: 600, clear: 100 };
+const PTS = { drone: 15, unit: 40, mid: 180, boss: 380, final: 900, clear: 180 };
+// 연속하지 않고 작전 2~5를 바로 시작하면 받는 출발 ⓟ (앞 작전 업그레이드 일부를 메워 준다). 작전 1은 150
+const START_PTS = [150, 700, 1500, 2500, 3600];
+// 돌파 작전 전용 업그레이드 (단계마다)
+const SUP = {
+  fire: { name: "레이저", icon: "✦", color: "#ff7a5a", txt: (l) => `피해 +${l * 12}%` },
+  missile: { name: "미사일", icon: "➶", color: "#ff9f43", txt: (l) => `피해 +${l * 15}% · 탑재 +${l}` },
+  armor: { name: "장갑", icon: "⬢", color: "#5ad1ff", txt: (l) => `체력 +${l * 15}%` },
+  shield: { name: "실드 발생기", icon: "◈", color: "#8aa8ff", txt: (l) => `${22 - l * 2}초마다 실드 ${l * 25}` },
+  regen: { name: "자가 수리", icon: "✚", color: "#8cff4a", txt: (l) => `체력 회복 ${(l * 1.5).toFixed(1)}/초` },
+  move: { name: "기동", icon: "»", color: "#c4ff6a", txt: (l) => `추력 +${l * 6}%` },
+  skill: { name: "스킬", icon: "✺", color: "#ffd24a", txt: (l) => `충전 +${l * 15}%` },
+  cool: { name: "냉각", icon: "❄", color: "#9fe8ff", txt: (l) => `과열 -${l * 8}% · 냉각 +${l * 12}%` },
+};
+const UP = SUP, UP_KEYS = Object.keys(SUP), UP_MAX = 5;
 // 작전 1~5: hp 적 체력 배율 · cnt 적 수 배율 · stages 스테이지 수 · medal 승리 훈장 · diff 적 조준·피해
 export const OPS = [
   { n: 1, name: "선발 정찰", diff: "easy", hp: 0.8, cnt: 0.8, stages: 3, medal: 0, last: "final", boss: "twin", tag: "쉬움" },
@@ -112,7 +125,8 @@ export class StrikeMode extends CombatMode {
     this.seed = this.co ? this.co.seed : Math.floor(Math.random() * 1e9);
     this.km = new Set(); this.myBossDmg = {}; this.out = false; this.wk = -1; this.syncT = 0; this.hudN = 0;
     this.gfx = []; this.optGfx = []; this.endT = -1; this.bossDead = false; this.restT = 0; this.guideT = 0;
-    this.alN = 0; this.alMine = 0; this.rfN = 0; this.cp = 0; this.stealth = 0;
+    this.alN = 0; this.alMine = 0; this.rfN = 0; this.cp = 0; this.stealth = 0; this.shT = 0;
+    this.carry = cfg.carry && cfg.carry.op === this.op.n && cfg.carry.map === session.map.id ? cfg.carry : null;   // 이어서 하는 작전: 앞 작전의 ⓟ·업그레이드
   }
 
   start() {
@@ -121,7 +135,9 @@ export class StrikeMode extends CombatMode {
     this.ng.attach(c);
     const me = this.me;
     if (this.co) me.name = this.co.name || "파일럿";
-    me.aos = { pts: 0, up: { fire: 0, armor: 0, move: 0, skill: 0 } };
+    me.aos = { pts: START_PTS[this.op.n - 1], up: Object.fromEntries(UP_KEYS.map((k) => [k, 0])) };
+    if (this.carry) { me.aos.pts = Math.max(0, +this.carry.pts || 0); for (const k of UP_KEYS) me.aos.up[k] = clamp(+(this.carry.up || {})[k] | 0, 0, UP_MAX); }
+    this.upTable = { UP, KEYS: UP_KEYS, MAX: UP_MAX };
     this.L0 = Object.assign({}, c.L);
     this._applyStats(true);
     this._liftAll = s.map.id === "orbit" || s.map.id === "moon";
@@ -166,6 +182,7 @@ export class StrikeMode extends CombatMode {
     }
     this._brief();
     this._go(0);
+    setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
   }
 
   // 작전 브리핑 (7초 또는 누르면 닫힘)
@@ -265,8 +282,10 @@ export class StrikeMode extends CombatMode {
   }
   _applyStats(init) {
     const me = this.me, u = me.aos.up, L = this.combat.L, L0 = this.L0;
-    L.laserDmg = L0.laserDmg + 0.15 * u.fire; L.mDmg = L0.mDmg + 0.15 * u.fire;
-    L.thrust = (L0.thrust || 0) + 0.06 * u.move; L.gauge = (L0.gauge || 0) + 0.15 * u.skill; L.mCap = (L0.mCap || 0) + u.skill;
+    L.laserDmg = L0.laserDmg + 0.12 * u.fire; L.mDmg = L0.mDmg + 0.15 * u.missile; L.mCap = (L0.mCap || 0) + u.missile; L.mStart = (L0.mStart || 0) + Math.floor(u.missile / 2);
+    L.thrust = (L0.thrust || 0) + 0.06 * u.move; L.gauge = (L0.gauge || 0) + 0.15 * u.skill;
+    L.regen = (L0.regen || 0) + 1.5 * u.regen; L.spawnShield = (L0.spawnShield || 0) + 25 * u.shield;
+    L.heat = (L0.heat || 0) - 0.08 * u.cool; L.cool = (L0.cool || 0) + 0.12 * u.cool;
     const mh = PLAYER_HP * (1 + (L0.hp || 0)) * (1 + 0.15 * u.armor), d = mh - me.maxHp;
     me.maxHp = mh; me.hp = init ? mh : clamp(me.hp + Math.max(0, d), 0, mh);
   }
@@ -350,7 +369,7 @@ export class StrikeMode extends CombatMode {
     const P = (f, off) => { const p = from.clone().lerp(to, f).addScaledVector(lat, off); p.y = w.h(p.x, p.z) + 12 + this.R() * 8; return p; };
     if (k === "pods") for (let i = 0; i < 3; i++) { const p = P(0.3 + i * 0.2, (this.R() - 0.5) * 50), m = new THREE.Mesh(new THREE.OctahedronGeometry(1.8), new THREE.MeshBasicMaterial({ color: 0x8cff4a })); m.position.copy(p); w.scene.add(m); this.gfx.push(m); items.push({ p, m }); }
     else for (let i = 0; i < 2; i++) { const p = P(0.5 + i * 0.15, (i ? 1 : -1) * 45); p.y += 10; const b = c.spawnBot({ kind: "jet", team: 1, pos: p, temp: true, name: "적 정찰기" }); if (b) { b.ai.path = [P(0.95, (i ? -1 : 1) * 70).setY(p.y), P(0.1, (i ? -1 : 1) * 50).setY(p.y)]; b.ai.pi = 0; items.push({ a: b }); } }
-    const SUB = { pods: ["보급 캡슐 회수", 80], scouts: ["적 정찰기 격추", 100] };
+    const SUB = { pods: ["보급 캡슐 회수", 120], scouts: ["적 정찰기 격추", 150] };
     this.sub = { k, name: SUB[k][0], reward: SUB[k][1], items, got: 0, need: items.length, done: false };
     const lead = this.st.last ? (this.st.type === "siege" ? "적 요새가 보인다. 공성 준비." : "적 본진 성문 앞. 마지막 싸움이다.") : `${M.icon} ${M.name} 임무 — ${this.st.name}`;
     this.s.hud.toast(`STAGE ${si + 1}/${this.N} · ${lead}`, M.css, 3, 28);
@@ -657,8 +676,8 @@ export class StrikeMode extends CombatMode {
     if (this.phase !== "fight") return;
     const me = this.me, T = this.st.type;
     this.cleared++; me.score += 500;
-    const bonus = T === "infil" && this.stealth ? 80 : 0;
-    this._give(PTS.clear + (T === "fight" ? 0 : 20) + bonus, `${this.st.name} 확보${bonus ? " · 들키지 않음 보너스" : ""}`);
+    const bonus = T === "infil" && this.stealth ? 120 : 0;
+    this._give(PTS.clear + (T === "fight" ? 0 : 30) + bonus, `${this.st.name} 확보${bonus ? " · 들키지 않음 보너스" : ""}`);
     if (me.alive) me.hp = Math.min(me.maxHp, me.hp + me.maxHp * 0.3);
     for (const b of this.extras) if (b.alive) this.combat.kill(b, null);
     for (const a of this.list) if (a.alive) { a.remoteKill = true; this.combat.kill(a, null); }
@@ -715,6 +734,8 @@ export class StrikeMode extends CombatMode {
     if (this.out) this._spectate(dt);
     this._selfReviveTick(dt);
     if (this.state !== "run") return;
+    { const lv = this.me.aos.up.shield, me = this.me;   // 실드 발생기: 주기적으로 실드
+      if (lv > 0 && me.alive && (this.shT -= dt) <= 0) { this.shT = 22 - lv * 2; me.shield = Math.max(me.shield || 0, 25 * lv * (1 + (this.combat.L.shieldK || 0))); me.shieldT = Math.max(me.shieldT || 0, 8); } }
     for (const b of this.brains) b.update(dt);
     this.brains = this.brains.filter((b) => b.alive);
     const me = this.me, st = this.st;
@@ -859,8 +880,8 @@ export class StrikeMode extends CombatMode {
       const x = L.l, y = L.t + 100 * u, w = 214 * u, hh = 40 * u, D = me.aos;
       h.plate(x, y, w, hh, { skew: 0.08, fill: "rgba(8,12,26,0.86)", accent: "#ffd24a" });
       h.text(`ⓟ ${Math.floor(D.pts)}`, x + 14 * u, y + 13 * u, { size: 15, base: "middle", bold: true, color: "#ffd24a", shadow: false });
-      h.text(UP_KEYS.map((k) => `${UP[k].icon}${D.up[k] + 1}`).join(" "), x + w - 12 * u, y + 13 * u, { size: 11, align: "right", base: "middle", color: "#cfd8e6", shadow: false });
-      h.text(this.combat.touchUI() ? "눌러서 업그레이드 (Lv1 시작)" : `업그레이드 [${h.keyName ? h.keyName("item", "E") : "E"}] · Lv1 시작`, x + 14 * u, y + 29 * u, { size: 10, base: "middle", color: "#9aa8bc", shadow: false });
+      h.text(UP_KEYS.filter((k) => D.up[k]).map((k) => `${UP[k].icon}${D.up[k]}`).join(" ") || "업그레이드 없음", x + w - 12 * u, y + 13 * u, { size: 11, align: "right", base: "middle", color: "#cfd8e6", shadow: false });
+      h.text(this.combat.touchUI() ? "눌러서 업그레이드 (8종)" : `업그레이드 [${h.keyName ? h.keyName("item", "E") : "E"}] · 8종`, x + 14 * u, y + 29 * u, { size: 10, base: "middle", color: "#9aa8bc", shadow: false });
       this.panelRect = { x, y, w, h: hh, f: this.hudN };
     }
     // 이동 안내: 화면 화살표가 목표 방향·거리를 늘 알려 준다. 처음 5초는 크게 + 안내판
@@ -904,13 +925,13 @@ export class StrikeMode extends CombatMode {
       if (medal) GP.addMedals(medal, `돌파 작전 ${this.op.n} 승리`);
     }
     this.finish({
-      strike: win && this.op.n < 5 ? { next: this.op.n + 1, name: OPS[this.op.n].name, map: mid, coop: !!(this.co && this.ng.online) } : null,   // 결과 화면 '다음 작전' 버튼
+      strike: win && this.op.n < 5 ? { next: this.op.n + 1, name: OPS[this.op.n].name, map: mid, coop: !!(this.co && this.ng.online), carry: { op: this.op.n + 1, map: mid, pts: Math.floor(me.aos.pts), up: { ...me.aos.up } } } : null,   // 결과 화면 '다음 작전' 버튼
       title: win ? "작전 성공!" : "작전 실패", sub: `돌파 작전 ${this.op.n} · ${this.op.name} · ${this.s.map.name} · 스테이지 ${Math.min(this.N, this.si + 1)}/${this.N}${unlocked ? " · " + unlocked : ""}`, win, record: rec,
       stars: win ? (this.lives >= 3 ? 3 : this.lives >= 2 ? 2 : 1) : 0,
       lines: [{ label: "점수", value: `${sc}${win ? ` (남은 목숨 +${this.lives * 1000})` : ""}` }, { label: "임무", value: this.picks.slice(0, this.si + 1).map((x) => MT[x].name).join(" → ") },
         { label: "격추", value: `${this.kills}` }, { label: "남은 목숨", value: `${this.lives}` },
         ...(win && this.op.medal ? [{ label: "훈장", value: `🎖 +${medal}${first ? " (첫 승리 +1)" : ""} · 보유 ${GP.medals()} — 격납고 파츠·스킬 한계 돌파` }] : win ? [{ label: "훈장", value: "작전 3부터 승리하면 훈장 🎖 (격납고 한계 돌파)" }] : []),
-        { label: "업그레이드", value: UP_KEYS.map((k) => `${UP[k].name} ${me.aos.up[k] + 1}`).join(" · ") },
+        { label: "업그레이드", value: UP_KEYS.filter((k) => me.aos.up[k]).map((k) => `${UP[k].name} ${me.aos.up[k]}`).join(" · ") || "없음" }, ...(win && this.op.n < 5 ? [{ label: "이어 가기", value: `다음 작전으로 남은 ${Math.floor(me.aos.pts)}ⓟ와 업그레이드를 그대로 가져갑니다` }] : []),
         { label: "걸린 시간", value: fmtTime(this.time) }, { label: "최고 기록", value: `${records[this.recKey] || sc}` }],
     });
   }
