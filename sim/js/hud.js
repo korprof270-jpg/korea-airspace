@@ -165,6 +165,45 @@ export class Hud {
   }
 
   // 기울어진 계기판(평행사변형). o: { accent, fill, skew, r, side }
+  // 홀로그램 패널: 허공에 투사된 듯한 반투명 화면 (무전·설명용)
+  //  o.col 색 · o.k 0→1 열림(가운데 선에서 위아래로 펼쳐짐) · o.t 시간(깜빡임·주사선 흐름) · o.emit 아래 투사점 [x,y]
+  holo(x, y, w, h, o = {}) {
+    const g = this.g, u = this.u, col = o.col || "#5ff0ff", t = o.t || 0, k = Math.max(0, Math.min(1, o.k ?? 1));
+    const cy = y + h / 2, hh = Math.max(2 * u, h * k);
+    const fl = k < 1 ? 0.6 + Math.random() * 0.4 : 0.9 + 0.1 * Math.sin(t * 37) * Math.sin(t * 11.3);   // 열리는 동안 크게 깜빡
+    const gx = (Math.sin(t * 13.7) > 0.985) ? (Math.random() - 0.5) * 8 * u : 0;                          // 가끔 옆으로 튀는 글리치
+    const X = x + gx, Y = cy - hh / 2;
+    g.save();
+    g.globalAlpha *= fl;
+    if (o.emit) {   // 투사 빔: 투사점에서 패널 아래 모서리로 퍼지는 옅은 빛
+      const [ex, ey] = o.emit, gr = g.createLinearGradient(0, ey, 0, Y + hh);
+      gr.addColorStop(0, col + "00"); gr.addColorStop(1, col + "22");
+      g.fillStyle = gr; g.beginPath(); g.moveTo(ex - 3 * u, ey); g.lineTo(X + w * 0.12, Y + hh); g.lineTo(X + w * 0.88, Y + hh); g.lineTo(ex + 3 * u, ey); g.closePath(); g.fill();
+    }
+    const bg = g.createLinearGradient(0, Y, 0, Y + hh);
+    bg.addColorStop(0, col + "30"); bg.addColorStop(0.5, col + "14"); bg.addColorStop(1, col + "2a");
+    g.fillStyle = bg; g.fillRect(X, Y, w, hh);
+    g.save(); g.beginPath(); g.rect(X, Y, w, hh); g.clip();
+    g.fillStyle = col + "18";   // 주사선 (아래로 천천히 흐름)
+    const sp = 3 * u, off = (t * 18 * u) % sp;
+    for (let yy = Y - sp + off; yy < Y + hh; yy += sp) g.fillRect(X, yy, w, Math.max(1, u * 0.9));
+    const by = Y + ((t * 0.35) % 1) * hh * 1.4 - hh * 0.2, sb = g.createLinearGradient(0, by - 14 * u, 0, by + 14 * u);   // 훑고 지나가는 밝은 띠
+    sb.addColorStop(0, col + "00"); sb.addColorStop(0.5, col + "26"); sb.addColorStop(1, col + "00");
+    g.fillStyle = sb; g.fillRect(X, by - 14 * u, w, 28 * u);
+    g.restore();
+    g.shadowColor = col; g.shadowBlur = 10 * u;
+    g.strokeStyle = col + "aa"; g.lineWidth = 1.2 * u; g.strokeRect(X + 0.5, Y + 0.5, w - 1, hh - 1);
+    const c = Math.min(14 * u, hh * 0.4); g.strokeStyle = col; g.lineWidth = 2.4 * u; g.beginPath();   // 모서리 꺾쇠
+    for (const [px, py, dx, dy] of [[X, Y, 1, 1], [X + w, Y, -1, 1], [X, Y + hh, 1, -1], [X + w, Y + hh, -1, -1]]) { g.moveTo(px, py + dy * c); g.lineTo(px, py); g.lineTo(px + dx * c, py); }
+    g.stroke();
+    g.restore();
+    return { y: Y, h: hh, fl, gx };
+  }
+  // 홀로그램 글자 (번지는 빛)
+  holoText(s, x, y, o = {}) {
+    const g = this.g; g.save(); g.shadowColor = o.glow || o.color || "#5ff0ff"; g.shadowBlur = (o.blur ?? 8) * this.u;
+    this.text(s, x, y, { ...o, shadow: false }); g.restore();
+  }
   plate(x, y, w, h, o = {}) {
     const g = this.g, u = this.u, k = (o.skew ?? 0.22) * h, r = (o.r ?? 6) * u;
     const path = () => {

@@ -148,20 +148,36 @@ export class Session {
     if (!R || m.state !== "run" || m.cut || h.lvl === "off") return;
     const cur = R.find(([at]) => m.time >= at && m.time < at + 4.5);
     if (!cur) return;
-    const [at, who, line] = cur, k = Math.min(1, (m.time - at) * 4, (at + 4.5 - m.time) * 3);
-    const u = h.u, L = h.L, g = h.g, w = Math.min(460 * u, h.W - 32 * u), ph = 58 * u, x = L.cx - w / 2, y = L.conTop - ph - 70 * u;
-    g.save(); g.globalAlpha = k;
-    h.plate(x, y, w, ph, { accent: CAST[who] || "#9fb3c8", skew: 0.05 });
-    const src = portrait(who, "normal");
-    if (src) {
-      this._rimg = this._rimg || {};
-      let img = this._rimg[who];
-      if (!img) { img = this._rimg[who] = new Image(); img.src = src; }
-      if (img.complete && img.naturalWidth) { g.save(); g.beginPath(); g.rect(x + 8 * u, y + 5 * u, 48 * u, ph - 10 * u); g.clip(); if (hasArt(who)) { const k = img.naturalWidth / 1200; g.drawImage(img, 330 * k, 70 * k, 540 * k, 580 * k, x + 6 * u, y + 2 * u, 52 * u, 56 * u); } else g.drawImage(img, 90, 70, 220, 240, x + 6 * u, y + 2 * u, 52 * u, 56 * u); g.restore(); }
+    const [at, who, line] = cur, e = m.time - at, out = (at + 4.5 - m.time) * 3;
+    // 홀로그램 통신 화면: 가운데 선에서 펼쳐지고, 글자는 한 자씩 찍히며, 끝날 때 접혀 사라진다
+    const k = Math.min(1, e * 5, out), alpha = Math.min(1, e * 8, out + 0.2);
+    const u = h.u, L = h.L, g = h.g, w = Math.min(470 * u, h.W - 32 * u), ph = 62 * u, x = L.cx - w / 2, y = L.conTop - ph - 70 * u;
+    const col = CAST[who] || "#5ff0ff";
+    g.save(); g.globalAlpha = alpha;
+    const P = h.holo(x, y, w, ph, { col, k, t: m.time, emit: [L.cx, L.conTop - 8 * u] });
+    if (k > 0.85) {
+      g.save(); g.beginPath(); g.rect(x, P.y, w, P.h); g.clip();
+      const src = portrait(who, "normal");
+      if (src) {
+        this._rimg = this._rimg || {};
+        let img = this._rimg[who];
+        if (!img) { img = this._rimg[who] = new Image(); img.src = src; }
+        if (img.complete && img.naturalWidth) {
+          const ix = x + 8 * u + P.gx, iy = y + 5 * u, iw = 50 * u, ih = ph - 10 * u;
+          g.save(); g.beginPath(); g.rect(ix, iy, iw, ih); g.clip(); g.globalAlpha *= 0.82;
+          if (hasArt(who)) { const kk = img.naturalWidth / 1200; g.drawImage(img, 330 * kk, 70 * kk, 540 * kk, 580 * kk, ix - 2 * u, iy - 3 * u, 54 * u, 58 * u); } else g.drawImage(img, 90, 70, 220, 240, ix - 2 * u, iy - 3 * u, 54 * u, 58 * u);
+          g.globalCompositeOperation = "source-atop"; g.fillStyle = col + "40"; g.fillRect(ix, iy, iw, ih);   // 홀로그램 색조
+          g.globalCompositeOperation = "source-over"; g.fillStyle = "#00000030"; for (let yy = iy; yy < iy + ih; yy += 2.5 * u) g.fillRect(ix, yy, iw, u);
+          g.restore();
+          g.strokeStyle = col + "88"; g.lineWidth = u; g.strokeRect(ix, iy, iw, ih);
+        }
+      }
+      const tx = x + (src ? 68 : 16) * u + P.gx, n = Math.max(0, Math.floor((e - 0.2) * 34));   // 초당 34자 타자
+      h.holoText(`◢ ${who}`, tx, y + 17 * u, { size: 11.5, base: "middle", bold: true, color: col });
+      h.text("● REC", x + w - 12 * u, y + 15 * u, { size: 9, base: "middle", align: "right", color: Math.sin(m.time * 6) > 0 ? "#ff5a5a" : "#ff5a5a44", shadow: false, mono: true });
+      h.holoText(line.slice(0, n) + (n < line.length && Math.sin(m.time * 20) > 0 ? "▌" : ""), tx, y + 40 * u, { size: 14, base: "middle", color: "#eafcff", glow: col, blur: 6 });
+      g.restore();
     }
-    const tx = x + (src ? 66 : 16) * u;
-    h.text(who, tx, y + 17 * u, { size: 12, base: "middle", bold: true, color: CAST[who] || "#9fb3c8", shadow: false });
-    h.text(line, tx, y + 38 * u, { size: 14, base: "middle", color: "#fff", shadow: false });
     g.restore();
   }
 

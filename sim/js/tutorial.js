@@ -180,7 +180,7 @@ export class Tutorial {
       ...(session.mode && session.mode.combat ? [{ text: "<b>전투</b> — <kbd>Space</kbd> 레이저 · <kbd>F</kbd> 미사일(조준선 근처 자동 락온) · <kbd>E</kbd> 아이템", wait: 7 }] : []),
     ];
     const el = (this.fl = document.createElement("div"));
-    el.className = "tutfly";
+    el.className = "tutfly holo";
     el.innerHTML = `<div class="tf-t"></div><div class="tf-p"></div><button data-t="off" class="ghost">안내 끄기</button>`;
     el.querySelector("button").addEventListener("click", () => { this.mark("flight"); this.stopFlight(); });
     document.body.appendChild(el);

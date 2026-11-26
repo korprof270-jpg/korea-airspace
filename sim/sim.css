@@ -822,7 +822,7 @@ kbd.pad { min-width: 1.6em; text-align: center; border-radius: 999px; background
 .tutkeys th { text-align: left; font-weight: 700; color: #cfd8e3; padding: 4px 6px 4px 0; }
 .tutkeys td { padding: 4px 6px; color: var(--muted); white-space: nowrap; }
 .tutfly { position: fixed; left: 50%; top: max(64px, 9vh); transform: translateX(-50%); z-index: 40; width: min(520px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 14px; border: 2px solid var(--ink); background: rgba(14, 20, 36, 0.9); box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--gold); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; pointer-events: auto; transition: box-shadow 0.2s, background 0.2s; }
-.tutfly.ok { box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--ok); background: rgba(20, 52, 36, 0.92); }
+.tutfly.ok:not(.holo) { box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--ok); background: rgba(20, 52, 36, 0.92); }
 .tutfly .tf-t { flex: 1 1 100%; font-size: 15px; line-height: 1.5; }
 .tutfly .tf-p { flex: 1; font-size: 11px; color: var(--muted); }
 .tutfly button { padding: 4px 10px; font-size: 12px; }
@@ -1129,3 +1129,28 @@ body.nocur, body.nocur * { cursor: none !important; }
 /* 첫 화면 버전 표시 */
 .titlescreen .tver { position: absolute; left: calc(env(safe-area-inset-left) + 18px); bottom: calc(env(safe-area-inset-bottom) + 16px); font-size: 12px; font-weight: 700;
   letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 0 var(--ink), 0 0 8px rgba(0, 0, 0, 0.6); z-index: 3; pointer-events: none; }
+/* 홀로그램 패널: 비행 중 허공에 투사된 화면 (첫 비행 안내 · 작전 브리핑 등) */
+.holo { --hc: #5ff0ff; position: fixed; color: #eafcff; border: 1px solid color-mix(in srgb, var(--hc) 60%, transparent); border-radius: 4px;
+  background:
+    linear-gradient(var(--hc), var(--hc)) left top / 16px 2px no-repeat, linear-gradient(var(--hc), var(--hc)) left top / 2px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right top / 16px 2px no-repeat, linear-gradient(var(--hc), var(--hc)) right top / 2px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) left bottom / 16px 2px no-repeat, linear-gradient(var(--hc), var(--hc)) left bottom / 2px 16px no-repeat,
+    linear-gradient(var(--hc), var(--hc)) right bottom / 16px 2px no-repeat, linear-gradient(var(--hc), var(--hc)) right bottom / 2px 16px no-repeat,
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--hc) 9%, transparent) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, color-mix(in srgb, var(--hc) 20%, rgba(4, 14, 26, 0.55)), color-mix(in srgb, var(--hc) 8%, rgba(4, 14, 26, 0.45)) 50%, color-mix(in srgb, var(--hc) 16%, rgba(4, 14, 26, 0.55)));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--hc) 35%, transparent), inset 0 0 22px color-mix(in srgb, var(--hc) 14%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--hc) 70%, transparent);
+  backdrop-filter: blur(1.5px); overflow: hidden;
+  animation: holo-in 0.42s cubic-bezier(.2, .9, .3, 1.2) both, holo-flick 4.3s 0.5s infinite; }
+.holo::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--hc) 16%, transparent) 50%, transparent) 0 0 / 100% 40px no-repeat;
+  animation: holo-sweep 3.2s linear infinite; }
+@keyframes holo-in { 0% { opacity: 0; clip-path: inset(49% 0 49% 0); filter: brightness(2.2); } 35% { opacity: 1; clip-path: inset(49% 0 49% 0); } 100% { opacity: 1; clip-path: inset(0 0 0 0); filter: none; } }
+@keyframes holo-flick { 0%, 91%, 94%, 100% { opacity: 1; } 92% { opacity: 0.55; } 93% { opacity: 0.9; transform: var(--ht, translateX(-50%)) translateX(2px); } }
+@keyframes holo-sweep { from { background-position: 0 -40px; } to { background-position: 0 calc(100% + 40px); } }
+.holo .holo-h { color: var(--hc); font-weight: 800; font-size: 12px; letter-spacing: 0.12em; }
+.tutfly.holo { border-width: 1px; box-shadow: 0 0 18px color-mix(in srgb, var(--hc) 35%, transparent), inset 0 0 22px color-mix(in srgb, var(--hc) 14%, transparent); }
+.tutfly.holo.ok { --hc: #6dffa8; }
+.tutfly.holo .tf-p { color: color-mix(in srgb, var(--hc) 70%, #9fb3c8); }
+.tutfly.holo button { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .holo, .holo::after { animation: none; } }
