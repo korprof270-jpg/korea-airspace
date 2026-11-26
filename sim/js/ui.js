@@ -1652,13 +1652,21 @@ export class UI {
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       ${r.pvp ? `<div class="list">${r.pvp.auto ? `<button class="primary" data-a="pvrequeue">다시 매칭</button>` : `<button class="primary" data-a="pvlobby">대기실로</button>`}<button data-a="pvexit">PVP 메뉴로</button></div>` : `<div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
+        ${r.strike && r.strike.next ? `<button class="primary" data-a="nextop" data-v="${r.strike.next}">다음 작전: 작전 ${r.strike.next} · ${esc(r.strike.name)} →</button>` : ""}
         ${r.story && r.story.post ? `<button class="primary" data-a="storypost" data-v="${r.story.stage.id}">이야기 계속 →</button>` : ""}
         ${r.story && r.story.next && !r.story.post ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
-        <button class="${(r.story && (r.story.next || r.story.post)) || (r.training && r.training.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
+        <button class="${(r.story && (r.story.next || r.story.post)) || (r.training && r.training.next) || (r.strike && r.strike.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
         ${r.story ? `<button class="${r.story.choose && !r.story.post ? "primary" : ""}" data-a="tostory">${r.story.choose && !r.story.post ? "다음 장: 작전 선택 →" : r.story.bond ? "인연 목록으로" : "단계 목록으로"}</button>` : ""}
         ${r.training ? `<button data-a="totraining">과목 목록으로</button>` : ""}
         <button data-a="quit">메인 메뉴로</button>
       </div>`}</div></div>`;
+  }
+  // 돌파 작전 승리 → 같은 맵의 다음 작전으로 바로 (협동은 협동 방으로)
+  a_nextop(v) {
+    const n = Math.max(1, Math.min(5, v | 0)), last = this.game.lastCfg || {};
+    Object.assign(this.sel, { mode: "survival", svType: "strike", variant: "strike", op: n, map: last.map || this.sel.map }); this._persist();
+    if (last.coop) { this.sel.party = "coop"; this.game.quit(); return this.show("coop"); }
+    this.game.startSession({ ...last, op: n, difficulty: STRIKE_DIFF[n - 1], dda: false });
   }
   a_nextlesson(v) {
     const l = TR.LESSONS.find((x) => x.id === v);

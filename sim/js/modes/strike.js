@@ -904,6 +904,7 @@ export class StrikeMode extends CombatMode {
       if (medal) GP.addMedals(medal, `돌파 작전 ${this.op.n} 승리`);
     }
     this.finish({
+      strike: win && this.op.n < 5 ? { next: this.op.n + 1, name: OPS[this.op.n].name, map: mid, coop: !!(this.co && this.ng.online) } : null,   // 결과 화면 '다음 작전' 버튼
       title: win ? "작전 성공!" : "작전 실패", sub: `돌파 작전 ${this.op.n} · ${this.op.name} · ${this.s.map.name} · 스테이지 ${Math.min(this.N, this.si + 1)}/${this.N}${unlocked ? " · " + unlocked : ""}`, win, record: rec,
       stars: win ? (this.lives >= 3 ? 3 : this.lives >= 2 ? 2 : 1) : 0,
       lines: [{ label: "점수", value: `${sc}${win ? ` (남은 목숨 +${this.lives * 1000})` : ""}` }, { label: "임무", value: this.picks.slice(0, this.si + 1).map((x) => MT[x].name).join(" → ") },
