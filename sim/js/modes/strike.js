@@ -182,25 +182,12 @@ export class StrikeMode extends CombatMode {
       rb.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.reviveMate(); });
       this.shop.el.insertBefore(rb, help);
     }
-    this._brief();
     this._go(0);
     setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
   }
 
   // 작전 브리핑 (7초 또는 누르면 닫힘)
-  _brief() {
-    const m = this.s.map, o = this.op, el = (this.briefEl = document.createElement("div"));
-    el.className = "holo";
-    el.style.cssText = "--hc:#35ff7a;left:50%;top:max(160px,26%);transform:translateX(-50%);z-index:31;width:min(560px,92vw);padding:16px 20px;font:500 14px/1.6 'Noto Sans KR',sans-serif;pointer-events:auto;cursor:pointer";
-    el.innerHTML = `<div class="holo-h">◢ 작전 사령부 · 브리핑 수신 · ${m.name}</div>
-      <div style="font-size:20px;font-weight:800;margin:4px 0 8px">작전 ${o.n} · ${o.name} <small style="font-size:12px;color:#ffb02e">${o.tag} · 스테이지 ${o.stages}</small></div>
-      <div style="color:#d6f6ff">${STORY[m.id] || `${m.name}에 적이 진지를 세웠다.`}<br>${OP_TEXT[o.n - 1]}</div>
-      <div style="margin-top:8px;color:#9aa8bc;font-size:12px">스테이지가 끝날 때마다 사령부가 무전으로 다음 임무(🥷 침투 · ⚔ 교전 · 🚩 탈취)를 내립니다${o.medal ? ` · 승리하면 훈장 🎖${o.medal}` : ""} · 눌러서 닫기</div>`;
-    const close = () => { if (this.briefEl) { this.briefEl.remove(); this.briefEl = null; } };
-    el.addEventListener("pointerdown", (e) => { e.preventDefault(); close(); });
-    document.body.appendChild(el);
-    this.briefTo = setTimeout(close, 8000);
-  }
+
 
   // 후보 지점: 맵 전체를 60m 격자로 훑어 지형 성격(건물 밀도 · 높낮이)을 매긴다. 같은 맵이면 모두 같은 결과
   _cands() {
@@ -463,7 +450,8 @@ export class StrikeMode extends CombatMode {
     if (st.last) return this._say([st.type === "siege" ? "구역 확보. 적 본진 요새가 보인다. 외곽 방공 포대부터 부숴라." : "구역 확보. 적 본진 성문 앞이다. 마지막 결전, 전 화력 집중."]);
     const open = si === 0 ? "작전 개시." : this.rp(["구역 확보 확인.", "잘했다. 쉴 틈 없다.", "정찰 보고 들어왔다.", "확보 확인. 곧바로 이동."]);
     const goal = String(st.goal || M.desc).split(/\.\s*/).filter(Boolean).map((x) => x + ".");
-    this._say([`${open} ${M.name} 임무, 목표 ${st.name}. 빛 기둥으로.`, ...goal], si === 0 ? 1.5 : 0.4);
+    const intro = si === 0 ? [`작전 ${this.op.n}, ${this.op.name}.`, STORY[this.s.map.id] || ""] : [];   // 첫 브리핑도 따로 띄우지 않고 무전으로
+    this._say([...intro, `${open} ${M.name} 임무, 목표 ${st.name}. 빛 기둥으로.`, ...goal], si === 0 ? 1.5 : 0.4);
   }
 
   // ── 교전 ──
@@ -946,7 +934,6 @@ export class StrikeMode extends CombatMode {
   dispose() {
     if (this.siteGone) for (const f of this.siteGone) f();
     if (this.revBtn) { this.revBtn.remove(); this.revBtn = null; }
-    clearTimeout(this.briefTo); if (this.briefEl) { this.briefEl.remove(); this.briefEl = null; }
     this._clearGfx();
     if (this.arena) for (const m of this.arena) this.s.world.scene.remove(m);
     if (this.fog0 && this.s.world.scene.fog) this.s.world.scene.fog.color.copy(this.fog0);
