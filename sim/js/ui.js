@@ -418,8 +418,8 @@ export class UI {
     const C = this._coop;
     this._coopStarted = g.t; clearInterval(this._coopIv);
     const s = this.sel;
-    const op = Math.max(1, Math.min(5, g.op | 0 || 1));
-    this.game.startSession({ mode: "strike", map: s.map, difficulty: STRIKE_DIFF[op - 1], op,
+    const op = Math.max(1, Math.min(5, g.op | 0 || 1)), carry = this._carry && this._carry.op === op && this._carry.map === s.map ? this._carry : null; this._carry = null;
+    this.game.startSession({ mode: "strike", map: s.map, difficulty: STRIKE_DIFF[op - 1], op, carry,
       coop: { ids: g.ids.slice(0, 4), host: hostId, seed: g.sd, name: this._coopName },
       net: { room: C.r, me: C.me, mid: `strike-${g.t}`, host: hostId === C.me, client: null, elapsed: 0 } });
   }
@@ -838,7 +838,7 @@ export class UI {
         opts += `<div class="opt"><label>인원</label>${this.seg("party", [["solo", "혼자 (AI 윙맨 3기)"], ["coop", "협동 (최대 4인)"]], s.party || "solo")}<div class="hint">협동: 같은 맵 협동 방에 모인 사람과 한 스테이지를 같이 시작합니다. 온라인 협동은 claude.ai 링크에서 됩니다.</div></div>`;
         const done = Math.max(0, Math.min(5, records[`strikeOp:${s.map}`] | 0)), op = Math.min(Math.max(1, s.op | 0 || done + 1), done + 1, 5); s.op = op;
         opts += `<div class="opt"><label>작전 (차례로 열림)</label><div class="seg">${STRIKE_OPS.map((o, i) => { const n = i + 1, lock = n > done + 1; return `<button data-a="sel" data-k="op" data-v="${n}" class="${op === n ? "on" : ""}" ${lock ? "disabled" : ""}>${lock ? "🔒 " : n <= done ? "✔ " : ""}작전 ${n} · ${o[0]}</button>`; }).join("")}</div><div class="hint">작전 ${op} · ${STRIKE_OPS[op - 1][0]} — 난이도 ${STRIKE_OPS[op - 1][1]} · 스테이지 ${STRIKE_OPS[op - 1][2]}개${STRIKE_OPS[op - 1][3] ? ` · 승리하면 훈장 🎖${STRIKE_OPS[op - 1][3]} (처음 이기면 +1)` : ""} · 보유 훈장 🎖${GP.medals()}<br>${STRIKE_OPS[op - 1][4]}</div></div>`;
-        opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 다음 임무를 고릅니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 고른 임무는 지형에 맞는 다른 구역에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 Lv1 로 시작해 ⓟ로 업그레이드 · 목숨 5개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
+        opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 다음 임무를 고릅니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 고른 임무는 지형에 맞는 다른 구역에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 시작해 ⓟ로 8가지(레이저·미사일·장갑·실드 발생기·자가 수리·기동·스킬·냉각)를 업그레이드합니다. 다음 작전으로 이어서 하면 남은 ⓟ와 업그레이드를 그대로 가져가고, 메뉴에서 작전 2~5를 바로 시작하면 출발 ⓟ(700·1500·2500·3600)를 받습니다 · 목숨 7개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -897,6 +897,7 @@ export class UI {
     if (s.mode === "race" && s.rivals > 0 && !this._diffOk) return this._openDiff(true);   // 서바이벌은 난이도 자동 조절이라 묻지 않는다
     this._diffOk = false;
     const cfg = { mode: s.mode, map: s.map, difficulty: settings.difficulty };
+    if (s.mode === "survival" && s.variant === "strike") this._carry = null;   // 메뉴에서 새로 시작: 이어받기 없음 (출발 ⓟ만)
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
@@ -1652,7 +1653,7 @@ export class UI {
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       ${r.pvp ? `<div class="list">${r.pvp.auto ? `<button class="primary" data-a="pvrequeue">다시 매칭</button>` : `<button class="primary" data-a="pvlobby">대기실로</button>`}<button data-a="pvexit">PVP 메뉴로</button></div>` : `<div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
-        ${r.strike && r.strike.next ? `<button class="primary" data-a="nextop" data-v="${r.strike.next}">다음 작전: 작전 ${r.strike.next} · ${esc(r.strike.name)} →</button>` : ""}
+        ${(this._lastStrike = r.strike || null, "")}${r.strike && r.strike.next ? `<button class="primary" data-a="nextop" data-v="${r.strike.next}">다음 작전: 작전 ${r.strike.next} · ${esc(r.strike.name)} →</button>` : ""}
         ${r.story && r.story.post ? `<button class="primary" data-a="storypost" data-v="${r.story.stage.id}">이야기 계속 →</button>` : ""}
         ${r.story && r.story.next && !r.story.post ? `<button class="primary" data-a="nextstage" data-v="${r.story.next.id}">다음 단계: ${esc(r.story.next.title)} →</button>` : ""}
         <button class="${(r.story && (r.story.next || r.story.post)) || (r.training && r.training.next) || (r.strike && r.strike.next) ? "" : "primary"}" data-a="restart">${(r.story && !r.story.passed) || (r.training && !r.training.passed) ? "다시 도전" : "다시 하기"}</button>
@@ -1663,10 +1664,11 @@ export class UI {
   }
   // 돌파 작전 승리 → 같은 맵의 다음 작전으로 바로 (협동은 협동 방으로)
   a_nextop(v) {
-    const n = Math.max(1, Math.min(5, v | 0)), last = this.game.lastCfg || {};
+    const n = Math.max(1, Math.min(5, v | 0)), last = this.game.lastCfg || {}, carry = this._lastStrike && this._lastStrike.carry && this._lastStrike.carry.op === n ? this._lastStrike.carry : null;
+    this._carry = carry;   // 협동은 협동 방에서 출격할 때 넘긴다
     Object.assign(this.sel, { mode: "survival", svType: "strike", variant: "strike", op: n, map: last.map || this.sel.map }); this._persist();
     if (last.coop) { this.sel.party = "coop"; this.game.quit(); return this.show("coop"); }
-    this.game.startSession({ ...last, op: n, difficulty: STRIKE_DIFF[n - 1], dda: false });
+    this.game.startSession({ ...last, op: n, difficulty: STRIKE_DIFF[n - 1], dda: false, carry });
   }
   a_nextlesson(v) {
     const l = TR.LESSONS.find((x) => x.id === v);

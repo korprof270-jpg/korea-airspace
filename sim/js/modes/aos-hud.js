@@ -203,13 +203,15 @@ function ruleCard(m, h) {
 export class AosShop {
   constructor(m) {
     this.m = m; this.sel = 0; this.open = false; this.avail = false;
+    const T = (this.T = m.upTable || { UP, KEYS: UP_KEYS, MAX: UP_MAX });   // 모드가 자기 업그레이드 표를 줄 수 있다 (돌파 작전)
+    const UP_ = T.UP, KEYS_ = T.KEYS;
     const el = (this.el = document.createElement("div"));
     el.className = "aos-shop";
     el.style.cssText = "position:fixed;left:max(14px,env(safe-area-inset-left));top:170px;z-index:31;display:none;width:400px;max-width:calc(100vw - 28px);padding:10px 12px 12px;border-radius:12px;background:rgba(8,12,26,0.94);border:2px solid #8cff4a;color:#fff;font:600 13px 'Noto Sans KR',sans-serif;box-shadow:0 0 22px rgba(140,255,74,0.4);pointer-events:auto;user-select:none;touch-action:manipulation";
     el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><b style="color:#8cff4a">기지 정비 · 업그레이드</b><b data-pts style="color:${GOLD};font-size:16px;margin-left:auto"></b>
         <button data-close aria-label="닫기" style="width:34px;height:30px;border-radius:8px;border:1px solid #3a4560;background:#1a2238;color:#fff;font:inherit;font-size:15px;cursor:pointer">✕</button></div>
-      ${UP_KEYS.map((k, i) => `<button data-up="${k}" data-i="${i}" style="display:flex;width:100%;align-items:center;gap:8px;margin:4px 0;padding:8px 8px;border-radius:8px;border:1px solid #2a3348;background:#121a2e;color:#fff;font:inherit;cursor:pointer;text-align:left">
-        <span style="color:${UP[k].color};width:62px">${UP[k].icon} ${UP[k].name}</span><span data-lv style="letter-spacing:2px;width:66px"></span><span data-nx style="flex:1;color:#cfd8e6;font-size:11.5px;line-height:1.25"></span><b data-cost style="color:${GOLD};min-width:64px;text-align:right"></b></button>`).join("")}
+      ${KEYS_.map((k, i) => `<button data-up="${k}" data-i="${i}" style="display:flex;width:100%;align-items:center;gap:8px;margin:4px 0;padding:8px 8px;border-radius:8px;border:1px solid #2a3348;background:#121a2e;color:#fff;font:inherit;cursor:pointer;text-align:left">
+        <span style="color:${UP_[k].color};width:74px">${UP_[k].icon} ${UP_[k].name}</span><span data-lv style="letter-spacing:2px;width:66px"></span><span data-nx style="flex:1;color:#cfd8e6;font-size:11.5px;line-height:1.25"></span><b data-cost style="color:${GOLD};min-width:64px;text-align:right"></b></button>`).join("")}
       <div data-help style="margin-top:4px;font-size:11px;color:#9aa8bc"></div>`;
     document.body.appendChild(el);
     el.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -236,7 +238,7 @@ export class AosShop {
     if (this.m.s.game.input.device === "gamepad") this._padFocus();
   }
   close() { if (!this.open) return; this.open = false; this.el.style.display = "none"; this._unfocus(); }
-  _buy() { if (!this.m.wantBuy(UP_KEYS[this.sel])) this.m.s.game.sound.play("click"); this._draw(true); }
+  _buy() { if (!this.m.wantBuy(this.T.KEYS[this.sel])) this.m.s.game.sound.play("click"); this._draw(true); }
   _btn(i) { return this.el.querySelector(`button[data-i="${i}"]`); }
   _padFocus() { const pu = this.m.s.game.padui; if (pu) pu._focus(this._btn(this.sel)); }
   _unfocus() { const pu = this.m.s.game.padui; if (pu && pu.cur && this.el.contains(pu.cur)) pu._clear(); }
@@ -260,7 +262,7 @@ export class AosShop {
       const rest = [];
       let n;
       while ((n = inp.takeNav())) {
-        if (n === "up" || n === "down") { this.sel = (this.sel + (n === "up" ? UP_KEYS.length - 1 : 1)) % UP_KEYS.length; this._padFocus(); }
+        if (n === "up" || n === "down") { this.sel = (this.sel + (n === "up" ? this.T.KEYS.length - 1 : 1)) % this.T.KEYS.length; this._padFocus(); }
         else if (n === "ok") this._buy();
         else if (n === "back") { this.close(); return; }
         else rest.push(n);
@@ -268,21 +270,21 @@ export class AosShop {
       inp.nav.push(...rest.filter((x) => x !== "any"));
       inp.take("item");   // 확인 버튼과 아이템 버튼이 같은 패드가 많다 (두 번 사지 않게)
     } else if (inp.take("item")) this._buy();
-    if (inp.take("itemNext")) { this.sel = (this.sel + 1) % UP_KEYS.length; m.s.game.sound.play("click"); if (pad) this._padFocus(); }
+    if (inp.take("itemNext")) { this.sel = (this.sel + 1) % this.T.KEYS.length; m.s.game.sound.play("click"); if (pad) this._padFocus(); }
     if (inp.take("shop")) { this.close(); return; }
     this._draw();
   }
   _draw(force) {
-    const me = this.m.me, D = me.aos, inp = this.m.s.game.input, key = `${Math.floor(D.pts)}|${UP_KEYS.map((k) => D.up[k]).join("")}|${this.sel}|${inp.device}`;
+    const me = this.m.me, D = me.aos, inp = this.m.s.game.input, key = `${Math.floor(D.pts)}|${this.T.KEYS.map((k) => D.up[k]).join("")}|${this.sel}|${inp.device}`;
     if (!force && key === this._key) return;
     this._key = key;
     this.el.querySelector("[data-pts]").textContent = `${Math.floor(D.pts)}ⓟ`;
     for (const b of this.el.querySelectorAll("button[data-up]")) {
-      const k = b.dataset.up, U = UP[k], lv = D.up[k], c = this.m.cost(me, k), can = D.pts >= c;
-      b.querySelector("[data-lv]").textContent = "■".repeat(lv) + "□".repeat(UP_MAX - lv);
-      b.querySelector("[data-nx]").textContent = lv >= UP_MAX ? `최대 +${U.per * lv}${U.unit}` : `+${U.per * lv}% → +${U.per * (lv + 1)}${U.unit}`;
-      b.querySelector("[data-cost]").textContent = lv >= UP_MAX ? "MAX" : `강화 ${c}ⓟ`;
-      b.style.opacity = lv >= UP_MAX || can ? "1" : "0.55";
+      const MX = this.T.MAX, k = b.dataset.up, U = this.T.UP[k], lv = D.up[k], c = this.m.cost(me, k), can = D.pts >= c;
+      b.querySelector("[data-lv]").textContent = "■".repeat(lv) + "□".repeat(MX - lv);
+      b.querySelector("[data-nx]").textContent = U.txt ? (lv >= MX ? `최대 ${U.txt(lv)}` : `${lv ? U.txt(lv) : "없음"} → ${U.txt(lv + 1)}`) : lv >= MX ? `최대 +${U.per * lv}${U.unit}` : `+${U.per * lv}% → +${U.per * (lv + 1)}${U.unit}`;
+      b.querySelector("[data-cost]").textContent = lv >= MX ? "MAX" : `강화 ${c}ⓟ`;
+      b.style.opacity = lv >= MX || can ? "1" : "0.55";
       b.style.borderColor = +b.dataset.i === this.sel ? "#8cff4a" : "#2a3348";
     }
     const touch = this.m.combat.touchUI(), g = (a) => (inp.glyph ? inp.glyph(a) : "");
