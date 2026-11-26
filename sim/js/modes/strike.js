@@ -190,10 +190,11 @@ export class StrikeMode extends CombatMode {
   // 작전 브리핑 (7초 또는 누르면 닫힘)
   _brief() {
     const m = this.s.map, o = this.op, el = (this.briefEl = document.createElement("div"));
-    el.style.cssText = "position:fixed;left:50%;top:16%;transform:translateX(-50%);z-index:31;width:min(560px,92vw);padding:16px 20px;border-radius:14px;border:1px solid #35ff7a55;background:rgba(6,12,24,0.9);color:#e8f4ff;font:500 14px/1.6 'Noto Sans KR',sans-serif;pointer-events:auto;cursor:pointer;box-shadow:0 8px 40px #0008";
-    el.innerHTML = `<div style="color:#35ff7a;font-weight:800;font-size:12px;letter-spacing:.08em">작전 브리핑 · ${m.name}</div>
+    el.className = "holo";
+    el.style.cssText = "--hc:#35ff7a;left:50%;top:max(160px,26%);transform:translateX(-50%);z-index:31;width:min(560px,92vw);padding:16px 20px;font:500 14px/1.6 'Noto Sans KR',sans-serif;pointer-events:auto;cursor:pointer";
+    el.innerHTML = `<div class="holo-h">◢ 작전 사령부 · 브리핑 수신 · ${m.name}</div>
       <div style="font-size:20px;font-weight:800;margin:4px 0 8px">작전 ${o.n} · ${o.name} <small style="font-size:12px;color:#ffb02e">${o.tag} · 스테이지 ${o.stages}</small></div>
-      <div style="color:#cfd8e6">${STORY[m.id] || `${m.name}에 적이 진지를 세웠다.`}<br>${OP_TEXT[o.n - 1]}</div>
+      <div style="color:#d6f6ff">${STORY[m.id] || `${m.name}에 적이 진지를 세웠다.`}<br>${OP_TEXT[o.n - 1]}</div>
       <div style="margin-top:8px;color:#9aa8bc;font-size:12px">스테이지가 끝날 때마다 사령부가 무전으로 다음 임무(🥷 침투 · ⚔ 교전 · 🚩 탈취)를 내립니다${o.medal ? ` · 승리하면 훈장 🎖${o.medal}` : ""} · 눌러서 닫기</div>`;
     const close = () => { if (this.briefEl) { this.briefEl.remove(); this.briefEl = null; } };
     el.addEventListener("pointerdown", (e) => { e.preventDefault(); close(); });
