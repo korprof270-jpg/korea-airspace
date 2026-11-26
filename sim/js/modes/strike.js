@@ -143,7 +143,7 @@ export class StrikeMode extends CombatMode {
     this._applyStats(true);
     this._liftAll = s.map.id === "orbit" || s.map.id === "moon";
     // 작전 구역 확장: 원래 반경 + 150~240m (지형이 있는 범위 안). 섬·우주처럼 바깥이 허공인 맵은 그대로
-    if (!w.def.land) w.size = w.size + Math.min(240, Math.max(150, w.size * 0.9));
+    if (!w.def.land && s.map.id !== "orbit") w.size = w.size + Math.min(240, Math.max(150, w.size * 0.9));   // 궤도 요새: 갑판 밖은 허공
     const A = new V3(mc.blue[0], 0, mc.blue[1]);
     this.RE = w.size - 70;
     const aS = Math.atan2(A.z, A.x);
