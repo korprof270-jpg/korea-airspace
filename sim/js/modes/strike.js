@@ -16,6 +16,7 @@ import { NetGame } from "../netgame.js";
 import { AosShop } from "./aos-hud.js";
 import { BossBrain } from "./bossbrain.js";
 import { buildSite, SITE_NAMES, CITADEL_TOWERS } from "./strikesites.js";
+import { ZONES, zoneGoal } from "./strikezones.js";
 import * as GP from "../garage.js";
 
 const mul32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -117,7 +118,7 @@ export class StrikeMode extends CombatMode {
     this.op = OPS[clamp((cfg.op | 0 || 1) - 1, 0, 4)]; this.N = this.op.stages;
     this.duration = 3600; this.title = `돌파 작전 ${this.op.n} · ${this.op.name}`;
     this.recKey = `strike:${session.map.id}:op${this.op.n}`;
-    this.si = -1; this.picks = ["fight"]; this.lives = LIVES; this.cleared = 0; this.kills = 0;
+    this.si = -1; this.picks = ["fight"]; this.pickIdx = [0]; this.usedZ = new Set(); this.lives = LIVES; this.cleared = 0; this.kills = 0;
     this.phase = "travel"; this.list = []; this.wave = 0; this.brains = []; this.extras = [];
     this.co = cfg.coop || null;
     this.ng = new NetGame(this, cfg.net || null);
@@ -157,6 +158,7 @@ export class StrikeMode extends CombatMode {
     this.gate = this._gs(fin.x - this.axis.x * 125, fin.z - this.axis.z * 125, 30, 10).clone();
     this.siteGone = [buildSite(w, fin, "citadel", 0)];
     this.used = [this.home.clone(), fin.clone(), this.gate.clone()];
+    { const Z = ZONES[s.map.id]; this.zones = Z && Z.length >= 4 ? Z.filter((z) => Math.hypot(z.x - fin.x, z.z - fin.z) > 110 && Math.hypot(z.x - this.gate.x, z.z - this.gate.z) > 60 && Math.hypot(z.x - A.x, z.z - A.z) > 50) : null; if (this.zones && this.zones.length < 4) this.zones = null; }
     this._cands();
     this.cur = this.home.clone();
     const sp = this._spawn(me); this.placePlayer(sp.pos, sp.yaw);
@@ -213,6 +215,7 @@ export class StrikeMode extends CombatMode {
   }
   // 다음 스테이지 후보 셋 (침투·교전·탈취). 지나온 곳과 130m 넘게 떨어지고, 진행할수록 본진 쪽으로
   _options(si) {
+    if (this.zones) return this._zoneOptions(si);
     const from = this.cur, want = this.D0 * (1 - (si + 0.6) / this.N) + 60, taken = [], out = [];
     const fit = { infil: (c) => c.blk * 1.6 + c.rel * 0.12, fight: (c) => 6 - c.blk * 1.5 - c.rel * 0.08, seize: (c) => 3 - Math.abs(c.blk - 2) * 0.6 };
     this._rngS(4000 + si);
@@ -234,6 +237,22 @@ export class StrikeMode extends CombatMode {
     }
     return out;
   }
+  // 맵의 실제 장소(strikezones.js)에서 고른다: 아직 안 간 곳 중 무작위 셋, 임무 종류도 그 장소에 맞는 것 중 무작위 (씨앗으로 협동도 같게)
+  _zoneOptions(si) {
+    this._rngS(4000 + si);
+    const R = this.R, from = this.cur;
+    let pool = this.zones.map((z, i) => ({ z, i })).filter((o) => !this.usedZ.has(o.i));
+    const far = pool.filter((o) => Math.hypot(o.z.x - from.x, o.z.z - from.z) > 70);
+    if (far.length >= Math.min(3, pool.length)) pool = far;
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const pick = pool.slice(0, si === 0 ? 1 : 3), seen = new Set();
+    return pick.map(({ z, i }) => {
+      let ts = z.t.filter((t) => !seen.has(t)); if (!ts.length) ts = z.t;
+      const type = ts[Math.floor(R() * ts.length)]; seen.add(type);
+      const p = this._gs(z.x, z.z, Math.min(z.r || 25, 25), 8).clone();
+      return { type, pos: p, name: z.name, zi: i, goal: zoneGoal(z, type), what: z.what };
+    });
+  }
   _name(p, site) {
     const ang = Math.atan2(-p.z, p.x), dir = COMPASS[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8];
     return `${dir}쪽 ${SITE_NAMES[site] || "거점"}`;
@@ -245,8 +264,9 @@ export class StrikeMode extends CombatMode {
       return { type: "final", pos: this.gate.clone(), name: "적 본진 성문 앞 · 최종 결전", waves: this._fightWaves(si, o.boss), final: true, last: true };
     }
     const opts = this.optsFor === si && this.opts ? this.opts : this._options(si);
-    const opt = opts.find((x) => x.type === this.picks[si]) || opts[0];
-    const st = { type: opt.type, pos: opt.pos, site: opt.site, name: opt.name };
+    const opt = opts[this.pickIdx[si]] || opts.find((x) => x.type === this.picks[si]) || opts[0];
+    const st = { type: opt.type, pos: opt.pos, site: opt.site, name: opt.name, zi: opt.zi, goal: opt.goal };
+    if (opt.zi !== undefined) this.usedZ.add(opt.zi);
     if (opt.type === "fight") st.waves = this._fightWaves(si);
     else st.waves = [{ [opt.type]: true }];
     return st;
@@ -358,7 +378,7 @@ export class StrikeMode extends CombatMode {
     this._clearGfx(); this._hideChoice();
     this.target = this.st.pos.clone();
     this.used.push(this.target.clone());
-    if (this.st.site) this.siteGone.push(buildSite(this.s.world, this.target.clone().addScaledVector(_v.set(this.target.x, 0, this.target.z).normalize(), 18), this.st.site, Math.atan2(this.target.x, this.target.z)));
+    if (this.st.site && !this.zones) this.siteGone.push(buildSite(this.s.world, this.target.clone().addScaledVector(_v.set(this.target.x, 0, this.target.z).normalize(), 18), this.st.site, Math.atan2(this.target.x, this.target.z)));
     this.phase = "travel"; this.guideT = 5;
     const from = this.cur.clone(), to = this.target.clone(), w = this.s.world, M = MT[this.st.type];
     this._pillar(to, M.col, true);
@@ -372,6 +392,7 @@ export class StrikeMode extends CombatMode {
     const SUB = { pods: ["보급 캡슐 회수", 120], scouts: ["적 정찰기 격추", 150] };
     this.sub = { k, name: SUB[k][0], reward: SUB[k][1], items, got: 0, need: items.length, done: false };
     const lead = this.st.last ? (this.st.type === "siege" ? "적 요새가 보인다. 공성 준비." : "적 본진 성문 앞. 마지막 싸움이다.") : `${M.icon} ${M.name} 임무 — ${this.st.name}`;
+    if (this.st.goal) setTimeout(() => { if (this.st && this.si === si && this.phase === "travel") this.s.hud.toast(this.st.goal, M.css, 4.5, 18); }, 3200);
     this.s.hud.toast(`STAGE ${si + 1}/${this.N} · ${lead}`, M.css, 3, 28);
     if (si > 0) this.s.game.sound.play("lap");
   }
@@ -435,7 +456,7 @@ export class StrikeMode extends CombatMode {
     const el = (this.choiceEl = document.createElement("div"));
     el.style.cssText = "position:fixed;left:50%;bottom:12%;transform:translateX(-50%);z-index:31;display:flex;gap:10px;width:min(720px,94vw);pointer-events:auto";
     el.innerHTML = this.opts.map((o, i) => { const M = MT[o.type], d = Math.round(Math.hypot(o.pos.x - this.cur.x, o.pos.z - this.cur.z)); return `<button data-i="${i}" style="flex:1;min-width:0;padding:12px 10px;border-radius:12px;border:2px solid ${M.css}66;background:rgba(8,12,26,0.92);color:#fff;font:600 13px/1.45 'Noto Sans KR',sans-serif;cursor:pointer;text-align:left;touch-action:manipulation">
-      <div style="color:${M.css};font-weight:800;font-size:16px">${i + 1}. ${M.icon} ${M.name}</div><div style="color:#e8f4ff">${o.name}</div><div style="color:#9aa8bc;font-size:11.5px">${M.desc}<br>${d}m 떨어짐</div></button>`; }).join("");
+      <div style="color:${M.css};font-weight:800;font-size:16px">${i + 1}. ${M.icon} ${M.name}</div><div style="color:#e8f4ff">${o.name}</div><div style="color:#9aa8bc;font-size:11.5px">${o.goal || M.desc}<br>${d}m 떨어짐</div></button>`; }).join("");
     el.addEventListener("pointerdown", (e) => { const b = e.target.closest("[data-i]"); if (!b) return; e.preventDefault(); e.stopPropagation(); this._pick(+b.dataset.i); });
     document.body.appendChild(el);
     this._keyFn = (e) => { if (this.phase !== "choose") return; const n = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 }[e.code]; if (n !== undefined) { e.preventDefault(); this._pick(n); } };
@@ -451,7 +472,7 @@ export class StrikeMode extends CombatMode {
     if (this.phase !== "choose" || !this.opts || !this.opts[i]) return;
     if (!this.auth) { this.s.hud.toast("다음 임무는 방장이 고릅니다", "#9fb4c8", 1.2, 18); return; }
     const o = this.opts[i];
-    this.picks[this.si + 1] = o.type;
+    this.picks[this.si + 1] = o.type; this.pickIdx[this.si + 1] = i;
     this.s.hud.toast(`${MT[o.type].icon} ${MT[o.type].name} — ${o.name}`, MT[o.type].css, 2.2, 28); this.s.game.sound.play("gate");
     this.cur = this.target.clone();
     this._go(this.si + 1);
@@ -799,12 +820,13 @@ export class StrikeMode extends CombatMode {
       const canRp = (this.out && me.aos.pts >= REVIVE_COST) || others.some((p) => ng.field(p.id, "out") && ng.field(p.id, "rp"));
       if (live) this.allOutT = 0; else this.allOutT = (this.allOutT || 0) + 0.25;
       if (!live && this.endT < 0 && (!canRp || this.allOutT > 10)) this.endT = 2.5;
-      ng.setField("pg", { si: this.si, w: this.wave, ph: this.phase, ch: this.picks.slice(), rf: this.rfN, cp: Math.round(this.cp), al: this.alN, fin: this.bossDead ? 1 : 0, fail: !live && this.endT > 0 ? 1 : 0 });
+      ng.setField("pg", { si: this.si, w: this.wave, ph: this.phase, ch: this.picks.slice(), pi: this.pickIdx.slice(), rf: this.rfN, cp: Math.round(this.cp), al: this.alN, fin: this.bossDead ? 1 : 0, fail: !live && this.endT > 0 ? 1 : 0 });
       return;
     }
     const pg = ng.field(this.co.host, "pg");
     if (!pg || typeof pg !== "object") return;
     if (Array.isArray(pg.ch)) this.picks = pg.ch.map((x) => (MT[x] ? x : "fight")).slice(0, 6);
+    if (Array.isArray(pg.pi)) this.pickIdx = pg.pi.map((x) => clamp(x | 0, 0, 2)).slice(0, 6);
     let guard = 0;
     while (pg.si > this.si && guard++ < 8) { if (this.phase === "fight") this._cleared(); if (this.shop) this.shop.close(); this.cur = this.target ? this.target.clone() : this.cur; this._go(this.si + 1); }
     if (pg.si !== this.si) return;
