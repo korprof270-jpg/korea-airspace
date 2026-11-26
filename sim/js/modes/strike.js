@@ -1,6 +1,6 @@
 // 돌파 작전: 맵마다 작전 1~5 (차례로 열림). 한 작전은 한 맵 안에서 스테이지 3~5개를 이어 가며 적 본진 요새까지 간다 (서바이벌)
-//  · 스토리: 맵마다 작전 브리핑 + 스테이지 이야기. 스테이지가 끝나면 다음 임무를 고른다 — 침투 · 교전 · 탈취
-//    고른 임무는 지형에 맞는 다른 구역에서 (침투: 건물·지형이 빽빽한 곳 / 교전: 트인 곳 / 탈취: 적 시설). 같은 곳을 다시 쓰지 않는다
+//  · 스토리: 맵마다 작전 브리핑 + 스테이지 이야기. 스테이지가 끝나면 사령부가 무전으로 다음 임무를 무작위로 내린다 — 침투 · 교전 · 탈취
+//    내려진 임무는 지형에 맞는 다른 구역에서 (침투: 건물·지형이 빽빽한 곳 / 교전: 트인 곳 / 탈취: 적 시설). 같은 곳을 다시 쓰지 않는다
 //  · 침투: 레이더 탐지권(붉은 기둥)을 낮게 피해 데이터 노드 파괴. 들키면 증원 · 교전: 적 2파 + 중간 보스 + 스테이지 보스
 //    탈취: 점령 원 안에 머물러 게이지 100% · 마지막: 작전 1~3 본진 앞 결전(최종 보스), 작전 4~5 요새 공성전(포대 → 실드 발생기 → 핵심)
 //  · 안내: 목표 위치에 큰 빛 기둥 + 위에서 내리꽂는 화살표 + 화면 화살표(방향·거리)
@@ -22,7 +22,7 @@ import * as GP from "../garage.js";
 const mul32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const KINDS = { tank: ["tank", "tank", "lighttank", "heavytank", "missiletank"], robot: ["aa", "sniperbot", "shieldbot", "mortarbot"], ship: ["frigate", "destroyer", "destroyer"] };
 const V3 = THREE.Vector3, _v = new V3();
-const LIVES = 7, REST = 5, LIFE_COST = 500, LIFE_MAX = 12, REVIVE_COST = 200, PICK_T = 15;
+const LIVES = 7, REST = 5, LIFE_COST = 500, LIFE_MAX = 12, REVIVE_COST = 200;
 const UP_COST = [80, 140, 220, 320, 450];
 const PTS = { drone: 15, unit: 40, mid: 180, boss: 380, final: 900, clear: 180 };
 // 연속하지 않고 작전 2~5를 바로 시작하면 받는 출발 ⓟ (앞 작전 업그레이드 일부를 메워 준다). 작전 1은 150
@@ -55,7 +55,7 @@ const MT = {
   final: { name: "결전", icon: "☠", css: "#ff3d4d", col: 0xff3d4d },
   siege: { name: "공성", icon: "🏰", css: "#ff3d4d", col: 0xff3d4d },
 };
-const CHOICES = ["infil", "fight", "seize"];
+const CHOICES = ["infil", "fight", "seize"], RADIO_WHO = "작전 사령부";
 // 맵마다 이야기 (적이 무엇을 하고 있는지). 없으면 기본 문장
 const STORY = {
   city: "네온 시티의 전력망을 장악한 적이 도시 지하에 무기 공장을 숨겼다.",
@@ -125,7 +125,7 @@ export class StrikeMode extends CombatMode {
     this.auth = !this.co || !this.ng.online || this.co.host === this.ng.myId;
     this.seed = this.co ? this.co.seed : Math.floor(Math.random() * 1e9);
     this.km = new Set(); this.myBossDmg = {}; this.out = false; this.wk = -1; this.syncT = 0; this.hudN = 0;
-    this.gfx = []; this.optGfx = []; this.endT = -1; this.bossDead = false; this.restT = 0; this.guideT = 0;
+    this.gfx = []; this.endT = -1; this.bossDead = false; this.restT = 0; this.guideT = 0;
     this.alN = 0; this.alMine = 0; this.rfN = 0; this.cp = 0; this.stealth = 0; this.shT = 0;
     this.carry = cfg.carry && cfg.carry.op === this.op.n && cfg.carry.map === session.map.id ? cfg.carry : null;   // 이어서 하는 작전: 앞 작전의 ⓟ·업그레이드
   }
@@ -194,7 +194,7 @@ export class StrikeMode extends CombatMode {
     el.innerHTML = `<div style="color:#35ff7a;font-weight:800;font-size:12px;letter-spacing:.08em">작전 브리핑 · ${m.name}</div>
       <div style="font-size:20px;font-weight:800;margin:4px 0 8px">작전 ${o.n} · ${o.name} <small style="font-size:12px;color:#ffb02e">${o.tag} · 스테이지 ${o.stages}</small></div>
       <div style="color:#cfd8e6">${STORY[m.id] || `${m.name}에 적이 진지를 세웠다.`}<br>${OP_TEXT[o.n - 1]}</div>
-      <div style="margin-top:8px;color:#9aa8bc;font-size:12px">스테이지가 끝날 때마다 다음 임무(🥷 침투 · ⚔ 교전 · 🚩 탈취)를 고릅니다${o.medal ? ` · 승리하면 훈장 🎖${o.medal}` : ""} · 눌러서 닫기</div>`;
+      <div style="margin-top:8px;color:#9aa8bc;font-size:12px">스테이지가 끝날 때마다 사령부가 무전으로 다음 임무(🥷 침투 · ⚔ 교전 · 🚩 탈취)를 내립니다${o.medal ? ` · 승리하면 훈장 🎖${o.medal}` : ""} · 눌러서 닫기</div>`;
     const close = () => { if (this.briefEl) { this.briefEl.remove(); this.briefEl = null; } };
     el.addEventListener("pointerdown", (e) => { e.preventDefault(); close(); });
     document.body.appendChild(el);
@@ -281,7 +281,7 @@ export class StrikeMode extends CombatMode {
     return [mix(), { mid }, mix(), { boss }];
   }
   _spawn(a) {
-    const w = this.s.world, inZone = (this.phase === "fight" || this.phase === "rest" || this.phase === "choose") && this.target;
+    const w = this.s.world, inZone = (this.phase === "fight" || this.phase === "rest") && this.target;
     const base = inZone ? this.target.clone().addScaledVector(this.axis, this.st && this.st.type === "siege" ? -110 : -45) : this.cur || this.home;
     const p = base.clone(); p.y = w.h(p.x, p.z) + (a.isPlayer ? 4 : 12);
     if (!a.isPlayer) { p.x += (Math.random() - 0.5) * 20; p.z += (Math.random() - 0.5) * 20; }
@@ -375,7 +375,7 @@ export class StrikeMode extends CombatMode {
   // ── 다음 스테이지로: 큰 빛 기둥 + 내리꽂는 화살표 + 화면 화살표 · 가는 길에 서브미션 ──
   _go(si) {
     this.si = si; this.st = this._stageOf(si); this.picks[si] = this.st.type;
-    this._clearGfx(); this._hideChoice();
+    this._clearGfx();
     this.target = this.st.pos.clone();
     this.used.push(this.target.clone());
     if (this.st.site && !this.zones) this.siteGone.push(buildSite(this.s.world, this.target.clone().addScaledVector(_v.set(this.target.x, 0, this.target.z).normalize(), 18), this.st.site, Math.atan2(this.target.x, this.target.z)));
@@ -392,8 +392,7 @@ export class StrikeMode extends CombatMode {
     const SUB = { pods: ["보급 캡슐 회수", 120], scouts: ["적 정찰기 격추", 150] };
     this.sub = { k, name: SUB[k][0], reward: SUB[k][1], items, got: 0, need: items.length, done: false };
     const lead = this.st.last ? (this.st.type === "siege" ? "적 요새가 보인다. 공성 준비." : "적 본진 성문 앞. 마지막 싸움이다.") : `${M.icon} ${M.name} 임무 — ${this.st.name}`;
-    if (this.st.goal) setTimeout(() => { if (this.st && this.si === si && this.phase === "travel") this.s.hud.toast(this.st.goal, M.css, 4.5, 18); }, 3200);
-    this.s.hud.toast(`STAGE ${si + 1}/${this.N} · ${lead}`, M.css, 3, 28);
+    void lead; this._rngS(4700 + si); this._orders(si);
     if (si > 0) this.s.game.sound.play("lap");
   }
   // 목표 위치 표시: 굵은 빛 기둥(멀리서도 보임) + 위에서 아래로 내리꽂는 큰 화살표
@@ -441,41 +440,29 @@ export class StrikeMode extends CombatMode {
   _dispose(list) { for (const m of list) { this.s.world.scene.remove(m); m.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); } list.length = 0; }
   _clearGfx() { this._dispose(this.gfx); this.beamM = null; this.arrowM = null; this.zoneM = null; this.sent = null; this.bubble = null; }
 
-  // ── 다음 임무 고르기 (스테이지 사이) ──
-  _choose() {
-    this.phase = "choose"; this.pickT = PICK_T;
-    this.optsFor = this.si + 1; this.opts = this._options(this.si + 1); this.optSel = 1;
-    this._dispose(this.optGfx);
-    for (const o of this.opts) this._pillar(o.pos, MT[o.type].col, false, this.optGfx);
-    this._showChoice();
-    this.s.hud.toast(this.auth ? "다음 임무를 고르세요 — 1 · 2 · 3" : "방장이 다음 임무를 고르는 중", "#ffd24a", 2, 24);
-    this.s.game.sound.play("warn");
+  // ── 무전: 사령부가 다음 임무를 내린다 (화면 카드 없이, 스토리 무전 패널에 한 줄씩) ──
+  // 새 명령이 오면 아직 안 나온 앞 무전은 버린다 (밀려서 늦게 나오지 않게)
+  _say(lines, delay = 0.6) {
+    const cfg = this.s.cfg, now = this.time;
+    const R = (cfg.radio = (cfg.radio || []).filter(([at]) => at <= now && at + 4.6 > now));
+    const out = [];
+    for (const L of lines) {
+      if (!L) continue;
+      const part = []; let cur = "";
+      for (const w of String(L).split(" ")) { if (cur && (cur + " " + w).length > 27) { part.push(cur); cur = w; } else cur = cur ? cur + " " + w : w; }
+      if (cur) { if (part.length && cur.length < 8) part[part.length - 1] += " " + cur; else part.push(cur); }
+      out.push(...part);
+    }
+    let t = Math.max(now + delay, R.length ? R[R.length - 1][0] + 4.6 : 0);
+    for (const line of out) { R.push([t, RADIO_WHO, line]); t += 4.6; }
+    this.s.game.sound.play("radio", 0.5);
   }
-  _showChoice() {
-    this._hideChoice();
-    const el = (this.choiceEl = document.createElement("div"));
-    el.style.cssText = "position:fixed;left:50%;bottom:12%;transform:translateX(-50%);z-index:31;display:flex;gap:10px;width:min(720px,94vw);pointer-events:auto";
-    el.innerHTML = this.opts.map((o, i) => { const M = MT[o.type], d = Math.round(Math.hypot(o.pos.x - this.cur.x, o.pos.z - this.cur.z)); return `<button data-i="${i}" style="flex:1;min-width:0;padding:12px 10px;border-radius:12px;border:2px solid ${M.css}66;background:rgba(8,12,26,0.92);color:#fff;font:600 13px/1.45 'Noto Sans KR',sans-serif;cursor:pointer;text-align:left;touch-action:manipulation">
-      <div style="color:${M.css};font-weight:800;font-size:16px">${i + 1}. ${M.icon} ${M.name}</div><div style="color:#e8f4ff">${o.name}</div><div style="color:#9aa8bc;font-size:11.5px">${o.goal || M.desc}<br>${d}m 떨어짐</div></button>`; }).join("");
-    el.addEventListener("pointerdown", (e) => { const b = e.target.closest("[data-i]"); if (!b) return; e.preventDefault(); e.stopPropagation(); this._pick(+b.dataset.i); });
-    document.body.appendChild(el);
-    this._keyFn = (e) => { if (this.phase !== "choose") return; const n = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 }[e.code]; if (n !== undefined) { e.preventDefault(); this._pick(n); } };
-    window.addEventListener("keydown", this._keyFn);
-    this._drawChoice();
-  }
-  _drawChoice() {
-    const el = this.choiceEl; if (!el) return;
-    el.querySelectorAll("[data-i]").forEach((b, i) => { const M = MT[this.opts[i].type], on = i === this.optSel; b.style.borderColor = on ? M.css : M.css + "55"; b.style.transform = on ? "translateY(-4px)" : ""; b.style.opacity = this.auth ? "1" : "0.75"; });
-  }
-  _hideChoice() { if (this.choiceEl) { this.choiceEl.remove(); this.choiceEl = null; } if (this._keyFn) { window.removeEventListener("keydown", this._keyFn); this._keyFn = null; } this._dispose(this.optGfx); }
-  _pick(i) {
-    if (this.phase !== "choose" || !this.opts || !this.opts[i]) return;
-    if (!this.auth) { this.s.hud.toast("다음 임무는 방장이 고릅니다", "#9fb4c8", 1.2, 18); return; }
-    const o = this.opts[i];
-    this.picks[this.si + 1] = o.type; this.pickIdx[this.si + 1] = i;
-    this.s.hud.toast(`${MT[o.type].icon} ${MT[o.type].name} — ${o.name}`, MT[o.type].css, 2.2, 28); this.s.game.sound.play("gate");
-    this.cur = this.target.clone();
-    this._go(this.si + 1);
+  _orders(si) {
+    const st = this.st, M = MT[st.type];
+    if (st.last) return this._say([st.type === "siege" ? "구역 확보. 적 본진 요새가 보인다. 외곽 방공 포대부터 부숴라." : "구역 확보. 적 본진 성문 앞이다. 마지막 결전, 전 화력 집중."]);
+    const open = si === 0 ? "작전 개시." : this.rp(["구역 확보 확인.", "잘했다. 쉴 틈 없다.", "정찰 보고 들어왔다.", "확보 확인. 곧바로 이동."]);
+    const goal = String(st.goal || M.desc).split(/\.\s*/).filter(Boolean).map((x) => x + ".");
+    this._say([`${open} ${M.name} 임무, 목표 ${st.name}. 빛 기둥으로.`, ...goal], si === 0 ? 1.5 : 0.4);
   }
 
   // ── 교전 ──
@@ -692,7 +679,7 @@ export class StrikeMode extends CombatMode {
     }
   }
 
-  // 스테이지 확보 → 5초 정비 → 다음 임무 고르기
+  // 스테이지 확보 → 5초 정비 → 사령부 무전으로 다음 임무(무작위)
   _cleared() {
     if (this.phase !== "fight") return;
     const me = this.me, T = this.st.type;
@@ -711,7 +698,14 @@ export class StrikeMode extends CombatMode {
   _afterRest() {
     if (this.shop) this.shop.close();
     if (this.si + 1 >= this.N - 1) { this.cur = this.target.clone(); return this._go(this.N - 1); }
-    this._choose();
+    // 다음 임무는 사령부가 무작위로 정한다 (씨앗으로 모두 같게, 방장이 정해 동기화)
+    const si = this.si + 1;
+    this.optsFor = si; this.opts = this._options(si);
+    this._rngS(4500 + si);
+    const i = Math.floor(this.R() * this.opts.length);
+    this.picks[si] = this.opts[i].type; this.pickIdx[si] = i;
+    this.cur = this.target.clone();
+    this._go(si);
   }
 
   _onDmg(a, amt, k) {
@@ -765,7 +759,7 @@ export class StrikeMode extends CombatMode {
     if (this.guideT > 0) this.guideT -= dt;
     const t = this.s.time;
     if (this.beamM) this.beamM.material.opacity = 0.16 + 0.08 * Math.sin(t * 3);
-    for (const m of this.gfx.concat(this.optGfx)) if (m.userData.arrow) { m.position.y = m.userData.y0 + Math.sin(t * 2.4) * 5; m.rotation.y += dt * 1.2; }
+    for (const m of this.gfx) if (m.userData.arrow) { m.position.y = m.userData.y0 + Math.sin(t * 2.4) * 5; m.rotation.y += dt * 1.2; }
     if (this.phase === "travel") {
       this._subTick();
       if (me.alive && Math.hypot(me.pos.x - this.target.x, me.pos.z - this.target.z) < (st.type === "siege" ? 130 : 45)) { if (this.auth) this._enter(); else this.ng.setField("en", this.si); }
@@ -783,20 +777,13 @@ export class StrikeMode extends CombatMode {
       }
     } else if (this.phase === "rest") {
       if ((this.restT -= dt) <= 0 && this.auth) this._afterRest();
-    } else if (this.phase === "choose") {
-      if (this.auth) {
-        const inp = this.s.game.input;
-        if (inp.take("itemNext")) { this.optSel = (this.optSel + 1) % 3; this._drawChoice(); }
-        if (inp.take("item")) return this._pick(this.optSel);
-        if ((this.pickT -= dt) <= 0) return this._pick(this.optSel);
-      }
     }
   }
 
   // ── 협동 동기화 (0.25초마다) ──
   _coop() {
     const ng = this.ng, me = this.me, c = this.combat, others = ng.players().filter((p) => !p.me);
-    if (!this.auth) { if (!others.some((p) => p.id === this.co.host)) { this.hostGone = (this.hostGone || 0) + 0.25; if (this.hostGone > 6) { this.auth = true; this.s.hud.toast("방장이 나가 이어서 진행합니다", "#ffb02e", 2.2, 20); this._drawChoice(); } } else this.hostGone = 0; }
+    if (!this.auth) { if (!others.some((p) => p.id === this.co.host)) { this.hostGone = (this.hostGone || 0) + 0.25; if (this.hostGone > 6) { this.auth = true; this.s.hud.toast("방장이 나가 이어서 진행합니다", "#ffb02e", 2.2, 20); } } else this.hostGone = 0; }
     ng.setField("kl", [this.wk, [...this.km]]);
     ng.setField("bd", [this.wk, this.myBossDmg]);
     ng.setField("sc", Math.round(me.score));
@@ -837,8 +824,7 @@ export class StrikeMode extends CombatMode {
       if (this.st.type === "seize") this.cp = clamp(+pg.cp || 0, 0, 100);
       if (this.st.type === "infil" && (+pg.al || 0) > this.alN) { this.alN = +pg.al; this.stealth = 0; }
     }
-    if ((pg.ph === "rest" || pg.ph === "choose") && this.phase === "fight") this._cleared();
-    if (pg.ph === "choose" && this.phase === "rest") { if (this.shop) this.shop.close(); this._choose(); }
+    if (pg.ph === "rest" && this.phase === "fight") this._cleared();
     if (pg.fin && !this.bossDead) this._won();
     if (pg.fail && this.endT < 0) this.endT = 2.5;
   }
@@ -891,7 +877,6 @@ export class StrikeMode extends CombatMode {
       else { const cw = st.waves[Math.max(0, this.wave - 1)], tag = cw && !Array.isArray(cw) ? (cw.boss ? " · 보스" : cw.mid ? " · 중간 보스" : "") : ""; sub = `남은 적 ${this.left ?? 0} · ${Math.min(this.wave, st.waves.length)}/${st.waves.length}파${tag}`; }
     } else if (this.phase === "travel") sub = `목표까지 ${dist}m${this.sub && !this.sub.done ? ` · 서브미션 ${this.sub.name} ${this.sub.got}/${this.sub.need}` : ""}`;
     else if (this.phase === "rest") sub = `정비 시간 · ${Math.ceil(this.restT)}초`;
-    else sub = this.auth ? `다음 임무 고르기 · ${Math.ceil(this.pickT)}초` : "방장이 다음 임무를 고르는 중";
     h.text(`${this.lives > LIVES ? `❤×${this.lives}` : "❤".repeat(Math.max(0, this.lives)) + "♡".repeat(Math.max(0, LIVES - this.lives))}  ${sub}  ·  ${Math.round(me.score)}점`, cx, y0 + 34 * u, { size: 11.5, align: "center", base: "middle", color: "#ffb4a8", shadow: false });
     let ly = y0 + 62 * u;
     const trail = this.picks.slice(0, this.si + 1).map((x) => MT[x].icon).join(" → ");
@@ -917,7 +902,6 @@ export class StrikeMode extends CombatMode {
         h.fade(1);
       }
     }
-    if (this.phase === "choose" && this.opts) for (const o of this.opts) h.marker(o.pos.clone().setY(o.pos.y + 20), s.camera, MT[o.type].css, `${MT[o.type].icon} ${MT[o.type].name} · ${o.name}`, o.pos.distanceTo(me.pos));
     if (this.phase === "rest") h.banner(`스테이지 확보 · 정비 ${Math.ceil(this.restT)}초 — ⓟ로 업그레이드`, h.H * 0.3, "#35ff7a", 20);
     if (this.phase === "fight" && st.type === "infil" && this.det > 0.02) {
       const bw = 220 * u, bx = cx - bw / 2, by = h.H * 0.66;
@@ -962,7 +946,6 @@ export class StrikeMode extends CombatMode {
     if (this.siteGone) for (const f of this.siteGone) f();
     if (this.revBtn) { this.revBtn.remove(); this.revBtn = null; }
     clearTimeout(this.briefTo); if (this.briefEl) { this.briefEl.remove(); this.briefEl = null; }
-    this._hideChoice();
     this._clearGfx();
     if (this.arena) for (const m of this.arena) this.s.world.scene.remove(m);
     if (this.fog0 && this.s.world.scene.fog) this.s.world.scene.fog.color.copy(this.fog0);
