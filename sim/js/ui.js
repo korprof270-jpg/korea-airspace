@@ -9,7 +9,7 @@ import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "보통 크기 이상 맵", fit: (mp) => mp.size >= 230 && mp.size < 400, desc: "고른 맵 안의 구역을 하나씩 깨며 적 본진의 최종 병기까지. 구역마다 중간 보스·스테이지 보스, 갈림길은 루트 A·B·C 입구가 각각 다른 구역으로. Lv1 에서 ⓟ로 업그레이드" },
+  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "보통 크기 이상 맵", fit: (mp) => mp.size >= 230 && mp.size < 400, desc: "맵마다 작전 1~5를 차례로. 스테이지마다 침투·교전·탈취 중 다음 임무를 골라 다른 구역으로, 마지막은 본진 결전·요새 공성전. 작전 3부터 승리하면 훈장으로 파츠·스킬 한계 돌파" },
   // 공방전은 메뉴에서 뺐다 (사용자 요청)
   // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
@@ -28,6 +28,15 @@ import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
 import { connect, getNick } from "./net.js";
 import { isFighter } from "./fighters.js";
+// 돌파 작전 1~5: [이름, 난이도, 스테이지, 훈장, 설명] (modes/strike.js 의 OPS 와 같게)
+const STRIKE_OPS = [
+  ["선발 정찰", "쉬움", 3, 0, "적 선발대를 뚫고 본진 성문 앞에서 '쌍포 거인'과 결전."],
+  ["보급선 차단", "보통", 4, 0, "보급 시설을 끊고 초거대 로봇 '골리앗'을 쓰러뜨린다."],
+  ["지휘부 강습", "어려움", 4, 1, "지휘 체계를 무너뜨리고 기함 '폭군'과 호위 순양함을 격침."],
+  ["요새 공성전", "매우 어려움", 5, 2, "마지막 스테이지는 적 본진 요새 공성전: 방공 포대 → 실드 발생기 → 요새 핵심."],
+  ["최종 병기 저지", "지옥", 5, 3, "요새를 함락한 뒤 깨어나는 최종 병기 '오메가'를 저지한다."],
+];
+const STRIKE_DIFF = ["easy", "normal", "normal", "hard", "hard"];
 
 const MODE_META = {
   training: { name: "비행훈련", en: "TRAINING", icon: "🎓", c: "#ffd24a", desc: "ACRO 수동 비행을 이륙부터 곡예까지 단계별 과제로 배웁니다.",
@@ -357,7 +366,7 @@ export class UI {
     return `<div class="screen hub group" style="--c:#35ff7a">
       <header class="hhead"><button class="back" data-a="coopleave">← 나가기</button><h2><span class="en">CO-OP · 돌파 작전</span>협동 대기실</h2></header>
       <div style="margin:0 24px;max-width:560px">
-        <p class="hint2">맵: <b>${esc(map.name)}</b> · 최대 4인 · 먼저 들어온 사람이 방장입니다. 방장이 시작하면 모두 같은 스테이지로 출격합니다.</p>
+        <p class="hint2">맵: <b>${esc(map.name)}</b> · 작전 ${this.sel.op || 1} · ${STRIKE_OPS[(this.sel.op || 1) - 1][0]} · 최대 4인 · 먼저 들어온 사람이 방장입니다. 방장이 시작하면 모두 같은 스테이지로 출격합니다.</p>
         <div data-coopst class="hint2">연결 중…</div>
         <ol data-cooplist style="font:600 15px 'Noto Sans KR',sans-serif;line-height:1.9;margin:10px 0 14px 18px"></ol>
         <button class="primary" data-a="coopgo" data-coopgo disabled>출격 시작 →</button>
@@ -401,7 +410,7 @@ export class UI {
     if (C && C.offline) { this.sel.party = "solo"; return this.a_start(); }
     const four = this._coopPeers().slice(0, 4);
     if (!C || !four.length || !four[0].me) return;
-    const g = { t: Date.now(), sd: Math.floor(Math.random() * 1e9), ids: four.map((p) => p.id) };
+    const g = { t: Date.now(), sd: Math.floor(Math.random() * 1e9), ids: four.map((p) => p.id), op: this.sel.op || 1 };
     C.r.presence({ n: this._coopName, j: C.j, cs: 1, go: g });
     this._coopStart(g, C.me);
   }
@@ -409,7 +418,8 @@ export class UI {
     const C = this._coop;
     this._coopStarted = g.t; clearInterval(this._coopIv);
     const s = this.sel;
-    this.game.startSession({ mode: "strike", map: s.map, difficulty: "normal",
+    const op = Math.max(1, Math.min(5, g.op | 0 || 1));
+    this.game.startSession({ mode: "strike", map: s.map, difficulty: STRIKE_DIFF[op - 1], op,
       coop: { ids: g.ids.slice(0, 4), host: hostId, seed: g.sd, name: this._coopName },
       net: { room: C.r, me: C.me, mid: `strike-${g.t}`, host: hostId === C.me, client: null, elapsed: 0 } });
   }
@@ -826,7 +836,9 @@ export class UI {
         opts += `<div class="opt"><label>제한 시간</label>${this.seg("fleetTime", [[180, "3분"], [300, "5분"], [420, "7분"]], s.fleetTime || 300)}<div class="hint">적 함대 전력(남은 드론 + 증원)을 0으로 만들면 즉시 승리. 시간이 끝나면 함대 전력이 높은 쪽이 이깁니다.</div></div>` + this._diff();
       } else if (s.variant === "strike") {
         opts += `<div class="opt"><label>인원</label>${this.seg("party", [["solo", "혼자 (AI 윙맨 3기)"], ["coop", "협동 (최대 4인)"]], s.party || "solo")}<div class="hint">협동: 같은 맵 협동 방에 모인 사람과 한 스테이지를 같이 시작합니다. 온라인 협동은 claude.ai 링크에서 됩니다.</div></div>`;
-        opts += `<p class="hint2">맵 안의 6개 구역을 지그재그로 옮겨 가며 진행합니다. 구역을 확보하면 5초 정비 뒤 빛 고리·빛 기둥·화살표가 다음 구역을 안내하고, 가는 길에 서브미션(보급 캡슐·정찰기·비행 고리)이 있습니다. 보스는 자리를 옮기며 미사일 일제 사격·레이저 휩쓸기·충격파·포격 비·소환·돌진·실드 발생기 패턴을 씁니다. 격납고 파츠 능력치 없이 Lv1 로 시작해 ⓟ로 업그레이드합니다.<br>구역마다 적이 2~3파로 나옵니다. 모두 격추하면 빛 고리가 다음 구역을 안내합니다. 갈림길에서는 루트 A(지상 돌파)·B(공중전)·C(함대 강습) 입구 중 들어가는 쪽으로 진행합니다. 구역마다 중간 보스와 스테이지 보스가 나옵니다 · 목숨 5개(업그레이드 창에서 500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조) · 격추한 적이 보급품을 떨어뜨립니다.</p>`;
+        const done = Math.max(0, Math.min(5, records[`strikeOp:${s.map}`] | 0)), op = Math.min(Math.max(1, s.op | 0 || done + 1), done + 1, 5); s.op = op;
+        opts += `<div class="opt"><label>작전 (차례로 열림)</label><div class="seg">${STRIKE_OPS.map((o, i) => { const n = i + 1, lock = n > done + 1; return `<button data-a="sel" data-k="op" data-v="${n}" class="${op === n ? "on" : ""}" ${lock ? "disabled" : ""}>${lock ? "🔒 " : n <= done ? "✔ " : ""}작전 ${n} · ${o[0]}</button>`; }).join("")}</div><div class="hint">작전 ${op} · ${STRIKE_OPS[op - 1][0]} — 난이도 ${STRIKE_OPS[op - 1][1]} · 스테이지 ${STRIKE_OPS[op - 1][2]}개${STRIKE_OPS[op - 1][3] ? ` · 승리하면 훈장 🎖${STRIKE_OPS[op - 1][3]} (처음 이기면 +1)` : ""} · 보유 훈장 🎖${GP.medals()}<br>${STRIKE_OPS[op - 1][4]}</div></div>`;
+        opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 다음 임무를 고릅니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 고른 임무는 지형에 맞는 다른 구역에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 Lv1 로 시작해 ⓟ로 업그레이드 · 목숨 5개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -866,7 +878,7 @@ export class UI {
     const k = el.dataset.k;
     // 기지전에서 다른 방식으로 바꾸면, 기지전 때문에 바뀌었던 경기장 맵을 원래 맵으로 되돌린다
     if (k === "variant" && this.sel.variant === "aos" && v !== "aos" && this.sel.map === "stadium") this.sel.map = MAPS[this.sel.mapPrev] && this.sel.mapPrev !== "stadium" ? this.sel.mapPrev : MAP_LIST[0].id;
-    this.sel[k] = k === "party" ? v : ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime"].includes(k) ? +v : v;
+    this.sel[k] = k === "party" ? v : ["laps", "rivals", "bots", "time", "team", "teamSize", "aosTime", "aosGoal", "fleetSize", "fleetTime", "op"].includes(k) ? +v : v;
     if (k === "chapter") { this.sel.stage = null; this.sel.route = null; }
     if (k === "route") this.sel.stage = null;
     if (k === "bwho") this.sel.bep = null;
@@ -890,7 +902,7 @@ export class UI {
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
     else if (s.mode === "survival" && s.variant === "strike" && s.party === "coop") return this.show("coop");
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike" } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike", op: s.op || 1, difficulty: STRIKE_DIFF[(s.op || 1) - 1], dda: false } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;
@@ -1072,7 +1084,7 @@ export class UI {
     } else if (tab === "parts") {
       const slot = GP.PARTS[this._pslot] ? this._pslot : (this._pslot = GP.SLOTS[0]), Pt = GP.PARTS[slot], cur = GP.partOf(slot), pv = this._ppv && this._ppv.slot === slot ? this._ppv.v : null;
       const chipsOf = (e) => Object.entries(e || {}).map(([k, v]) => `<i class="${GP.statGood(k, v) ? "up" : "dn"}">${esc(GP.statText(k, v))}</i>`).join("");
-      body = `<p class="hint2">슬롯마다 부품 하나를 <b>장착</b>합니다. 부품은 저마다 장단점이 있고, 부품마다 따로 <b>0~5단계</b> 업그레이드합니다(3·5단계에서 추가 효과). 부품을 누르면 왼쪽 기체와 성능 막대로 <b>미리 볼 수</b> 있습니다. 효과는 전투 모드에 적용되고, 추력은 모든 비행에 적용됩니다(비행훈련 제외).</p>
+      body = `<p class="hint2">슬롯마다 부품 하나를 <b>장착</b>합니다. 부품은 저마다 장단점이 있고, 부품마다 따로 <b>0~5단계</b> 업그레이드합니다(3·5단계에서 추가 효과). 5단계에 이른 부품은 <b>훈장 🎖</b>(돌파 작전 3 이상 승리)으로 <b>한계 돌파 +3</b>까지 더 올립니다 · 보유 훈장 🎖${GP.medals()}. 부품을 누르면 왼쪽 기체와 성능 막대로 <b>미리 볼 수</b> 있습니다. 효과는 전투 모드에 적용되고, 추력은 모든 비행에 적용됩니다(비행훈련 제외).</p>
         <div class="pslots">${GP.SLOTS.map((k) => { const c = GP.partOf(k); return `<button class="${k === slot ? "on" : ""}" data-a="gslot" data-v="${k}"><span class="ic">${GP.PARTS[k].icon}</span><b>${GP.PARTS[k].short}</b><small>Lv.${c.lv}</small></button>`; }).join("")}</div>
         <h3 class="psh">${Pt.icon} ${Pt.name} <small>${Object.keys(Pt.variants).length}종 · 하나 장착</small></h3>`
         + Object.entries(Pt.variants).map(([k, V]) => {
@@ -1090,25 +1102,25 @@ export class UI {
             </button>
             <div class="pact">
               ${on ? "" : `<button class="primary small" data-a="gpart" data-v="${id}" ${own || GP.points() >= V.price ? "" : "disabled"}>${own ? "장착" : `구매 · ${P(V.price)}`}</button>`}
-              ${!own ? `<span class="nx">구매하면 업그레이드할 수 있습니다</span>` : lv < 5 ? `<button class="primary small up" data-a="gup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${lv + 1} · ${P(cost)}</button><span class="nx">다음 단계: ${esc(GP.effText(next))}</span>` : `<span class="maxed">★ 최대 단계</span>`}
+              ${!own ? `<span class="nx">구매하면 업그레이드할 수 있습니다</span>` : lv < 5 ? `<button class="primary small up" data-a="gup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>업그레이드 Lv.${lv + 1} · ${P(cost)}</button><span class="nx">다음 단계: ${esc(GP.effText(next))}</span>` : GP.oxLv(slot, k) < GP.OX_MAX ? `<span class="maxed">★ 최대 단계${GP.oxLv(slot, k) ? ` · 돌파 +${GP.oxLv(slot, k)}` : ""}</span><button class="primary small up" data-a="gox" data-v="${id}" ${GP.medals() < GP.OX_COST[GP.oxLv(slot, k)] ? "disabled" : ""}>🎖 한계 돌파 +${GP.oxLv(slot, k) + 1} · 훈장 ${GP.OX_COST[GP.oxLv(slot, k)]}</button><span class="nx">돌파마다: ${esc(GP.effText(Object.fromEntries(Object.entries(V.per).map(([a, b]) => [a, b * GP.OX_K]))))} (보유 훈장 ${GP.medals()})</span>` : `<span class="maxed">★ 최대 단계 · 한계 돌파 +${GP.OX_MAX}</span>`}
             </div></div>`;
         }).join("") + this._gdetPart(slot);
     } else if (tab === "skill") {
       const eq = GP.skillEquipped(), pv = this._skPv || eq, ck = (c) => "#" + c.toString(16).padStart(6, "0");
-      body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 포인트로 <b>Lv.5</b>까지 강화하면 수치와 연출이 함께 커집니다(Lv.3·Lv.5 에서 새 효과). 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
+      body = `<p class="hint2">전투 중 적을 맞히거나 격추하면 <b>스킬 게이지</b>가 찹니다. 게이지가 스킬마다 정해진 양 이상이면 <b>스킬 키(키보드 X · 패드 스틱 누름 · 터치 스킬 버튼)</b>로 발동합니다. 스킬은 하나만 장착할 수 있고, 포인트로 <b>Lv.5</b>까지 강화하면 수치와 연출이 함께 커집니다(Lv.3·Lv.5 에서 새 효과). Lv.5 스킬은 <b>훈장 🎖</b>(돌파 작전 3 이상 승리)으로 <b>한계 돌파 Lv.8</b>까지 · 보유 훈장 🎖${GP.medals()}. 카드를 누르면 왼쪽에서 효과를 미리 볼 수 있습니다.</p>
         <div class="skills">${Object.entries(GP.SKILLS).map(([id, k]) => {
-          const own = GP.skillOwns(id), on = eq === id, c = ck(k.color), lv = GP.skillLv(id), st = GP.skillStat(id, lv), nx = lv < GP.SKILL_MAX ? GP.skillStat(id, lv + 1) : null, ms = GP.skillMilestone(id), cost = GP.SKILL_UP_COST[lv - 1];
+          const own = GP.skillOwns(id), on = eq === id, c = ck(k.color), lv = GP.skillLv(id), st = GP.skillStat(id, GP.skillLvEff(id)), nx = lv < GP.SKILL_MAX ? GP.skillStat(id, lv + 1) : null, ms = GP.skillMilestone(id), cost = GP.SKILL_UP_COST[lv - 1];
           const rows = GP.skillRows(id).map(([key, nm, un]) => `<span class="${nx && nx[key] !== st[key] ? "ch" : ""}"><small>${nm}</small><b>${st[key]}${un}</b>${nx && nx[key] !== st[key] ? `<em>→ ${nx[key]}${un}</em>` : ""}</span>`).join("");
           return `<div class="skc ${on ? "on" : ""} ${pv === id ? "pv" : ""}" style="--k:${c}">
             <div class="skr">
-            <button class="skp" data-a="gskpv" data-v="${id}"><span class="ic">${k.icon}</span><span class="tx"><b>${k.name} <i class="slv ${lv >= 5 ? "mx" : ""}">Lv.${lv}</i></b><small>${k.tag} · 게이지 ${st.cost}%${st.dur ? ` · ${st.dur}초` : ""}</small><em>${esc(GP.skillDesc(id, lv))}</em></span><span class="eye">${pv === id ? "▶ 미리보기 중" : "▷ 미리보기"}</span></button>
+            <button class="skp" data-a="gskpv" data-v="${id}"><span class="ic">${k.icon}</span><span class="tx"><b>${k.name} <i class="slv ${lv >= 5 ? "mx" : ""}">Lv.${GP.skillLvEff(id)}</i></b><small>${k.tag} · 게이지 ${st.cost}%${st.dur ? ` · ${st.dur}초` : ""}</small><em>${esc(GP.skillDesc(id, lv))}</em></span><span class="eye">${pv === id ? "▶ 미리보기 중" : "▷ 미리보기"}</span></button>
             ${on ? `<span class="skst">✔ 장착 중</span>` : own ? `<button class="primary small" data-a="gskill" data-v="${id}">장착</button>` : `<button class="primary small" data-a="gskill" data-v="${id}" ${GP.points() < k.price ? "disabled" : ""}>구매 · ${P(k.price)}</button>`}
             </div>
             <div class="skl">
               <span class="pips">${"●".repeat(lv)}${"○".repeat(GP.SKILL_MAX - lv)}</span>
               <div class="skv">${rows}</div>
               <div class="bon"><i class="${lv >= 3 ? "on" : ""}">${lv >= 3 ? "✔" : "🔒"} Lv.3 · ${esc(ms.m3)}</i><i class="${lv >= 5 ? "on" : ""}">${lv >= 5 ? "✔" : "🔒"} Lv.5 · ${esc(ms.m5)}</i></div>
-              ${!own ? "" : nx ? `<button class="primary small up" data-a="gskup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>강화 Lv.${lv + 1} · ${P(cost)}</button>` : `<span class="maxed">★ 최대 레벨</span>`}
+              ${!own ? "" : nx ? `<button class="primary small up" data-a="gskup" data-v="${id}" ${GP.points() < cost ? "disabled" : ""}>강화 Lv.${lv + 1} · ${P(cost)}</button>` : GP.skillOx(id) < GP.OX_MAX ? `<span class="maxed">★ 최대 레벨${GP.skillOx(id) ? ` · 돌파 Lv.${5 + GP.skillOx(id)}` : ""}</span><button class="primary small up" data-a="gskox" data-v="${id}" ${GP.medals() < GP.OX_COST[GP.skillOx(id)] ? "disabled" : ""}>🎖 한계 돌파 Lv.${6 + GP.skillOx(id)} · 훈장 ${GP.OX_COST[GP.skillOx(id)]} (보유 ${GP.medals()})</button>` : `<span class="maxed">★ 한계 돌파 Lv.${5 + GP.OX_MAX}</span>`}
             </div>
           </div>`;
         }).join("")}</div>`;
@@ -1397,6 +1409,22 @@ export class UI {
     this._gnote(`${V.name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${GP.effText(V.b3)}` : nl === 5 ? ` · 추가 효과: ${GP.effText(V.b5)}` : ""}`);
     this.game.sound.play("lap");
     const keep = this._ppv; this._ptKey = "?"; this._ptModel(keep); this.redraw();   // 단계가 오르면 기체 모습도 바뀐다
+  }
+  a_gox(v) {
+    const [slot, k] = v.split("."), V = GP.PARTS[slot] && GP.PARTS[slot].variants[k];
+    if (!V) return;
+    const n = GP.oxLv(slot, k);
+    if (!GP.oxUp(slot, k)) return (this._gnote(n >= GP.OX_MAX ? "이미 한계 돌파 최대입니다" : `훈장이 부족합니다 (🎖${GP.OX_COST[n]} 필요 · 돌파 작전 3단계 이상 승리로 획득)`, true), this.redraw());
+    this._gnote(`${V.name} 한계 돌파 +${n + 1}`); this.game.sound.play("lap");
+    const keep = this._ppv; this._ptKey = "?"; this._ptModel(keep); this.redraw();
+  }
+  a_gskox(v) {
+    const k = GP.SKILLS[v];
+    if (!k) return;
+    const n = GP.skillOx(v);
+    if (!GP.skillOxUp(v)) return (this._gnote(n >= GP.OX_MAX ? "이미 한계 돌파 최대입니다" : `훈장이 부족합니다 (🎖${GP.OX_COST[n]} 필요 · 돌파 작전 3단계 이상 승리로 획득)`, true), this.redraw());
+    this._gnote(`${k.name} 한계 돌파 Lv.${6 + n}`); this.game.sound.play("lap"); this._skPv = v;
+    this.redraw(); this._syncStage();
   }
   a_gskup(v) {
     const k = GP.SKILLS[v];

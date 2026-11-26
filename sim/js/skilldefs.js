@@ -60,8 +60,14 @@ const T = {
 };
 // 스킬 수치 (레벨 반영). lv 는 1~5 로 고정
 export function skillStat(id, lv = 1) {
-  const t = T[id] || T[SKILL_DEF], i = Math.max(1, Math.min(SKILL_MAX, Math.floor(+lv) || 1)) - 1, o = { lv: i + 1 };
-  for (const [k, v] of Object.entries(t)) if (Array.isArray(v) && typeof v[0] === "number") o[k] = v[i];
+  const t = T[id] || T[SKILL_DEF], L = Math.max(1, Math.min(SKILL_MAX + 3, Math.floor(+lv) || 1)), i = Math.min(SKILL_MAX, L) - 1, o = { lv: L };
+  for (const [k, v] of Object.entries(t)) if (Array.isArray(v) && typeof v[0] === "number") {
+    o[k] = v[i];
+    if (L > SKILL_MAX) {   // 한계 돌파 Lv.6~8: Lv.4→5 의 변화 방향으로 한 단계마다 최대 ±10%
+      const a = v[SKILL_MAX - 1], b = v[SKILL_MAX - 2] || a, r = b ? Math.max(-0.1, Math.min(0.1, (a - b) / Math.abs(b))) : 0, x = a * (1 + r * (L - SKILL_MAX));
+      o[k] = Number.isInteger(a) ? Math.round(x) : Math.round(x * 100) / 100;
+    }
+  }
   return o;
 }
 export const skillRows = (id) => (T[id] || T[SKILL_DEF]).rows;

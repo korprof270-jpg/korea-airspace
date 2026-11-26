@@ -5,7 +5,9 @@ import * as THREE from "../../vendor/three.module.min.js";
 import { mergeStatic } from "../mergemodel.js";
 
 const V3 = THREE.Vector3;
-export const SITE_NAMES = { radar: "레이더 기지", fuel: "연료 저장소", flak: "방공 진지", armory: "무기고", relay: "통신 중계소", bunker: "지휘 벙커", mine: "채굴 시설", dock: "조선 도크", power: "발전소", fort: "적 본진 요새" };
+export const SITE_NAMES = { radar: "레이더 기지", fuel: "연료 저장소", flak: "방공 진지", armory: "무기고", relay: "통신 중계소", bunker: "지휘 벙커", mine: "채굴 시설", dock: "조선 도크", power: "발전소", fort: "적 본진 요새", citadel: "적 본진 요새" };
+export const CITADEL_R = 58;
+export const CITADEL_TOWERS = Array.from({ length: 6 }, (_, i) => { const a = ((i + 0.5) / 6) * Math.PI * 2; return [Math.cos(a) * (CITADEL_R + 3), Math.sin(a) * (CITADEL_R + 3)]; });   // 탑 자리 (회전 0 기준)
 export const SITE_KEYS = ["radar", "fuel", "flak", "armory", "relay", "bunker", "mine", "dock", "power"];   // 구역 9곳이 모두 다르게
 
 let MATS = null;
@@ -69,6 +71,20 @@ export function buildSite(w, p, key, rot = 0) {
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, x = Math.cos(a) * 34, z = Math.sin(a) * 34; if (i === 2) continue; const wl = add(BOX, M.wall, x, 5, z, 24, 10, 3); wl.rotation.y = -a + Math.PI / 2; cols.push(w.col.addBox(new V3(x, 5, z).applyQuaternion(q).add(p), new V3(12, 5, 1.5), new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), rot - a + Math.PI / 2))); }
     for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.39, x = Math.cos(a) * 36, z = Math.sin(a) * 36; C(M.dark, x, 0, z, 4, 18); lamp(x, 19, z); }
     B(M.dark, 0, 0, 0, 14, 12, 14); B(M.wall, 0, 12, 0, 8, 8, 8); lamp(0, 21, 0);
+  } else if (key === "citadel") {
+    // 공성전 요새: 반지름 58m 성벽(문 3곳) · 탑 6기 · 가운데 핵심을 둘러싼 실드 기둥 4개
+    const R = CITADEL_R;
+    for (let i = 0; i < 12; i++) {
+      if (i % 4 === 0) continue;   // 문
+      const a = ((i + 0.5) / 12) * Math.PI * 2, x = Math.cos(a) * R, z = Math.sin(a) * R, qa = new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), rot - a + Math.PI / 2);
+      const wl = add(BOX, M.wall, x, 2, z, 29, 20, 4, false);   // 비탈에서도 뜨지 않게 아래로 길게 wl.rotation.y = -a + Math.PI / 2;
+      const cr = add(BOX, M.dark, x, 12.6, z, 29, 1.2, 4.6, false); cr.rotation.y = -a + Math.PI / 2;
+      cols.push(w.col.addBox(new V3(x, 2, z).applyQuaternion(q).add(p), new V3(14.5, 10, 2), qa));
+    }
+    for (const [x, z] of CITADEL_TOWERS) { C(M.dark, x, -10, z, 5, 40); C(M.wall, x, 30, z, 6.2, 2.4, false); lamp(x, 33.5, z); }
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.785, x = Math.cos(a) * 15, z = Math.sin(a) * 15; C(M.steel, x, 0, z, 1.2, 18); add(SPH, M.glow, x, 18, z, 1.6, 1.6, 1.6, false); }
+    C(M.wall, 0, 0, 0, 9, 1.4, false);
+    for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + 0.5, x = Math.cos(a) * (R + 22), z = Math.sin(a) * (R + 22); B(M.olive, x, 0, z, 9, 4, 7); }
   }
   g.userData.anim = [];
   mergeStatic(g);

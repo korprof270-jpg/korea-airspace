@@ -18,7 +18,7 @@ export class SkillSys {
     this.c = c; this.s = c.s; this.w = c.w; this.fx = c.fx; this.snd = c.snd;
     this.id = GP.skillEquipped();
     // 강화 레벨: 수치(st)와 연출 배율(vk). m3·m5 = Lv.3·Lv.5 분기점 연출
-    this.lv = GP.skillLv(this.id); this.st = skillStat(this.id, this.lv);
+    this.lv = GP.skillLvEff(this.id); this.st = skillStat(this.id, this.lv);
     this.def = { ...SKILLS[this.id], cost: this.st.cost, dur: this.st.dur ?? SKILLS[this.id].dur, lv: this.lv };
     this.vk = 1 + (this.lv - 1) * 0.12; this.m3 = this.lv >= 3; this.m5 = this.lv >= 5;
     this.acc = this.m5 ? 0xfff0b0 : 0xffffff;   // Lv.5: 금빛 강조색
