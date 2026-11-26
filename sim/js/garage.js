@@ -19,7 +19,8 @@ function S() {
 // 옛 "아이템 모듈" 슬롯은 "실드 발생기" 로 이어진다. 어떤 값이 와도 던지지 않는다
 function migrate(s) {
   const obj = (v) => v && typeof v === "object" && !Array.isArray(v);
-  for (const k of ["owned", "eq", "parts", "own", "sk", "stat", "ach"]) if (!obj(s[k])) s[k] = {};
+  for (const k of ["owned", "eq", "parts", "own", "sk", "stat", "ach", "ox", "skox"]) if (!obj(s[k])) s[k] = {};
+  if (!(s.md >= 0)) s.md = 0;
   if (!(s.pts >= 0)) s.pts = 0;
   if (!(s.earned >= 0)) s.earned = 0;
   if (s.parts.module !== undefined) { if (s.parts.shield === undefined) s.parts.shield = s.parts.module; delete s.parts.module; }
@@ -396,6 +397,7 @@ export function loadout(over, lookOver) {
   const L = { thrust: 0, boost: 0, heat: 0, cool: 0, itemDur: 0, boostDur: 0, overDur: 0, spawnShield: 0, regen: 0, hp: 0, guard: 0, crash: 0, shieldK: 0, laserDmg: 0, rate: 0, spread: 0, spreadK: 0, crit: 0, critK: 0, lock: 0, range: 0, mCap: 0, mDmg: 0, mStart: 0, repair: 0, emp: 0, gauge: 0, gaugeStart: 0 };
   const look = partLook(over);
   for (const slot of SLOTS) for (const [k, v] of Object.entries(partEffect(slot, look[slot].v, look[slot].lv))) L[k] = (L[k] || 0) + v;
+  for (const slot of SLOTS) { const v = look[slot].v, n = look[slot].lv >= 5 ? oxLv(slot, v) : 0; if (n) for (const [k, x] of Object.entries(PARTS[slot].variants[v].per || {})) L[k] = (L[k] || 0) + x * n * OX_K; }   // 한계 돌파
   const fr = (lookOver && lookOver.frame) || settings.drone.frame;
   for (const [k, v] of Object.entries(lookFx("frame", fr) || {})) L[k] = (L[k] || 0) + v;
   const f = (slot) => FX[slot].items[fxEquipped(slot)] || FX[slot].items[FX[slot].def];
@@ -434,10 +436,30 @@ export function skillBuy(id) {
 }
 export const skillEquipped = () => (skillOwns(S().eq.skill) ? S().eq.skill : SKILL_DEF);
 export function skillEquip(id) { if (!skillOwns(id)) return false; S().eq.skill = id; changed(); return true; }
+export const skillLvEff = (id) => skillLv(id) + (skillLv(id) >= SKILL_MAX ? skillOx(id) : 0);   // 한계 돌파 포함 (전투에 쓰는 레벨)
 export const skillLv = (id) => Math.max(1, Math.min(SKILL_MAX, Math.floor(+(S().sk || {})[id]) || 1));
 export function skillUp(id) {
   if (!skillOwns(id)) return false;
   const lv = skillLv(id);
   if (lv >= SKILL_MAX || !spend(SKILL_UP_COST[lv - 1])) return false;
   const s = S(); (s.sk = s.sk && typeof s.sk === "object" ? s.sk : {})[id] = lv + 1; changed(); return true;
+}
+
+// ── 한계 돌파: 돌파 작전 3단계 이상을 이기면 받는 훈장(🎖)으로, 최대 단계(Lv.5)에 이른 파츠·스킬을 +1~+3 더 올린다 ──
+//  파츠: 한 번마다 그 부품의 '단계마다' 효과를 1.2배만큼 더 · 스킬: Lv.6~8 (수치가 Lv.5 다음으로 계속 오른다)
+export const OX_MAX = 3, OX_COST = [1, 2, 3], OX_K = 1.2;
+export const medals = () => S().md || 0;
+export function addMedals(n, why) { if (!(n > 0)) return; const s = S(); s.md = (s.md || 0) + n; changed(); if (why) notify(`+${n}🎖  ${why}`, "#ffb02e"); }
+function spendMedals(n) { const s = S(); if (!((s.md || 0) >= n)) return false; s.md -= n; changed(); return true; }
+export const oxLv = (slot, v) => Math.max(0, Math.min(OX_MAX, Math.floor(+(S().ox || {})[`${slot}.${v}`]) || 0));
+export function oxUp(slot, v) {
+  if (!PARTS[slot] || !variantOwns(slot, v) || partLv(slot, v) < 5) return false;
+  const n = oxLv(slot, v); if (n >= OX_MAX || !spendMedals(OX_COST[n])) return false;
+  S().ox[`${slot}.${v}`] = n + 1; changed(); return true;
+}
+export const skillOx = (id) => Math.max(0, Math.min(OX_MAX, Math.floor(+(S().skox || {})[id]) || 0));
+export function skillOxUp(id) {
+  if (!skillOwns(id) || skillLv(id) < SKILL_MAX) return false;
+  const n = skillOx(id); if (n >= OX_MAX || !spendMedals(OX_COST[n])) return false;
+  S().skox[id] = n + 1; changed(); return true;
 }

@@ -104,10 +104,10 @@ export class Units {
   }
 
   // 평평하고 비어 있는 지상 자리 (x,z 주변 rad 안)
-  groundSpot(x, z, rad = 40, need = 6) {
+  groundSpot(x, z, rad = 40, need = 6, rnd = Math.random) {   // rnd: 씨앗 난수를 주면 협동에서 모두 같은 자리
     const w = this.w, p = new V3();
     for (let i = 0; i < 60; i++) {
-      const a = Math.random() * 6.283, r = i ? Math.random() * rad * (1 + i / 30) : 0;
+      const a = rnd() * 6.283, r = i ? rnd() * rad * (1 + i / 30) : 0;
       p.set(clamp(x + Math.cos(a) * r, -w.size + 20, w.size - 20), 0, clamp(z + Math.sin(a) * r, -w.size + 20, w.size - 20));
       if (w.def.land && i < 56 && !w.def.land(p.x, p.z)) continue;   // 섬 맵: 틈 위는 건너뛴다
       p.y = w.h(p.x, p.z);
