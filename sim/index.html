@@ -91,20 +91,30 @@
   <script type="module">import("./js/main.js").catch(function (e) { window.__bootErrs && window.__bootErrs.push("시작 파일 오류: " + (e && (e.message || e)) + (e && e.stack ? "\n" + String(e.stack).split("\n").slice(0, 3).join("\n") : "")); console.error(e); window.__bootProbe && window.__bootProbe(); });
     // 시작 실패 원인 찾기: 시작 파일부터 import 를 따라가며 받아 보고, 못 받은 파일과 응답 코드를 적는다
     window.__bootProbe = function () {
-      var seen = {}, q = [new URL("./js/main.js", location.href).href], bad = [], n = 0;
-      function step() {
-        if (!q.length || n > 400) { window.__bootErrs.push(bad.length ? "못 받은 파일: " + bad.slice(0, 6).join(", ") : "모든 파일을 받을 수 있음 (" + n + "개) — 파일 사이 내용이 서로 맞지 않는 문제"); var pre = document.querySelector("#bootfix") && document.querySelector("#bootfix").previousElementSibling; if (pre) pre.textContent = window.__bootErrs.join("\n"); return; }
-        var u = q.shift(); if (seen[u]) return step(); seen[u] = 1; n++;
-        fetch(u, { cache: "reload" }).then(function (r) {
-          if (!r.ok) { bad.push(u.split("/").slice(-2).join("/") + " (" + r.status + ")"); return ""; }
-          return r.text();
-        }, function (er) { bad.push(u.split("/").slice(-2).join("/") + " (네트워크: " + (er && er.message) + ")"); return ""; }).then(function (t) {
-          var re = /(?:^|[;\n}])\s*import\s+(?:[^"';]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g, m;
-          while ((m = re.exec(t))) q.push(new URL(m[1], u).href);
-          step();
-        });
+      var seen = {}, q = [new URL("./js/main.js", location.href).href], bad = [], n = 0, busy = 0, done = false;
+      function show(txt) { var b = document.getElementById("bootfix"), pre = b && b.previousElementSibling; var lines = window.__bootErrs.concat(txt ? [txt] : []); if (pre) pre.textContent = lines.join("\n"); }
+      function finish() { if (done) return; done = true; window.__bootErrs.push(bad.length ? "못 받은 파일: " + bad.slice(0, 8).join(", ") : "파일 " + n + "개 모두 받음 — 파일 사이 내용이 서로 맞지 않음(옛 파일 섞임)"); show(""); }
+      function pump() {
+        if (done) return;
+        show("파일 확인 중… " + n + "개" + (bad.length ? " · 실패 " + bad.length : ""));
+        if (!q.length && !busy) return finish();
+        while (q.length && busy < 8 && n < 400) {
+          var u = q.shift(); if (seen[u]) continue; seen[u] = 1; n++; busy++;
+          (function (u) {
+            var t0 = Date.now();
+            fetch(u, { cache: "reload" }).then(function (r) { if (!r.ok) { bad.push(u.split("/").slice(-2).join("/") + " (" + r.status + ")"); return ""; } return r.text(); },
+              function (er) { bad.push(u.split("/").slice(-2).join("/") + " (네트워크: " + (er && er.message) + ")"); return ""; })
+              .then(function (t) {
+                var re = /(?:^|[;\n}])\s*import\s+(?:[^"';]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g, m;
+                while ((m = re.exec(t))) q.push(new URL(m[1], u).href);
+                busy--; pump();
+              });
+          })(u);
+        }
+        if (!q.length && !busy) finish();
       }
-      step();
+      pump();
+      setTimeout(finish, 40000);
     };</script>
 </body>
 </html>
