@@ -128,15 +128,36 @@ export function weights(x, z) {
 }
 
 // ── 세력별 땅 모양 ──
+// 언덕 모양: 0..1 을 부드럽게 솟게 (봉우리는 둥글고 골은 넓게)
+const hill = (x, z, sc, oct = 4) => { const v = fbm(x / sc, z / sc, oct) * 0.5 + 0.5; return v * v * (3 - 2 * v); };
+// 홀로 선 바위 기둥(버트·주상절리): 세포 잡음 — 격자마다 한 점, 반경 안이면 솟는다
+function pillars(x, z, cell, rMin, rMax, chance) {
+  const cx = Math.floor(x / cell), cz = Math.floor(z / cell); let best = 0;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+    const i = cx + a, j = cz + b, hsh = Math.abs(Math.sin(i * 127.1 + j * 311.7) * 43758.5453) % 1;
+    if (hsh > chance) continue;
+    const px = (i + (Math.abs(Math.sin(i * 12.9 + j * 78.2) * 9631.7) % 1)) * cell, pz = (j + (Math.abs(Math.sin(i * 39.3 + j * 11.1) * 7712.3) % 1)) * cell;
+    const r = rMin + (rMax - rMin) * ((hsh * 7.3) % 1), d = Math.hypot(x - px, z - pz);
+    best = Math.max(best, 1 - smooth(r * 0.82, r, d));
+  }
+  return best;
+}
 const SHAPE = {
-  hanul: (x, z) => 7 + fbm(x / 900, z / 900) * 16 + fbm(x / 230, z / 230, 3) * 4,
-  haerim: (x, z) => 6 + Math.max(0, fbm(x / 600, z / 600)) * 38 + fbm(x / 180, z / 180, 3) * 5,
-  bukseol: (x, z) => { const n = smooth(-500, -2300, z); return 24 + fbm(x / 800, z / 800) * 30 + ridged(x / 650, z / 650, 5) * (60 + 230 * n); },
-  jeoksa: (x, z) => { const h = 34 + fbm(x / 700, z / 700) * 26 + ridged(x / 400, z / 400, 3) * 26; const t = Math.floor(h / 13) * 13; return t + smooth(0.55, 1, (h - t) / 13) * 13; },
-  namdo: (x, z) => 4 + fbm(x / 200, z / 200, 3) * 8,
-  e1: (x, z) => 10 + fbm(x / 600, z / 600) * 9 + fbm(x / 120, z / 120, 2) * 1.5,
-  e2: (x, z) => { const n = smooth(-900, -1700, z); return 22 + fbm(x / 500, z / 500) * 22 + ridged(x / 450, z / 450, 4) * (25 + 170 * n); },
-  e3: (x, z) => 12 + fbm(x / 700, z / 700) * 6 + Math.max(0, ridged(x / 260, z / 260, 2) - 0.72) * 90,
+  // 한울: 낙엽송 구릉 20~40m 와 넓은 들
+  hanul: (x, z) => 8 + hill(x, z, 760) * 34 + hill(x + 900, z, 300, 3) * 10 + fbm(x / 120, z / 120, 2) * 2,
+  // 해림: 해안 고원과 구릉 (바닷가는 벼랑)
+  haerim: (x, z) => 12 + hill(x, z, 650) * 48 + Math.max(0, fbm(x / 260, z / 260, 3)) * 18,
+  // 북설: 높고 날카로운 산맥 (북쪽으로 갈수록), 남쪽 산자락은 완만
+  bukseol: (x, z) => { const n = smooth(-500, -2300, z); return 28 + hill(x, z, 700) * 46 + ridged(x / 620, z / 620, 5) * (80 + 330 * n); },
+  // 적사: 층층이 깎인 메사 + 홀로 선 버트
+  jeoksa: (x, z) => { const h = 40 + fbm(x / 700, z / 700) * 34 + ridged(x / 420, z / 420, 3) * 40; const t = Math.floor(h / 16) * 16; return t + smooth(0.6, 1, (h - t) / 16) * 16 + pillars(x, z, 260, 22, 46, 0.35) * 55; },
+  namdo: (x, z) => 6 + hill(x, z, 220, 3) * 26,
+  // 1세대: 낮은 구릉, 무인지대는 따로 판다
+  e1: (x, z) => 12 + hill(x, z, 620) * 22 + fbm(x / 140, z / 140, 2) * 3,
+  // 2세대: 북쪽 빙하 산맥, 남쪽은 검은 슬래그 메사
+  e2: (x, z) => { const n = smooth(-800, -1700, z); const m = 26 + hill(x, z, 520) * 26 + ridged(x / 430, z / 430, 4) * (30 + 260 * n); const t = Math.floor(m / 12) * 12; return n > 0.3 ? m : m * 0.5 + (t + smooth(0.55, 1, (m - t) / 12) * 12) * 0.5; },
+  // 3세대: 현무암 기둥 대지(계단) + 붉은 틈
+  e3: (x, z) => { const b = 26 + hill(x, z, 640) * 18; const step = Math.floor(b / 5) * 5 + pillars(x, z, 90, 14, 30, 0.5) * 9; const crack = Math.abs(fbm(x / 260, z / 260, 2)); return step - (1 - smooth(0.006, 0.03, crack)) * 16; },
 };
 
 // 거점 평탄지 높이(거점 중심의 원래 높이, 바다 위로)
@@ -162,6 +183,8 @@ export function height(x, z) {
     h = lerp(1.6, body, c);
     if (d < 70 && body > 26) h = lerp(h, body * 0.7, smooth(60, 10, d) * 0.6);   // 높은 땅은 바닷가가 벼랑
   }
+  // 바다 위 바위 기둥: 절벽 해안(해림·남도·3세대) 앞바다
+  if (d < -25 && d > -260) { const w0 = weights(x, z), rug = (w0.haerim || 0) + (w0.namdo || 0) * 0.8 + (w0.e3 || 0) * 0.7; if (rug > 0.2) { const st = pillars(x, z, 120, 9, 20, 0.22); if (st > 0) h = Math.max(h, -3 + st * (24 + 30 * rug)); } }
   // 전선: 포탄 구덩이 무인지대
   const fd = lineDist(FRONT, x, z).d;
   if (fd < 260 && d > 0) { const k = smooth(260, 60, fd), cr = Math.max(0, vnoise(x / 22, z / 22) - 0.35) * 9 + Math.max(0, vnoise(x / 9 + 50, z / 9) - 0.5) * 3; h -= cr * k; }
@@ -182,7 +205,7 @@ export function height(x, z) {
   }
   // 화산섬
   const vd = Math.hypot(x - VOLC[0], z - VOLC[1]);
-  if (vd < 330) { const cone = (1 - smooth(0, 330, vd)) * 150, crater = (1 - smooth(18, 52, vd)) * 40; h = Math.max(h, 2 + cone - crater + fbm(x / 40, z / 40, 2) * 4 * (vd / 330)); }
+  if (vd < 360) { const k = 1 - smooth(0, 360, vd), cone = Math.pow(k, 1.35) * 250, crater = (1 - smooth(26, 70, vd)) * 70; h = Math.max(h, 2 + cone - crater + fbm(x / 40, z / 40, 2) * 6 * (vd / 360)); }
   return h;
 }
 

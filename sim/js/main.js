@@ -11,6 +11,7 @@ import { Session } from "./session.js";
 import { MAPS } from "./maps/index.js";
 import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌 · 매우 큰 맵
 import "./modes/strike.js";   // 서바이벌 · 돌파 작전 (맵마다 작전 1~5, 침투·교전·탈취·공성)
+import "./modes/allout.js";   // 서바이벌 · 전면전 (누리 대륙 지역맵, 구역 점령 밀어붙이기)
 import "./modes/raid.js";   // 레이드 · 우주 전쟁 (1시간 공동 보스전, 참가·관전)
 import { UI } from "./ui.js";
 import { PadUI } from "./padui.js";

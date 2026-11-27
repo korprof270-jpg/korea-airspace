@@ -21,7 +21,7 @@ export class ZoneWatch {
     this.zone = z;
     this.label = z ? `${REGIONS[z.region].name} · ${z.name}` : this.region.name;
     if (this.s.cfg.mode !== "freestyle") { this._button(null); return; }   // 임무 중에는 표시만 (무전은 임무가 쓴다)
-    if (z && !first) this._say(`구역 진입 · ${z.name}. ${z.use}.`);
+    if (z && !first) this._say(`구역 진입 · ${z.name}. ${z.use}.${z.look ? ` ${z.look}.` : ""}`);
     else if (!z && !first) this._say(`${this.region.name} 상공. 구역 밖 비행 중.`);
     this._button(z && z.map && MAPS[z.map] && this.canJump ? z : null);
   }
