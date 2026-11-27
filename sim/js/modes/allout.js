@@ -16,7 +16,16 @@ import * as GP from "../garage.js";
 const V3 = THREE.Vector3, _v = new V3();
 const CAP_H = 160, CAP_TIME = 14;
 const PTS = { drone: 20, unit: 45, ship: 90, turret: 40, capture: 160, civil: 120, hq: 900 };
-const UP_KEYS = Object.keys(SUP), UP_MAX = 5;
+// 편대장 지원 강화 (전면전 전용) — 내 기체 강화(SUP)와 같은 창에서
+const SUPPORT = {
+  sNaval: { name: "함포", icon: "💥", color: "#ff7a4a", desc: "함포 사격 위력과 범위", txt: (lv) => `위력 +${lv * 20}% · 범위 +${lv * 8}%` },
+  sAir: { name: "공습", icon: "✈", color: "#ffb02e", desc: "공습 폭탄 수와 위력", txt: (lv) => `폭탄 ${6 + lv}발 · 위력 +${lv * 15}%` },
+  sDrop: { name: "증원", icon: "🪂", color: "#4ab0ff", desc: "증원 투하 규모", txt: (lv) => `전차 ${3 + Math.floor(lv / 2)} · 편대 ${2 + lv}` },
+  sOrder: { name: "집결", icon: "📡", color: "#8cff4a", desc: "편대 집결 시간", txt: (lv) => `${40 + lv * 12}초` },
+  sGauge: { name: "지원 충전", icon: "⚡", color: "#ffd24a", desc: "지원 게이지가 차는 속도", txt: (lv) => `충전 +${lv * 25}%` },
+};
+const ALL_UP = { ...SUP, ...SUPPORT };
+const UP_KEYS = Object.keys(ALL_UP), UP_MAX = 5;
 // 제국 세대: 연합 땅 = 침공군(1~2세대 섞임), 제국 땅 = 그 세대
 const GEN = { hanul: 1.5, haerim: 1.5, bukseol: 1.5, jeoksa: 2, namdo: 1.5, e1: 1, e2: 2, e3: 3 };
 const AIR_E = { 1: ["grunt", "grunt", "jet"], 2: ["grunt", "jet", "jet", "gunship"], 3: ["ace", "ace", "jet", "gunship"] };
@@ -41,7 +50,7 @@ export class AllOutMode extends CombatMode {
     const c = this.initCombat({ baseStats: true, onKill: (a, k) => this._onKill(a, k), spawnPoint: (a) => this._spawn(a), botGoal: (a) => this._botGoal(a) });
     const me = this.me;
     me.aos = { pts: 300, up: Object.fromEntries(UP_KEYS.map((k) => [k, 0])) };
-    this.upTable = { UP: SUP, KEYS: UP_KEYS, MAX: UP_MAX };
+    this.upTable = { UP: ALL_UP, KEYS: UP_KEYS, MAX: UP_MAX };
     this.L0 = Object.assign({}, c.L);
     this._applyStats(true);
     // 본진: 연합 = 출발 기지, 제국 = 지역의 적 요새 자리
@@ -283,7 +292,7 @@ export class AllOutMode extends CombatMode {
     const me = this.me, D = me.aos, c = this.cost(me, key);
     if (!(D.pts >= c)) return false;
     D.pts -= c; D.up[key]++; this._applyStats();
-    this.s.game.sound.play("pickup"); this.s.hud.toast(`${SUP[key].name} Lv${D.up[key] + 1}`, SUP[key].color, 1, 20);
+    this.s.hud.toast(`${ALL_UP[key].name} Lv${D.up[key]}`, ALL_UP[key].color, 1, 20);
     return true;
   }
   _applyStats(init) {
@@ -303,7 +312,8 @@ export class AllOutMode extends CombatMode {
     if (!k || k.team !== 0 || a.team !== 1) return;
     const pt = a.kind === "turret" ? PTS.turret : a.ship ? PTS.ship : a.unit ? (a === a.unit.root ? PTS.unit : 0) : PTS.drone;
     if (k === me && pt) { this._give(pt); h.feed(`${me.name} ▸ ${a.name}`, "#ffd24a"); }
-    if (k === me && pt) this.gauge = Math.min(100, (this.gauge || 0) + (a.unit || a.kind === "turret" ? 10 : 6));
+    if (k === me && pt) this.gauge = Math.min(100, (this.gauge || 0) + (a.unit || a.kind === "turret" ? 10 : 6) * (1 + 0.25 * (me.aos.up.sGauge || 0)));
+    if (a === this.guard && k === me) this.guardMine = true;
     if (this.mis && this.mis.list.includes(a)) this._missionCheck();
   }
 
@@ -381,7 +391,7 @@ export class AllOutMode extends CombatMode {
     const M = this.mis; if (!M) return;
     const need = M.tag === "시민" ? M.pods.some((p) => !p.got) : M.list.some((a) => a.alive);
     if (need) return;
-    const z = M.z; this._missionClear(true);
+    const z = M.z; this._missionClear(true); this.misDone = (this.misDone || 0) + 1;
     z.owner = 0; z.v = 1; z.cap = -1; this._give(120, `${M.name} 완료`); this.gauge = Math.min(100, (this.gauge || 0) + 15);
     this._captured(z, 0);
   }
@@ -413,23 +423,23 @@ export class AllOutMode extends CombatMode {
     return cam.position.clone().addScaledVector(d.setY(0).normalize(), 220).setY(0);
   }
   _support(k) {
-    const cost = this.supCost[k], h = this.s.hud, c = this.combat, me = this.me;
+    const cost = this.supCost[k], h = this.s.hud, c = this.combat, me = this.me, U = me.aos.up;
     if (!me.alive) return;
     if ((this.gauge || 0) < cost) { h.toast(`지원 게이지 부족 (${cost} 필요)`, "#ffb02e", 1, 18); this.s.game.sound.play("click"); return; }
     this.gauge -= cost;
     if (k === "naval" || k === "air") {
       const p = this._aimGround(), d = new V3(); this.s.camera.getWorldDirection(d); d.setY(0).normalize();
-      const pts = k === "naval" ? [p] : Array.from({ length: 6 }, (_, i) => p.clone().addScaledVector(d, (i - 2.5) * 34));
-      for (const [i, q] of pts.entries()) { q.y = this.s.world.h(q.x, q.z); (this.strikes || (this.strikes = [])).push({ p: q, t: (k === "naval" ? 3 : 2.2) + i * 0.25, r: k === "naval" ? 48 : 28, dmg: k === "naval" ? 900 : 380, name: k === "naval" ? "함포" : "공습" }); }
+      const nb = 6 + U.sAir, pts = k === "naval" ? [p] : Array.from({ length: nb }, (_, i) => p.clone().addScaledVector(d, (i - (nb - 1) / 2) * 32));
+      for (const [i, q] of pts.entries()) { q.y = this.s.world.h(q.x, q.z); (this.strikes || (this.strikes = [])).push({ p: q, t: (k === "naval" ? 3 : 2.2) + i * 0.25, r: (k === "naval" ? 48 : 28) * (1 + (k === "naval" ? 0.08 * U.sNaval : 0)), dmg: k === "naval" ? 900 * (1 + 0.2 * U.sNaval) : 380 * (1 + 0.15 * U.sAir), name: k === "naval" ? "함포" : "공습" }); }
       this._say([k === "naval" ? "좌표 수신. 함포 일제 사격, 탄착 3초!" : "공습 편대 진입. 표시 지점에서 떨어져라!"]);
     } else if (k === "drop") {
       const base = me.pos.clone();
-      for (let i = 0; i < 3; i++) { const g = c.units.groundSpot(base.x + (Math.random() - 0.5) * 60, base.z + (Math.random() - 0.5) * 60, 30, 8).clone(); const tg = this._target(0, g); const a = c.units.spawn(["tank", "heavytank", "tank"][i], { pos: g, near: true, home: tg ? tg.pos.clone() : g.clone(), march: tg ? [g.clone(), g.clone().lerp(tg.pos, 0.5), tg.pos.clone()] : undefined, hp: 1.3, name: "연합 투하 전차" }); if (a) { a.allout = true; this._team(a, 0); c.fx.ring(g, 0x35a8ff, 8, 0.5); } }
-      for (let i = 0; i < 2; i++) { const b = c.spawnBot({ kind: "ace", team: 0, temp: true, pos: base.clone().add(new V3((Math.random() - 0.5) * 30, 25, (Math.random() - 0.5) * 30)), name: "투하 편대" }); if (b) b.ai.role = "capture"; }
-      this._say(["증원 투하 완료. 전차 3대, 편대 2기 합류."]);
+      for (let i = 0; i < 3 + Math.floor(U.sDrop / 2); i++) { const g = c.units.groundSpot(base.x + (Math.random() - 0.5) * 60, base.z + (Math.random() - 0.5) * 60, 30, 8).clone(); const tg = this._target(0, g); const a = c.units.spawn(["tank", "heavytank", "tank", "heavytank", "tank"][i % 5], { pos: g, near: true, home: tg ? tg.pos.clone() : g.clone(), march: tg ? [g.clone(), g.clone().lerp(tg.pos, 0.5), tg.pos.clone()] : undefined, hp: 1.3, name: "연합 투하 전차" }); if (a) { a.allout = true; this._team(a, 0); c.fx.ring(g, 0x35a8ff, 8, 0.5); } }
+      for (let i = 0; i < 2 + U.sDrop; i++) { const b = c.spawnBot({ kind: "ace", team: 0, temp: true, pos: base.clone().add(new V3((Math.random() - 0.5) * 30, 25, (Math.random() - 0.5) * 30)), name: "투하 편대" }); if (b) b.ai.role = "capture"; }
+      this._say([`증원 투하 완료. 전차 ${3 + Math.floor(U.sDrop / 2)}대, 편대 ${2 + U.sDrop}기 합류.`]);
     } else if (k === "order") {
       const tg = this.mis ? this.mis.z : this._target(0, me.pos);
-      if (tg && tg.name) { this.focus = { z: tg, t: 40 }; this._say([`전 편대, ${tg.name}으로 집결하라!`]); }
+      if (tg && tg.name) { this.focus = { z: tg, t: 40 + 12 * U.sOrder }; this._say([`전 편대, ${tg.name}으로 집결하라!`]); }
       else { this.gauge += cost; return; }
     }
     this.s.game.sound.play("gate");
@@ -443,12 +453,14 @@ export class AllOutMode extends CombatMode {
     }
     if (this.strikes) this.strikes = this.strikes.filter((k) => !k.done);
     if (this.supEl) { const g = Math.floor(this.gauge || 0); this.supEl.querySelector("[data-g]").textContent = g; this.supEl.querySelector("[data-bar]").style.width = g + "%"; this.supEl.querySelectorAll("[data-s]").forEach((b) => (b.style.opacity = g >= this.supCost[b.dataset.s] ? "1" : "0.45")); }
-    this.gauge = Math.min(100, (this.gauge || 0) + dt * 0.4);   // 천천히 저절로도 찬다
+    this.gauge = Math.min(100, (this.gauge || 0) + dt * 0.4 * (1 + 0.25 * (this.me.aos.up.sGauge || 0)));   // 천천히 저절로도 찬다
   }
 
   update(dt) {
     super.update(dt);
-    if (this.state !== "run" || this.cut) return;
+    this.hudN = (this.hudN || 0) + 1;
+    if (this.shop) this.shop.update(dt);
+    if (this.state !== "run" || this.cut || dt <= 0) return;
     const me = this.me;
     { const lv = me.aos.up.shield; if (lv > 0 && me.alive && (this.shT = (this.shT ?? 0) - dt) <= 0) { this.shT = 22 - lv * 2; me.shield = Math.max(me.shield || 0, 25 * lv); me.shieldT = Math.max(me.shieldT || 0, 8); } }
     this._capTick(dt);
@@ -467,9 +479,12 @@ export class AllOutMode extends CombatMode {
     const mine = this.zones.filter((z) => z.owner === 0).length, theirs = this.zones.filter((z) => z.owner === 1).length;
     const win = this.win ?? (this.endT > 0 ? false : mine > theirs), me = this.me;
     const sc = Math.round(me.score + mine * 500 + (win ? 3000 : 0)), rec = submitRecord(this.recKey, sc);
+    // 훈장: 이기고 구역 임무 3개 이상 1개, 5개 이상 2개, 수호자를 내가 쓰러뜨리면 +1, 제국 땅이면 +1
+    const md = (this.misDone || 0), medals = win && md >= 3 ? (md >= 5 ? 2 : 1) + (this.guardMine ? 1 : 0) + (this.region.startsWith("e") ? 1 : 0) : 0;
+    if (medals) GP.addMedals(medals);
     this.finish({
       title: win ? "전면전 승리!" : "전면전 패배", sub: `${this.s.map.name} · 구역 ${mine} : ${theirs}`, win, record: rec, stars: win ? (this.win ? 3 : mine >= this.zones.length * 0.7 ? 2 : 1) : 0,
-      lines: [{ label: "점령 구역", value: `${mine} / ${this.zones.length}` }, { label: "격추", value: `${me.kills}` }, { label: "점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey]}` }],
+      lines: [{ label: "점령 구역", value: `${mine} / ${this.zones.length}` }, { label: "구역 임무", value: `${md}개` }, { label: "훈장", value: medals ? `🎖 +${medals}` : win ? "구역 임무 3개 이상 필요" : "-" }, { label: "격추", value: `${me.kills}` }, { label: "점수", value: `${sc}` }, { label: "최고 기록", value: `${records[this.recKey]}` }],
     });
   }
 
@@ -499,7 +514,8 @@ export class AllOutMode extends CombatMode {
       if (me.alive && (can || z.owner === 0 && z.n[1] > 0)) { const d = z.pos.distanceTo(me.pos); if (d > z.r) h.marker(z.pos.clone().setY(z.pos.y + 24), s.camera, col, `${z.name}${z.fx ? ` · ${FX_NAME[z.fx]}` : ""}`, d); }
     });
     const mine = this.zones.filter((z) => z.owner === 0).length, theirs = this.zones.filter((z) => z.owner === 1).length;
-    h.text(`연합 ${mine}  ·  제국 ${theirs}   ⓟ ${Math.floor(me.aos.pts)}`, L.cx, by + 34 * u, { size: 12, align: "center", base: "middle", color: "#ffd24a" });
+    h.text(`연합 ${mine}  ·  제국 ${theirs}   ⓟ ${Math.floor(me.aos.pts)} · [B] 업그레이드`, L.cx, by + 34 * u, { size: 12, align: "center", base: "middle", color: "#ffd24a" });
+    { const pw = 300 * u; this.panelRect = { x: L.cx - pw / 2, y: by + 24 * u, w: pw, h: 20 * u, f: this.hudN }; }
     // 본진
     if (me.alive) for (const t of [0, 1]) { const c = this.hq[t].core; if (c.alive) h.marker(c.pos.clone().setY(c.pos.y + 30), s.camera, TEAM_CSS[t], `${t ? "제국" : "연합"} 본진${c.invulnerable ? " (실드)" : ""}`, c.pos.distanceTo(me.pos)); }
     // 통신 구역을 가지면 적 지상 부대·함선 표시
