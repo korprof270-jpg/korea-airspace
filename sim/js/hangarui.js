@@ -193,7 +193,7 @@ const H = {
       const on = it.on, own = it.own, isSel = it.kind === sel.kind && it.v === sel.v, G = it.g !== null ? GP.GRADES[it.g] : null;
       const st = on ? `<i class="st eq">✔ 장착</i>` : own ? `<i class="st own">보유</i>` : it.lock ? `<i class="st lk">🔒</i>` : `<i class="st buy">◆ ${it.price.toLocaleString()}</i>`;
       return `<button class="hg-it ${isSel ? "sel" : ""} ${on ? "on" : ""} ${own ? "" : "lock"}" ${G ? `style="--gc:${G.c}"` : ""} data-a="hgsel" data-k="${it.kind}" data-v="${esc(it.v)}" data-hv="${it.kind}|${esc(it.v)}">
-        ${it.thumb}${G ? gradeBadge(it.g, "c") : ""}${st}<b class="nm">${esc(it.name)}</b>${it.sub ? `<small class="sb">${esc(it.sub)}</small>` : ""}</button>`;
+        <span class="tw">${it.thumb}${G ? gradeBadge(it.g, "c") : ""}${st}</span><b class="nm">${esc(it.name)}</b>${it.sub ? `<small class="sb">${esc(it.sub)}</small>` : ""}</button>`;
     };
     let list;
     if (cat === "fx") list = Object.entries(GP.FX).map(([slot, F]) => `<h5 class="hg-sh">${F.name}</h5><div class="hg-grid sm">${items.filter((x) => x.kind === `fx.${slot}`).map(card).join("")}</div>`).join("");
@@ -331,7 +331,6 @@ const H = {
 
   // 무대 아래: 종합 성능 막대 (현재 → 미리보기)
   _hgRate(hover) {
-    const cat = this._hc || "";
     let pv = null, lo = null;
     const h = hover || null;
     if (h && h.kind.startsWith("part.")) pv = { slot: h.kind.slice(5), v: h.v };
@@ -340,7 +339,6 @@ const H = {
     else if (this._lpv) lo = statLook(patchOf(this._lpv.kind, this._lpv.v));
     const R0 = GP.ratings(GP.loadout()), R1 = pv || lo ? GP.ratings(GP.loadout(pv, lo)) : R0;
     const w = (x) => Math.round(Math.max(0, Math.min(1, (x - 0.5) / 1.3)) * 1000) / 10, pc = (x) => `${x >= 1 ? "+" : ""}${Math.round((x - 1) * 100)}%`;
-    void cat;
     return `<div class="hg-rate">${GP.RATINGS.map(([k, nm]) => {
       const a = w(R0[k]), b = w(R1[k]), d = Math.round((R1[k] - R0[k]) * 100);
       return `<div class="hg-r"><span>${nm}</span><div class="bar"><i class="cur" style="width:${Math.min(a, b)}%"></i><i class="dl ${b >= a ? "up" : "dn"}" style="left:${Math.min(a, b)}%;width:${Math.abs(b - a)}%"></i></div><em>${d ? `<b class="${d > 0 ? "up" : "dn"}">${d > 0 ? "▲" : "▼"}${Math.abs(d)}</b>` : pc(R0[k])}</em></div>`;
@@ -451,5 +449,5 @@ export function installHangar(UI) {
     const m = this.game.menu, on = this.screen === "hangar" && this._gtab !== "skill";
     if (m.studioOn) { m.studioOn(on); if (on) m.studioFocus((this._hc || "").startsWith("part.") ? this._hc.slice(5) : null); }
   };
-  // 썸네일이 준비되면 부품 카드 자리표시를 그림으로 바꾼다 (ui.js 의 onReady 는 kind:id 로 찾는다 — 같은 규칙)
+  // 부품 카드 썸네일은 data-thumb="part:슬롯.부품.단계" — ui.js 의 thumbs.onReady 가 같은 규칙으로 그림을 끼운다
 }

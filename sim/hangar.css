@@ -89,8 +89,10 @@
 .hg-it.lock .ith { filter: saturate(0.6) brightness(0.72); }
 .hg-it .nm { font-size: 12.5px; line-height: 1.25; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hg-it .sb { font-size: 10.5px; color: var(--muted); padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hg-it .hg-gb.c { position: absolute; left: 9px; top: 9px; }
-.hg-it .st { position: absolute; right: 9px; top: 9px; font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(6, 9, 18, 0.82); }
+.hg-it .tw { position: relative; display: block; }
+.hg-it .tw .ith { display: block; }
+.hg-it .hg-gb.c { position: absolute; left: 4px; top: 4px; }
+.hg-it .st { position: absolute; right: 4px; bottom: 4px; font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(6, 9, 18, 0.82); }
 .hg-it .st.eq { color: #5ff0ff; } .hg-it .st.own { color: #9fe3b8; } .hg-it .st.buy { color: #ffd24a; } .hg-it .st.lk { color: #aab; }
 .hg-it.on::after { content: ""; position: absolute; inset: -1px; border-radius: 11px; pointer-events: none; box-shadow: inset 0 -3px 0 #5ff0ff; }
 /* 영웅·전설은 은은히 반짝인다 */
@@ -104,7 +106,7 @@
   color: #0a0f1c; background: var(--gc); box-shadow: 0 0 8px color-mix(in srgb, var(--gc) 55%, transparent); white-space: nowrap; }
 
 /* 상세 패널 */
-.hg-det { flex: none; height: 47%; overflow-y: auto; border-top: 1px solid var(--hl); background: rgba(6, 10, 22, 0.94); padding: 0 0 12px; transition: background 0.15s; }
+.hg-det { flex: none; height: 45%; overflow-y: auto; border-top: 1px solid var(--hl); background: rgba(6, 10, 22, 0.94); padding: 0 0 12px; transition: background 0.15s; }
 .hg-det.hov { background: rgba(14, 22, 42, 0.96); }
 .hg-dh { --gc: #5ff0ff; padding: 11px 14px 9px; background: linear-gradient(180deg, color-mix(in srgb, var(--gc) 16%, transparent), transparent); border-top: 2px solid var(--gc); }
 .hg-dn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
