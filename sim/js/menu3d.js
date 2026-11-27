@@ -673,6 +673,7 @@ export class Thumbs {
   }
 
   _mapShot(id) {
+    if (MAPS[id].thumbDraw) return MAPS[id].thumbDraw(480, 300);   // 대형 맵: 짓지 않고 대륙 지도 그림으로
     const r = this._renderer(480, 300), w = new World(MAPS[id], "low", r), [p, l] = MAPS[id].thumb ? [MAPS[id].thumb.pos, MAPS[id].thumb.look] : MAP_VIEW[id];
     try {
       const cam = new THREE.PerspectiveCamera(62, 1.6, 0.1, 4000);
