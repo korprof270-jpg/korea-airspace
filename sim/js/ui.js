@@ -3,13 +3,14 @@ import {
   settings, save, records, resetSettings, fmtTime, DRONE_CLASSES, RATE_PRESETS, FLIGHT_MODES, FLIGHT_MODE_INFO, STICK_MODES, DIFFICULTY,
   HUD_DENSITY, HUD_DENSITY_NAMES, HUD_ITEMS, HUD_PRESETS, applyHudPreset, QUALITY_NAMES, VERSION,
 } from "./config.js";
-import { MAPS, MAP_LIST } from "./maps/index.js";
+import { MAPS, MAP_LIST, NURI_LIST } from "./maps/index.js";
+const ALL_MAPS = [...MAP_LIST, ...NURI_LIST];   // 돌파 작전은 누리 대륙 지역맵만
 import { FRAMES, CANOPIES, SKINS, LED_MODES, COLOR_PRESETS, skinSwatch } from "./dronemodel.js";
 import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "보통 크기 이상 맵", fit: (mp) => mp.size >= 230 && mp.size < 400, desc: "맵마다 작전 1~5를 차례로. 스테이지마다 사령부 무전으로 침투·교전·탈취 중 다음 임무가 무작위로 내려져 다른 구역으로, 마지막은 본진 결전·요새 공성전. 작전 3부터 승리하면 훈장으로 파츠·스킬 한계 돌파" },
+  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "누리 대륙 지역맵", fit: (mp) => !!mp.nuri, desc: "맵마다 작전 1~5를 차례로. 스테이지마다 사령부 무전으로 침투·교전·탈취 중 다음 임무가 무작위로 내려져 다른 구역으로, 마지막은 본진 결전·요새 공성전. 작전 3부터 승리하면 훈장으로 파츠·스킬 한계 돌파" },
   // 공방전은 메뉴에서 뺐다 (사용자 요청)
   // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
@@ -28,6 +29,7 @@ import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
 import { connect, getNick } from "./net.js";
 import { isFighter } from "./fighters.js";
+import { installHangar, dropCard } from "./hangarui.js";   // 정비소 화면 (s_hangar 를 덮어쓴다)
 // 돌파 작전 1~5: [이름, 난이도, 스테이지, 훈장, 설명] (modes/strike.js 의 OPS 와 같게)
 const STRIKE_OPS = [
   ["선발 정찰", "쉬움", 3, 0, "적 선발대를 뚫고 본진 성문 앞에서 '쌍포 거인'과 결전."],
@@ -190,7 +192,7 @@ export class UI {
     this._scroll = null;
     this._syncStage();
     if (name === "title") this._titleShow(); else clearInterval(this._slideT);
-    if (name === "setup") this.game.thumbs.want("map", MAP_LIST.map((mp) => mp.id));
+    if (name === "setup") this.game.thumbs.want("map", ALL_MAPS.map((mp) => mp.id));
     if (name === "hangar") this._wantThumbs();
     if (this.tut) this.tut.onShow(name);
   }
@@ -783,14 +785,15 @@ export class UI {
     const svT = s.mode === "survival" ? SV_TYPES[s.svType] || SV_TYPES[(s.svType = "strike")] : null;
     if (svT) {
       s.variant = svT.variant;
-      const ok = MAP_LIST.filter((mp) => mp.combat && svT.fit(mp));
+      const ok = ALL_MAPS.filter((mp) => mp.combat && svT.fit(mp));
       if (!ok.find((mp) => mp.id === s.map)) s.map = (ok.find((mp) => mp.id === s["svMap_" + s.svType]) || ok[0]).id;
       s["svMap_" + s.svType] = s.map;
     }
     const map = MAPS[s.map];
     const card = (k, v, on, inner, cls = "") => `<button class="card ${cls} ${on ? "sel" : ""}" data-a="sel" data-k="${k}" data-v="${v}">${inner}</button>`;
     // ① 맵 (모든 모드 공통)
-    const maps = MAP_LIST.filter((mp) => !svT || (mp.combat && svT.fit(mp))).map((mp) => {
+    if (!svT && MAPS[s.map] && MAPS[s.map].nuri) s.map = MAP_LIST[0].id;   // 지역맵은 돌파 작전에서만
+    const maps = (svT ? ALL_MAPS : MAP_LIST).filter((mp) => !svT || (mp.combat && svT.fit(mp))).map((mp) => {
       const extra = s.mode === "challenge" ? `<div class="tag">임무 ${cmMissions(mp.id).length}</div>` : "";
       return card("map", mp.id, s.map === mp.id, `${this._thumb("map", mp.id)}${extra}<div class="nm">${mp.name}</div><div class="ds">${mp.desc}</div>`, "mapcard");
     }).join("");
@@ -824,7 +827,7 @@ export class UI {
     } else if (s.mode === "survival") {
       t2 = "미션 종류"; p2 = svT.name;
       step2 = Object.entries(SV_TYPES).map(([id, v]) => {
-        const n = MAP_LIST.filter((mp) => mp.combat && v.fit(mp)).length;
+        const n = ALL_MAPS.filter((mp) => mp.combat && v.fit(mp)).length;
         return card("svType", id, s.svType === id, `<div class="ic">${v.icon}</div><div class="tag">${v.size} · 맵 ${n}</div><div class="nm">${v.name}</div><div class="ds">${v.desc}</div>`);
       }).join("");
       if (s.variant === "aos") {
@@ -1649,7 +1652,7 @@ export class UI {
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
       ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : r.story.bond ? `인연 · ${esc(r.story.bond.who)} 임무 성공` : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
-      ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
+      ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}${r.reward ? dropCard(r.reward.drop) : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       ${r.pvp ? `<div class="list">${r.pvp.auto ? `<button class="primary" data-a="pvrequeue">다시 매칭</button>` : `<button class="primary" data-a="pvlobby">대기실로</button>`}<button data-a="pvexit">PVP 메뉴로</button></div>` : `<div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
@@ -1741,3 +1744,4 @@ export class UI {
 }
 
 Object.assign(UI.prototype, PvpUI);   // PVP 메뉴 화면 (pvpui.js)
+installHangar(UI);
