@@ -28,6 +28,7 @@ import { glyphsFor } from "./gamepad.js";
 import { PvpUI } from "./pvpui.js";
 import { connect, getNick } from "./net.js";
 import { isFighter } from "./fighters.js";
+import { installHangar, dropCard } from "./hangarui.js";   // 정비소 화면 (s_hangar 를 덮어쓴다)
 // 돌파 작전 1~5: [이름, 난이도, 스테이지, 훈장, 설명] (modes/strike.js 의 OPS 와 같게)
 const STRIKE_OPS = [
   ["선발 정찰", "쉬움", 3, 0, "적 선발대를 뚫고 본진 성문 앞에서 '쌍포 거인'과 결전."],
@@ -1649,7 +1650,7 @@ export class UI {
       ${r.stars !== undefined ? `<div class="bigstars">${starStr(r.stars)}</div>` : ""}
       ${stats}${board}
       ${r.story ? `<div class="sres ${r.story.passed ? "ok" : "no"}"><b>${r.story.passed ? (r.story.done ? "스토리 완결!" : r.story.bond ? `인연 · ${esc(r.story.bond.who)} 임무 성공` : "단계 통과") : "단계 실패"}</b><span>${r.story.obj ? `목표 ${r.story.obj.got}/${r.story.obj.res.length} 달성 (필요 ${r.story.obj.need})` : ""}</span></div>${r.story.obj ? `<ul class="objr">${r.story.obj.res.map((x) => `<li class="${x.ok ? "ok" : "no"}">${x.ok ? "✔" : "✖"} ${x.o.req ? "★ " : ""}${esc(x.o.text)}</li>`).join("")}</ul>` : ""}${r.story.after && !r.story.post ? `<p class="safter">${esc(r.story.after)}</p>` : ""}` : ""}
-      ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}
+      ${r.reward ? `<div class="rew"><b>◆ +${r.reward.pts}P</b><span>${r.reward.lines.map((l) => `${esc(l.label)} ${esc(l.value)}`).join(" · ")}</span>${r.reward.notices.filter((n) => !/^\+\d+P$/.test(n.text)).map((n) => `<div class="rn">${esc(n.text)}</div>`).join("")}<small>보유 ${GP.points().toLocaleString()}P</small></div>` : ""}${r.reward ? dropCard(r.reward.drop) : ""}
       ${r.training ? `<div class="sres ${r.training.passed ? "ok" : "no"}"><b>${r.training.passed ? (r.training.done ? "전 과정 수료!" : "과목 통과") : "과목 실패"}</b><span>${esc(r.training.lesson.name)}</span></div>` : ""}
       ${r.pvp ? `<div class="list">${r.pvp.auto ? `<button class="primary" data-a="pvrequeue">다시 매칭</button>` : `<button class="primary" data-a="pvlobby">대기실로</button>`}<button data-a="pvexit">PVP 메뉴로</button></div>` : `<div class="list">
         ${r.training && r.training.next ? `<button class="primary" data-a="nextlesson" data-v="${r.training.next.id}">다음 과목: ${esc(r.training.next.name)} →</button>` : ""}
@@ -1741,3 +1742,4 @@ export class UI {
 }
 
 Object.assign(UI.prototype, PvpUI);   // PVP 메뉴 화면 (pvpui.js)
+installHangar(UI);

@@ -467,6 +467,17 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 const VIGNETTES = { race: vRace, tracking: vTracking, freestyle: vFreestyle, survival: vSurvival, challenge: vChallenge, training: vTraining };
 
+// 슬롯 부착점 (기체 안쪽 g 기준 좌표, 없으면 null) — 정비소 카메라 · 부품 카드
+export function partAnchor(model, slot) {
+  const A = model && model.userData.anchors;
+  if (!slot || !A) return null;
+  const p = { armor: A.plates && A.plates[0], motor: A.motors && A.motors[0], battery: A.belly, laser: A.laser, missile: A.pods, sensor: A.sensor, shield: A.shield, cooler: A.cooler }[slot];
+  if (!p) return null;
+  const v = new V3(p[0], p[1], p[2]);
+  if (slot === "sensor") v.y += 0.02; else if (slot === "laser") v.z -= 0.02;
+  return v;
+}
+
 // ── 무대 ───────────────────────────────────────────────────
 export class MenuScene {
   constructor(o = {}) {
@@ -501,8 +512,41 @@ export class MenuScene {
     this.angle = 0.6; this.spin = 0.35; this.t = 0; this.close = false; this.drag = 0;
     this.focus = null;     // 3D 를 보여 줄 화면 영역 {x, y, w, h} (화면 중심 기준 위치)
     this.mode = null; this.vig = null;
+    this.studio = null;    // 정비소 카메라 { pitch, zoom, slot, aim } — 켜져 있으면 드래그·확대·부품 맞춤으로 본다
+    if (!this.thumb) {
+      // 부품 표지: 고른 부품 자리를 감싸는 빛 고리
+      const mk = (r, t, op) => new THREE.Mesh(new THREE.TorusGeometry(r, t, 6, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x5ff0ff).multiplyScalar(1.6), transparent: true, opacity: op, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+      this.mark = new THREE.Group(); this.mark.add(mk(1, 0.03, 0.9), mk(1.35, 0.012, 0.5));
+      this.mark.visible = false; this.mark.renderOrder = 10; this.mark.children.forEach((m) => (m.renderOrder = 10));
+      sc.add(this.mark);
+    }
     this.setLook(settings.drone);
   }
+
+  // ── 정비소 카메라 ──
+  // on: 켜고 끄기. 켜면 기체를 크게, 손으로 돌려 보고(orbit) 휠·핀치로 확대한다
+  studioOn(on) {
+    if (!on) { this.studio = null; if (this.mark) this.mark.visible = false; return; }
+    if (!this.studio) this.studio = { pitch: 0.38, zoom: 1, slot: null, aim: null, idle: 0, _p: 0.38, _z: 1, _f: 0, _t: new V3(0, 0.17, 0) };
+  }
+  // 부품 자리로 카메라를 맞춘다 (null 이면 기체 전체)
+  studioFocus(slot) {
+    const S = this.studio;
+    if (!S || S.slot === slot) return;
+    S.slot = slot || null;
+    const a = this._anchor(S.slot);
+    if (a) { S.aim = Math.atan2(a.x, a.z) + (a.z < -0.02 ? 0.5 : 0.45); S.pitch = a.y < -0.004 ? -0.22 : 0.42; S.zoom = 1; }
+    else { S.aim = null; S.pitch = 0.38; }
+    S.idle = 2.5;
+  }
+  // 손으로 돌리기: dx·dy 픽셀
+  studioDrag(dx, dy) {
+    const S = this.studio; if (!S) { this.angle -= dx * 0.008; this.drag = 0; return; }   // 스킬 미리보기 장면은 좌우로만
+    this.angle -= dx * 0.009; S.pitch = Math.max(-0.75, Math.min(1.15, S.pitch + dy * 0.006)); S.aim = null; S.idle = 3; this.drag = 0;
+  }
+  studioZoom(k) { const S = this.studio; if (!S) return; S.zoom = Math.max(0.45, Math.min(1.7, S.zoom * k)); S.idle = 3; }
+  studioReset() { const S = this.studio; if (!S) return; S.zoom = 1; S.pitch = 0.38; S.slot = null; S.aim = null; S.idle = 0; }
+  _anchor(slot) { return partAnchor(this.model, slot); }
 
   // parts: 미리보기용 파츠 구성 (주지 않으면 지금 장착한 것)
   setLook(look, parts) {
@@ -567,6 +611,38 @@ export class MenuScene {
       const d = v.dist / fit / Math.max(0.62, narrow);
       this.camera.position.set(Math.sin(this.angle) * d, v.h * (d / v.dist), Math.cos(this.angle) * d);
       this.camera.lookAt(0, v.look, 0);
+    } else if (this.studio) {
+      const S = this.studio;
+      S.idle = Math.max(0, S.idle - dt);
+      if (S.aim !== null) {
+        let d = S.aim - this.angle; d = Math.atan2(Math.sin(d), Math.cos(d));
+        this.angle += d * Math.min(1, dt * 4.5);
+        if (Math.abs(d) < 0.01) S.aim = null;
+      } else if (!S.idle) this.angle += (S.slot ? 0.05 : 0.16) * dt;
+      const k = Math.min(1, dt * 6);
+      S._p += (S.pitch - S._p) * k; S._z += (S.zoom - S._z) * k; S._f += ((S.slot ? 1 : 0) - S._f) * k;
+      const mn = f ? Math.max(120, Math.min(f.w, f.h)) : Math.min(W, H), d0 = 0.7 * (0.55 + this.size * 0.5) * H / mn;   // 무대 영역의 짧은 변에 기체가 알맞게 차도록
+      const near = S.slot === "armor" || S.slot === "motor" ? 0.5 : S.slot === "shield" || S.slot === "cooler" ? 0.42 : 0.38, dist = d0 * (1 - (1 - near) * S._f) * S._z;   // 넓게 퍼진 부품(장갑·모터)은 조금 멀리서
+      this.model.position.y = 0.16 + Math.sin(this.t * 1.6) * 0.008 * (1 - S._f);
+      this.model.rotation.z = Math.sin(this.t * 1.1) * 0.04 * (1 - S._f);
+      this.model.rotation.x = Math.cos(this.t * 0.9) * 0.03 * (1 - S._f);
+      this.model.updateMatrixWorld(true);
+      const a = this._anchor(S.slot), T = _a.set(0, 0.15, 0);
+      if (a && this.model.userData.inner) { this.model.userData.inner.localToWorld(a); T.lerp(a, S._f); }
+      S._t.lerp(T, Math.min(1, dt * 7));
+      const cp = Math.cos(S._p);
+      this.camera.position.set(S._t.x + Math.sin(this.angle) * cp * dist, S._t.y + Math.sin(S._p) * dist, S._t.z + Math.cos(this.angle) * cp * dist);
+      this.camera.lookAt(S._t);
+      if (this.mark) {
+        this.mark.visible = !!a && S._f > 0.3;
+        if (a) {
+          this.mark.position.copy(a); this.mark.quaternion.copy(this.camera.quaternion);
+          const r = (0.016 + 0.004 * Math.sin(this.t * 4)) * this.size * (0.6 + 0.4 * S._z);
+          this.mark.scale.setScalar(r); this.mark.children[1].rotation.z = this.t * 0.8;
+          for (const m of this.mark.children) m.material.opacity = (m === this.mark.children[0] ? 0.85 : 0.45) * Math.min(1, (S._f - 0.3) * 2);
+        }
+      }
+      this.model.userData.tick(dt, 0.3, this.t);
     } else {
       this.angle += (this.spin + this.drag) * dt;
       this.drag *= Math.exp(-dt * 5);
@@ -601,7 +677,7 @@ const CACHE = "hgfpv-mapthumb-3:";
 
 export class Thumbs {
   constructor() {
-    this.mode = {}; this.map = {}; this.frame = {}; this.canopy = {};
+    this.mode = {}; this.map = {}; this.frame = {}; this.canopy = {}; this.part = {};
     this.jobs = []; this.r = null; this.stage = null; this.timer = 0;
     this.listeners = new Set();
     for (const id of Object.keys(MAPS)) { try { const v = localStorage.getItem(CACHE + id); if (v) this.map[id] = v; } catch (_) { /* 저장소 없음 */ } }
@@ -615,7 +691,7 @@ export class Thumbs {
     for (const id of ids) {
       if (this[kind][id] || this.jobs.some((j) => j.kind === kind && j.id === id)) continue;
       if (kind === "map" && !(MAPS[id] && (MAPS[id].thumb || MAP_VIEW[id]))) continue;
-      this.jobs.push({ kind, id });
+      if (kind === "part") this.jobs.unshift({ kind, id }); else this.jobs.push({ kind, id });   // 정비소 부품 카드는 지금 보는 것부터
     }
     if (!this.timer && this.jobs.length) this.timer = setTimeout(() => this._pump(), kind === "map" ? 350 : 120);
   }
@@ -636,10 +712,10 @@ export class Thumbs {
     const job = this.jobs.shift();
     if (!job) return this._release();
     let url = null;
-    try { url = job.kind === "mode" ? this._modeShot(job.id) : job.kind === "frame" || job.kind === "canopy" ? this._frameShot(job.id, job.kind) : this._mapShot(job.id); }
+    try { url = job.kind === "mode" ? this._modeShot(job.id) : job.kind === "frame" || job.kind === "canopy" ? this._frameShot(job.id, job.kind) : job.kind === "part" ? this._partShot(job.id) : this._mapShot(job.id); }
     catch (e) { console.warn("썸네일을 만들지 못했습니다", job, e); }
     if (url) { this[job.kind][job.id] = url; this._emit(job.kind, job.id, url); }
-    if (this.jobs.length) this.timer = setTimeout(() => this._pump(), this.jobs[0].kind === "map" ? 250 : this.jobs[0].kind === "frame" || this.jobs[0].kind === "canopy" ? 30 : 16);
+    if (this.jobs.length) this.timer = setTimeout(() => this._pump(), this.jobs[0].kind === "map" ? 250 : this.jobs[0].kind === "frame" || this.jobs[0].kind === "canopy" || this.jobs[0].kind === "part" ? 30 : 16);
     else this.timer = setTimeout(() => this._release(), 1500);
   }
 
@@ -668,6 +744,27 @@ export class Thumbs {
     cam.position.set(c.x + rad * 1.5, c.y + rad * 2.1, c.z + rad * 2.3); cam.lookAt(c);
     r.render(sc, cam);
     const url = r.domElement.toDataURL("image/jpeg", 0.85);
+    d.userData.dispose();
+    return url;
+  }
+
+  // 정비소 부품 카드: id "슬롯.부품.단계" — 그 부품을 단 기체를 부품 자리에 바짝 붙어 찍는다
+  _partShot(id) {
+    const [slot, v, lv] = id.split("."), W = 200, H = 140, r = this._renderer(W, H);
+    const sc = new THREE.Scene(); sc.background = new THREE.Color(0x111a2e);
+    sc.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a3040, 1.5));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(2, 3, 2.5); sc.add(sun);
+    const rim = new THREE.DirectionalLight(0x21d4fd, 1.4); rim.position.set(-2, 0.5, -2); sc.add(rim);
+    const look = { frame: "x", canopy: "racer", props: 3, skin: "solid", frameColor: "#4a5262", accentColor: "#ff6a2a", propColor: "#7fdcff", ledColor: "#3dff7c", ledMode: "solid" };
+    const parts = partLook({ slot, v, lv: Math.max(0, Math.min(5, +lv || 0)) });
+    const d = buildDrone(look, 1, { parts });
+    d.userData.tick(0.016, 0, 0); sc.add(d); d.updateMatrixWorld(true);
+    const a = partAnchor(d, slot) || new THREE.Vector3();
+    const ax = Math.atan2(a.x, a.z) + 0.5, el = a.y < -0.004 ? -0.35 : 0.5, dist = slot === "armor" || slot === "motor" ? 0.17 : 0.13;
+    const cam = new THREE.PerspectiveCamera(32, W / H, 0.005, 10);
+    cam.position.set(a.x + Math.sin(ax) * Math.cos(el) * dist, a.y + Math.sin(el) * dist, a.z + Math.cos(ax) * Math.cos(el) * dist); cam.lookAt(a);
+    r.render(sc, cam);
+    const url = r.domElement.toDataURL("image/jpeg", 0.86);
     d.userData.dispose();
     return url;
   }
