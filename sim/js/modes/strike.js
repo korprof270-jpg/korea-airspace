@@ -39,6 +39,7 @@ const SUP = {
   cool: { name: "냉각", icon: "❄", color: "#9fe8ff", txt: (l) => `과열 -${l * 8}% · 냉각 +${l * 12}%` },
 };
 const UP = SUP, UP_KEYS = Object.keys(SUP), UP_MAX = 5;
+export { SUP, UP_COST };   // 전면전도 같은 ⓟ 업그레이드를 쓴다
 // 작전 1~5: hp 적 체력 배율 · cnt 적 수 배율 · stages 스테이지 수 · medal 승리 훈장 · diff 적 조준·피해
 export const OPS = [
   { n: 1, name: "선발 정찰", diff: "easy", hp: 0.8, cnt: 0.8, stages: 3, medal: 0, last: "final", boss: "twin", tag: "쉬움" },

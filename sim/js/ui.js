@@ -10,7 +10,8 @@ import { VARIANTS } from "./modes/survival.js";
 // 서바이벌 미션 종류: 맵 크기(반경 m)로 어울리는 맵을 고른다
 const SV_TYPES = {
   tf: { name: "팀 파이트", icon: "⚔️", variant: "tdm", size: "작은 맵", fit: (mp) => mp.size < 240, desc: "좁은 전장에서 아군 편대와 적 편대가 정면으로 맞붙는 5분 팀전. 격추·피해로 쌓은 팀 점수가 높은 쪽이 승리" },
-  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "누리 대륙 지역맵", fit: (mp) => !!mp.nuri, desc: "맵마다 작전 1~5를 차례로. 스테이지마다 사령부 무전으로 침투·교전·탈취 중 다음 임무가 무작위로 내려져 다른 구역으로, 마지막은 본진 결전·요새 공성전. 작전 3부터 승리하면 훈장으로 파츠·스킬 한계 돌파" },
+  strike: { name: "돌파 작전", icon: "✈️", variant: "strike", size: "보통 크기 이상 맵", fit: (mp) => !mp.nuri && mp.size >= 230 && mp.size < 400, desc: "맵마다 작전 1~5를 차례로. 스테이지마다 사령부 무전으로 침투·교전·탈취 중 다음 임무가 무작위로 내려져 다른 구역으로, 마지막은 본진 결전·요새 공성전. 작전 3부터 승리하면 훈장으로 파츠·스킬 한계 돌파" },
+  allout: { name: "전면전", icon: "🌐", variant: "allout", size: "누리 대륙 지역맵", fit: (mp) => !!mp.nuri, desc: "누리 대륙 지역맵에서 연합과 제국의 공중·지상·함대가 한꺼번에 맞붙는 대규모 전쟁. 맞닿은 구역을 점령해 전선을 밀고, 적 본진을 무너뜨리면 승리" },
   // 공방전은 메뉴에서 뺐다 (사용자 요청)
   // 기지전(AOS)은 메뉴에서 뺐다 (사용자 요청). 업그레이드 창 등 코드는 레이드가 함께 쓴다
 };
@@ -842,6 +843,8 @@ export class UI {
         const done = Math.max(0, Math.min(5, records[`strikeOp:${s.map}`] | 0)), op = Math.min(Math.max(1, s.op | 0 || done + 1), done + 1, 5); s.op = op;
         opts += `<div class="opt"><label>작전 (차례로 열림)</label><div class="seg">${STRIKE_OPS.map((o, i) => { const n = i + 1, lock = n > done + 1; return `<button data-a="sel" data-k="op" data-v="${n}" class="${op === n ? "on" : ""}" ${lock ? "disabled" : ""}>${lock ? "🔒 " : n <= done ? "✔ " : ""}작전 ${n} · ${o[0]}</button>`; }).join("")}</div><div class="hint">작전 ${op} · ${STRIKE_OPS[op - 1][0]} — 난이도 ${STRIKE_OPS[op - 1][1]} · 스테이지 ${STRIKE_OPS[op - 1][2]}개${STRIKE_OPS[op - 1][3] ? ` · 승리하면 훈장 🎖${STRIKE_OPS[op - 1][3]} (처음 이기면 +1)` : ""} · 보유 훈장 🎖${GP.medals()}<br>${STRIKE_OPS[op - 1][4]}</div></div>`;
         opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 사령부가 무전으로 다음 임무를 무작위로 내립니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 임무는 맵의 실제 장소 중 그 장소에 맞는 곳에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 시작해 ⓟ로 8가지(레이저·미사일·장갑·실드 발생기·자가 수리·기동·스킬·냉각)를 업그레이드합니다. 다음 작전으로 이어서 하면 남은 ⓟ와 업그레이드를 그대로 가져가고, 메뉴에서 작전 2~5를 바로 시작하면 출발 ⓟ(700·1500·2500·3600)를 받습니다 · 목숨 7개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
+      } else if (s.variant === "allout") {
+        opts += `<p class="hint2">연합과 제국의 드론 편대·전차·로봇·함대가 지역 전체에서 한꺼번에 싸웁니다. 내 편 구역에 맞닿은 구역만 점령할 수 있고(구역 원 안에 아군이 더 많으면 게이지가 오름), 점령할수록 전선이 밀리며 그 구역에서 아군 증원이 나옵니다. 적 본진 바로 앞 구역까지 빼앗으면 본진 실드가 꺼지고, 핵심을 부수면 승리 · 15분이 끝나면 구역을 더 가진 쪽이 승리. 기지 구역은 공중 증원, 공창·광산은 지상 부대, 항구는 함선, 요새는 포대를 줍니다. 격추·점령으로 ⓟ를 모아 E 키로 업그레이드.</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -906,7 +909,7 @@ export class UI {
     else if (s.mode === "freestyle") cfg.session = s.fs;
     // 서바이벌: 공방전(전·후반 각 5분) · 적 수 고정 · 실력에 따라 자동 난이도
     else if (s.mode === "survival" && s.variant === "strike" && s.party === "coop") return this.show("coop");
-    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike", op: s.op || 1, difficulty: STRIKE_DIFF[(s.op || 1) - 1], dda: false } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
+    else if (s.mode === "survival") Object.assign(cfg, { variant: s.variant, bots: s.variant === "assault" ? 8 : s.variant === "tdm" ? 7 : 6, time: s.variant === "assault" ? 360 : 300, noDirector: s.variant === "tdm", difficulty: "normal", dda: true }, s.variant === "strike" ? { mode: "strike", op: s.op || 1, difficulty: STRIKE_DIFF[(s.op || 1) - 1], dda: false } : s.variant === "allout" ? { mode: "allout", time: 900, difficulty: "normal", dda: false, noDirector: true } : s.variant === "conq" ? { mode: "conquest" } : s.variant === "fleet" ? { time: s.fleetTime || 300, fleetSize: s.fleetSize || 1 } : s.variant === "aos" ? { mode: "aos", map: "stadium", teamSize: s.teamSize || 5, time: s.aosTime || 720, goal: s.aosGoal || 60 } : {});
     else if (s.mode === "training") {
       const l = TR.LESSONS.find((x) => x.id === s.lesson);
       if (!l || !TR.unlocked(l)) return;

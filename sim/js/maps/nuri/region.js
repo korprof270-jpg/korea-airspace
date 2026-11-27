@@ -4,7 +4,7 @@
 import { toW, REGIONS, REGIONS_POLY, LAND, ISLANDS, SITES, ROADS, FRONT, height, colorAt, ownerAt, landD, fbm, vnoise, lineDist, smooth } from "./geo.js";
 import { BUILD } from "./sites.js";
 import { BAKE, MARGIN, CONT } from "./bakeinfo.js";
-import { ZONES as NZ, THEME } from "./zones.js";
+import { ZONES as NZ, THEME, REGION_LORE } from "./zones.js";
 const OWNS = ["hanul", "haerim", "bukseol", "jeoksa", "namdo", "e1", "e2", "e3"];
 import { ST, forest, village, fields, turbine, pylonLine, tankTrap, bunker, wreck, tower, monolith, floorAt, road, roadside, treeImpostors } from "./kit.js";
 
@@ -90,8 +90,8 @@ export function makeRegion(id, o = {}) {
 
   // 출발점: 우리 편 거점 가장자리 (제국 땅이면 창 서쪽 끝 = 전선 쪽)
   let spawnG;
-  if (friend.length && !R.owner.startsWith("e")) { const s = own[0] || friend[0]; spawnG = [s.p[0] - (s.r || 120) * 0.6, s.p[1] + (s.r || 120) * 0.9]; }
-  else { spawnG = [CX - half * 0.82, CZ]; for (let k = 0; k < 30 && landD(spawnG[0], spawnG[1]) < 60; k++) spawnG[0] += 40; }
+  if (friend.length && !R.owner.startsWith("e")) { const pref = { hanul: "airbase", haerim: "haerimport", bukseol: "seori", jeoksa: "minecity", namdo: "coral" }[id], s = here.find((q) => q.id === pref) || own[0] || friend[0]; spawnG = [s.p[0] - (s.r || 120) * 0.6, s.p[1] + (s.r || 120) * 0.9]; }
+  else { const ES = { e1: [492, 330], e2: [586, 322], e3: [738, 330] }[id]; spawnG = ES ? toW(ES[0], ES[1]) : [CX - half * 0.82, CZ]; for (let k = 0; k < 30 && landD(spawnG[0], spawnG[1]) < 60; k++) spawnG[0] += 40; }   // 제국 땅: 앞 세대와의 경계에서 출발
   const [SX, SZ] = toL(...spawnG);
   const redS = foe[0] || here.find((s) => s !== own[0]) || here[0];
   const redL = redS ? toL(redS.p[0], redS.p[1]) : [half * 0.6, 0];
@@ -198,7 +198,7 @@ export function makeRegion(id, o = {}) {
   return {
     id: "nuri_" + id,
     name: `누리 대륙 · ${R.name}`,
-    desc: `대형 맵 · ${DESC[id]}`,
+    desc: `대형 맵 · ${REGION_LORE[id].bg}. ${DESC[id]}`,
     size: half,
     ceiling: id === "bukseol" || id === "e2" ? 520 : 400,
     seed: 900 + Object.keys(REGIONS).indexOf(id),
@@ -215,11 +215,13 @@ export function makeRegion(id, o = {}) {
     thumbDraw: (W, H) => drawThumb(id, W, H),
     land: landL,
     preload,   // 게임 시작 전에 구운 지도를 읽는다 (main.startSession)
+    // 전면전: 제국 본진 자리 (없으면 돌파 작전 요새 자리)
+    allout: (() => { const RD = { e3: [870, 284] }[id]; return { red: RD ? toL(...toW(RD[0], RD[1])) : null }; })(),
     // 돌파 작전: 적 요새 자리 · 구역(이 지역 구역 중 땅 위) · 이야기
     strike: (() => {
       const S = STRIKE[id], [fx, fz] = toW(S.fin[0], S.fin[1]);
-      const zones = NZ.filter((z) => z.region === id && z.theme !== "sea").map((z) => { const [x, zz] = toL(z.p[0], z.p[1]); return { name: z.name, x, z: zz, r: Math.min(z.r, 60), what: THEME[z.theme].name, use: z.use, t: MT[z.theme] || ["fight"] }; });
-      return { fin: toL(fx, fz), zones, story: S.story };
+      const zones = NZ.filter((z) => z.region === id && z.theme !== "sea").map((z) => { const [x, zz] = toL(z.p[0], z.p[1]); return { id: z.id, name: z.name, x, z: zz, r: Math.min(z.r, 60), R: z.r, theme: z.theme, what: THEME[z.theme].name, use: z.use, look: z.look, role: z.role, map: z.map, t: MT[z.theme] || ["fight"] }; });
+      return { fin: toL(fx, fz), zones, story: S.story, lore: REGION_LORE[id] };
     })(),   // 바다 위에는 적·보급을 두지 않는다
   };
 }
