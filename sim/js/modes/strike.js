@@ -39,7 +39,6 @@ const SUP = {
   cool: { name: "냉각", icon: "❄", color: "#9fe8ff", txt: (l) => `과열 -${l * 8}% · 냉각 +${l * 12}%` },
 };
 const UP = SUP, UP_KEYS = Object.keys(SUP), UP_MAX = 5;
-export { SUP, UP_COST };   // 전면전도 같은 ⓟ 업그레이드를 쓴다
 // 작전 1~5: hp 적 체력 배율 · cnt 적 수 배율 · stages 스테이지 수 · medal 승리 훈장 · diff 적 조준·피해
 export const OPS = [
   { n: 1, name: "선발 정찰", diff: "easy", hp: 0.8, cnt: 0.8, stages: 3, medal: 0, last: "final", boss: "twin", tag: "쉬움" },
@@ -151,8 +150,7 @@ export class StrikeMode extends CombatMode {
     this._rngS(7);
     // 적 본진: 출발 기지 반대편 맵 끝
     const fa = aS + Math.PI + (this.R() - 0.5) * 0.5, lim = w.size - 75;
-    const MS = s.map.strike;   // 누리 대륙 지역맵: 적 요새 자리·구역·이야기가 정해져 있다
-    const fin = (MS && MS.fin ? this._gs(MS.fin[0], MS.fin[1], 30, 14) : this._gs(clamp(Math.cos(fa) * this.RE, -lim, lim), clamp(Math.sin(fa) * this.RE, -lim, lim), 30, 14)).clone();
+    const fin = this._gs(clamp(Math.cos(fa) * this.RE, -lim, lim), clamp(Math.sin(fa) * this.RE, -lim, lim), 30, 14).clone();
     this.fin = fin; this.home = A.clone(); this.home.y = w.h(A.x, A.z);
     this.axis = fin.clone().sub(A).setY(0).normalize();
     this.D0 = Math.hypot(fin.x - A.x, fin.z - A.z);
@@ -160,7 +158,7 @@ export class StrikeMode extends CombatMode {
     this.gate = this._gs(fin.x - this.axis.x * 125, fin.z - this.axis.z * 125, 30, 10).clone();
     this.siteGone = [buildSite(w, fin, "citadel", 0)];
     this.used = [this.home.clone(), fin.clone(), this.gate.clone()];
-    { const Z = (MS && MS.zones) || ZONES[s.map.id]; this.zones = Z && Z.length >= 4 ? Z.filter((z) => Math.hypot(z.x - fin.x, z.z - fin.z) > 110 && Math.hypot(z.x - this.gate.x, z.z - this.gate.z) > 60 && Math.hypot(z.x - A.x, z.z - A.z) > 50) : null; if (this.zones && this.zones.length < 4) this.zones = null; }
+    { const Z = ZONES[s.map.id]; this.zones = Z && Z.length >= 4 ? Z.filter((z) => Math.hypot(z.x - fin.x, z.z - fin.z) > 110 && Math.hypot(z.x - this.gate.x, z.z - this.gate.z) > 60 && Math.hypot(z.x - A.x, z.z - A.z) > 50) : null; if (this.zones && this.zones.length < 4) this.zones = null; }
     this._cands();
     this.cur = this.home.clone();
     const sp = this._spawn(me); this.placePlayer(sp.pos, sp.yaw);
@@ -176,13 +174,13 @@ export class StrikeMode extends CombatMode {
       btn.style.cssText = "display:flex;width:100%;align-items:center;gap:8px;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid #5a2a3a;background:#2a1220;color:#fff;font:inherit;cursor:pointer;text-align:left";
       btn.innerHTML = `<span style="color:#ff6b8a;width:62px">❤ 목숨</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b data-cost style="color:#ffd24a;min-width:64px;text-align:right">${LIFE_COST}ⓟ</b>`;
       btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.buyLife(); });
-      const slot = this.shop.extra || this.shop.el;
-      slot.appendChild(btn);
+      const help = this.shop.el.querySelector("[data-help]");
+      this.shop.el.insertBefore(btn, help);
       const rb = (this.reviveBtn = document.createElement("button"));
       rb.style.cssText = btn.style.cssText.replace("#5a2a3a", "#2a5a3a").replace("#2a1220", "#12261a") + ";display:none";
       rb.innerHTML = `<span style="color:#8cff4a;width:62px">🤝 구조</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b style="color:#ffd24a;min-width:64px;text-align:right">${REVIVE_COST}ⓟ</b>`;
       rb.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.reviveMate(); });
-      slot.appendChild(rb);
+      this.shop.el.insertBefore(rb, help);
     }
     this._go(0);
     setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
@@ -234,13 +232,6 @@ export class StrikeMode extends CombatMode {
     let pool = this.zones.map((z, i) => ({ z, i })).filter((o) => !this.usedZ.has(o.i));
     const far = pool.filter((o) => Math.hypot(o.z.x - from.x, o.z.z - from.z) > 70);
     if (far.length >= Math.min(3, pool.length)) pool = far;
-    // 큰 지역맵: 요새 쪽으로 다가가면서 한 번에 200~950m 정도만 옮긴다
-    if (this.s.map.strike) {
-      const df = Math.hypot(from.x - this.fin.x, from.z - this.fin.z), left = Math.max(1, this.N - 1 - si);
-      const ok = pool.filter((o) => { const d = Math.hypot(o.z.x - from.x, o.z.z - from.z), f = Math.hypot(o.z.x - this.fin.x, o.z.z - this.fin.z); return d > 200 && d < 950 && f < df + 120 && f > df * (1 - 1.6 / left) - 200; });
-      if (ok.length >= Math.min(3, pool.length)) pool = ok;
-      else { const sc = (o) => Math.hypot(o.z.x - this.fin.x, o.z.z - this.fin.z) + 0.35 * Math.hypot(o.z.x - from.x, o.z.z - from.z); pool = pool.slice().sort((a, b) => sc(a) - sc(b)).slice(0, 3); }   // 모자라면 요새에 가깝고 덜 먼 곳부터
-    }
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const pick = pool.slice(0, si === 0 ? 1 : 3), seen = new Set();
     return pick.map(({ z, i }) => {
@@ -294,7 +285,7 @@ export class StrikeMode extends CombatMode {
     const me = this.me, D = me.aos, c = this.cost(me, key);
     if (!(D.pts >= c)) return false;
     D.pts -= c; D.up[key]++; this._applyStats();
-    this.s.hud.toast(`${UP[key].name} Lv${D.up[key]}`, UP[key].color, 1, 20);   // 효과음은 업그레이드 창이 낸다
+    this.s.game.sound.play("pickup"); this.s.hud.toast(`${UP[key].name} Lv${D.up[key] + 1}`, UP[key].color, 1, 20);
     return true;
   }
   _applyStats(init) {
@@ -459,7 +450,7 @@ export class StrikeMode extends CombatMode {
     if (st.last) return this._say([st.type === "siege" ? "구역 확보. 적 본진 요새가 보인다. 외곽 방공 포대부터 부숴라." : "구역 확보. 적 본진 성문 앞이다. 마지막 결전, 전 화력 집중."]);
     const open = si === 0 ? "작전 개시." : this.rp(["구역 확보 확인.", "잘했다. 쉴 틈 없다.", "정찰 보고 들어왔다.", "확보 확인. 곧바로 이동."]);
     const goal = String(st.goal || M.desc).split(/\.\s*/).filter(Boolean).map((x) => x + ".");
-    const intro = si === 0 ? [`작전 ${this.op.n}, ${this.op.name}.`, (this.s.map.strike && this.s.map.strike.story) || STORY[this.s.map.id] || ""] : [];   // 첫 브리핑도 따로 띄우지 않고 무전으로
+    const intro = si === 0 ? [`작전 ${this.op.n}, ${this.op.name}.`, STORY[this.s.map.id] || ""] : [];   // 첫 브리핑도 따로 띄우지 않고 무전으로
     this._say([...intro, `${open} ${M.name} 임무, 목표 ${st.name}. 빛 기둥으로.`, ...goal], si === 0 ? 1.5 : 0.4);
   }
 

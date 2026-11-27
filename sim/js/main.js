@@ -8,7 +8,6 @@ import { Sound } from "./audio.js";
 import { Music } from "./music.js";
 import { Hud } from "./hud.js";
 import { Session } from "./session.js";
-import { MAPS } from "./maps/index.js";
 import "./modes/aos.js";   // 기지전(AOS) 모드: 서바이벌 · 매우 큰 맵
 import "./modes/strike.js";   // 서바이벌 · 돌파 작전 (맵마다 작전 1~5, 침투·교전·탈취·공성)
 import "./modes/raid.js";   // 레이드 · 우주 전쟁 (1시간 공동 보스전, 참가·관전)
@@ -146,9 +145,6 @@ class Game {
     const loading = document.getElementById("loading");
     loading.hidden = false;
     this.ui.hide();
-    // 대형 맵: 미리 구운 지도(그림 한 장)를 먼저 읽고 시작한다. 못 읽으면 예전처럼 계산해서 만든다
-    const mp = MAPS[cfg.map];
-    if (mp && mp.preload && !cfg._pre) { mp.preload().catch((e) => console.warn(e)).finally(() => this.startSession({ ...cfg, _pre: true })); return; }
     setTimeout(() => {
       try {
         if (this.session) { this.session.dispose(); this.session = null; }

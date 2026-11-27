@@ -1,9 +1,6 @@
 // 격납고 경제: 포인트 · 퀘스트(일일/주간) · 업적 · 상점(외형·테마·효과) · 파츠(슬롯별 부품 교체 + 부품별 단계 업그레이드) · 스킬 강화
-// 저장: records.gp = { pts, earned, owned:{}, eq:{}, parts:{slot:{v, lv:{부품:단계}}}, own:{slot:[부품]}, sk:{스킬:레벨}, stat:{}, ach:{}, daily:{key,list}, weekly:{key,list},
-//                       md, ox:{}, skox:{}, drops:[{t, kind, v, g, pts?}] (임무 보상 기록, 최근 30개) }
-// 등급(일반~전설)·가격·등급 보너스·임무 보상 확률은 grades.js
+// 저장: records.gp = { pts, earned, owned:{}, eq:{}, parts:{slot:{v, lv:{부품:단계}}}, own:{slot:[부품]}, sk:{스킬:레벨}, stat:{}, ach:{}, daily:{key,list}, weekly:{key,list} }
 import { records, save, settings } from "./config.js";
-import * as GR from "./grades.js";
 import { SKILLS, SKILL_DEF, SKILL_MAX, skillStat, skillRows, skillMilestone, skillDesc } from "./skilldefs.js";
 
 // ── 저장 상태 ──
@@ -23,8 +20,6 @@ function S() {
 function migrate(s) {
   const obj = (v) => v && typeof v === "object" && !Array.isArray(v);
   for (const k of ["owned", "eq", "parts", "own", "sk", "stat", "ach", "ox", "skox"]) if (!obj(s[k])) s[k] = {};
-  if (!Array.isArray(s.drops)) s.drops = [];
-  s.drops = s.drops.filter((d) => obj(d) && typeof d.kind === "string").slice(-30);
   if (!(s.md >= 0)) s.md = 0;
   if (!(s.pts >= 0)) s.pts = 0;
   if (!(s.earned >= 0)) s.earned = 0;
@@ -183,42 +178,8 @@ export function onResult(cfg, r) {
   if (cfg.mode === "tracking" && stars >= 2) ev("trackGood");
   if (r.story && r.story.passed && r.story.first) ev("story");
   if (r.training && r.training.passed) ev("lesson");
-  const drop = win && cfg.mode !== "training" && !cfg.training ? rollDrop(cfg, r) : null;
-  return { pts, lines, notices: takeNotices(), drop };
+  return { pts, lines, notices: takeNotices() };
 }
-
-// ── 임무 보상: 승리하면 등급을 굴려 아직 없는 장비(외형·파츠)를 하나 준다. 그 등급을 다 가졌으면 포인트로 ──
-// 반환 { kind, v, g } (kind: frame·canopy·skin·led·trail 또는 "part.슬롯") · { g, pts } (포인트로 대신) · null (꽝)
-export function dropPool(g) {
-  const out = [];
-  for (const kind of GR.LOOK_BONUS_KINDS) for (const [v, p] of Object.entries(SHOP[kind].items)) if (p > 0 && gradeOf(kind, v) === g && !owns(kind, v)) out.push({ kind, v });
-  for (const slot of SLOTS) for (const [v, V] of Object.entries(PARTS[slot].variants)) if (V.price > 0 && GR.partGrade(slot, v) === g && !variantOwns(slot, v)) out.push({ kind: `part.${slot}`, v });
-  return out;
-}
-export function rollDrop(cfg = {}, r = {}, rand = Math.random) {
-  const L = GR.dropLuck(cfg, r);
-  if (rand() >= GR.dropChance(L)) return null;
-  return grantDrop(GR.rollGrade(L, rand), rand);
-}
-export function grantDrop(g, rand = Math.random) {
-  const s = S(), pool = dropPool(g), t = Date.now();
-  let d;
-  if (pool.length) {
-    const it = pool[Math.floor(rand() * pool.length) % pool.length];
-    if (it.kind.startsWith("part.")) { const slot = it.kind.slice(5); (s.own[slot] = Array.isArray(s.own[slot]) ? s.own[slot] : []).push(it.v); }
-    else s.owned[`${it.kind}:${it.v}`] = 1;
-    d = { t, kind: it.kind, v: it.v, g };
-  } else {
-    const pts = Math.round((GR.LOOK_PRICE[g] * GR.REFUND_K) / 10) * 10;
-    s.pts += pts; s.earned += pts;
-    d = { t, kind: "pts", v: "", g, pts };
-  }
-  s.drops.push(d); if (s.drops.length > 30) s.drops.splice(0, s.drops.length - 30);
-  changed();
-  return d;
-}
-export const drops = () => S().drops.slice();
-export const dropOdds = (cfg, r) => { const L = GR.dropLuck(cfg, r); return { luck: L, chance: GR.dropChance(L), w: GR.dropWeights(L) }; };
 
 // ── 상점: 외형 · 테마 · 효과 ──
 // key: "frame:hexa" 처럼 종류:값. price 0 = 기본 제공
@@ -255,32 +216,6 @@ export const THEMES = {
   eia: { name: "에이아 레드", price: 1500, desc: "기계제국의 붉은 눈", need: "e5", look: { frame: "hexa", canopy: "battery", skin: "hazard", frameColor: "#141016", accentColor: "#ff2d3d", propColor: "#ff6b78", ledColor: "#ff2d3d", ledMode: "blink" }, fx: { laser: "red", beam: "nova", missile: "toxic", boost: "void", item: "neon" } },
   ail: { name: "에일 바이올렛", price: 1800, desc: "별의 저편에서 온 생체 결정", need: "s4", look: { frame: "tri", canopy: "pod", skin: "flame", frameColor: "#1c0d33", accentColor: "#c060ff", propColor: "#e0b0ff", ledColor: "#c060ff", ledMode: "rainbow" }, fx: { laser: "violet", beam: "nova", missile: "plasma", boost: "aurora", item: "star" } },
 };
-
-// ── 등급: 아이템마다 등급을 매기고 가격을 등급으로 다시 정한다 (기본 제공 = 무료 그대로) ──
-const GRADE = {};   // "kind:v" → 등급 0~4
-for (const [kind, S0] of Object.entries(SHOP)) for (const [v, p] of Object.entries(S0.items)) {
-  const g = (GRADE[`${kind}:${v}`] = GR.lookGrade(kind, v, p));
-  if (p > 0) S0.items[v] = GR.lookPrice(kind, g);
-}
-for (const [slot, F] of Object.entries(FX)) for (const [v, it] of Object.entries(F.items)) {
-  const g = (GRADE[`fx.${slot}:${v}`] = GR.lookGrade(`fx.${slot}`, v, it.price));
-  if (it.price > 0) it.price = GR.lookPrice(`fx.${slot}`, g);
-}
-for (const [id, t] of Object.entries(THEMES)) { const g = (GRADE[`theme:${id}`] = GR.lookGrade("theme", id, t.price)); t.price = GR.lookPrice("theme", g); }
-// 외형 아이템 등급 (kind: frame·canopy·skin·led·trail·preset·paint·theme·fx.슬롯 · 파츠는 "part.슬롯")
-export function gradeOf(kind, v) {
-  if (kind.startsWith("part.")) return GR.partGrade(kind.slice(5), v);
-  return GRADE[`${kind}:${v}`] ?? GR.lookGrade(kind, v);
-}
-export const gradeInfo = (kind, v) => GR.gradeOf(gradeOf(kind, v));
-export { GRADES } from "./grades.js";
-// 장착하면 붙는 등급 보너스 { 키: 값 } (외형: frame·canopy·skin·led·trail · 파츠: "part.슬롯")
-export function gradeBonus(kind, v) {
-  if (kind.startsWith("part.")) { const slot = kind.slice(5), V = PARTS[slot] && PARTS[slot].variants[v]; return V ? GR.partBonus(slot, v, V.per) : {}; }
-  return GR.lookBonus(kind, v);
-}
-// 외형 종류 → settings.drone 의 키
-export const LOOK_KEY = { frame: "frame", canopy: "canopy", skin: "skin", led: "ledMode", trail: "trail" };
 
 // 외형이 주는 작은 성능 특성 (loadout 에 더해진다 · PvP 기본 수치에는 빠진다). tag: 카드에 붙는 성격
 export const LOOK_FX = {
@@ -346,7 +281,7 @@ export function themeEquip(id) {
 
 // ── 파츠: 슬롯 8개. 슬롯마다 성격이 다른 부품 4~5종 중 하나를 장착하고, 부품마다 0~5단계 업그레이드. 3·5단계에서 추가 효과 ──
 // base: 장착만 해도 붙는 특성(장단점) · per: 단계마다 · b3/b5: 3·5단계 추가 효과. 모두 0 기준 가산치
-export const UP_COST = GR.UP_BASE;   // 일반 등급 기준 (실제 비용은 upCost: 등급 배율이 붙는다)
+export const UP_COST = [200, 400, 700, 1100, 1600];
 // 수치 표기: pct 는 %, good -1 은 낮을수록 좋은 값
 export const STATS = {
   hp: { name: "내구도", pct: 1 }, guard: { name: "받는 피해", pct: 1, good: -1 }, crash: { name: "충돌 피해", pct: 1, good: -1 }, regen: { name: "체력 재생", unit: "/초" },
@@ -411,9 +346,6 @@ export const PARTS = {
     liquid: { name: "수랭 순환기", price: 950, tag: "급속 냉각", desc: "냉각관으로 열을 빠르게 뺀다. 연사가 오래 가지만 펌프 무게로 부스트가 약하다.", base: { cool: 0.2, heat: -0.04, boost: -0.07 }, per: { cool: 0.06 }, b3: { rate: 0.06 }, b5: { overDur: 0.25 } } } },
 };
 export const SLOTS = Object.keys(PARTS);
-for (const [slot, Pt] of Object.entries(PARTS)) for (const [v, V] of Object.entries(Pt.variants)) V.price = V.price > 0 ? GR.PART_PRICE[Math.max(1, GR.partGrade(slot, v))] : 0;
-// 업그레이드 비용: Lv.lv → lv+1 (등급이 높을수록 비싸다). 5단계면 Infinity
-export const upCost = (slot, v, lv = partLv(slot, v)) => GR.upCostOf(GR.partGrade(slot, v), lv);
 const clampLv = (n) => Math.max(0, Math.min(5, Math.floor(+n) || 0));
 // 장착 부품과 그 단계. 저장값이 이상하면 기본 부품으로
 export function partOf(slot) {
@@ -440,7 +372,7 @@ export function upgrade(slot, v) {
   v = v || partOf(slot).v;
   if (!variantOwns(slot, v)) return false;
   const lv = partLv(slot, v);
-  if (lv >= 5 || !spend(upCost(slot, v, lv))) return false;
+  if (lv >= 5 || !spend(UP_COST[lv])) return false;
   slotRec(slot).lv[v] = lv + 1; changed(); return true;
 }
 // 부품 하나가 주는 효과 합 (단계 lv)
@@ -460,17 +392,14 @@ export function partLook(over) {
 }
 
 // 장착 상태 → 전투·비행 배율 (모두 0 기준의 가산치). over: 미리보기용 { slot, v, lv }
-// lookOver: 외형 미리보기 { frame, canopy, skin, ledMode, trail } 중 일부 (주지 않은 것은 지금 외형)
+// lookOver: 외형 미리보기 { frame } (주지 않으면 지금 외형)
 export function loadout(over, lookOver) {
   const L = { thrust: 0, boost: 0, heat: 0, cool: 0, itemDur: 0, boostDur: 0, overDur: 0, spawnShield: 0, regen: 0, hp: 0, guard: 0, crash: 0, shieldK: 0, laserDmg: 0, rate: 0, spread: 0, spreadK: 0, crit: 0, critK: 0, lock: 0, range: 0, mCap: 0, mDmg: 0, mStart: 0, repair: 0, emp: 0, gauge: 0, gaugeStart: 0 };
   const look = partLook(over);
   for (const slot of SLOTS) for (const [k, v] of Object.entries(partEffect(slot, look[slot].v, look[slot].lv))) L[k] = (L[k] || 0) + v;
   for (const slot of SLOTS) { const v = look[slot].v, n = look[slot].lv >= 5 ? oxLv(slot, v) : 0; if (n) for (const [k, x] of Object.entries(PARTS[slot].variants[v].per || {})) L[k] = (L[k] || 0) + x * n * OX_K; }   // 한계 돌파
-  for (const slot of SLOTS) for (const [k, x] of Object.entries(gradeBonus(`part.${slot}`, look[slot].v))) L[k] = (L[k] || 0) + x;   // 부품 등급 보너스
-  const lk = (kind) => (lookOver && lookOver[LOOK_KEY[kind]] !== undefined ? lookOver[LOOK_KEY[kind]] : settings.drone[LOOK_KEY[kind]]);
-  const fr = lk("frame");
+  const fr = (lookOver && lookOver.frame) || settings.drone.frame;
   for (const [k, v] of Object.entries(lookFx("frame", fr) || {})) L[k] = (L[k] || 0) + v;
-  for (const kind of GR.LOOK_BONUS_KINDS) { const v = lk(kind); if (v !== undefined && (owns(kind, v) || (lookOver && lookOver[LOOK_KEY[kind]] !== undefined))) for (const [k, x] of Object.entries(GR.lookBonus(kind, v))) L[k] = (L[k] || 0) + x; }   // 외형 등급 보너스 (가진 것만)
   const f = (slot) => FX[slot].items[fxEquipped(slot)] || FX[slot].items[FX[slot].def];
   L.fx = { laser: f("laser").color, beam: f("beam"), missile: f("missile").color, boost: f("boost"), item: f("item") };
   return L;

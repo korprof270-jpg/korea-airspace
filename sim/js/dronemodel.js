@@ -422,7 +422,6 @@ export function buildDrone(look, scale = 1, opts = {}) {
         plates: motors.map(([mx, mz]) => [mx * 0.55, 0.0045, mz * 0.55, Math.atan2(mx, mz), Math.hypot(mx, mz) * 0.4]), nose: [0, 0.006, -bodyLen / 2 - 0.002],
         motors: motors.map(([mx, mz, o = {}]) => [mx, (o.y || 0) + (o.inv ? -0.008 : 0.012), mz]), mr: frame === "micro" ? 0.0095 : 0.0135, bw: bodyW + 0.012 };
     partTicks = addParts(add, { frame: frameMat, accent: accentMat, dark: darkMat, led: ledMat, metal, frameIn, darkIn }, A, opts.parts);
-    root.userData.anchors = A; root.userData.inner = g;   // 정비소: 부품 자리로 카메라를 맞출 때 쓴다 (g 기준 좌표)
   }
 
   // 적/아군 식별용 발광 고리(전투 모드)
