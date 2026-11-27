@@ -20,8 +20,11 @@ import ailsea from "./ailsea.js";
 import ailwood from "./ailwood.js";
 import ailsky from "./ailsky.js";
 import stadium from "./stadium.js";
+import { makeRegion } from "./nuri/region.js";
+// 누리 대륙 구역별 대형 맵 (대륙 좌표를 공유 — 나중에 한 장으로 합친다)
+export const NURI_LIST = ["hanul", "haerim", "bukseol", "jeoksa", "namdo", "e1", "e2", "e3"].map((id) => makeRegion(id));
 
-export const MAP_LIST = [city, canyon, factory, arena, snow, island, moon, orbit, empire, airbase, ail, outpost, vault, foundry, spaceport, aildune, ailsea, ailwood, ailsky, frost, stadium];
+export const MAP_LIST = [city, canyon, factory, arena, snow, island, moon, orbit, empire, airbase, ail, outpost, vault, foundry, spaceport, aildune, ailsea, ailwood, ailsky, frost, stadium, ...NURI_LIST];
 import { addSubjects } from "./extra-subjects.js";
 addSubjects(MAP_LIST);
 import { applyRoutes } from "./tracking-routes.js";

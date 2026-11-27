@@ -80,6 +80,7 @@ export class World {
     this.shadowCell = SHADOW_CELL;
     this.shadowBatches = new Map();   // "ix,iz" → ShadowBatch (그림자 전용)
     this.size = def.size || 300;      // 맵 반경(절반 크기)
+    this.chunk = def.chunk || 0;      // 큰 맵: 덩어리를 나눌 칸 크기(m)
     this.ceiling = def.ceiling || 160;
     this.gates = [];
     this.gaps = [];                   // 프리스타일 통과 보너스 지점
@@ -270,8 +271,10 @@ export class World {
   // uvs: 박스 면별 UV 배율 [sx,sy,sz]/타일 또는 [su, sv]. grad: [아래, 위] 밝기(높이 그라디언트·접지 음영)
   _add(matKey, geo, matrix, color, uvs, grad) {
     const bb = geo.boundingBox || (geo.computeBoundingBox(), geo.boundingBox), y0 = bb.min.y, yr = Math.max(1e-6, bb.max.y - bb.min.y);
-    let b = this.batches.get(matKey);
-    if (!b) this.batches.set(matKey, (b = new Batch(matKey)));
+    // 큰 맵(def.chunk): 같은 재질이라도 칸마다 덩어리를 나눠, 화면 밖·먼 칸을 통째로 건너뛰게 한다
+    const ck = this.chunk ? `${matKey}|${Math.floor(matrix.elements[12] / this.chunk)},${Math.floor(matrix.elements[14] / this.chunk)}` : matKey;
+    let b = this.batches.get(ck);
+    if (!b) this.batches.set(ck, (b = new Batch(matKey)));
     const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
     if (_wp.length < P.count * 3) _wp = new Float32Array(P.count * 3 * 2);
     _n3.getNormalMatrix(matrix);
@@ -518,7 +521,7 @@ export class World {
 
   // 높이 함수 fn(x,z) 로 지형 생성. colorFn(x, y, z, slope) → 큰 얼룩 색
   terrain(fn, colorFn, o = {}) {
-    const half = this.size + 260, seg = o.seg || (this.quality === "low" ? 200 : 300);
+    const half = this.size + (o.margin ?? 260), seg = o.seg || (this.quality === "low" ? 200 : 300);
     const hf = new HeightField(fn, half, seg);
     const g = new THREE.PlaneGeometry(half * 2, half * 2, seg, seg);
     g.rotateX(-Math.PI / 2);
