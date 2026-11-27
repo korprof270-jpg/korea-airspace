@@ -6,7 +6,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import { REGIONS, height, colorAt, ownerAt, landD } from "../sim/js/maps/nuri/geo.js";
-import { BAKE } from "../sim/js/maps/nuri/bakeinfo.js";
+import { BAKE, CONT } from "../sim/js/maps/nuri/bakeinfo.js";
 
 const OUT = new URL("../sim/js/maps/nuri/baked/", import.meta.url);
 mkdirSync(OUT, { recursive: true });
@@ -23,7 +23,32 @@ function png(w, h, rgba) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ih), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(REGIONS);
+const args = process.argv.slice(2), ids = args.length ? args.filter((a) => a !== "continent") : Object.keys(REGIONS);
+if (!args.length || args.includes("continent")) continent();
+// 대륙 입체 지형도: 높이 명암(북서쪽 빛) + 바다 깊이 + 해안선
+function continent() {
+  const t0 = Date.now(), { x0, x1, z0, z1, w: W, h: H } = CONT, sx = (x1 - x0) / W, sz = (z1 - z0) / H;
+  const hs = new Float32Array(W * H), cs = new Uint32Array(W * H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const x = x0 + (i + 0.5) * sx, z = z0 + (j + 0.5) * sz, h = height(x, z); hs[j * W + i] = h; cs[j * W + i] = h > 0 ? colorAt(x, h, z, 0.1) : 0; }
+  const img = Buffer.alloc(W * H * 4), L = [-0.62, 0.55, -0.56];
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const k = j * W + i, h = hs[k], o = k * 4;
+    const hx = (hs[j * W + Math.min(W - 1, i + 1)] - hs[j * W + Math.max(0, i - 1)]) / (2 * sx), hz = (hs[Math.min(H - 1, j + 1) * W + i] - hs[Math.max(0, j - 1) * W + i]) / (2 * sz);
+    const nl = Math.hypot(hx * 2.2, 1, hz * 2.2), nx = (-hx * 2.2) / nl, ny = 1 / nl, nz = (-hz * 2.2) / nl;
+    let r, g, b;
+    if (h <= 0.2) {   // 바다: 얕을수록 밝은 청록, 깊을수록 남색
+      const d = Math.min(1, -h / 26), sh = Math.max(0, 1 - Math.abs(h) / 2.4);
+      r = 22 + (1 - d) * 34 + sh * 50; g = 52 + (1 - d) * 70 + sh * 70; b = 86 + (1 - d) * 70 + sh * 50;
+    } else {
+      const c = cs[k], lit = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]), amb = 0.55 + lit * 0.75 + Math.min(0.12, h / 1500);
+      r = ((c >> 16) & 255) * amb; g = ((c >> 8) & 255) * amb; b = (c & 255) * amb;
+    }
+    img[o] = Math.min(255, r); img[o + 1] = Math.min(255, g); img[o + 2] = Math.min(255, b); img[o + 3] = 255;
+  }
+  const buf = png(W, H, img);
+  writeFileSync(new URL("continent.png", OUT), buf);
+  console.log(`continent: ${W}×${H} → ${(buf.length / 1024).toFixed(0)}KB (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+}
 for (const id of ids) {
   const t0 = Date.now(), R = REGIONS[id], { half: H, seg: S } = BAKE(id), n = S + 1, step = (H * 2) / S, [CX, CZ] = R.c;
   const hs = new Float32Array(n * n);

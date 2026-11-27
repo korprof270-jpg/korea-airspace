@@ -1,5 +1,9 @@
 // 누리 대륙 거점 27곳의 모습. 각 거점은 자기 대륙 좌표에 지어지므로 어느 구역 맵(창)에 들어와도 같은 자리에 같은 모습
 import { SITE, landD, padH, RIVERS, lineDist } from "./geo.js";
+import { transplant } from "./transplant.js";
+import cityMap from "../city.js";
+import airbaseMap from "../airbase.js";
+import palaceMap from "../palace.js";
 import { ST, frame, tower, cityGrid, airfield, port, ship, wallRing, factoryBlock, monolith, dish, lattice, forest, village, aaGun, bunker, wreck, longWall, crane, turbine, jet, floorAt, glowRing } from "./kit.js";
 
 const D = Math.PI / 180;
@@ -22,46 +26,37 @@ export const BUILD = {
     // 연합 사령부 송신탑
     lattice(w, F.X(110, -120), F.Z(110, -120), 120, 0xd8dce0, st.acc);
   },
-  city(w, x, z) {   // 네온 시티: 네온 고층 숲
-    const st = ST.hanul, F = frame(w, x, z, -8);
-    cityGrid(w, F, 240, st, { kinds: ["neon", "glass", "neon", "office"], hMax: 120, hMin: 12, cell: 32 });
-    lattice(w, F.X(0, 0), F.Z(0, 0), 150, 0xe8e8f0, 0xff3ad8);
+  city(w, x, z, s) {   // 네온 시티: 기존 맵의 도심을 그대로 옮겨 짓는다
+    transplant(w, cityMap, x, z, { r: 235, y: padH(s) });
   },
-  airbase(w, x, z) {   // 비행기지: 활주로 둘 + 격납고 + 관제탑
-    const st = ST.hanul;
-    airfield(w, x, z - 40, 8, st, { len: 460, hangars: 5 });
-    airfield(w, x - 30, z + 150, 8, st, { len: 320, hangars: 3, parked: false });
-    for (let i = 0; i < 4; i++) aaGun(w, x - 220 + i * 140, z - 200, st);
-    dish(w, x + 210, z + 60, 12, st);
+
+  airbase(w, x, z, s) {   // 비행기지: 기존 맵의 활주로·격납고·관제탑·숙소를 그대로
+    transplant(w, airbaseMap, x, z, { r: 270, y: padH(s) });
   },
-  palace(w, x, z) {   // 단풍 고궁: 성곽 + 전각 + 단풍 숲
-    const st = { ...ST.hanul, wall: 0xd8ccb8, roof: 0x3a4250 }, F = frame(w, x, z, 0), y = F.H(0, 0);
-    wallRing(w, x, z, 120, st, { sides: 4, rot: Math.PI / 4, h: 7, thick: 3, kind: "stone", gates: [1, 3], towerR: 5 });
-    const hall = (u, v, W, Dp, H) => {
-      F.box(u, y - 0.3, v, W + 6, 2, Dp + 6, 0xc8c0b0, { mat: "std:rock" });
-      for (let i = 0; i < 6; i++) F.cyl(u - W / 2 + (i * W) / 5, y + 1.7, v - Dp / 2, 0.5, H, 0x9a3a2a, { col: false });
-      F.box(u, y + 1.7, v, W, H, Dp, 0xe8dcc4, { mat: "std:wood" });
-      F.box(u, y + 1.7 + H, v - Dp * 0.25, W + 6, 0.6, Dp * 0.62, st.roof, { rx: -22, col: false });
-      F.box(u, y + 1.7 + H, v + Dp * 0.25, W + 6, 0.6, Dp * 0.62, st.roof, { rx: 22, col: false });
-      F.box(u, y + 1.7 + H + Dp * 0.22, v, W + 4, 1.2, 1.2, st.roof, { col: false });
-    };
-    hall(0, -20, 40, 18, 9); hall(0, 40, 26, 14, 7); hall(-60, 30, 18, 12, 6); hall(60, 30, 18, 12, 6);
-    F.box(0, y - 0.2, -70, 10, 0.3, 50, 0xd8d0c0, { col: false, mat: "std:rock" });
-    for (let i = 0; i < 70; i++) { const a = w.rand() * 6.28, d = 130 + w.rand() * 50; w.tree(x + Math.cos(a) * d, z + Math.sin(a) * d, 0.9, "round"); }
-    for (let i = 0; i < 40; i++) w.blob(x + Math.cos(i) * (140 + (i % 5) * 9), F.H(0, 0) + 6, z + Math.sin(i) * (140 + (i % 5) * 9), 3.5, 2.6, 3.5, [0xe8562a, 0xf0a02a, 0xd8382a][i % 3], { mat: "foliage", col: false });
+
+  palace(w, x, z, s) {   // 단풍 고궁: 기존 맵의 궁성과 마을을 그대로
+    transplant(w, palaceMap, x, z, { r: 200, y: padH(s) });
   },
-  stadium(w, x, z) {   // 드론 리그 스타디움: 타원 관중석 + 지붕 링 + 경기장 게이트
-    const st = ST.hanul, y = floorAt(w, x, z, 40);
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * Math.PI * 2, ex = Math.cos(a) * 95, ez = Math.sin(a) * 70, ry = -a / D + 90;
-      w.box(x + ex, y, z + ez, 16, 18, 14, st.wall, { ry, mat: "std:concrete", tile: 4 });
-      w.box(x + ex * 1.04, y + 18, z + ez * 1.04, 16, 2, 24, st.acc, { ry, col: false, mat: "paint" });
-      if (i % 5 === 0) { w.cyl(x + ex * 1.12, y, z + ez * 1.12, 0.6, 40, 0xd8dce0, { col: false }); w.box(x + ex * 1.1, y + 40, z + ez * 1.1, 4, 2, 1, 0xffffff, { ry, mat: "glow", col: false }); }
+
+  stadium(w, x, z, s) {   // 드론 리그 스타디움: 기존 맵의 네온 경기장 분위기를 살린 타원 경기장 건물
+    const st = ST.hanul, y = padH(s), NE = [0xff3ad8, 0x3af0ff, 0xffd23a];
+    for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; w.box(x + Math.cos(a) * 118, y - 0.35, z + Math.sin(a) * 92, 34, 0.45, 26, 0x8a8a86, { ry: -a / D + 90, col: false, mat: "std:concrete", tile: 6 }); }   // 경기장 둘레 광장
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2, ex = Math.cos(a), ez = Math.sin(a), ry = -a / D + 90;
+      // 계단식 관중석 3단 + 바깥 기둥벽
+      for (let k = 0; k < 3; k++) w.box(x + ex * (88 + k * 7), y + k * 6, z + ez * (64 + k * 6), 13, 6, 7, k === 2 ? 0x2e3442 : 0x5a6274, { ry, mat: "std:concrete", tile: 4 });
+      w.box(x + ex * 112, y, z + ez * 86, 13.5, 26, 3, 0x262a34, { ry, mat: "std:panel", tile: 4 });
+      w.box(x + ex * 112.6, y + 22, z + ez * 86.5, 13, 0.6, 3.4, NE[i % 3], { ry, mat: "glow", col: false });
+      if (i % 6 === 0) { w.cyl(x + ex * 118, y, z + ez * 92, 0.9, 52, 0xc8ccd4, { col: false, mat: "paint" }); w.box(x + ex * 118, y + 52, z + ez * 92, 8, 4, 1.2, 0xffffff, { ry, mat: "glow", col: false }); }
     }
-    w.box(x, y + 0.05, z, 150, 0.1, 100, 0x4a8a3a, { col: false, mat: "std:grass", tile: 6 });
-    for (let k = -2; k <= 2; k++) w.cyl(x + k * 28, y, z, 0.6, 10 + Math.abs(k) * 4, 0xff6a12, { col: false });
-    for (const u of [-150, 150]) tower(w, x + u, z - 20, 26, 22, 14, st, "office");
+    w.box(x, y + 0.05, z, 170, 0.12, 120, 0x2f6a3a, { col: false, mat: "std:grass", tile: 6 });
+    for (let k = -3; k <= 3; k++) { w.cyl(x + k * 22, y, z, 0.5, 8 + Math.abs(k) * 3, 0xff6a12, { col: false }); w.box(x + k * 22, y + 8 + Math.abs(k) * 3, z, 6, 6, 0.6, NE[(k + 3) % 3], { mat: "glow", col: false }); }
+    // 전광판 둘
+    for (const sgn of [-1, 1]) { w.box(x + sgn * 70, y + 30, z + sgn * 80, 40, 18, 2, 0x111622, { ry: sgn > 0 ? 180 : 0, mat: "paint" }); w.box(x + sgn * 70, y + 31, z + sgn * 80 - sgn * 1.1, 37, 15, 0.2, 0x3af0ff, { mat: "glow", col: false }); }
+    for (const u of [-170, 170]) tower(w, x + u, z - 40, 34, 26, 18, st, "glass");
   },
+
+
   // ── 해림 해양국 ──
   factory(w, x, z, s) {   // 석양의 항만: 조선소 + 화물 부두
     const st = ST.haerim, a = seaDir(s.p[0], s.p[1]);

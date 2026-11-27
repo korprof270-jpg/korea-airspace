@@ -81,10 +81,12 @@ export function tower(w, x, z, wd, dp, h, st, kind = "office", ry = 0) {
 // ── 도시 격자 ── R 반경 안에 블록(cell)마다 건물. hMax 중심 높이, kinds 건물 종류 목록, skip(u,v) 비울 곳
 export function cityGrid(w, F, R, st, o = {}) {
   const cell = o.cell || 34, road = o.road || 10, r = w.rand, kinds = o.kinds || ["office"], hMax = o.hMax || 60, hMin = o.hMin || 8;
-  const n = Math.ceil(R / cell);
+  const n = Math.ceil(R / cell), gy = F.H(0, 0);
+  // 바닥: 도시 전체 아스팔트 + 블록마다 보도 판 (풀밭 위에 건물이 그냥 서지 않게)
   for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
     const u = i * cell, v = j * cell, d = Math.hypot(u, v);
     if (d > R - cell * 0.5) continue;
+    if (o.slab !== false) { const gh = F.H(u, v); F.box(u, gh - 0.3, v, cell + 0.4, 0.4, cell + 0.4, 0x55585e, { col: false, mat: "std:asphalt", tile: 8 }); F.box(u, gh - 0.15, v, cell - road + 3, 0.4, cell - road + 3, 0x9a9a92, { col: false, mat: "std:concrete", tile: 4 }); }
     if (o.skip && o.skip(u, v)) continue;
     if (r() < (o.empty ?? 0.08)) { if (r() < 0.5) for (let t = 0; t < 3; t++) w.tree(F.X(u + (r() - 0.5) * 18, v), F.Z(u, v + (r() - 0.5) * 18), 0.8, "round"); continue; }
     const fall = 1 - d / R, h = hMin + (hMax - hMin) * Math.pow(fall, o.pow ?? 1.6) * (0.55 + r() * 0.6);
@@ -269,9 +271,16 @@ export function forest(w, x, z, R, n, kind = "round", test) {
   const r = w.rand;
   for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d; if (test && !test(px, pz)) continue; w.tree(px, pz, 0.8 + r() * 0.7, kind); }
 }
-export function village(w, x, z, n, st, test, kind = "house") {
-  const r = w.rand;
-  for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, d = 8 + Math.sqrt(r()) * 50, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d; if (test && !test(px, pz)) continue; tower(w, px, pz, 6 + r() * 4, 7 + r() * 4, 4 + r() * 3, st, kind, (r() * 4 | 0) * 90 + (r() - 0.5) * 20); }
+export function village(w, x, z, n, st, test, kind = "house") {   // 마을: 골목 하나를 따라 양쪽에 집 (평평한 곳만)
+  const r = w.rand, a = r() * Math.PI, dx = Math.cos(a), dz = Math.sin(a), L = 16 + n * 7, ry = Math.atan2(-dz, dx) / D;
+  const y0 = w.h(x, z); if (y0 < 2 || Math.abs(w.h(x + dx * L / 2, z + dz * L / 2) - w.h(x - dx * L / 2, z - dz * L / 2)) > 4) return;
+  w.box(x, y0 - 0.15, z, L + 8, 0.35, 5, 0x7a7466, { ry, col: false, mat: "std:dirt", tile: 4 });
+  for (let i = 0; i < n; i++) {
+    const t = -L / 2 + 8 + (i >> 1) * 14 + r() * 3, sd = i % 2 ? 1 : -1, px = x + dx * t - dz * sd * 9, pz = z + dz * t + dx * sd * 9;
+    if (test && !test(px, pz)) continue;
+    tower(w, px, pz, 7 + r() * 3, 8 + r() * 3, 4 + r() * 2.5, st, kind, ry + (sd > 0 ? 0 : 180));
+    if (r() < 0.4) w.tree(px - dz * sd * 7, pz + dx * sd * 7, 0.7, "round");
+  }
 }
 export function turbine(w, x, z, h = 46, ry = 0) {
   const y = floorAt(w, x, z, 2);
@@ -331,5 +340,74 @@ export function longWall(w, pts, st, o = {}) {
       acc += L / n;
       if (acc >= every) { acc = 0; w.box(mx, y - 8, mz, T * 2.2, H + 24, T * 2.2, st.dark, { ry, mat: "std:panel", tile: 4 }); w.box(mx, y + H + 16, mz, T * 2.4, 1.2, T * 2.4, st.acc, { ry, mat: "glow", col: false }); w.box(mx, y + H + 17.2, mz, 1.6, 1.6, 7, 0x2a2c30, { ry: ry + 90, col: false }); }
     }
+  }
+}
+
+// ── 도로: 지형을 따라 깔리는 아스팔트 띠 + 중앙선 + 가로등, 강·골짜기 위는 다리 ──
+export function road(w, ax, az, bx, bz, o = {}) {
+  const L = Math.hypot(bx - ax, bz - az); if (L < 20) return;
+  const W = o.w || 10, step = 14, n = Math.ceil(L / step), ry = Math.atan2(-(bz - az), bx - ax) / D, dx = (bx - ax) / L, dz = (bz - az) / L;
+  const col = o.col || 0x34363c, lamp = o.lamp, rail = o.rail ?? 0x9aa0a8;
+  const pts = []; for (let k = 0; k <= n; k++) { const t = (k / n) * L; pts.push([ax + dx * t, az + dz * t, w.h(ax + dx * t, az + dz * t)]); }
+  // 다리: 지면이 물 근처(1.5m 아래)거나 이웃보다 크게 꺼지면 양쪽 둑 높이로 덮는다
+  const deck = pts.map((p) => p[2]);
+  for (let k = 0; k <= n; k++) if (pts[k][2] < 1.5) {
+    let a = k; while (a > 0 && pts[a][2] < 1.5) a--; let b = k; while (b < n && pts[b][2] < 1.5) b++;
+    const top = Math.max(pts[a][2], pts[b][2], 4) + 2;
+    for (let q = a; q <= b; q++) deck[q] = top;
+    k = b;
+  }
+  for (let k = 0; k < n; k++) {
+    if (o.skip && o.skip(pts[k][0], pts[k][1])) continue;
+    const [x0, z0] = pts[k], [x1, z1] = pts[k + 1], y0 = deck[k], y1 = deck[k + 1], mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, my = (y0 + y1) / 2, seg = Math.hypot(x1 - x0, z1 - z0, y1 - y0);
+    const pitch = Math.atan2(y1 - y0, step) / D, bridge = deck[k] > pts[k][2] + 1.5 || deck[k + 1] > pts[k + 1][2] + 1.5;
+    w.box(mx, my - 0.35, mz, seg + 0.6, bridge ? 1.4 : 0.55, W, col, { ry, rz: pitch, col: bridge, mat: "std:asphalt", tile: 8 });
+    if (k % 2 === 0) w.box(mx, my + 0.21, mz, 5, 0.04, 0.4, 0xf2f0e6, { ry, rz: pitch, col: false });
+    if (bridge) {
+      for (const s2 of [-1, 1]) w.box(mx - dz * s2 * (W / 2 - 0.2), my + 0.2, mz + dx * s2 * (W / 2 - 0.2), seg, 1.1, 0.3, rail, { ry, rz: pitch, col: false, mat: "paint" });
+      if (k % 3 === 0) { const gy = Math.min(pts[k][2], 0) - 2; w.box(mx, gy, mz, 2.2, my - 0.8 - gy, W * 0.7, 0x8a8a84, { ry, mat: "std:concrete" }); }
+    } else if (lamp && k % 5 === 2) w.lamp(mx - dz * (W / 2 + 1.2), mz + dx * (W / 2 + 1.2), 8, lamp, ry - 90);
+  }
+}
+// 길가 주택가: 도로 양쪽에 집과 마당 (도시 바깥 → 교외)
+export function roadside(w, ax, az, bx, bz, st, o = {}) {
+  const L = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / L, dz = (bz - az) / L, r = w.rand, ry = Math.atan2(-(bz - az), bx - ax) / D;
+  for (let t = o.t0 || 0; t < (o.t1 ?? L); t += o.gap || 26) for (const s2 of [-1, 1]) {
+    if (r() < (o.empty ?? 0.25)) continue;
+    const off = 16 + r() * 6, x = ax + dx * t - dz * s2 * off, z = az + dz * t + dx * s2 * off, y = w.h(x, z);
+    if (y < 2 || Math.abs(w.h(x + 6, z) - w.h(x - 6, z)) > 2.5 || (o.skip && o.skip(x, z))) continue;
+    tower(w, x, z, 8 + r() * 3, 9 + r() * 3, 4 + r() * 3.5, st, "house", ry + (s2 > 0 ? 0 : 180));
+    w.box(x - dz * s2 * 7, y - 0.1, z + dx * s2 * 7, 10, 0.25, 9, 0x6a9a4a, { ry, col: false, mat: "std:grass", tile: 4 });
+    if (r() < 0.5) w.tree(x - dz * s2 * 10 + dx * 4, z + dx * s2 * 10 + dz * 4, 0.7, "round");
+  }
+}
+
+// ── 먼 나무: 평면 그림(빌보드) ── 가까이(near 안)는 진짜 나무가, 멀리는 그림 한 장짜리 점이 그린다
+function treeSprite(kind, snow) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#4a3524"; g.fillRect(29, 44, 6, 18);
+  if (kind === 1) {   // 침엽수: 층층 삼각형
+    for (let k = 0; k < 4; k++) { const y = 8 + k * 11, w2 = 9 + k * 6; g.fillStyle = snow ? (k % 2 ? "#dfe8ef" : "#5d7a66") : k % 2 ? "#2f5e3a" : "#3c7046"; g.beginPath(); g.moveTo(32, y - 6); g.lineTo(32 + w2, y + 12); g.lineTo(32 - w2, y + 12); g.closePath(); g.fill(); }
+  } else {            // 활엽수: 둥근 수관 + 밝은 면
+    const gr = g.createRadialGradient(26, 18, 4, 32, 26, 26); gr.addColorStop(0, "#8fc25a"); gr.addColorStop(0.6, "#4f8a36"); gr.addColorStop(1, "#2f5e24");
+    g.fillStyle = gr; g.beginPath(); g.arc(32, 26, 22, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+export function treeImpostors(w, list, o = {}) {
+  const near = o.near || 700;
+  for (const kind of [0, 1]) {
+    const pts = []; for (let i = 0; i < list.length; i += 5) if (list[i + 4] === kind) pts.push(list[i], list[i + 1] + 5.5 * list[i + 3], list[i + 2]);
+    if (!pts.length) continue;
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    const tex = treeSprite(kind, o.snow), mat = new THREE.PointsMaterial({ map: tex, size: 13, sizeAttenuation: true, alphaTest: 0.5, transparent: false, fog: true });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uNear = { value: near };
+      sh.vertexShader = "varying float vDist;\n" + sh.vertexShader.replace("#include <project_vertex>", "#include <project_vertex>\nvDist = -mvPosition.z;");
+      sh.fragmentShader = "uniform float uNear; varying float vDist;\n" + sh.fragmentShader.replace("void main() {", "void main() {\n  if (vDist < uNear) discard;");
+    };
+    const p = new THREE.Points(g, mat); p.frustumCulled = false; p.userData.lod = false;
+    w.scene.add(p); w.disposables.push(g, mat, tex);
   }
 }

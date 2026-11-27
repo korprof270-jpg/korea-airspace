@@ -150,7 +150,8 @@ export class StrikeMode extends CombatMode {
     this._rngS(7);
     // 적 본진: 출발 기지 반대편 맵 끝
     const fa = aS + Math.PI + (this.R() - 0.5) * 0.5, lim = w.size - 75;
-    const fin = this._gs(clamp(Math.cos(fa) * this.RE, -lim, lim), clamp(Math.sin(fa) * this.RE, -lim, lim), 30, 14).clone();
+    const MS = s.map.strike;   // 누리 대륙 지역맵: 적 요새 자리·구역·이야기가 정해져 있다
+    const fin = (MS && MS.fin ? this._gs(MS.fin[0], MS.fin[1], 30, 14) : this._gs(clamp(Math.cos(fa) * this.RE, -lim, lim), clamp(Math.sin(fa) * this.RE, -lim, lim), 30, 14)).clone();
     this.fin = fin; this.home = A.clone(); this.home.y = w.h(A.x, A.z);
     this.axis = fin.clone().sub(A).setY(0).normalize();
     this.D0 = Math.hypot(fin.x - A.x, fin.z - A.z);
@@ -158,7 +159,7 @@ export class StrikeMode extends CombatMode {
     this.gate = this._gs(fin.x - this.axis.x * 125, fin.z - this.axis.z * 125, 30, 10).clone();
     this.siteGone = [buildSite(w, fin, "citadel", 0)];
     this.used = [this.home.clone(), fin.clone(), this.gate.clone()];
-    { const Z = ZONES[s.map.id]; this.zones = Z && Z.length >= 4 ? Z.filter((z) => Math.hypot(z.x - fin.x, z.z - fin.z) > 110 && Math.hypot(z.x - this.gate.x, z.z - this.gate.z) > 60 && Math.hypot(z.x - A.x, z.z - A.z) > 50) : null; if (this.zones && this.zones.length < 4) this.zones = null; }
+    { const Z = (MS && MS.zones) || ZONES[s.map.id]; this.zones = Z && Z.length >= 4 ? Z.filter((z) => Math.hypot(z.x - fin.x, z.z - fin.z) > 110 && Math.hypot(z.x - this.gate.x, z.z - this.gate.z) > 60 && Math.hypot(z.x - A.x, z.z - A.z) > 50) : null; if (this.zones && this.zones.length < 4) this.zones = null; }
     this._cands();
     this.cur = this.home.clone();
     const sp = this._spawn(me); this.placePlayer(sp.pos, sp.yaw);
@@ -232,6 +233,13 @@ export class StrikeMode extends CombatMode {
     let pool = this.zones.map((z, i) => ({ z, i })).filter((o) => !this.usedZ.has(o.i));
     const far = pool.filter((o) => Math.hypot(o.z.x - from.x, o.z.z - from.z) > 70);
     if (far.length >= Math.min(3, pool.length)) pool = far;
+    // 큰 지역맵: 요새 쪽으로 다가가면서 한 번에 200~950m 정도만 옮긴다
+    if (this.s.map.strike) {
+      const df = Math.hypot(from.x - this.fin.x, from.z - this.fin.z), left = Math.max(1, this.N - 1 - si);
+      const ok = pool.filter((o) => { const d = Math.hypot(o.z.x - from.x, o.z.z - from.z), f = Math.hypot(o.z.x - this.fin.x, o.z.z - this.fin.z); return d > 200 && d < 950 && f < df + 120 && f > df * (1 - 1.6 / left) - 200; });
+      if (ok.length >= Math.min(3, pool.length)) pool = ok;
+      else { const sc = (o) => Math.hypot(o.z.x - this.fin.x, o.z.z - this.fin.z) + 0.35 * Math.hypot(o.z.x - from.x, o.z.z - from.z); pool = pool.slice().sort((a, b) => sc(a) - sc(b)).slice(0, 3); }   // 모자라면 요새에 가깝고 덜 먼 곳부터
+    }
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const pick = pool.slice(0, si === 0 ? 1 : 3), seen = new Set();
     return pick.map(({ z, i }) => {
@@ -450,7 +458,7 @@ export class StrikeMode extends CombatMode {
     if (st.last) return this._say([st.type === "siege" ? "구역 확보. 적 본진 요새가 보인다. 외곽 방공 포대부터 부숴라." : "구역 확보. 적 본진 성문 앞이다. 마지막 결전, 전 화력 집중."]);
     const open = si === 0 ? "작전 개시." : this.rp(["구역 확보 확인.", "잘했다. 쉴 틈 없다.", "정찰 보고 들어왔다.", "확보 확인. 곧바로 이동."]);
     const goal = String(st.goal || M.desc).split(/\.\s*/).filter(Boolean).map((x) => x + ".");
-    const intro = si === 0 ? [`작전 ${this.op.n}, ${this.op.name}.`, STORY[this.s.map.id] || ""] : [];   // 첫 브리핑도 따로 띄우지 않고 무전으로
+    const intro = si === 0 ? [`작전 ${this.op.n}, ${this.op.name}.`, (this.s.map.strike && this.s.map.strike.story) || STORY[this.s.map.id] || ""] : [];   // 첫 브리핑도 따로 띄우지 않고 무전으로
     this._say([...intro, `${open} ${M.name} 임무, 목표 ${st.name}. 빛 기둥으로.`, ...goal], si === 0 ? 1.5 : 0.4);
   }
 
