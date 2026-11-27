@@ -621,7 +621,7 @@ export class MenuScene {
       } else if (!S.idle) this.angle += (S.slot ? 0.05 : 0.16) * dt;
       const k = Math.min(1, dt * 6);
       S._p += (S.pitch - S._p) * k; S._z += (S.zoom - S._z) * k; S._f += ((S.slot ? 1 : 0) - S._f) * k;
-      const mn = f ? Math.max(120, Math.min(f.w, f.h)) : Math.min(W, H), d0 = 0.7 * (0.55 + this.size * 0.5) * H / mn;   // 무대 영역의 짧은 변에 기체가 알맞게 차도록
+      const mn = f ? Math.max(120, Math.min(f.w, f.h * 1.3)) : Math.min(W, H * 1.3), d0 = 0.7 * (0.55 + this.size * 0.5) * H / mn;   // 무대 영역의 짧은 변에 기체가 알맞게 차도록
       const near = S.slot === "armor" || S.slot === "motor" ? 0.5 : S.slot === "shield" || S.slot === "cooler" ? 0.42 : 0.38, dist = d0 * (1 - (1 - near) * S._f) * S._z;   // 넓게 퍼진 부품(장갑·모터)은 조금 멀리서
       this.model.position.y = 0.16 + Math.sin(this.t * 1.6) * 0.008 * (1 - S._f);
       this.model.rotation.z = Math.sin(this.t * 1.1) * 0.04 * (1 - S._f);
