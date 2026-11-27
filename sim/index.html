@@ -70,7 +70,7 @@
   <script>
     // 시작 점검: 12초 안에 게임이 뜨지 않으면 원인(오류)과 "새로 받고 다시 시작" 버튼을 보여 준다
     (function () {
-      var errs = [];
+      var errs = (window.__bootErrs = []);
       window.addEventListener("error", function (e) { var t = e.target && e.target !== window && (e.target.src || e.target.href); errs.push(t ? "파일을 불러오지 못함: " + String(t).split("/").slice(-2).join("/") : (e.message || "오류") + (e.filename ? " (" + e.filename.split("/").slice(-2).join("/") + ":" + e.lineno + ")" : "")); }, true);
       window.addEventListener("unhandledrejection", function (e) { errs.push("오류: " + ((e.reason && e.reason.message) || e.reason)); });
       setTimeout(function () {
@@ -88,6 +88,23 @@
       }, 12000);
     })();
   </script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module">import("./js/main.js").catch(function (e) { window.__bootErrs && window.__bootErrs.push("시작 파일 오류: " + (e && (e.message || e)) + (e && e.stack ? "\n" + String(e.stack).split("\n").slice(0, 3).join("\n") : "")); console.error(e); window.__bootProbe && window.__bootProbe(); });
+    // 시작 실패 원인 찾기: 시작 파일부터 import 를 따라가며 받아 보고, 못 받은 파일과 응답 코드를 적는다
+    window.__bootProbe = function () {
+      var seen = {}, q = [new URL("./js/main.js", location.href).href], bad = [], n = 0;
+      function step() {
+        if (!q.length || n > 400) { window.__bootErrs.push(bad.length ? "못 받은 파일: " + bad.slice(0, 6).join(", ") : "모든 파일을 받을 수 있음 (" + n + "개) — 파일 사이 내용이 서로 맞지 않는 문제"); var pre = document.querySelector("#bootfix") && document.querySelector("#bootfix").previousElementSibling; if (pre) pre.textContent = window.__bootErrs.join("\n"); return; }
+        var u = q.shift(); if (seen[u]) return step(); seen[u] = 1; n++;
+        fetch(u, { cache: "reload" }).then(function (r) {
+          if (!r.ok) { bad.push(u.split("/").slice(-2).join("/") + " (" + r.status + ")"); return ""; }
+          return r.text();
+        }, function (er) { bad.push(u.split("/").slice(-2).join("/") + " (네트워크: " + (er && er.message) + ")"); return ""; }).then(function (t) {
+          var re = /(?:^|[;\n}])\s*import\s+(?:[^"';]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g, m;
+          while ((m = re.exec(t))) q.push(new URL(m[1], u).href);
+          step();
+        });
+      }
+      step();
+    };</script>
 </body>
 </html>
