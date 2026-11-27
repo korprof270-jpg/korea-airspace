@@ -3,6 +3,8 @@
 //  · 합칠 때는 창만 넓히면 된다 (makeRegion 의 win 을 크게)
 import { REGIONS, REGIONS_POLY, LAND, ISLANDS, SITES, ROADS, FRONT, height, colorAt, ownerAt, landD, fbm, vnoise, lineDist, smooth } from "./geo.js";
 import { BUILD } from "./sites.js";
+import { BAKE, MARGIN } from "./bakeinfo.js";
+const OWNS = ["hanul", "haerim", "bukseol", "jeoksa", "namdo", "e1", "e2", "e3"];
 import { ST, forest, village, fields, turbine, pylonLine, tankTrap, bunker, wreck, tower, monolith, floorAt } from "./kit.js";
 
 const ENV = {
@@ -39,6 +41,35 @@ export function makeRegion(id, o = {}) {
   const inWin = (X, Z, m = 0) => Math.abs(X - CX) < half + m && Math.abs(Z - CZ) < half + m;
   const here = SITES.filter((s) => inWin(s.p[0], s.p[1], 120));
   const hfn = (x, z) => height(x + CX, z + CZ);
+  // ── 구운 지도 (tools/bake-nuri.mjs 가 만든 한 장의 그림). 있으면 계산 대신 읽는다 ──
+  const BK = BAKE(id), BN = BK.seg + 1, BSTEP = (BK.half * 2) / BK.seg;
+  let baked = null;
+  async function preload() {
+    if (baked) return;
+    const res = await fetch(new URL(`./baked/${id}.png`, import.meta.url));
+    if (!res.ok) throw new Error("구운 지도 없음 " + id);
+    const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+    const cv = document.createElement("canvas"); cv.width = bmp.width; cv.height = bmp.height;
+    const g = cv.getContext("2d", { willReadFrequently: true }); g.drawImage(bmp, 0, 0);
+    const d = g.getImageData(0, 0, bmp.width, bmp.height).data, W = bmp.width, n = BN;
+    const hs = new Float32Array(n * n), own = new Uint8Array(n * n), col = new Uint32Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j * n + i, o = (j * W + i) * 4, c = (j * W + n + i) * 4;
+      hs[k] = ((d[o] << 8) | d[o + 1]) / 100 - 64; own[k] = d[o + 2]; col[k] = (d[c] << 16) | (d[c + 1] << 8) | d[c + 2];
+    }
+    baked = { hs, own, col };
+  }
+  const cell = (x, z) => { const fx = (x + BK.half) / BSTEP, fz = (z + BK.half) / BSTEP; return fx < 0 || fz < 0 || fx > BK.seg || fz > BK.seg ? null : [fx, fz]; };
+  const near = (x, z) => { const c = cell(x, z); return c ? Math.round(c[1]) * BN + Math.round(c[0]) : -1; };
+  const hb = (x, z) => {
+    const c = baked && cell(x, z); if (!c) return hfn(x, z);
+    const i = Math.min(BK.seg - 1, c[0] | 0), j = Math.min(BK.seg - 1, c[1] | 0), tx = c[0] - i, tz = c[1] - j, H = baked.hs, k = j * BN + i;
+    const a0 = H[k], b0 = H[k + 1], c0 = H[k + BN], e0 = H[k + BN + 1];
+    return tx + tz <= 1 ? a0 + (b0 - a0) * tx + (c0 - a0) * tz : e0 + (c0 - e0) * (1 - tx) + (b0 - e0) * (1 - tz);
+  };
+  const colB = (x, y, z, sl) => { const k = baked ? near(x, z) : -1; return k >= 0 ? baked.col[k] : colorAt(x + CX, y, z + CZ, sl); };
+  const ownL = (x, z) => { const k = baked ? near(x, z) : -1; return k >= 0 ? OWNS[baked.own[k] & 7] : ownerAt(x + CX, z + CZ); };
+  const landL = (x, z) => { const k = baked ? near(x, z) : -1; return k >= 0 ? (baked.own[k] & 8) !== 0 : landD(x + CX, z + CZ) > 12; };
   const own = here.filter((s) => s.o === R.owner || (R.owner.startsWith("e") && s.o.startsWith("e")));
   const friend = here.filter((s) => !s.o.startsWith("e")), foe = here.filter((s) => s.o.startsWith("e"));
 
@@ -64,10 +95,11 @@ export function makeRegion(id, o = {}) {
   const tracking = [{ id: "recon", name: "정찰기", type: "drone", level: 2, desc: `${R.name} 상공을 크게 도는 정찰기를 따라가세요`, duration: 90, path: convoy.map(([x, , z, v]) => [x, Math.max(0, hfn(x, z)) + 60, z, v + 8]) }];
 
   function build(w) {
-    w.terrain(hfn, (x, y, z, sl) => colorAt(x + CX, y, z + CZ, sl), { seg: w.quality === "low" ? 300 : half > 1400 ? 440 : 400, margin: 900, rockLo: 0.32, rockHi: 0.6, ...TEX[R.owner] });
+    w.terrain(hb, colB, { seg: w.quality === "low" ? Math.round(BK.seg * 0.75) : BK.seg, margin: MARGIN, rockLo: 0.32, rockHi: 0.6, ...TEX[R.owner] });
     w.water(0, id === "e3" ? 0x1a0e18 : id === "e2" ? 0x2a2620 : 0x1f5f7a);
     // 거점
-    for (const s of here) { const f = BUILD[s.id]; if (f) { const [x, z] = toL(s.p[0], s.p[1]); f(w, x, z, s, { toG, toL }); } }
+    const PF = globalThis.NURI_PROF, tm = () => performance.now(); let t0 = tm();
+    for (const s of here) { const f = BUILD[s.id]; if (f) { const [x, z] = toL(s.p[0], s.p[1]); f(w, x, z, s, { toG, toL }); if (PF) { PF[s.id] = (PF[s.id] || 0) + tm() - t0; t0 = tm(); } } }
     const nearSite = (X, Z, m) => SITES.some((s) => Math.hypot(X - s.p[0], Z - s.p[1]) < (s.r || 160) + m);
     const nearRoad = (X, Z, m) => ROADS.some(([a, b]) => lineDist([a, b], X, Z).d < m);
     // 전선: 서쪽(연합) 참호 · 동쪽(제국) 벙커와 대전차 장애물
@@ -75,21 +107,22 @@ export function makeRegion(id, o = {}) {
       const [ax, az] = FRONT[i], [bx, bz] = FRONT[i + 1], L = Math.hypot(bx - ax, bz - az), nx = (bz - az) / L, nz = -(bx - ax) / L;   // 동쪽(+x) 법선
       for (let t = 0; t < L; t += 45) {
         const X = ax + ((bx - ax) * t) / L, Z = az + ((bz - az) * t) / L;
-        if (!inWin(X, Z) || landD(X, Z) < 30) continue;
+        if (!inWin(X, Z) || !landL(X - CX, Z - CZ)) continue;
         const [ex, ez] = toL(X + nx * 90, Z + nz * 90), [wx, wz] = toL(X - nx * 110, Z - nz * 110), [mx, mz] = toL(X, Z);
         tankTrap(w, ex, ez); if ((t / 45) % 3 === 0) bunker(w, ex + nx * 30, ez + nz * 30, Math.atan2(-nz, nx) * 57.3 + 90, ST.e1);
         w.box(wx, w.h(wx, wz) - 1.6, wz, 46, 2, 3.2, 0x3a3228, { ry: Math.atan2(-(bz - az), bx - ax) * 57.3, col: false });
         if ((t / 45) % 4 === 1) wreck(w, mx + (w.rand() - 0.5) * 60, mz + (w.rand() - 0.5) * 60, w.rand() * 360);
       }
     }
+    if (PF) { PF.front = tm() - t0; t0 = tm(); }
     // 들판·숲·마을: 70m 격자, 세력마다 다르게 (잡음으로 군락)
     const r = w.rand, step = 70, lim = half - 20;
     let trees = 0, props = 0;
-    const TREE_MAX = 1100, PROP_MAX = 700;
+    const q = w.quality, TREE_MAX = q === "low" ? 550 : q === "high" ? 1400 : 1000, PROP_MAX = q === "low" ? 380 : q === "high" ? 850 : 650;   // 품질별 나무·소품 수
     for (let x = -lim; x < lim; x += step) for (let z = -lim; z < lim; z += step) {
-      const jx = x + (r() - 0.5) * step, jz = z + (r() - 0.5) * step, [X, Z] = toG(jx, jz), y = hfn(jx, jz);
+      const jx = x + (r() - 0.5) * step, jz = z + (r() - 0.5) * step, [X, Z] = toG(jx, jz), y = w.h(jx, jz);
       if (y < 2 || nearSite(X, Z, 40) || nearRoad(X, Z, 16)) continue;
-      const k = ownerAt(X, Z), n = fbm(X / 420, Z / 420, 3), m = vnoise(X / 90, Z / 90);
+      const k = ownL(jx, jz), n = fbm(X / 420, Z / 420, 3), m = vnoise(X / 90, Z / 90);
       if (k === "hanul" || k === "haerim") {
         if (n > 0.18 && trees < TREE_MAX) { forest(w, jx, jz, 30, 5, "round"); trees += 5; }
         else if (n < -0.15 && props < PROP_MAX) { fields(w, jx, jz, 30, 2); props += 2; }
@@ -115,6 +148,7 @@ export function makeRegion(id, o = {}) {
         if (m > 0.62 && props < PROP_MAX) { monolith(w, jx, jz, 18 + r() * 40, ST.e3, { w: 3 + r() * 4, thin: true, ring: false, ry: r() * 90 }); props++; }
       }
     }
+    if (PF) { PF.scatter = tm() - t0; t0 = tm(); }
     // 송전선: 연합 도로 몇 개를 따라
     for (const [a, b, ia, ib] of ROADS) {
       const sa = SITES.find((s) => s.id === ia), sb = SITES.find((s) => s.id === ib);
@@ -145,7 +179,8 @@ export function makeRegion(id, o = {}) {
     combat: { blue: [SX, SZ], red: redL, depots: here.slice(0, 4).map((s) => toL(s.p[0], s.p[1])) },
     height: hfn,
     thumbDraw: (W, H) => drawThumb(id, W, H),
-    land: (x, z) => landD(x + CX, z + CZ) > 12,   // 바다 위에는 적·보급을 두지 않는다
+    land: landL,
+    preload,   // 게임 시작 전에 구운 지도를 읽는다 (main.startSession)   // 바다 위에는 적·보급을 두지 않는다
   };
 }
 

@@ -134,6 +134,14 @@ export class World {
     this._lodI = 0;
   }
   _lodTick(cam) {
+    if (this.chunkList) {
+      const C = this.chunkList, p = cam.position, fog = this.scene.fog, ff = (fog && fog.far) || 2400, q = this.quality;
+      const farSmall = q === "low" ? 520 : q === "med" ? 800 : 1100, farAll = ff * (q === "low" ? 0.9 : 1.05);
+      for (let k = 0, n = Math.min(C.length, 120); k < n; k++) {
+        const e = C[this._chI = ((this._chI || 0) + 1) % C.length], d = Math.hypot(e.c.x - p.x, e.c.z - p.z) - e.r;
+        e.o.visible = d < (e.small ? farSmall : farAll);
+      }
+    }
     const L = this.lodList;
     if (!L || !L.length) return;
     const p = cam.position, n = Math.min(L.length, 400);   // 한 프레임에 일부씩 (전체를 몇 프레임에 걸쳐 한 바퀴)
@@ -362,6 +370,11 @@ export class World {
       mesh.userData.lod = false;
       this.scene.add(mesh);
       this.disposables.push(g); if (fresh) this.disposables.push(mat);
+      // 큰 맵: 칸 덩어리를 거리로 숨긴다 (잎·작은 소품은 가까이서만, 나머지는 안개 너머에서 숨김)
+      if (this.chunk) {
+        const bs = g.boundingSphere, small = kind === "foliage" || kind === "leaf" || kind === "pool" || kind === "shaft";
+        (this.chunkList || (this.chunkList = [])).push({ o: mesh, c: bs.center, r: bs.radius, small });
+      }
     }
     this.batches.clear();
     this._finalizeShadow();
