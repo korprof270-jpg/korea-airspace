@@ -18,6 +18,7 @@ import { portrait, hasArt } from "./portraits.js";
 import { CAST } from "./story.js";
 import * as GP from "./garage.js";
 import { metrics, judge } from "./objectives.js";
+import { ZoneWatch } from "./maps/nuri/zonehud.js";
 
 const MODES = { race: RaceMode, tracking: TrackingMode, freestyle: FreestyleMode, survival: SurvivalMode, challenge: ChallengeMode, training: TrainingMode, conquest: ConquestMode, pvp: PvpMode };
 // 다른 모듈이 새 게임 모드를 붙일 때 (예: 점령전 AOS): registerMode("aos", AosMode)
@@ -48,6 +49,7 @@ export class Session {
     GP.setToast((t, c) => this.hud.toast(t, c, 2, 18));   // 퀘스트·업적 달성 알림
     if (!this.mode.combat && cfg.mode !== "training") this.player.body.boost = 1 + GP.loadout().thrust;   // 모터 업그레이드 (전투 없는 모드)
     this.mode.start();
+    if (this.map.nuri) this.zones = new ZoneWatch(this);   // 누리 대륙 지역 맵: 구역 표시·진입 무전·정밀 비행
     this.player.updateCamera(0, this.camera);
     game.input.flush();
   }
@@ -95,6 +97,7 @@ export class Session {
 
     pl.update(dt, ctl);
     mode.update(dt);
+    if (this.zones) this.zones.update(dt);
     this.world.update(dt);
     pl.updateCamera(dt, this.camera);
     if (this.debugCam) { this.camera.position.fromArray(this.debugCam.pos); this.camera.lookAt(...this.debugCam.look); this.camera.fov = this.debugCam.fov || 60; this.camera.updateProjectionMatrix(); }
@@ -119,6 +122,7 @@ export class Session {
     if (!this.mode.cut) h.drawFlight(this, this.game.dt);   // 보스 컷신 중에는 비행 계기를 숨긴다
     this.mode.hud(h);
     if (this.mode.swarm) this.mode.swarm.hud(h);   // 드론 함대전: 함대 전력 막대 + 무전
+    if (this.zones) this.zones.hud(h);
     this._radio(h);
     this._objHud(h);
     h.drawToasts(this.game.dt);
@@ -217,6 +221,7 @@ export class Session {
   onFinish(result) { this.result = result; this.resultTimer = 0; }
 
   dispose() {
+    if (this.zones) this.zones.dispose();
     this.mode.dispose();
     this.player.dispose();
     this.fx.dispose();
