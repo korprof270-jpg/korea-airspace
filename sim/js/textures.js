@@ -80,7 +80,7 @@ const band = (d, w, aa = 1) => 1 - sm(w - aa, w + aa, Math.abs(d));
 // 손으로 그린 듯한 획 마스크. draw(g, rnd, size) 를 3×3 으로 반복해 타일 경계가 이어진다. 빨강 = 밝게(hi), 초록 = 어둡게(lo)
 function strokes(size, seed, draw) {
   const cv = document.createElement("canvas"); cv.width = cv.height = size;
-  const g = cv.getContext("2d", { willReadFrequently: true });   // 한 번 읽어 가는 캔버스: CPU 로 그려 읽기 지연을 없앤다
+  const g = cv.getContext("2d");
   g.fillStyle = "#000"; g.fillRect(0, 0, size, size);
   g.lineCap = "round"; g.lineJoin = "round";
   for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {

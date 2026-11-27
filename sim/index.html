@@ -67,54 +67,6 @@
     // 설치형 앱(PWA)·오프라인 실행용 서비스 워커 (지도 앱과 같은 것을 사용)
     if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("../sw.js", { scope: "../" }).catch(() => {});
   </script>
-  <script>
-    // 시작 점검: 12초 안에 게임이 뜨지 않으면 원인(오류)과 "새로 받고 다시 시작" 버튼을 보여 준다
-    (function () {
-      var errs = (window.__bootErrs = []);
-      window.addEventListener("error", function (e) { var t = e.target && e.target !== window && (e.target.src || e.target.href); errs.push(t ? "파일을 불러오지 못함: " + String(t).split("/").slice(-2).join("/") : (e.message || "오류") + (e.filename ? " (" + e.filename.split("/").slice(-2).join("/") + ":" + e.lineno + ")" : "")); }, true);
-      window.addEventListener("unhandledrejection", function (e) { errs.push("오류: " + ((e.reason && e.reason.message) || e.reason)); });
-      setTimeout(function () {
-        if (window.__game) return;
-        var d = document.createElement("div");
-        d.style.cssText = "position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:#060b16;color:#eafcff;font:14px/1.6 sans-serif;padding:20px";
-        d.innerHTML = '<div style="max-width:520px"><b style="font-size:18px">게임을 시작하지 못했습니다</b><p>업데이트 직후 옛 파일이 섞였을 수 있습니다. 아래 버튼으로 파일을 새로 받아 다시 시작해 보세요.</p><pre style="white-space:pre-wrap;font-size:12px;color:#ff9a8a;max-height:30vh;overflow:auto">' + (errs.join("\n") || "오류 기록 없음 (불러오는 중 멈춤)").replace(/</g, "&lt;") + '<\/pre><button id="bootfix" style="font:inherit;padding:10px 16px;border-radius:8px;border:0;background:#ff6a2a;color:#fff">새로 받고 다시 시작<\/button></div>';
-        document.body.appendChild(d);
-        document.getElementById("bootfix").onclick = function () {
-          this.textContent = "받는 중…";
-          var urls = performance.getEntriesByType("resource").map(function (r) { return r.name; }).filter(function (u) { return u.indexOf(location.origin) === 0 && /\.(js|css|png|json)(\?|$)/.test(u); });
-          urls.push(location.href);
-          Promise.all(urls.map(function (u) { return fetch(u, { cache: "reload" }).catch(function () {}); })).then(function () { location.reload(); });
-        };
-      }, 12000);
-    })();
-  </script>
-  <script type="module">import("./js/main.js").catch(function (e) { window.__bootErrs && window.__bootErrs.push("시작 파일 오류: " + (e && (e.message || e)) + (e && e.stack ? "\n" + String(e.stack).split("\n").slice(0, 3).join("\n") : "")); console.error(e); window.__bootProbe && window.__bootProbe(); });
-    // 시작 실패 원인 찾기: 시작 파일부터 import 를 따라가며 받아 보고, 못 받은 파일과 응답 코드를 적는다
-    window.__bootProbe = function () {
-      var seen = {}, q = [new URL("./js/main.js", location.href).href], bad = [], n = 0, busy = 0, done = false;
-      function show(txt) { var b = document.getElementById("bootfix"), pre = b && b.previousElementSibling; var lines = window.__bootErrs.concat(txt ? [txt] : []); if (pre) pre.textContent = lines.join("\n"); }
-      function finish() { if (done) return; done = true; window.__bootErrs.push(bad.length ? "못 받은 파일: " + bad.slice(0, 8).join(", ") : "파일 " + n + "개 모두 받음 — 파일 사이 내용이 서로 맞지 않음(옛 파일 섞임)"); show(""); }
-      function pump() {
-        if (done) return;
-        show("파일 확인 중… " + n + "개" + (bad.length ? " · 실패 " + bad.length : ""));
-        if (!q.length && !busy) return finish();
-        while (q.length && busy < 8 && n < 400) {
-          var u = q.shift(); if (seen[u]) continue; seen[u] = 1; n++; busy++;
-          (function (u) {
-            var t0 = Date.now();
-            fetch(u, { cache: "reload" }).then(function (r) { if (!r.ok) { bad.push(u.split("/").slice(-2).join("/") + " (" + r.status + ")"); return ""; } return r.text(); },
-              function (er) { bad.push(u.split("/").slice(-2).join("/") + " (네트워크: " + (er && er.message) + ")"); return ""; })
-              .then(function (t) {
-                var re = /(?:^|[;\n}])\s*import\s+(?:[^"';]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g, m;
-                while ((m = re.exec(t))) q.push(new URL(m[1], u).href);
-                busy--; pump();
-              });
-          })(u);
-        }
-        if (!q.length && !busy) finish();
-      }
-      pump();
-      setTimeout(finish, 40000);
-    };</script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

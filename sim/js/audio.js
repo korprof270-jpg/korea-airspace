@@ -481,14 +481,6 @@ export class Sound {
       case "lap": [660, 880, 1100, 1320].forEach((f, i) => T("triangle", f, f, 0.14, 0.14, i * 0.08)); break;
       case "beep": T("square", 660, 660, 0.12, 0.1); break;
       case "go": T("square", 1320, 1320, 0.45, 0.12); T("sine", 660, 660, 0.45, 0.08); break;
-      case "upgrade":   // 업그레이드: 차오르는 전자음 + 반짝임
-        T("sawtooth", 220, 880, 0.22, 0.07, 0, 0.03); [660, 990, 1320, 1760].forEach((f, i) => T("sine", f, f * 1.01, 0.16, 0.13, 0.12 + i * 0.05)); N(0.25, 0.05, 3000, 9000, 0.1, "highpass", 1, 0.02); break;
-      case "upmax":     // 최대 단계: 화음
-        [523, 659, 784, 1047].forEach((f) => T("triangle", f, f, 0.5, 0.1, 0.05)); T("sine", 2093, 2093, 0.4, 0.06, 0.2); break;
-      case "uiopen":    // 홀로그램 창 열림
-        T("sine", 300, 1200, 0.18, 0.08); N(0.18, 0.04, 1500, 6000, 0, "bandpass", 2, 0.01); break;
-      case "uiclose":
-        T("sine", 1000, 260, 0.16, 0.07); break;
       case "pickup": [520, 780, 1040].forEach((f, i) => T("sine", f, f * 1.02, 0.1, 0.14, i * 0.06)); break;
       case "item": T("sawtooth", 300, 1200, 0.3, 0.1); break;
       case "trick": T("triangle", 700, 1400, 0.16, 0.12); break;

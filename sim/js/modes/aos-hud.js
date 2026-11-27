@@ -200,72 +200,27 @@ function ruleCard(m, h) {
 // ── 업그레이드 창 (DOM) ──
 // 여는 길: 기지 안에서 왼쪽 위 전장 포인트 판을 클릭·탭, 또는 아이템 키 / [B]. 기지 밖에서는 판이 흐려지고 열리지 않는다
 // 창 안: 칸 클릭·탭 = 강화 · 게임패드 십자키 위아래 + 확인 = 강화, 뒤로 = 닫기 · 키보드 [Q] 고르기 · [E] 강화 · [B] 닫기
-// 업그레이드 창: 미래식 투명 홀로그램 팝업. 가운데 내 기체 홀로그램, 양옆 강화 카드
-//  강화하면 기체의 그 부위(포·미사일 포드·장갑·모터…)에 빛 고리와 입자, 카드에 파동, 효과음
-//  혼자 할 때는 창을 연 동안 세계가 멈춘다(session.hold). 협동이면 멈추지 않는 대신 내 기체가 잠깐 무적
-const PART_OF = { fire: "laser", missile: "pods", armor: "belly", shield: "shield", regen: "belly", move: "motors", skill: "sensor", cool: "cooler",
-  sNaval: "nose", sAir: "motors", sDrop: "belly", sOrder: "sensor", sGauge: "shield", hp: "belly", dmg: "laser", rate: "laser", speed: "motors" };
-let _css = false;
-function shopCss() {
-  if (_css) return; _css = true;
-  const st = document.createElement("style");
-  st.textContent = `
-.aos-shop{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(20,60,90,.28),rgba(2,6,14,.62));backdrop-filter:blur(2px);pointer-events:auto;user-select:none;touch-action:manipulation;font:600 13px 'Noto Sans KR',sans-serif;color:#eafcff}
-.aos-shop .au-win{--hc:#5ff0ff;--ht:none;position:relative;width:min(1000px,96vw);height:min(640px,92vh);padding:14px 16px 12px;display:grid;grid-template-columns:1fr minmax(200px,320px) 1fr;grid-template-rows:auto minmax(0,1fr) auto auto;gap:10px 14px;box-sizing:border-box}
-.aos-shop .au-head{grid-column:1/-1;display:flex;align-items:center;gap:10px}
-.aos-shop .au-head b.t{color:var(--hc);letter-spacing:.12em;font-size:13px}
-.aos-shop .au-pts{margin-left:auto;font-size:20px;color:#ffd24a;text-shadow:0 0 10px #ffd24a88}
-.aos-shop .au-x{all:unset;cursor:pointer;width:34px;height:30px;text-align:center;border:1px solid #5ff0ff66;border-radius:6px;color:#bff6ff}
-.aos-shop .au-col{display:flex;flex-direction:column;gap:7px;overflow:auto;min-height:0}
-.aos-shop .au-mid{position:relative;display:flex;align-items:center;justify-content:center;min-height:260px}
-.aos-shop .au-mid canvas{width:100%;height:100%;max-height:340px}
-.aos-shop .au-mid .au-scan{position:absolute;inset:6% 4%;border:1px solid #5ff0ff33;border-radius:50%;pointer-events:none;box-shadow:inset 0 0 40px #5ff0ff22}
-.aos-shop .au-card{all:unset;box-sizing:border-box;position:relative;cursor:pointer;padding:8px 10px 7px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 16%,rgba(4,14,26,.55)),rgba(4,14,26,.35));overflow:hidden;transition:transform .15s,border-color .15s}
-.aos-shop .au-card.sel{border-color:var(--c);transform:translateX(var(--sx,0)) scale(1.02);box-shadow:0 0 14px color-mix(in srgb,var(--c) 45%,transparent)}
-.aos-shop .au-card .n{color:var(--c);font-weight:800}
-.aos-shop .au-card .pip{display:flex;gap:3px;margin:4px 0 3px}.aos-shop .au-card .pip i{flex:1;height:4px;border-radius:2px;background:#ffffff1f}.aos-shop .au-card .pip i.on{background:var(--c);box-shadow:0 0 6px var(--c)}
-.aos-shop .au-card .nx{font-size:11px;color:#cfe6f2;line-height:1.3}
-.aos-shop .au-card .c{position:absolute;right:10px;top:8px;color:#ffd24a;font-weight:800}
-.aos-shop .au-card.off{opacity:.5}
-.aos-shop .au-card.flash::after{content:"";position:absolute;inset:-2px;border-radius:7px;border:2px solid var(--c);animation:auFlash .7s ease-out forwards;pointer-events:none}
-.aos-shop .au-card.flash{animation:auPop .45s ease-out}
-.aos-shop .au-spark{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);pointer-events:none;animation:auSpark .7s ease-out forwards}
-@keyframes auFlash{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.18)}}
-@keyframes auPop{0%{transform:scale(1)}40%{transform:scale(1.06)}100%{transform:scale(1)}}
-@keyframes auSpark{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
-.aos-shop .au-extra{grid-column:1/-1;display:flex;gap:8px}.aos-shop .au-extra:empty{display:none}.aos-shop .au-extra>button{flex:1;margin:0!important;background:rgba(4,14,26,.5)!important;border-radius:6px!important}
-.aos-shop .au-foot{grid-column:1/-1;font-size:11px;color:#9fd8e8;display:flex;gap:10px;justify-content:space-between}
-.aos-shop .au-hold{color:#ffd24a}
-@media (max-height:520px){.aos-shop .au-win{height:96vh;padding:8px 10px 6px;gap:6px 10px}.aos-shop .au-card{padding:5px 8px 4px}.aos-shop .au-card .nx{font-size:10px}.aos-shop .au-card .pip{margin:2px 0}.aos-shop .au-col{gap:5px}.aos-shop .au-mid{min-height:0}.aos-shop .au-head .au-pts{font-size:17px}.aos-shop .au-extra>button{padding:4px 8px!important}}
-@media (max-width:720px){.aos-shop .au-win{grid-template-columns:1fr 1fr;grid-template-rows:auto 170px auto auto}.aos-shop .au-mid{grid-column:1/-1;grid-row:2;min-height:150px}.aos-shop .au-col{grid-row:3}}
-`;
-  document.head.appendChild(st);
-}
-
 export class AosShop {
   constructor(m) {
-    this.m = m; this.sel = 0; this.open = false; this.avail = false; this.fx = [];
-    const T = (this.T = m.upTable || { UP, KEYS: UP_KEYS, MAX: UP_MAX });   // 모드가 자기 업그레이드 표를 줄 수 있다 (돌파 작전·전면전)
-    const UP_ = T.UP, KEYS_ = T.KEYS, half = Math.ceil(KEYS_.length / 2);
-    shopCss();
-    const card = (k, i) => `<button class="au-card" data-up="${k}" data-i="${i}" style="--c:${UP_[k].color};--sx:${i < half ? "4px" : "-4px"}"><div class="n">${UP_[k].icon} ${UP_[k].name}</div><b class="c" data-cost></b><div class="pip" data-lv></div><div class="nx" data-nx></div></button>`;
+    this.m = m; this.sel = 0; this.open = false; this.avail = false;
+    const T = (this.T = m.upTable || { UP, KEYS: UP_KEYS, MAX: UP_MAX });   // 모드가 자기 업그레이드 표를 줄 수 있다 (돌파 작전)
+    const UP_ = T.UP, KEYS_ = T.KEYS;
     const el = (this.el = document.createElement("div"));
     el.className = "aos-shop";
-    el.innerHTML = `<div class="au-win holo"><div class="au-head"><b class="t">◢ 기체 정비 · 업그레이드</b><span class="au-hold" data-hold></span><b class="au-pts" data-pts></b><button class="au-x" data-close aria-label="닫기">✕</button></div>
-      <div class="au-col">${KEYS_.slice(0, half).map((k, i) => card(k, i)).join("")}</div>
-      <div class="au-mid"><div class="au-scan"></div><canvas data-holo></canvas></div>
-      <div class="au-col">${KEYS_.slice(half).map((k, i) => card(k, i + half)).join("")}</div>
-      <div class="au-extra" data-extra></div><div class="au-foot"><span data-help></span><span data-desc></span></div></div>`;
+    el.style.cssText = "position:fixed;left:max(14px,env(safe-area-inset-left));top:170px;z-index:31;display:none;width:400px;max-width:calc(100vw - 28px);padding:10px 12px 12px;border-radius:12px;background:rgba(8,12,26,0.94);border:2px solid #8cff4a;color:#fff;font:600 13px 'Noto Sans KR',sans-serif;box-shadow:0 0 22px rgba(140,255,74,0.4);pointer-events:auto;user-select:none;touch-action:manipulation";
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><b style="color:#8cff4a">기지 정비 · 업그레이드</b><b data-pts style="color:${GOLD};font-size:16px;margin-left:auto"></b>
+        <button data-close aria-label="닫기" style="width:34px;height:30px;border-radius:8px;border:1px solid #3a4560;background:#1a2238;color:#fff;font:inherit;font-size:15px;cursor:pointer">✕</button></div>
+      ${KEYS_.map((k, i) => `<button data-up="${k}" data-i="${i}" style="display:flex;width:100%;align-items:center;gap:8px;margin:4px 0;padding:8px 8px;border-radius:8px;border:1px solid #2a3348;background:#121a2e;color:#fff;font:inherit;cursor:pointer;text-align:left">
+        <span style="color:${UP_[k].color};width:74px">${UP_[k].icon} ${UP_[k].name}</span><span data-lv style="letter-spacing:2px;width:66px"></span><span data-nx style="flex:1;color:#cfd8e6;font-size:11.5px;line-height:1.25"></span><b data-cost style="color:${GOLD};min-width:64px;text-align:right"></b></button>`).join("")}
+      <div data-help style="margin-top:4px;font-size:11px;color:#9aa8bc"></div>`;
     document.body.appendChild(el);
-    this.extra = el.querySelector("[data-extra]");   // 모드가 덧붙이는 버튼 자리 (돌파 작전: 목숨·구조)
-    el.addEventListener("pointerdown", (e) => { e.stopPropagation(); if (e.target === el) this.close(); });
+    el.addEventListener("pointerdown", (e) => e.stopPropagation());
     el.addEventListener("click", (e) => {
       e.preventDefault(); e.stopPropagation();
       if (e.target.closest("[data-close]")) return this.close();
       const b = e.target.closest("button[data-up]"); if (!b) return;
       this.sel = +b.dataset.i; this._buy();
     });
-    el.addEventListener("pointerover", (e) => { const b = e.target.closest("button[data-up]"); if (b && +b.dataset.i !== this.sel) { this.sel = +b.dataset.i; this._draw(true); } });
     // 왼쪽 위 전장 포인트 판 위에 겹치는 투명 누름 자리 (HUD 는 캔버스라 클릭을 받지 못한다)
     const hit = (this.hit = document.createElement("div"));
     hit.className = "aos-shop-hit";
@@ -274,149 +229,68 @@ export class AosShop {
     document.body.appendChild(hit);
     hit.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); if (this.avail) this.toggle(); });
   }
-  get solo() { const m = this.m; return !m.s.cfg.net && !(m.co && m.co.ids && m.co.ids.length > 1); }
   get canOpen() { const m = this.m, me = m.me; return me.alive && m.inBase(me) && m.state === "run" && !m.cut && m.s.game.state === "play"; }
   toggle() { if (this.open) this.close(); else this.show(); }
   show() {
     if (!this.canOpen || this.open) return;
-    this.open = true; this.el.style.display = "flex"; this._draw(true);
-    if (this.solo) this.m.s.hold = true; else this.m.me.invulnerable = true;
-    this.el.querySelector("[data-hold]").textContent = this.solo ? "⏸ 일시정지" : "협동 중 · 정비하는 동안 무적";
-    this.m.s.game.sound.play("uiopen");
-    this._holoStart();
+    this.open = true; this.el.style.display = "block"; this._draw(true);
+    this.m.s.game.sound.play("click");
     if (this.m.s.game.input.device === "gamepad") this._padFocus();
   }
-  close() {
-    if (!this.open) return;
-    this.open = false; this.el.style.display = "none"; this._unfocus();
-    this.m.s.hold = false; if (!this.solo) this.m.me.invulnerable = false;
-    this._holoStop(); this.m.s.game.sound.play("uiclose");
-  }
-  _buy() {
-    const k = this.T.KEYS[this.sel], lv0 = this.m.me.aos.up[k];
-    if (!this.m.wantBuy(k)) { this.m.s.game.sound.play("click"); this._draw(true); return; }
-    const lv = this.m.me.aos.up[k];
-    this.m.s.game.sound.play(lv >= this.T.MAX ? "upmax" : "upgrade");
-    this._cardFx(this._btn(this.sel), this.T.UP[k].color);
-    this._partFx(k, this.T.UP[k].color, lv >= this.T.MAX);
-    void lv0; this._draw(true);
-  }
+  close() { if (!this.open) return; this.open = false; this.el.style.display = "none"; this._unfocus(); }
+  _buy() { if (!this.m.wantBuy(this.T.KEYS[this.sel])) this.m.s.game.sound.play("click"); this._draw(true); }
   _btn(i) { return this.el.querySelector(`button[data-i="${i}"]`); }
   _padFocus() { const pu = this.m.s.game.padui; if (pu) pu._focus(this._btn(this.sel)); }
   _unfocus() { const pu = this.m.s.game.padui; if (pu && pu.cur && this.el.contains(pu.cur)) pu._clear(); }
-  // 카드 파동 + 튀는 불꽃
-  _cardFx(b, col) {
-    if (!b) return;
-    b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
-    for (let i = 0; i < 14; i++) { const sp = document.createElement("i"); sp.className = "au-spark"; const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 60; sp.style.cssText = `--c:${col};left:${20 + Math.random() * 60}%;top:${30 + Math.random() * 40}%;--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r}px`; b.appendChild(sp); setTimeout(() => sp.remove(), 720); }
-  }
-  // ── 기체 홀로그램 (작은 3D 장면) ──
-  async _holoStart() {
-    if (this.raf) return;
-    const cv = this.el.querySelector("[data-holo]");
-    if (!this.three) {
-      const [THREE, DM, GP, CF] = await Promise.all([import("../../vendor/three.module.min.js"), import("../dronemodel.js"), import("../garage.js"), import("../config.js")]);
-      const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); r.setPixelRatio(Math.min(2, devicePixelRatio || 1));
-      const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.01, 50);
-      sc.add(new THREE.HemisphereLight(0xbff6ff, 0x0a2030, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, 2); sc.add(sun);
-      const d = DM.buildDrone(CF.settings.drone, 1, { parts: GP.partLook() });
-      // 홀로그램 느낌: 모든 재질을 청록 반투명으로, 겉에 와이어 외곽
-      d.traverse((o) => { if (o.isMesh && o.material) { const m = new THREE.MeshBasicMaterial({ color: 0x5ff0ff, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending }); o.material = m; const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 30), new THREE.LineBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: 0.55 })); o.add(e); } });
-      const box = new THREE.Box3().setFromObject(d), c = box.getCenter(new THREE.Vector3()), rad = box.getSize(new THREE.Vector3()).length() / 2;
-      d.position.sub(c); const pivot = new THREE.Group(); pivot.add(d); sc.add(pivot);
-      const base = new THREE.Mesh(new THREE.RingGeometry(rad * 0.9, rad * 1.0, 64), new THREE.MeshBasicMaterial({ color: 0x5ff0ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })); base.rotation.x = -Math.PI / 2; base.position.y = -rad * 0.55; sc.add(base);
-      cam.position.set(0, rad * 1.1, rad * 2.6); cam.lookAt(0, 0, 0);
-      this.three = { THREE, r, sc, cam, d, pivot, rad, base };
-    }
-    const H = this.three; let last = performance.now();
-    const loop = (t) => {
-      if (!this.open) { this.raf = 0; return; }
-      this.raf = requestAnimationFrame(loop);
-      const dt = Math.min(0.05, (t - last) / 1000); last = t;
-      const w = cv.clientWidth | 0, h = cv.clientHeight | 0;
-      if (w && h && (cv.width !== Math.round(w * H.r.getPixelRatio()) || cv.height !== Math.round(h * H.r.getPixelRatio()))) { H.r.setSize(w, h, false); H.cam.aspect = w / h; H.cam.updateProjectionMatrix(); }
-      H.pivot.rotation.y += dt * 0.6; H.base.rotation.z -= dt * 0.4;
-      for (const f of this.fx) f.tick(dt);
-      this.fx = this.fx.filter((f) => !f.done);
-      H.r.render(H.sc, H.cam);
-    };
-    this.raf = requestAnimationFrame(loop);
-  }
-  _holoStop() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; }
-  // 강화한 부위에 빛 고리 + 입자 (최대 단계면 크게)
-  _partFx(key, col, max) {
-    const H = this.three; if (!H) return;
-    const { THREE, d, sc, rad } = H, A = (d.userData && d.userData.anchors) || {}, inner = d.userData.inner || d, name = PART_OF[key] || "belly";
-    const pts = name === "motors" ? (A.motors || []).map((m) => [m[0], m[1], m[2]]) : A[name] ? [A[name]] : [[0, 0, 0]];
-    for (const p of pts) {
-      const v = inner.localToWorld(new THREE.Vector3(p[0], p[1], p[2]));
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(rad * 0.08, rad * 0.008, 6, 32), new THREE.MeshBasicMaterial({ color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-      ring.position.copy(v); ring.lookAt(H.cam.position); sc.add(ring);
-      const n = max ? 40 : 22, g = new THREE.BufferGeometry(), pos = new Float32Array(n * 3), vel = [];
-      for (let i = 0; i < n; i++) { pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z; vel.push(new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().multiplyScalar(rad * (0.4 + Math.random() * 0.8))); }
-      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      const pm = new THREE.PointsMaterial({ color: col, size: rad * 0.05, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), P = new THREE.Points(g, pm); sc.add(P);
-      let t = 0;
-      this.fx.push({ done: false, tick(dt) {
-        t += dt; const k = t / (max ? 1.2 : 0.8);
-        ring.scale.setScalar(1 + k * (max ? 6 : 3.5)); ring.material.opacity = Math.max(0, 1 - k);
-        const a = g.attributes.position; for (let i = 0; i < n; i++) { a.array[i * 3] += vel[i].x * dt; a.array[i * 3 + 1] += vel[i].y * dt; a.array[i * 3 + 2] += vel[i].z * dt; vel[i].multiplyScalar(0.94); } a.needsUpdate = true; pm.opacity = Math.max(0, 1 - k);
-        if (k >= 1) { this.done = true; sc.remove(ring, P); ring.geometry.dispose(); ring.material.dispose(); g.dispose(); pm.dispose(); }
-      } });
-    }
-  }
   update() {
     const m = this.m, inp = m.s.game.input, pad = inp.device === "gamepad";
-    this.avail = this.canOpen || (this.open && m.me.alive && m.state === "run");
+    this.avail = this.canOpen;
     if (!this.avail) { this.close(); if (inp.take("shop")) m.s.hud.toast("업그레이드는 기지 안에서만 — 기지로 돌아가세요", "#ffb02e", 1.4, 18); }
     // 누름 자리: HUD 가 이번에 그린 판 위치를 따른다
-    const r = m.panelRect, show = !!r && r.f >= m.hudN - 1 && this.avail && !this.open;
+    const r = m.panelRect, show = !!r && r.f >= m.hudN - 1 && this.avail;
     if (show) Object.assign(this.hit.style, { display: "block", left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
     else if (this.hit.style.display !== "none") this.hit.style.display = "none";
+    if (r && this.open) this.el.style.top = Math.round(r.y + r.h + 8) + "px";   // 판 바로 아래에 연다
     if (!this.avail) return;
     if (!this.open) {
+      // 기지 안에서는 아이템 키가 창 열기 (전투 시스템보다 먼저 가져간다)
       if (inp.take("item") || inp.take("shop")) this.show();
       return;
     }
+    // 게임패드: 십자키 위아래 · 확인 · 뒤로 (메뉴 입력을 창이 가져간다 — padui 강조를 그대로 쓴다)
     if (pad) {
-      const rest = [], half = Math.ceil(this.T.KEYS.length / 2);
+      const rest = [];
       let n;
       while ((n = inp.takeNav())) {
         if (n === "up" || n === "down") { this.sel = (this.sel + (n === "up" ? this.T.KEYS.length - 1 : 1)) % this.T.KEYS.length; this._padFocus(); }
-        else if (n === "left" || n === "right") { this.sel = this.sel < half ? Math.min(this.T.KEYS.length - 1, this.sel + half) : this.sel - half; this._padFocus(); }
         else if (n === "ok") this._buy();
         else if (n === "back") { this.close(); return; }
         else rest.push(n);
       }
       inp.nav.push(...rest.filter((x) => x !== "any"));
-      inp.take("item");
+      inp.take("item");   // 확인 버튼과 아이템 버튼이 같은 패드가 많다 (두 번 사지 않게)
     } else if (inp.take("item")) this._buy();
     if (inp.take("itemNext")) { this.sel = (this.sel + 1) % this.T.KEYS.length; m.s.game.sound.play("click"); if (pad) this._padFocus(); }
-    if (inp.take("shop") || inp.take("pause")) { this.close(); return; }
+    if (inp.take("shop")) { this.close(); return; }
     this._draw();
   }
   _draw(force) {
     const me = this.m.me, D = me.aos, inp = this.m.s.game.input, key = `${Math.floor(D.pts)}|${this.T.KEYS.map((k) => D.up[k]).join("")}|${this.sel}|${inp.device}`;
     if (!force && key === this._key) return;
     this._key = key;
-    this.el.querySelector("[data-pts]").textContent = `${Math.floor(D.pts)} ⓟ`;
+    this.el.querySelector("[data-pts]").textContent = `${Math.floor(D.pts)}ⓟ`;
     for (const b of this.el.querySelectorAll("button[data-up]")) {
       const MX = this.T.MAX, k = b.dataset.up, U = this.T.UP[k], lv = D.up[k], c = this.m.cost(me, k), can = D.pts >= c;
-      b.querySelector("[data-lv]").innerHTML = Array.from({ length: MX }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("");
-      b.querySelector("[data-nx]").textContent = U.txt ? (lv >= MX ? `최대 · ${U.txt(lv)}` : `${lv ? U.txt(lv) : "없음"} → ${U.txt(lv + 1)}`) : lv >= MX ? `최대 +${U.per * lv}${U.unit}` : `+${U.per * lv}% → +${U.per * (lv + 1)}${U.unit}`;
-      b.querySelector("[data-cost]").textContent = lv >= MX ? "MAX" : `${c}ⓟ`;
-      b.classList.toggle("off", !(lv >= MX || can));
-      b.classList.toggle("sel", +b.dataset.i === this.sel);
+      b.querySelector("[data-lv]").textContent = "■".repeat(lv) + "□".repeat(MX - lv);
+      b.querySelector("[data-nx]").textContent = U.txt ? (lv >= MX ? `최대 ${U.txt(lv)}` : `${lv ? U.txt(lv) : "없음"} → ${U.txt(lv + 1)}`) : lv >= MX ? `최대 +${U.per * lv}${U.unit}` : `+${U.per * lv}% → +${U.per * (lv + 1)}${U.unit}`;
+      b.querySelector("[data-cost]").textContent = lv >= MX ? "MAX" : `강화 ${c}ⓟ`;
+      b.style.opacity = lv >= MX || can ? "1" : "0.55";
+      b.style.borderColor = +b.dataset.i === this.sel ? "#8cff4a" : "#2a3348";
     }
-    const U = this.T.UP[this.T.KEYS[this.sel]];
-    this.el.querySelector("[data-desc]").textContent = U ? `${U.icon} ${U.name}${U.desc ? " — " + U.desc : ""}` : "";
     const touch = this.m.combat.touchUI(), g = (a) => (inp.glyph ? inp.glyph(a) : "");
-    this.el.querySelector("[data-help]").textContent = touch ? "카드를 눌러 강화 · 바깥이나 ✕ 를 눌러 닫기"
-      : inp.device === "gamepad" ? `십자키 고르기 · [${g("ok")}] 강화 · [${g("back")}] 닫기`
+    this.el.querySelector("[data-help]").textContent = touch ? "칸을 눌러 강화 · ✕ 닫기 · 정비 패드 위에서는 체력이 빠르게 찹니다"
+      : inp.device === "gamepad" ? `십자키 ▲▼ 고르기 · [${g("ok")}] 강화 · [${g("back")}] 닫기`
       : `클릭하거나 [${g("itemNext") || "Q"}] 고르기 · [${g("item") || "E"}] 강화 · [B] 닫기`;
   }
-  dispose() {
-    this.close(); this._unfocus(); this.el.remove(); this.hit.remove();
-    if (this.three) { this.three.r.dispose(); this.three.r.forceContextLoss(); this.three = null; }
-  }
+  dispose() { this._unfocus(); this.el.remove(); this.hit.remove(); }
 }

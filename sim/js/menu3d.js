@@ -691,8 +691,7 @@ export class Thumbs {
     for (const id of ids) {
       if (this[kind][id] || this.jobs.some((j) => j.kind === kind && j.id === id)) continue;
       if (kind === "map" && !(MAPS[id] && (MAPS[id].thumb || MAP_VIEW[id]))) continue;
-      if (kind === "part" || (kind === "map" && MAPS[id].thumbDraw)) this.jobs.unshift({ kind, id });   // 정비소 부품 카드·그림으로 그리는 지역맵은 먼저
-      else this.jobs.push({ kind, id });
+      if (kind === "part") this.jobs.unshift({ kind, id }); else this.jobs.push({ kind, id });   // 정비소 부품 카드는 지금 보는 것부터
     }
     if (!this.timer && this.jobs.length) this.timer = setTimeout(() => this._pump(), kind === "map" ? 350 : 120);
   }
@@ -716,7 +715,6 @@ export class Thumbs {
     try { url = job.kind === "mode" ? this._modeShot(job.id) : job.kind === "frame" || job.kind === "canopy" ? this._frameShot(job.id, job.kind) : job.kind === "part" ? this._partShot(job.id) : this._mapShot(job.id); }
     catch (e) { console.warn("썸네일을 만들지 못했습니다", job, e); }
     if (url) { this[job.kind][job.id] = url; this._emit(job.kind, job.id, url); }
-    else if (job.kind === "map" && MAPS[job.id] && MAPS[job.id].thumbDraw && (job.n = (job.n || 0) + 1) < 30) this.jobs.unshift(job);   // 대륙 지도 그림을 아직 못 읽음: 나중에 다시
     if (this.jobs.length) this.timer = setTimeout(() => this._pump(), this.jobs[0].kind === "map" ? 250 : this.jobs[0].kind === "frame" || this.jobs[0].kind === "canopy" || this.jobs[0].kind === "part" ? 30 : 16);
     else this.timer = setTimeout(() => this._release(), 1500);
   }
@@ -772,7 +770,6 @@ export class Thumbs {
   }
 
   _mapShot(id) {
-    if (MAPS[id].thumbDraw) return MAPS[id].thumbDraw(480, 300);   // 대형 맵: 짓지 않고 대륙 지도 그림으로
     const r = this._renderer(480, 300), w = new World(MAPS[id], "low", r), [p, l] = MAPS[id].thumb ? [MAPS[id].thumb.pos, MAPS[id].thumb.look] : MAP_VIEW[id];
     try {
       const cam = new THREE.PerspectiveCamera(62, 1.6, 0.1, 4000);
