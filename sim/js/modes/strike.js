@@ -25,8 +25,8 @@ const V3 = THREE.Vector3, _v = new V3();
 const LIVES = 7, REST = 5, LIFE_COST = 500, LIFE_MAX = 12, REVIVE_COST = 200;
 const UP_COST = [80, 140, 220, 320, 450];
 const PTS = { drone: 15, unit: 40, mid: 180, boss: 380, final: 900, clear: 180 };
-// 연속하지 않고 작전 2~5를 바로 시작하면 받는 출발 ⓟ (앞 작전 업그레이드 일부를 메워 준다). 작전 1은 150
-const START_PTS = [150, 700, 1500, 2500, 3600];
+// 출발 ⓟ: 작전마다 같다(150). 앞 작전에서 이어서 하면 ⓟ와 업그레이드를 그대로 이어받으므로 추가 보급은 없다
+const START_PTS = [150, 150, 150, 150, 150];
 // 돌파 작전 전용 업그레이드 (단계마다)
 const SUP = {
   fire: { name: "레이저", icon: "✦", color: "#ff7a5a", txt: (l) => `피해 +${l * 12}%` },
@@ -183,7 +183,7 @@ export class StrikeMode extends CombatMode {
       slot.appendChild(rb);
     }
     this._go(0);
-    setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
+    setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 ⓟ와 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
   }
 
   // 작전 브리핑 (7초 또는 누르면 닫힘)

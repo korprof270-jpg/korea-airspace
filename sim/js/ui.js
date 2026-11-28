@@ -839,7 +839,7 @@ export class UI {
         opts += `<div class="opt"><label>인원</label>${this.seg("party", [["solo", "혼자 (AI 윙맨 3기)"], ["coop", "협동 (최대 4인)"]], s.party || "solo")}<div class="hint">협동: 같은 맵 협동 방에 모인 사람과 한 스테이지를 같이 시작합니다. 온라인 협동은 claude.ai 링크에서 됩니다.</div></div>`;
         const done = Math.max(0, Math.min(5, records[`strikeOp:${s.map}`] | 0)), op = Math.min(Math.max(1, s.op | 0 || done + 1), done + 1, 5); s.op = op;
         opts += `<div class="opt"><label>작전 (차례로 열림)</label><div class="seg">${STRIKE_OPS.map((o, i) => { const n = i + 1, lock = n > done + 1; return `<button data-a="sel" data-k="op" data-v="${n}" class="${op === n ? "on" : ""}" ${lock ? "disabled" : ""}>${lock ? "🔒 " : n <= done ? "✔ " : ""}작전 ${n} · ${o[0]}</button>`; }).join("")}</div><div class="hint">작전 ${op} · ${STRIKE_OPS[op - 1][0]} — 난이도 ${STRIKE_OPS[op - 1][1]} · 스테이지 ${STRIKE_OPS[op - 1][2]}개${STRIKE_OPS[op - 1][3] ? ` · 승리하면 훈장 🎖${STRIKE_OPS[op - 1][3]} (처음 이기면 +1)` : ""} · 보유 훈장 🎖${GP.medals()}<br>${STRIKE_OPS[op - 1][4]}</div></div>`;
-        opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 사령부가 무전으로 다음 임무를 무작위로 내립니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 임무는 맵의 실제 장소 중 그 장소에 맞는 곳에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 시작해 ⓟ로 8가지(레이저·미사일·장갑·실드 발생기·자가 수리·기동·스킬·냉각)를 업그레이드합니다. 다음 작전으로 이어서 하면 남은 ⓟ와 업그레이드를 그대로 가져가고, 메뉴에서 작전 2~5를 바로 시작하면 출발 ⓟ(700·1500·2500·3600)를 받습니다 · 목숨 7개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
+        opts += `<p class="hint2">맵마다 작전 1~5가 있고, 앞 작전을 이기면 다음 작전이 열립니다. 작전 브리핑으로 시작해 한 맵 안의 여러 구역을 옮겨 가며 적 본진 요새까지 갑니다. 스테이지를 끝낼 때마다 5초 정비 뒤 사령부가 무전으로 다음 임무를 무작위로 내립니다(🥷 침투 · ⚔ 교전 · 🚩 탈취). 임무는 맵의 실제 장소 중 그 장소에 맞는 곳에서 하고, 같은 곳을 다시 쓰지 않습니다. 목표 위치는 큰 빛 기둥과 그 위에서 내리꽂는 화살표, 화면 화살표로 알려 줍니다.<br>침투: 붉은 레이더 기둥 안에서는 14m 아래로 낮게 날아 데이터 노드 파괴(들키면 증원) · 교전: 적 2파 + 중간 보스 + 스테이지 보스 · 탈취: 노란 점령 원 안에 머물러 게이지 100% · 작전 4·5 마지막은 요새 공성전(방공 포대 → 실드 발생기 → 요새 핵심).<br>작전 3부터 이기면 훈장 🎖을 받아 격납고에서 최대 단계(Lv.5) 파츠·스킬을 한계 돌파(+3까지)할 수 있습니다. 돌파 작전 안에서는 격납고 능력치 없이 시작해 ⓟ로 8가지(레이저·미사일·장갑·실드 발생기·자가 수리·기동·스킬·냉각)를 업그레이드합니다. 다음 작전으로 이어서 하면 남은 ⓟ와 업그레이드를 그대로 가져가고, 메뉴에서 새로 시작하면 어느 작전이든 출발 ⓟ 150으로 시작합니다 · 목숨 7개(500ⓟ로 하나 더, 목숨이 다하면 200ⓟ로 부활 · 협동은 200ⓟ로 팀원 구조).</p>`;
       } else if (s.variant === "tdm") {
         opts += `<p class="hint2">아군 편대와 함께 적 편대와 맞붙는 5분 팀전. 끝날 때 팀 점수(격추·피해)가 높은 쪽이 승리 · 적 실력은 조종 실력에 맞춰 자동 조절됩니다.</p>`;
       } else {
@@ -898,7 +898,7 @@ export class UI {
     if (s.mode === "race" && s.rivals > 0 && !this._diffOk) return this._openDiff(true);   // 서바이벌은 난이도 자동 조절이라 묻지 않는다
     this._diffOk = false;
     const cfg = { mode: s.mode, map: s.map, difficulty: settings.difficulty };
-    if (s.mode === "survival" && s.variant === "strike") this._carry = null;   // 메뉴에서 새로 시작: 이어받기 없음 (출발 ⓟ만)
+    if (s.mode === "survival" && s.variant === "strike") this._carry = null;   // 메뉴에서 새로 시작: 이어받기 없음 (출발 ⓟ 150)
     if (s.mode === "race") Object.assign(cfg, { track: s.track, laps: s.laps, rivals: s.rivals });
     else if (s.mode === "tracking") cfg.subject = s.subject;
     else if (s.mode === "freestyle") cfg.session = s.fs;
