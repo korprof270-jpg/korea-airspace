@@ -256,7 +256,25 @@ export class Combat {
   }
 
   // 고정 포탑: 사거리 안의 적을 조준 사격
+  // 구조물 안·지붕 밑이 아닌 가장 가까운 열린 자리 (포탑·발생기가 건물 아래 묻혀 공격할 수 없는 일을 막는다)
+  openSpot(x, z) {
+    const w = this.w, p = new THREE.Vector3(), lim = (w.size || 1e9) - 6;
+    const ok = (px, pz) => {
+      if (Math.abs(px) > lim || Math.abs(pz) > lim) return false;
+      if (w.def && w.def.land && !w.def.land(px, pz)) return false;
+      const g = w.h(px, pz);
+      for (const dy of [4, 8, 14, 22, 34]) if (w.col.blocked(p.set(px, g + dy, pz), 3.2)) return false;   // 몸체와 머리 위(지붕)까지 열려 있어야 한다
+      return true;
+    };
+    if (ok(x, z)) return { x, z };
+    for (let r = 5; r <= 70; r += 5) for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 2 + r * 0.7, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      if (ok(px, pz)) return { x: px, z: pz };
+    }
+    return { x, z };
+  }
   spawnTurret(x, z, team = 1, o = {}) {
+    if (o.free !== false) { const q = this.openSpot(x, z); x = q.x; z = q.z; }
     const y = this.w.h(x, z), g = new THREE.Group(), col = TEAM_COLOR[team];
     const dark = new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.5, metalness: 0.6 }), tc = new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(2.2) });
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.7, 2.2, 10), dark); base.position.y = 1.1; base.castShadow = true; g.add(base);
