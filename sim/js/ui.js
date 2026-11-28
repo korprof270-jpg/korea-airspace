@@ -1275,7 +1275,6 @@ export class UI {
     if (!it.own) {
       const ok = pv.kind === "theme" ? GP.themeBuy(pv.v) : GP.buy(pv.kind, pv.v);
       if (!ok) return (this._gnote(`포인트가 부족합니다 (${it.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this.game.sound.play("pickup");
     }
     this._lapply(pv, it, it.own ? null : `「${it.name}」 구매 · -${it.price.toLocaleString()}P${pv.kind === "paint" ? "" : " · 적용 완료"}`);
   }
@@ -1284,7 +1283,6 @@ export class UI {
     if (!pv) return;
     const it = this._litem(pv.kind, pv.v);
     if (!it.own) return;
-    this.game.sound.play("confirm");
     this._lapply(pv, it);
   }
   _lapply(pv, it, msg) {
@@ -1309,8 +1307,8 @@ export class UI {
     const k = GP.SKILLS[v];
     if (!GP.skillOwns(v)) {
       if (!GP.skillBuy(v)) return (this._gnote(`포인트가 부족합니다 (${k.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this._gnote(`${k.name} 구매 · -${k.price.toLocaleString()}P`); this.game.sound.play("pickup");
-    } else this.game.sound.play("confirm");
+      this._gnote(`${k.name} 구매 · -${k.price.toLocaleString()}P`);
+    }
     GP.skillEquip(v); this._skPv = v;
     if (!this._gmsg) this._gnote(`스킬 「${k.name}」 장착`);
     this.redraw(); this._syncStage();
@@ -1321,7 +1319,6 @@ export class UI {
       const pr = GP.priceOf(kind, v);
       if (!GP.buy(kind, v)) return (this._gnote(`포인트가 부족합니다 (${pr.toLocaleString()}P 필요)`, true), this.redraw());
       this._gnote(`구매 완료 · -${pr.toLocaleString()}P`);
-      this.game.sound.play("pickup");
     }
     if (kind === "preset") { const { name, ...colors } = COLOR_PRESETS[+v]; Object.assign(settings.drone, colors); }
     else if (kind === "paint") { /* 색 고르기 열림 */ }
@@ -1332,7 +1329,7 @@ export class UI {
     const slot = el.dataset.slot, it = GP.FX[slot].items[v];
     if (!GP.fxOwns(slot, v)) {
       if (!GP.fxBuy(slot, v)) return (this._gnote(`포인트가 부족합니다 (${it.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this._gnote(`구매 완료 · -${it.price.toLocaleString()}P`); this.game.sound.play("pickup");
+      this._gnote(`구매 완료 · -${it.price.toLocaleString()}P`);
     }
     GP.fxEquip(slot, v); this.redraw();
   }
@@ -1340,7 +1337,6 @@ export class UI {
     const t = GP.THEMES[v];
     if (!GP.themeOwns(v)) {
       if (!GP.themeBuy(v)) return (this._gnote(`포인트가 부족합니다 (${t.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this.game.sound.play("pickup");
     }
     GP.themeEquip(v); this._gnote(`테마 「${t.name}」 장착`); this._look();
   }
@@ -1398,7 +1394,7 @@ export class UI {
     if (!V) return;
     if (!GP.variantOwns(slot, k)) {
       if (!GP.variantBuy(slot, k)) return (this._gnote(`포인트가 부족합니다 (${V.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this._gnote(`${V.name} 구매 · -${V.price.toLocaleString()}P`); this.game.sound.play("pickup");
+      this._gnote(`${V.name} 구매 · -${V.price.toLocaleString()}P`);
     } else this._gnote(`${GP.PARTS[slot].name}: 「${V.name}」 장착`);
     GP.variantEquip(slot, k); this._ppv = null; this._ptKey = "?"; this._ptModel(null); this.redraw();
   }
@@ -1409,7 +1405,6 @@ export class UI {
     if (!GP.upgrade(slot, k)) return (this._gnote(lv >= 5 ? "이미 최대 단계입니다" : `포인트가 부족합니다 (${cost.toLocaleString()}P 필요)`, true), this.redraw());
     const nl = lv + 1;
     this._gnote(`${V.name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${GP.effText(V.b3)}` : nl === 5 ? ` · 추가 효과: ${GP.effText(V.b5)}` : ""}`);
-    this.game.sound.play("lap");
     const keep = this._ppv; this._ptKey = "?"; this._ptModel(keep); this.redraw();   // 단계가 오르면 기체 모습도 바뀐다
   }
   a_gox(v) {
@@ -1417,7 +1412,7 @@ export class UI {
     if (!V) return;
     const n = GP.oxLv(slot, k);
     if (!GP.oxUp(slot, k)) return (this._gnote(n >= GP.OX_MAX ? "이미 한계 돌파 최대입니다" : `훈장이 부족합니다 (🎖${GP.OX_COST[n]} 필요 · 돌파 작전 3단계 이상 승리로 획득)`, true), this.redraw());
-    this._gnote(`${V.name} 한계 돌파 +${n + 1}`); this.game.sound.play("lap");
+    this._gnote(`${V.name} 한계 돌파 +${n + 1}`);
     const keep = this._ppv; this._ptKey = "?"; this._ptModel(keep); this.redraw();
   }
   a_gskox(v) {

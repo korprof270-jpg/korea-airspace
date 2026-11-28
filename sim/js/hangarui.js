@@ -415,7 +415,7 @@ const H = {
     if (!it) return;
     if (!GP.fxOwns(slot, v)) {
       if (!GP.fxBuy(slot, v)) return (this._gnote(`포인트가 부족합니다 (${it.price.toLocaleString()}P 필요)`, true), this.redraw());
-      this._gnote(`「${it.name}」 구매 · -${it.price.toLocaleString()}P`); this.game.sound.play("pickup");
+      this._gnote(`「${it.name}」 구매 · -${it.price.toLocaleString()}P`);
     } else this._gnote(`「${it.name}」 장착`);
     GP.fxEquip(slot, v); this.redraw();
   },
@@ -428,7 +428,6 @@ const H = {
     if (!GP.upgrade(slot, k)) return (this._gnote(lv >= 5 ? "이미 최대 단계입니다" : `포인트가 부족합니다 (${cost.toLocaleString()}P 필요)`, true), this.redraw());
     const nl = lv + 1;
     this._gnote(`${V.name} Lv.${nl}${nl === 3 ? ` · 추가 효과: ${GP.effText(V.b3)}` : nl === 5 ? ` · 추가 효과: ${GP.effText(V.b5)}` : ""}`);
-    this.game.sound.play("lap");
     this._ptKey = "?"; this.redraw();   // 단계가 오르면 기체 모습도 바뀐다
   },
 };
@@ -445,9 +444,38 @@ export function installHangar(UI) {
       const nav = scr.querySelector(".hg-nav"), on = nav && nav.querySelector(".hg-c.on");
       if (on) { if (c === "nar") nav.scrollLeft = on.offsetLeft - nav.clientWidth / 2 + on.offsetWidth / 2; else if (on.offsetTop + on.offsetHeight > nav.clientHeight) nav.scrollTop = on.offsetTop - nav.clientHeight / 2; }
     }
+    // 들어올 때 한 번: 패널이 펼쳐지고 기체가 스캔되며 나타난다
+    if (scr && !this._hgIn) {
+      this._hgIn = true; scr.classList.add("enter");
+      setTimeout(() => { if (this.game.menu.studioScan) this.game.menu.studioScan(); }, 0);
+      this.game.sound.play("uiopen");
+    } else if (!scr) this._hgIn = false;
     sync.call(this);
     const m = this.game.menu, on = this.screen === "hangar" && this._gtab !== "skill";
     if (m.studioOn) { m.studioOn(on); if (on) m.studioFocus((this._hc || "").startsWith("part.") ? this._hc.slice(5) : null); }
+  };
+  // 장착·구매·강화 알림이 뜰 때 무대에 등급 색 이펙트와 효과음 (알림 문구로 종류를 가린다)
+  const note = UI.prototype._gnote;
+  UI.prototype._gnote = function (t, bad = false) {
+    note.call(this, t, bad);
+    if (!bad && this.screen === "hangar") requestAnimationFrame(() => this._hgFx(String(t)));
+  };
+  UI.prototype._hgFx = function (t) {
+    const scr = this.root.querySelector(".screen.hg"); if (!scr) return;
+    const dh = scr.querySelector(".hg-dh"), gc = ((dh && getComputedStyle(dh).getPropertyValue("--gc")) || "#5ff0ff").trim() || "#5ff0ff";
+    const buy = /구매/.test(t), lv = (t.match(/Lv\.(\d)/) || [])[1], hi = /#b86bff|#ffaa2b/i.test(gc);
+    const ox = /한계 돌파/.test(t), big = (buy && hi) || lv === "5" || ox;
+    const snd = this.game.sound;
+    if (ox) { snd.play("upgrade"); setTimeout(() => snd.play("upmax"), 180); }
+    else if (lv) snd.play(lv === "5" ? "upmax" : "upgrade");
+    else if (buy) { snd.play("upgrade"); if (hi) setTimeout(() => snd.play("upmax"), 180); }
+    else snd.play("uiopen");
+    const slot = (this._hc || "").startsWith("part.") ? this._hc.slice(5) : null;
+    const m = this.game.menu; if (m.studioBurst) m.studioBurst(gc, slot, big);
+    const st = scr.querySelector(".hg-stage");
+    if (st) { const b = document.createElement("div"); b.className = "hg-burst" + (big ? " big" : ""); b.style.setProperty("--gc", gc);
+      if (buy || lv || ox) b.innerHTML = `<b>${ox ? "LIMIT BREAK" : lv ? (lv === "5" ? "MAX" : "UPGRADE") : "ACQUIRED"}</b>`;
+      st.appendChild(b); setTimeout(() => b.remove(), 1300); }
   };
   // 부품 카드 썸네일은 data-thumb="part:슬롯.부품.단계" — ui.js 의 thumbs.onReady 가 같은 규칙으로 그림을 끼운다
 }
