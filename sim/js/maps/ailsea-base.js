@@ -47,20 +47,20 @@ export function seaGlow(w, rip, giantDir) {
         float hgt = (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) ? -6.0 : texture2D(tH, uv).r * 8.0 - 6.0;
         float dep = -hgt;
         vec3 toCam = cameraPosition - vW; float dist = length(toCam); vec3 V = toCam / dist;
-        float n1 = vn(p * 0.03 + vec2(t * 0.02, -t * 0.013)), n2 = vn(p * 0.085 - vec2(t * 0.03, t * 0.021));
+        float n1 = vn(p * 0.03 + vec2(t * 0.008, -t * 0.005)), n2 = vn(p * 0.085 - vec2(t * 0.01, t * 0.007));
         float nn = n1 * 0.62 + n2 * 0.38;
         // 플랑크톤 얼룩: 두 단으로 끊는다
-        float patc = smoothstep(0.52, 0.54, nn) * 0.45 + smoothstep(0.64, 0.66, nn) * 0.55;
+        float patc = smoothstep(0.40, 0.72, nn);   // 부드럽게 (딱 끊기던 경계가 깜빡이던 것을 없앴다)
         // 물가: 얕을수록 밝고, 등심선이 바깥으로 숨 쉬듯 흘러 나간다
         float sh = 1.0 - smoothstep(0.2, 4.6, dep);
         float cl = fract(dep * 0.5 - t * 0.09 + n2 * 0.3);
-        float lines = (1.0 - smoothstep(0.0, 0.1, abs(cl - 0.5))) * sh * step(0.25, dep);
+        float lines = 0.0;   // 등심선은 뺐다: 바다 밑 지형 윤곽이 드러났다 다시 그려져 눈이 아팠다
         // 노래 줄기: 합창당 한가운데로 모이는 빛 줄, 빛 마디가 안쪽으로 흘러든다
         vec2 q = p - ctr; float r = length(q), a = atan(q.y, q.x);
         float wob = vn(vec2(r * 0.018, a * 2.5)) * 1.3;
         float vv = abs(fract(a * 2.5465 + wob) - 0.5);
-        float vein = (1.0 - smoothstep(0.012, 0.05, vv * min(r, 160.0) / 60.0)) * smoothstep(26.0, 40.0, r) * (1.0 - smoothstep(330.0, 470.0, r));
-        float pulse = smoothstep(0.7, 1.0, fract(r * 0.011 + t * 0.085 + floor(a * 2.5465 + wob) * 0.37));
+        float vein = (1.0 - smoothstep(0.0, 0.16, vv * min(r, 160.0) / 60.0)) * (1.0 - smoothstep(180.0, 700.0, dist)) * smoothstep(26.0, 40.0, r) * (1.0 - smoothstep(330.0, 470.0, r));
+        float pulse = 0.5 + 0.5 * sin(6.2832 * (r * 0.011 + t * 0.04 + floor(a * 2.5465 + wob) * 0.37));
         // 퍼지는 빛 물결
         float rings = 0.0;
         for (int i = 0; i < 12; i++) {
@@ -73,13 +73,13 @@ export function seaGlow(w, rip, giantDir) {
         float gd = dot(Rf, gdir);
         float refl = smoothstep(0.95, 0.985, gd) * (0.3 + 0.7 * smoothstep(0.35, 0.75, n2));
         vec3 teal = vec3(0.10, 0.95, 0.85), blue = vec3(0.12, 0.42, 1.0), pink = vec3(1.0, 0.35, 0.8);
-        vec3 c = mix(blue, teal, n1) * (0.06 + patc * 0.2) + teal * (sh * 0.34 + lines * 0.55)
-               + mix(teal, vec3(0.7, 1.0, 1.0), pulse) * vein * (0.16 + pulse * 0.85) + mix(teal, pink, 0.45) * min(rings, 1.5) * 0.7
+        vec3 c = mix(blue, teal, n1) * (0.06 + patc * 0.2) + teal * (sh * 0.22)
+               + mix(teal, vec3(0.7, 1.0, 1.0), pulse) * vein * (0.14 + pulse * 0.4) + mix(teal, pink, 0.45) * min(rings, 1.5) * 0.7
                + vec3(0.35, 0.9, 0.95) * refl * 0.5;
         // 목구멍 둘레의 밝은 테
         c += vec3(0.6, 1.0, 0.95) * (1.0 - smoothstep(0.0, 9.0, r - ${CHOIR.tR.toFixed(1)})) * 0.7;
         float land = smoothstep(-0.05, 0.12, dep) * step(${(CHOIR.tR - 0.4).toFixed(1)}, r);
-        float far = mix(0.4, 1.0, smoothstep(1300.0, 260.0, dist)) * smoothstep(1500.0, 1150.0, dist);
+        float far = mix(0.3, 1.0, smoothstep(1000.0, 200.0, dist)) * smoothstep(1500.0, 1150.0, dist);
         gl_FragColor = vec4(c * land * far, 1.0);
         ${TAIL}
       }`,
