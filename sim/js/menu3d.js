@@ -519,6 +519,7 @@ export class MenuScene {
       this.mark = new THREE.Group(); this.mark.add(mk(1, 0.03, 0.9), mk(1.35, 0.012, 0.5));
       this.mark.visible = false; this.mark.renderOrder = 10; this.mark.children.forEach((m) => (m.renderOrder = 10));
       sc.add(this.mark);
+      this._mkHolo();
     }
     this.setLook(settings.drone);
   }
@@ -547,6 +548,82 @@ export class MenuScene {
   studioZoom(k) { const S = this.studio; if (!S) return; S.zoom = Math.max(0.45, Math.min(1.7, S.zoom * k)); S.idle = 3; }
   studioReset() { const S = this.studio; if (!S) return; S.zoom = 1; S.pitch = 0.38; S.slot = null; S.aim = null; S.idle = 0; }
   _anchor(slot) { return partAnchor(this.model, slot); }
+
+  // ── 정비소 홀로그램 무대: 발판 위 빛 고리·눈금·빛 기둥, 등장 스캔, 장착 이펙트 ──
+  _mkHolo() {
+    const add = (c, op) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(1.5), transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const H = (this.holo = new THREE.Group()); H.visible = false;
+    const r1 = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.612, 96), add(0x5ff0ff, 0.75)); r1.rotation.x = -Math.PI / 2; r1.position.y = -0.026;
+    const r2 = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.664, 96), add(0x5ff0ff, 0.35)); r2.rotation.x = -Math.PI / 2; r2.position.y = -0.026;
+    const tick = new THREE.Group(); tick.position.y = -0.025;
+    const tm = add(0x5ff0ff, 0.8);
+    for (let i = 0; i < 36; i++) { const a = (i / 36) * Math.PI * 2, b = new THREE.Mesh(new THREE.PlaneGeometry(i % 3 ? 0.012 : 0.03, 0.004), tm); b.rotation.x = -Math.PI / 2; b.rotation.z = -a; b.position.set(Math.cos(a) * 0.63, 0, Math.sin(a) * 0.63); tick.add(b); }
+    const arcs = new THREE.Group(); arcs.position.y = -0.024;
+    for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.RingGeometry(0.69, 0.7, 48, 1, (i / 3) * Math.PI * 2, 1.1), add(0x5ff0ff, 0.6)); m.rotation.x = -Math.PI / 2; arcs.add(m); }
+    // 빛 기둥: 위로 갈수록 옅어지는 원통
+    const cv = document.createElement("canvas"); cv.width = 4; cv.height = 64;
+    const cx = cv.getContext("2d"), gr = cx.createLinearGradient(0, 64, 0, 0); gr.addColorStop(0, "rgba(95,240,255,0.5)"); gr.addColorStop(0.35, "rgba(95,240,255,0.12)"); gr.addColorStop(1, "rgba(95,240,255,0)");
+    cx.fillStyle = gr; cx.fillRect(0, 0, 4, 64);
+    const tex = new THREE.CanvasTexture(cv);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.55, 64, 1, true), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    beam.position.y = 0.25;
+    // 스캔 고리: 등장할 때 아래→위로 훑는다
+    const scan = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.56, 96), add(0x9ffcff, 0)); scan.rotation.x = -Math.PI / 2;
+    H.add(r1, r2, tick, arcs, beam, scan);
+    Object.assign(H.userData, { r2, tick, arcs, beam, scan });
+    this.scene.add(H);
+    this.fx = [];
+  }
+  // 정비소에 들어올 때: 아래에서 위로 스캔하며 기체가 나타난다
+  studioScan() { if (this.holo) this._scan = 0; }
+  // 장착·구매 이펙트: 부품 자리(없으면 기체 가운데)에 등급 색 빛 고리와 입자
+  studioBurst(color = 0x5ff0ff, slot = null, big = false) {
+    if (!this.holo || !this.model) return;
+    const c0 = new THREE.Color(color), c = c0.r === c0.g && c0.g === c0.b || Math.abs(c0.r - c0.b) < 0.12 && Math.abs(c0.g - c0.b) < 0.12 ? new THREE.Color(0x5ff0ff) : c0, P = new THREE.Vector3(0, 0.17, 0), a = this._anchor(slot);
+    this.model.updateMatrixWorld(true);
+    if (a && this.model.userData.inner) { P.copy(a); this.model.userData.inner.localToWorld(P); }
+    const mat = (op) => new THREE.MeshBasicMaterial({ color: c.clone().multiplyScalar(1.8), transparent: true, opacity: op, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const sz = (a ? 0.022 : 0.14) * this.size * (big ? 1.4 : 1);
+    for (let i = 0; i < (big ? 3 : 2); i++) {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 48), mat(0.9)); m.position.copy(P); m.renderOrder = 11; m.scale.setScalar(sz * 0.2);
+      this.scene.add(m); this.fx.push({ m, t: -i * 0.12, life: 0.7, k: "ring", s: sz * (1.6 + i * 0.6) });
+    }
+    const n = big ? 60 : 36, pos = new Float32Array(n * 3), vel = [];
+    for (let i = 0; i < n; i++) { pos.set([P.x, P.y, P.z], i * 3); const v = new THREE.Vector3().randomDirection().multiplyScalar((0.25 + Math.random() * 0.45) * this.size * (a ? 0.25 : 1)); vel.push(v); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    if (!this._dot) { const cv = document.createElement("canvas"); cv.width = cv.height = 32; const x = cv.getContext("2d"), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.6)"); gr.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); this._dot = new THREE.CanvasTexture(cv); }
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ map: this._dot, color: c.clone().multiplyScalar(2), size: (a ? 0.008 : 0.014) * this.size, transparent: true, opacity: 1, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    pts.renderOrder = 11; this.scene.add(pts); this.fx.push({ m: pts, t: 0, life: 0.9, k: "pts", vel });
+    if (big) { const b = this.holo.userData.beam; b.userData.flash = 1; b.userData.c = c; }
+  }
+  _holoTick(dt, on) {
+    const H = this.holo; if (!H) return;
+    H.visible = on;
+    if (on) {
+      const U = H.userData, t = this.t;
+      U.tick.rotation.y = t * 0.12; U.arcs.rotation.y = -t * 0.35; U.r2.material.opacity = 0.25 + 0.15 * Math.sin(t * 2.2);
+      const f = (U.beam.userData.flash = Math.max(0, (U.beam.userData.flash || 0) - dt * 1.4));
+      const zf = this.studio ? this.studio._f : 0;
+      U.beam.material.opacity = (0.55 + 0.1 * Math.sin(t * 3)) * (1 - zf * 0.85) + f * 1.2;
+      U.beam.material.color.setRGB(1, 1, 1).lerp(U.beam.userData.c || new THREE.Color(1, 1, 1), f);
+      if (this._scan !== undefined && this._scan !== null) {
+        this._scan += dt / 1.1; const k = this._scan;
+        U.scan.position.y = -0.02 + k * 0.42 * this.size; U.scan.scale.setScalar(1 - k * 0.25);
+        U.scan.material.opacity = k < 0.1 ? k * 9 : Math.max(0, 1 - (k - 0.7) / 0.3) * 0.9;
+        if (this.model) this.model.scale.setScalar(Math.min(1, 0.7 + k * 0.6));
+        if (k >= 1) { this._scan = null; U.scan.material.opacity = 0; if (this.model) this.model.scale.setScalar(1); }
+      }
+    }
+    for (let i = this.fx.length - 1; i >= 0; i--) {
+      const F = this.fx[i]; F.t += dt;
+      const k = F.t / F.life;
+      if (k >= 1 || !on) { this.scene.remove(F.m); F.m.geometry.dispose(); F.m.material.dispose(); this.fx.splice(i, 1); continue; }
+      if (k < 0) { F.m.visible = false; continue; }
+      F.m.visible = true;
+      if (F.k === "ring") { F.m.quaternion.copy(this.camera.quaternion); F.m.scale.setScalar(F.s * (0.15 + Math.sqrt(k))); F.m.material.opacity = 0.9 * (1 - k); }
+      else { const a = F.m.geometry.attributes.position; for (let j = 0; j < F.vel.length; j++) { a.array[j * 3] += F.vel[j].x * dt; a.array[j * 3 + 1] += F.vel[j].y * dt; a.array[j * 3 + 2] += F.vel[j].z * dt; F.vel[j].multiplyScalar(Math.exp(-dt * 2.5)); } a.needsUpdate = true; F.m.material.opacity = 1 - k * k; }
+    }
+  }
 
   // parts: 미리보기용 파츠 구성 (주지 않으면 지금 장착한 것)
   setLook(look, parts) {
@@ -606,6 +683,7 @@ export class MenuScene {
     if (VG) {
       const v = VG.view;
       VG.tick(dt, this.t);
+      if (this.holo && (this.holo.visible || this.fx.length)) this._holoTick(dt, false);
       this.angle += (v.spin + this.drag) * dt;
       this.drag *= Math.exp(-dt * 5);
       const d = v.dist / fit / Math.max(0.62, narrow);
@@ -643,7 +721,9 @@ export class MenuScene {
         }
       }
       this.model.userData.tick(dt, 0.3, this.t);
+      this._holoTick(dt, true);
     } else {
+      if (this.holo && (this.holo.visible || this.fx.length)) this._holoTick(dt, false);
       this.angle += (this.spin + this.drag) * dt;
       this.drag *= Math.exp(-dt * 5);
       // 파츠 살펴보기(low): 더 가까이, 기체 높이에서 본다 — 배 아래 무장·배터리가 보이게

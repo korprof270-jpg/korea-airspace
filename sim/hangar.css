@@ -260,3 +260,70 @@
 .hg.nar .hg-dh, .hg.nar .hg-dm, .hg.nar .hg-da { padding-left: 16px; padding-right: 16px; }
 .hg.nar .hg-dn b { font-size: 15.5px; }
 .hg.nar .hg-msg { left: 16px; right: 16px; }
+
+/* ── 홀로그램 정비소: 기울어진 투명 유리판 · 빛 테두리 · 주사선 · 등장/장착 연출 ── */
+#ui > .screen.hg { perspective: 1500px; perspective-origin: 50% 45%;
+  background: radial-gradient(70% 60% at 50% 60%, transparent 35%, rgba(2, 10, 24, 0.55)), linear-gradient(180deg, rgba(0, 20, 40, 0.18), transparent 30%); }
+.hg { --hp: linear-gradient(160deg, rgba(10, 40, 66, 0.62), rgba(4, 16, 32, 0.74)); --hl: rgba(95, 240, 255, 0.32); --cy: #5ff0ff; }
+.hg-top { background: linear-gradient(180deg, rgba(4, 24, 44, 0.78), rgba(4, 20, 38, 0.3)); border-bottom: 1px solid var(--hl); box-shadow: 0 1px 0 rgba(95, 240, 255, 0.12), 0 8px 24px -12px rgba(95, 240, 255, 0.35); position: relative; }
+.hg-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, var(--cy) 20%, transparent 40%, transparent 60%, var(--cy) 80%, transparent); opacity: 0.8; animation: hgSweep 4s linear infinite; background-size: 200% 100%; }
+.hg-ttl h2 { text-shadow: 0 0 10px rgba(95, 240, 255, 0.55); animation: hgFlick 7s infinite; }
+.hg-ttl .en { text-shadow: 0 0 8px var(--cy); }
+.hg-nav, .hg-side { background: var(--hp); border-color: var(--hl); box-shadow: inset 0 0 30px rgba(95, 240, 255, 0.07), 0 0 24px -8px rgba(95, 240, 255, 0.4); }
+.hg-nav { --tl: 9deg; transform: rotateY(var(--tl)); transform-origin: left center; border-right: 1px solid var(--hl);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%); }
+.hg-side { --tr: -7deg; transform: rotateY(var(--tr)); transform-origin: right center; border-left: 1px solid var(--hl);
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); }
+/* 주사선 */
+.hg-nav::after, .hg-side::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 6;
+  background: repeating-linear-gradient(0deg, rgba(95, 240, 255, 0.045) 0 1px, transparent 1px 3px), linear-gradient(180deg, transparent 0, rgba(95, 240, 255, 0.09) 50%, transparent 100%) 0 -100% / 100% 30% no-repeat;
+  animation: hgScanline 6s linear infinite; }
+.hg-nav::after { display: none; }
+.hg-g h4 { color: #6fe4ff; text-shadow: 0 0 6px rgba(95, 240, 255, 0.5); }
+.hg-c { color: #c8f4ff; }
+.hg-c .ic { background: rgba(95, 240, 255, 0.08); border: 1px solid rgba(95, 240, 255, 0.22); color: #9ff6ff; }
+.hg-c:hover { background: rgba(95, 240, 255, 0.08); }
+.hg-c.on { background: linear-gradient(90deg, rgba(95, 240, 255, 0.28), rgba(95, 240, 255, 0.04)); border-color: rgba(95, 240, 255, 0.6); text-shadow: 0 0 8px rgba(95, 240, 255, 0.7); }
+.hg-lh h3 { color: #dffbff; text-shadow: 0 0 8px rgba(95, 240, 255, 0.5); }
+.hg-it { border-radius: 4px; background: linear-gradient(170deg, color-mix(in srgb, var(--gc) 16%, rgba(8, 30, 52, 0.55)), rgba(4, 16, 30, 0.6) 65%); box-shadow: inset 0 0 14px color-mix(in srgb, var(--gc) 14%, transparent);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+.hg-it:hover { box-shadow: inset 0 0 18px color-mix(in srgb, var(--gc) 30%, transparent); }
+.hg-it.sel { box-shadow: inset 0 0 0 2px var(--gc), inset 0 0 22px color-mix(in srgb, var(--gc) 45%, transparent); }
+.hg-it .ith { border-radius: 2px; }
+.hg-det { background: linear-gradient(180deg, rgba(4, 22, 40, 0.82), rgba(3, 14, 28, 0.88)); border-top: 1px solid var(--hl); }
+.hg-det.hov { background: linear-gradient(180deg, rgba(8, 34, 58, 0.86), rgba(4, 18, 34, 0.9)); }
+.hg-dh { border-top-color: var(--gc); box-shadow: 0 -1px 12px color-mix(in srgb, var(--gc) 60%, transparent); }
+.hg-dn b { text-shadow: 0 0 10px color-mix(in srgb, var(--gc, #5ff0ff) 60%, transparent); }
+.hg-tag { background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 26%, rgba(4, 20, 38, 0.6)), rgba(4, 20, 38, 0)); text-shadow: 0 0 10px color-mix(in srgb, var(--gc) 60%, transparent); }
+.hg-tag::after { content: ""; position: absolute; left: -3px; right: 30%; bottom: -1px; height: 1px; background: linear-gradient(90deg, var(--gc), transparent); }
+.hg-vb { border-radius: 4px; background: rgba(4, 22, 40, 0.55); box-shadow: 0 0 10px rgba(95, 240, 255, 0.25); }
+.hg-rate { background: linear-gradient(180deg, rgba(4, 24, 44, 0.55), rgba(4, 18, 34, 0.7)); border-color: var(--hl); border-radius: 4px; box-shadow: 0 0 20px -6px rgba(95, 240, 255, 0.5), inset 0 0 20px rgba(95, 240, 255, 0.06); }
+.hg-stage::after { opacity: 0.75; filter: drop-shadow(0 0 4px #5ff0ff); }
+.hg-stage::before { content: ""; position: absolute; left: 14px; right: 14px; top: 14px; height: 1px; pointer-events: none; z-index: 0;
+  background: linear-gradient(90deg, transparent, rgba(95, 240, 255, 0.7), transparent); animation: hgStageScan 5s ease-in-out infinite; }
+.hg-msg { background: rgba(6, 40, 52, 0.88); border-color: #5ff0ff; box-shadow: 0 0 18px rgba(95, 240, 255, 0.4); border-radius: 4px; }
+.hg-msg.bad { background: rgba(60, 12, 22, 0.9); border-color: #ff5a6a; box-shadow: 0 0 18px rgba(255, 90, 106, 0.4); }
+/* 장착·구매 빛 번짐 (무대 위) */
+.hg-burst { position: absolute; inset: 0; pointer-events: none; z-index: 2; background: radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--gc) 45%, transparent), transparent 45%); animation: hgBurst 0.8s ease-out forwards; }
+.hg-burst.big { background: radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--gc) 70%, transparent), transparent 60%); animation-duration: 1.2s; }
+.hg-burst b { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font-size: 22px; font-weight: 900; letter-spacing: 0.2em; color: #fff; text-shadow: 0 0 12px var(--gc), 0 0 24px var(--gc); white-space: nowrap; animation: hgBurstT 1.2s ease-out forwards; }
+/* 정비소에 들어올 때: 패널이 펼쳐지듯 */
+.hg.enter .hg-top { animation: hgDrop2 0.45s ease-out both; }
+.hg.enter .hg-nav { animation: hgUnL 0.6s 0.1s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.hg.enter .hg-side { animation: hgUnR 0.6s 0.15s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.hg.enter .hg-rate, .hg.enter .hg-tag, .hg.enter .hg-vc { animation: hgFade 0.5s 0.55s both; }
+@keyframes hgUnL { 0% { opacity: 0; transform: rotateY(60deg) scaleY(0.02); filter: brightness(3); } 45% { opacity: 1; transform: rotateY(30deg) scaleY(1); } 100% { transform: rotateY(var(--tl)); } }
+@keyframes hgUnR { 0% { opacity: 0; transform: rotateY(-60deg) scaleY(0.02); filter: brightness(3); } 45% { opacity: 1; transform: rotateY(-30deg) scaleY(1); } 100% { transform: rotateY(var(--tr)); } }
+@keyframes hgDrop2 { from { opacity: 0; transform: translateY(-100%); } }
+@keyframes hgFade { from { opacity: 0; } }
+@keyframes hgFlick { 0%, 92%, 96%, 100% { opacity: 1; } 93% { opacity: 0.55; } 95% { opacity: 0.85; } }
+@keyframes hgSweep { from { background-position: 200% 0; } to { background-position: 0 0; } }
+@keyframes hgScanline { from { background-position: 0 0, 0 -100%; } to { background-position: 0 60px, 0 250%; } }
+@keyframes hgStageScan { 0%, 100% { top: 14px; opacity: 0; } 10% { opacity: 1; } 50% { top: calc(100% - 14px); opacity: 0.8; } 60% { opacity: 0; } }
+@keyframes hgBurst { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: scale(1.4); } }
+@keyframes hgBurstT { 0% { opacity: 0; transform: translateX(-50%) scale(1.6); letter-spacing: 0.6em; } 25% { opacity: 1; transform: translateX(-50%) scale(1); letter-spacing: 0.2em; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+/* 좁은 세로 화면·낮은 화면: 기울기 줄임 */
+.hg.nar .hg-nav, .hg.nar .hg-side { transform: none; clip-path: none; }
+.hg.nar.enter .hg-nav, .hg.nar.enter .hg-side { animation: hgFade 0.5s 0.1s both; }
+.hg.lo .hg-nav { --tl: 6deg; } .hg.lo .hg-side { --tr: -4deg; }
+@media (prefers-reduced-motion: reduce) { .hg.enter .hg-top, .hg.enter .hg-nav, .hg.enter .hg-side { animation: none; } .hg-nav::after, .hg-side::after, .hg-stage::before, .hg-ttl h2 { animation: none; } }
