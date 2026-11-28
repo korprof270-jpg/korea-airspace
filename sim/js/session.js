@@ -74,7 +74,7 @@ export class Session {
   update(dt0) {
     const g = this.game, inp = g.input, pl = this.player, mode = this.mode;
     this.timeK = this._timeScale(dt0);
-    const dt = dt0 * this.timeK;
+    const dt = this.hold ? 0 : dt0 * this.timeK;   // hold: 업그레이드 창 등으로 세계를 잠시 멈춤 (혼자 할 때)
     this.time += dt;
     if (mode.state === "run" && !pl.crashed && !pl.body.onGround) GP.ev("fly", dt);
     // 지난 프레임의 화면 흔들림을 걷어낸다: 모드·판정 코드는 흔들리지 않은 카메라만 본다

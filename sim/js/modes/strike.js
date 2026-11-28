@@ -174,13 +174,13 @@ export class StrikeMode extends CombatMode {
       btn.style.cssText = "display:flex;width:100%;align-items:center;gap:8px;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid #5a2a3a;background:#2a1220;color:#fff;font:inherit;cursor:pointer;text-align:left";
       btn.innerHTML = `<span style="color:#ff6b8a;width:62px">❤ 목숨</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b data-cost style="color:#ffd24a;min-width:64px;text-align:right">${LIFE_COST}ⓟ</b>`;
       btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.buyLife(); });
-      const help = this.shop.el.querySelector("[data-help]");
-      this.shop.el.insertBefore(btn, help);
+      const slot = this.shop.extra || this.shop.el;
+      slot.appendChild(btn);
       const rb = (this.reviveBtn = document.createElement("button"));
       rb.style.cssText = btn.style.cssText.replace("#5a2a3a", "#2a5a3a").replace("#2a1220", "#12261a") + ";display:none";
       rb.innerHTML = `<span style="color:#8cff4a;width:62px">🤝 구조</span><span data-lv style="flex:1;color:#cfd8e6;font-size:11.5px"></span><b style="color:#ffd24a;min-width:64px;text-align:right">${REVIVE_COST}ⓟ</b>`;
       rb.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.reviveMate(); });
-      this.shop.el.insertBefore(rb, help);
+      slot.appendChild(rb);
     }
     this._go(0);
     setTimeout(() => { if (this.state !== "done") this.s.hud.toast(this.carry ? `앞 작전의 업그레이드를 이어받았습니다 · ${Math.floor(me.aos.pts)}ⓟ` : this.op.n > 1 ? `작전 ${this.op.n} 출발 보급 ${START_PTS[this.op.n - 1]}ⓟ (이어서 하면 업그레이드를 그대로 이어받습니다)` : `출발 보급 ${START_PTS[0]}ⓟ`, "#ffd24a", 3, 22); }, 2500);
@@ -285,7 +285,7 @@ export class StrikeMode extends CombatMode {
     const me = this.me, D = me.aos, c = this.cost(me, key);
     if (!(D.pts >= c)) return false;
     D.pts -= c; D.up[key]++; this._applyStats();
-    this.s.game.sound.play("pickup"); this.s.hud.toast(`${UP[key].name} Lv${D.up[key] + 1}`, UP[key].color, 1, 20);
+    this.s.hud.toast(`${UP[key].name} Lv${D.up[key]}`, UP[key].color, 1, 20);   // 효과음은 업그레이드 창이 낸다
     return true;
   }
   _applyStats(init) {
