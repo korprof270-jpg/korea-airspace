@@ -64,7 +64,7 @@ const TITLE_SLIDES = [["1-race", "레이싱 · 석양의 항만"], ["2-combat", 
 const HUB = {
   practice: { name: "연습 모드", en: "PRACTICE", c: "#ffd24a", img: "7-training", desc: "부담 없이 조작을 익히는 곳. 단계별 비행훈련과 시간 제한 없는 자유 비행.", items: ["training", "trick", "free"] },
   story: { name: "스토리 모드", en: "STORY", c: "#3dd68c", img: "4-story", desc: "휴마 연합의 신입 파일럿이 되어 버려진 기체 ‘노을’과 함께 에이아 제국에 맞섭니다. 갈림길마다 작전을 골라 다른 임무를 겪습니다." },
-  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱·추적·묘기·공중전으로 기록과 점수를 겨룹니다.", items: ["race", "tracking", "freestyle", "survival"] },   // 레이드는 메뉴에서 뺐다 (사용자 요청)
+  game: { name: "게임 모드", en: "GAME", c: "#ff5a1f", img: "2-combat", desc: "레이싱과 공중전으로 기록과 점수를 겨룹니다.", items: ["race", "survival"] },   // 트래킹·프리스타일은 메뉴에서 숨김 (코드는 남겨 둠) //   // 레이드는 메뉴에서 뺐다 (사용자 요청)
   survival: { name: "서바이벌", en: "SURVIVAL", c: "#ff3d5a", img: "2-combat", items: ["pve"], back: "game", hidden: true },   // PVP 메뉴 제외
 };
 const SUB = {
@@ -134,6 +134,7 @@ export class UI {
     this.tab = "control";
     const d = { mode: "race", map: MAP_LIST[0].id, track: null, laps: 3, rivals: 3, subject: null, fs: "timed", variant: "dm", bots: 5, time: 180, mission: MISSIONS[0].id, team: 0 };
     this.sel = Object.assign(d, settings.last || {});
+    if (this.sel.mode === "tracking" || (this.sel.mode === "freestyle" && this.sel.fs !== "free")) this.sel.mode = "race";   // 숨긴 모드가 저장돼 있으면 레이싱으로
     if (!MAPS[this.sel.map]) this.sel.map = MAP_LIST[0].id;
 
     this.root.addEventListener("click", (e) => {
